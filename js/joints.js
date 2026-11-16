@@ -35,6 +35,7 @@ function defaultType(j){
   if(!th)return(j.fa==='edge'&&j.fb==='edge')?(j.k===1?'none':'glue'):'pocket'; // boards stacked on edge just rest on each other
   const tp=j[th],d=th==='a'?j.da:j.db,ot=th==='a'?j.b:j.a,of=th==='a'?j.fb:j.fa;
   if(d<=.3)return'nail';
+  if(M[ot.mat].kind==='sheet'&&of==='edge'&&ot.t<=.3)return'none'; // nothing holds in the edge of a 1/4 in panel
   if(M[ot.mat].kind==='sheet'&&of==='edge'&&ot.t<=.5&&isSquare(M[tp.mat]))return'none'; // thin panel just butting a leg
   if(isSquare(M[tp.mat])&&!(j.fa==='face'&&j.fb==='face'&&isSquare(M[j.a.mat])&&isSquare(M[j.b.mat])))return'pocket';
   if(d>1.6)return'pocket';

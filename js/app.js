@@ -308,7 +308,12 @@ function makePreset(add){
   const preset=curPreset,vals=readVals(true);
   if(!vals)return;
   const parts=preset.build(vals);
-  if(!parts.length){showMessage('Nothing fits','Nothing fits with those sizes. Try a wider or taller space.');return;}
+  if(!parts.length){
+    // a preset that builds nothing says why in its own remark (too small, would tip over): show that, not a guess
+    const why=preset.info?preset.info(vals):'';
+    showMessage('This cannot be built',why||'Nothing fits with those sizes. Try a wider or taller space.');
+    return;
+  }
   if(add||!S.parts.length){placePreset(preset,vals,parts,add);return;}
   askConfirm('Replace the design on screen with this one? Undo (Ctrl+Z) brings the old design back.',
     {title:'Replace the current design',action:'Replace'},()=>placePreset(preset,vals,parts,false));
@@ -328,6 +333,14 @@ function placePreset(preset,vals,parts,add){
   if(preset.hw)S.hw=(S.hw||[]).concat(preset.hw(vals));
   sel=new Set();
   addParts(parts);
+  // A preset can name the fastener between two kinds of piece itself, joints:[['Side','Top','glue']], where the
+  // suggestion worked out from the shapes alone would be wrong. It is kept like a choice made on the Joints tab.
+  if(preset.joints){
+    const own=new Set(parts);  // only this preset's pieces, so "Add beside" leaves the design already there alone
+    const named=(j,a,b)=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a);
+    for(const j of findJoints())if(own.has(j.a)&&own.has(j.b))
+      for(const[a,b,type]of preset.joints)if(named(j,a,b))S.joints[j.key]=type;
+  }
   try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
   $('#presetDlg').close();
   setTab('design');

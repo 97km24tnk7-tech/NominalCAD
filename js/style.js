@@ -69,8 +69,12 @@ function jSpec(j,type){
   const long=Math.max(j.ru[1]-j.ru[0],j.rv[1]-j.rv[0]),th=thruPart(j);
   const dT=th?(th==='a'?j.da:j.db):null,dO=th?(th==='a'?j.db:j.da):null;
   const hw=[];let text='',n=0,glue=false;
+  // A fastener must stop at least 1/8 in short of the far face, or it pokes out of the wood. pickLE allows a
+  // length up to .13 over what it is given (so a 1-5/8 screw can stand in for 1.5), so that slack is taken off
+  // the limit here: the length picked can never reach the far face.
+  const stopShort=th?dT+dO-.125-.13:0;
   if(type==='screw'){n=Math.max(2,Math.ceil(long/8));
-    const len=th?pickLE(SCREWS,Math.min(dT+Math.min(1.5,Math.max(.75,dT*1.2)),dT+dO-.125)):SCREWS[4];
+    const len=th?pickLE(SCREWS,Math.min(dT+Math.min(1.5,Math.max(.75,dT*1.2)),stopShort)):SCREWS[4];
     text=`${n} × #8 × ${len[1]} wood screws`+(th?'':' driven at an angle');hw.push([`#8 × ${len[1]} wood screws`,n]);glue=true;}
   else if(type==='pocket'){n=long<2?1:Math.max(2,Math.ceil(long/6));
     const hp=th?(th==='a'?j.b:j.a):(j.fa==='end'?j.a:j.fb==='end'?j.b:(j.a.t<=j.b.t?j.a:j.b)),t=hp.t;
@@ -79,7 +83,7 @@ function jSpec(j,type){
   else if(type==='dowel'){n=Math.max(2,Math.ceil(long/6));const thin=Math.min(j.a.t,j.b.t)<.7;
     const d=thin?'1/4" × 1"':'3/8" × 1-1/2"';text=`${n} × ${d} dowels + glue`;hw.push([`${d} wood dowels`,n]);glue=true;}
   else if(type==='nail'){n=Math.max(2,Math.ceil(long/6));
-    const len=th?pickLE(BRADS,Math.min(dT*2.5,dT+dO-.125)):BRADS[3];
+    const len=th?pickLE(BRADS,Math.min(dT*2.5,stopShort)):BRADS[3];
     text=`${n} × ${len[1]} brad nails + glue`;hw.push([`${len[1]} brad nails (18 gauge)`,n]);glue=true;}
   else if(type==='bracket'){n=Math.max(1,Math.ceil(long/18));
     text=`${n} × 1-1/2" L-bracket${n>1?'s':''} (4 screws each)`;hw.push(['1-1/2" L-brackets (corner braces)',n],['#8 × 5/8" screws for brackets',n*4]);}

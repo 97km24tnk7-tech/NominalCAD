@@ -10,8 +10,22 @@ const priceOf=(id,stock)=>(userPrice[pkey(id)]??(PRICE8[id]??0)*(M[id].kind==='s
 function packBoards(lens,stock){const K=.125,bins=[];
   lens.slice().sort((a,b)=>b-a).forEach(l=>{let b=bins.find(b=>b.used+(b.cuts.length?K:0)+l<=stock+1e-6);
     if(!b){b={used:0,cuts:[]};bins.push(b);}b.used+=(b.cuts.length?K:0)+l;b.cuts.push(l);});return bins;}
-function packSheets(rects){const SW=96,SH=48,K=.125,sheets=[],over=[];
-  rects.sort((p,q)=>Math.max(q.a,q.b)-Math.max(p.a,p.b));
+/* How the panels are laid out on 4 x 8 sheets. Rows are filled left to right, and the order the panels are
+   taken in decides how well they pack, so three orders are tried (longest side first, widest first, biggest
+   first) and the one that needs the fewest sheets is kept. Longest side first wins a tie. */
+const SHEET_ORDERS=[
+  (p,q)=>Math.max(q.a,q.b)-Math.max(p.a,p.b),
+  (p,q)=>Math.min(q.a,q.b)-Math.min(p.a,p.b)||Math.max(q.a,q.b)-Math.max(p.a,p.b),
+  (p,q)=>q.a*q.b-p.a*p.b];
+function packSheets(rects){
+  let best=null;
+  for(const order of SHEET_ORDERS){
+    const tried=packSheetsIn(rects.slice().sort(order));
+    if(!best||tried.sheets.length<best.sheets.length)best=tried;
+  }
+  return best;
+}
+function packSheetsIn(rects){const SW=96,SH=48,K=.125,sheets=[],over=[];
   for(const r of rects){
     const opts=[[r.a,r.b],[r.b,r.a]].filter(([w,h])=>w<=SW+1e-6&&h<=SH+1e-6);
     if(!opts.length){over.push(r);continue;}
