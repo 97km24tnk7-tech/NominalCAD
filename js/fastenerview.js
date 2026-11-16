@@ -232,6 +232,10 @@ PICKED_KINDS.conn={
         propsRow('Fasten with',`<select class="fld" data-conn-type="${link.key}">${types}</select>`,true)+
         propsRow('How many',`<b>${spec.n?spec.n:'none'}</b>`,true)+
         propsNote(`<b>${esc(spec.text)}</b><br>${esc(JTYPES[link.type][2])}`);
+      // a joint whose fastener follows the build style says so (STYLE_RULES, js/joints.js)
+      if(!S.joints[link.key]&&S.styled&&isStyleRule(S.styled[link.key])){
+        html+=propsNote('This fastener follows the build style (Style &amp; finish): Rustic / rough screws through from outside, the other two styles hide it. Picking one here keeps it in every style.');
+      }
     }else html+=propsNote(esc(linkSaid(link)));
     html+=propsSection('The two pieces')+
       `<div class="f3 even"><button class="btn t" data-conn-piece="${link.a.id}" title="Select this piece">${esc(link.a.name)}</button>`+

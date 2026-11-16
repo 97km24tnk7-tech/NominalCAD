@@ -38,12 +38,20 @@
      4. A screw is as long as the piece it passes through plus about two thirds of the piece that receives it, and
         never pokes out the far side. (jSpec picks the store length; the check at the bottom of this file makes sure
         none comes through.)
-     5. A pocket-hole screw leaves the hidden face at 15 degrees and comes out through the middle of the end of
-        its piece: 1-1/4" screws for 3/4" stock, 2-1/2" screws for 1-1/2" stock.
+     5. A pocket-hole screw leaves the hidden face at 15 degrees. The jig is set for the thinner of the two pieces
+        (POCKET_JIG in js/style.js: 1-1/4" screws for 3/4", 2-1/2" screws for 1-1/2"), the screw comes out of
+        the end half that setting in from the drilled face, and its head seats at the jig's shoulder. So a 2x4
+        apron under a 3/4" top takes 1-1/4" screws, whose points stay more than 1/4" under the top surface.
      6. Dowels sit in the middle of the joint, half in each piece, with at least 1/4" of wood left behind the hole.
      7. A screw or brad with no face to go straight through is driven at an angle through the end of one piece
         (about 30 degrees), starting about an inch back from the joint, on alternating sides.
-     8. An L-bracket goes in the inside corner, on the hidden side, with two screws into each piece.
+     8. An L-bracket goes in the inside corner, on the hidden side (under a top: on the inside face of the apron),
+        with two screws into each piece; one about every 12", the outer ones within 4" of the ends.
+    10. No pocket hole and no bracket goes where a third piece lies against the face (a cross rail that butts the
+        inside of an apron): it is moved along the row to the nearest place that is clear (f.clear).
+    11. A row of pocket holes along a piece keeps clear of the pocket holes in the ends of that same piece, on the
+        same face (the holes for a top against the holes that hold an apron to its legs): such a hole is moved
+        along the row past them (f.passEnds).
      9. Framing nails (stud walls, floor frames, roofs) follow js/framing.js: straight through a plate into the
         end of a stud, through plywood into the framing behind it, at an angle through the side of a piece that
         stands on another (toenailed). A nail that would reach the far face is driven at a slant so that it
@@ -73,6 +81,21 @@ function sizesInLabel(label){
 /* one of them, for a tip: '1-1/4" brad nails (18 gauge)' gives '1-1/4" brad nail' */
 function oneOf(label){
   return String(label).replace(/\s*\(.*\)$/,'').replace(/s$/,'');
+}
+/* Does a line from this point, going this way, run into one of these boxes ({lo, hi})? (the slab test) */
+function rayHitsBox(from,way,b){
+  let near=0,far=Infinity;
+  for(let k=0;k<3;k++){
+    if(Math.abs(way[k])<1e-9){
+      if(from[k]<b.lo[k]||from[k]>b.hi[k])return false;
+      continue;
+    }
+    let t1=(b.lo[k]-from[k])/way[k],t2=(b.hi[k]-from[k])/way[k];
+    if(t1>t2)[t1,t2]=[t2,t1];
+    near=Math.max(near,t1);far=Math.min(far,t2);
+    if(near>far)return false;
+  }
+  return far>0;
 }
 /* the outer bounds of a square-set piece */
 function plainBox(p){
@@ -265,7 +288,10 @@ function pocketPiece(j){
   if(side)return side==='a'?j.b:j.a;
   return j.fa==='end'?j.a:j.fb==='end'?j.b:(j.a.t<=j.b.t?j.a:j.b);
 }
-/* Pocket-hole screws (rule 5). */
+/* Pocket-hole screws (rule 5). The jig is set for the thinner of the two pieces (pocketJig, js/style.js), and the
+   bit drills to a fixed stop, so the head seats at the jig's shoulder: the screw is never "slid back" to make it
+   fit. The screw leaves the piece half the jig setting in from the drilled face (in the middle of the end when
+   the jig is set for the piece itself), and the hole opens on the hidden side. */
 function pocketScrews(j,shape,n,len,label){
   const through=pocketPiece(j),into=shape.other(through);
   const way=shape.signInto(into),box=plainBox(through);
@@ -273,33 +299,206 @@ function pocketScrews(j,shape,n,len,label){
   const s=through.ax[2]!==shape.k?through.ax[2]:shape.W,t=[0,1,2].find(i=>i!==shape.k&&i!==s);
   const rangeT=t===shape.L?shape.rangeL:shape.rangeW;
   const rangeS=s===shape.L?shape.rangeL:shape.rangeW;
-  const angle=FASTEN.pocketDegrees*Math.PI/180;
-  const bite=Math.min(len*.55,(shape.depthOf(into)-.125)/Math.cos(angle)); // how much of the screw ends up in the second piece
-  // Where the screw crosses the joint: the middle of the thickness. When the two pieces only meet over part of
-  // that thickness (an upright that stands half on the edge of a shelf deck), the middle of the part where they
-  // do meet, so that the point of the screw ends in the second piece and not beside it.
-  const middle=(box.lo[s]+box.hi[s])/2,keepIn=Math.min((rangeS[1]-rangeS[0])/2,bite*Math.sin(angle)+.05);
-  const crossS=Math.max(rangeS[0]+keepIn,Math.min(rangeS[1]-keepIn,middle));
+  const angle=FASTEN.pocketDegrees*Math.PI/180,sin=Math.sin(angle),cos=Math.cos(angle);
+  const jig=pocketJig(through,shape.depthOf(into));
+  const shoulder=Math.min(jig.shoulder,len-.25);   // a screw shorter than the jig's own (picked by hand) still bites 1/4"
+  const bite=len-shoulder;                          // how much of the screw ends up in the second piece
+  // Where the screw crosses the joint: half the jig setting in from the drilled face. When the two pieces only
+  // meet over part of the thickness (an upright that stands half on the edge of a shelf deck), it is kept inside
+  // the part where they do meet, so that the point of the screw ends in the second piece and not beside it.
+  const keepIn=Math.min((rangeS[1]-rangeS[0])/2,bite*sin+.05);
+  const crossFor=side=>{
+    const face=side>0?box.hi[s]:box.lo[s],wanted=face-side*jig.set/2;
+    return Math.max(rangeS[0]+keepIn,Math.min(rangeS[1]-keepIn,wanted));
+  };
   // the hole opens on the hidden side, unless the head of the screw would then sit outside the wood
-  const headOff=(len-bite)*Math.sin(angle);
+  const headOff=shoulder*sin+.02;
+  const toFaceOf=(side,cross)=>side>0?box.hi[s]-cross:cross-box.lo[s];
   let hidden=hiddenSide(through,s);
-  const toFace=side=>side>0?box.hi[s]-crossS:crossS-box.lo[s];
-  if(toFace(hidden)<headOff&&toFace(-hidden)>toFace(hidden))hidden=-hidden;
-  const face=hidden>0?box.hi[s]:box.lo[s];
+  // A face that will be covered for good is better still: the back of a rail that a thin back panel is nailed over
+  // later, or the back of a cleat that is screwed to the wall (coveredForGood)
+  if(coveredForGood(through,s,-hidden)&&!coveredForGood(through,s,hidden))hidden=-hidden;
+  // A piece held at its ends by pocket holes of its own (a cross rail) gets the row that holds what lies on it (the
+  // top) on its other face, when that face is inside the frame too: drilled on the same face, the screws of the
+  // row would run into the screws of the ends inside the wood.
+  const heldAtEnds=endPocketsOn(through,j);
+  if(heldAtEnds&&faceIsInside(through,s,-hidden))hidden=-hidden;
+  let crossS=crossFor(hidden);
+  if(toFaceOf(hidden,crossS)<headOff&&toFaceOf(-hidden,crossFor(-hidden))>toFaceOf(hidden,crossS)){
+    hidden=-hidden;
+    crossS=crossFor(hidden);
+  }
   const dir=[0,0,0];
-  dir[shape.k]=way*Math.cos(angle);
-  dir[s]=-hidden*Math.sin(angle);
-  const mouthBack=Math.min(toFace(hidden)/Math.sin(angle),(shape.depthOf(through)-.1)/Math.cos(angle)); // from the joint back to where the hole opens
+  dir[shape.k]=way*cos;
+  dir[s]=-hidden*sin;
+  const mouthBack=Math.min(toFaceOf(hidden,crossS)/sin,(shape.depthOf(through)-.1)/cos); // from the joint back to where the hole opens
   const out=alongAxis(s,hidden);
-  return spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin).map(along=>{
+  // Rule 10: no hole opens where a third piece lies against that face (the cross rail that butts the inside of
+  // a long apron): such a hole is moved along the row to the nearest place that is clear.
+  const faceAt=hidden>0?box.hi[s]:box.lo[s];
+  const slot=[shape.plane-way*(mouthBack*cos+.4),shape.plane-way*Math.max(0,mouthBack*cos-.9)];
+  const blocked=coveredSpans(through,[into],{axis:s,at:faceAt,out:hidden},{axis:shape.k,range:slot},t);
+  // Rule 11: a row along a piece keeps clear of the pocket holes drilled in the ends of that piece on the same face
+  // (an apron's holes for the top against its holes into the legs): two holes that open into each other cannot
+  // both be drilled, and the second screw would run through the first hole.
+  const endHoles=endHoleSpans(through,j,out,t);
+  const evenly=spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin).map(a=>rangeT[0]+a);
+  const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3);
+  const inEndHoles=at=>endHoles.spans.some(([a,b])=>at>a-.3&&at<b+.3);
+  // A hole that found no clear place (a top board that only crosses the apron right beside a leg) is left out, and
+  // jSpec counts the holes that are left. When none is left the row stays as it was: placing a preset turns such a
+  // joint into one that only rests (roomForTopRows, js/joints.js), so this only happens after a change by hand.
+  const placed=alongs.map((place,index)=>({...place,index})).filter(place=>!inEndHoles(place.at));
+  const rows=placed.length?placed:alongs.map((place,index)=>({...place,index}));
+  const list=rows.map(({at,moved,index})=>{
+    const why=!moved?{}:inEndHoles(evenly[index])?{passEnds:endHoles.names}:{clear:blocked.names};
     const cross=[0,0,0];
     cross[shape.k]=shape.plane;
     cross[s]=crossS;
-    cross[t]=rangeT[0]+along;
-    return{kind:'pocket',pos:pointPlus(cross,dir,-(len-bite)),dir,len,...FASTENER_SIZE.pocket,through,into,label,
+    cross[t]=at;
+    return{kind:'pocket',pos:pointPlus(cross,dir,-shoulder),dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
       pocket:{mouth:pointPlus(cross,dir,-mouthBack),out,dia:.375},
+      ...why,
       tip:`${label}. Goes from a pocket hole in ${through.name} into ${into.name}. The holes are on the hidden side.`};
   });
+  // The layout depends on the neighbours: one that had to move a hole is worked out again at every change
+  // (loose), and one that did not is worked out again when the piece gets more or fewer neighbours (near).
+  if(blocked.spans.length||endHoles.spans.length||heldAtEnds)list.loose=true;
+  if(!placed.length&&endHoles.spans.length)list.noRoom=true;   // every hole of the row lands in the end holes
+  list.near={id:through.id,count:blocked.count};
+  return list;
+}
+/* Is this face of a piece covered for good once the piece is built in: a thin panel (1/4" or so, a back nailed on
+   after the frame is together) lies against all of it, or it is the back of a piece the design is screwed to the
+   wall by (its placement declares it in `wall`, js/app.js) and nothing stands behind it? Holes there never show. */
+const THIN_COVER=.3;
+function coveredForGood(piece,axis,side){
+  if(typeof connGraph!=='function'||!S.parts.includes(piece))return false;
+  const b=plainBox(piece),face=side>0?b.hi[axis]:b.lo[axis];
+  const others=[0,1,2].filter(k=>k!==axis);
+  for(const link of connectionsOf(piece.id)){
+    const other=link.a===piece?link.b:link.a;
+    if(isProp(other)||tilted(other)||M[other.mat].kind!=='sheet'||other.t>THIN_COVER)continue;
+    const o=plainBox(other);
+    const against=side>0?Math.abs(o.lo[axis]-face)<.03:Math.abs(o.hi[axis]-face)<.03;
+    if(against&&others.every(k=>o.lo[k]<=b.lo[k]+.05&&o.hi[k]>=b.hi[k]-.05))return true;
+  }
+  // the back of a piece screwed to the wall (the back of the design is z = its lowest)
+  const set=S.sets&&piece.set!==undefined?S.sets[piece.set]:null;
+  const onWall=set&&(set.wallFixed||(Array.isArray(set.wall)&&set.wall.includes(piece.name)));
+  if(onWall&&axis===2&&side<0){
+    const back=Math.min(...S.parts.filter(p=>p.set===piece.set&&!isProp(p)).map(p=>plainBox(p).lo[2]));
+    if(Math.abs(b.lo[2]-back)<.03)return true;
+  }
+  return false;
+}
+/* Is this piece held at its ends by pocket holes drilled in it, while the joint j is along its length (not at an end)? */
+function endPocketsOn(piece,j){
+  if(typeof connGraph!=='function'||!S.parts.includes(piece)||j.k===piece.ax[0])return false;
+  return connectionsOf(piece.id).some(link=>link.type==='pocket'&&link.joint&&link.joint.key!==j.key&&
+    link.joint.k===piece.ax[0]&&pocketPiece(link.joint)===piece);
+}
+/* How many pocket holes the layout of this joint really has, when the joint is one of the design as it is now
+   (0 when it is not, or while that is being worked out): a row may have left out holes that had no room past the
+   holes in the ends of its piece (rule 11). jSpec gives this number, so the lists count what is drawn. */
+let countingPockets=false;
+function pocketCountAsLaidOut(j){
+  if(countingPockets||typeof connGraph!=='function'||!S.parts.includes(j.a))return 0;
+  countingPockets=true;
+  try{
+    const link=connGraph().byKey.get(j.key),seen=link&&link.joint;
+    if(!seen||link.type!=='pocket'||seen.a!==j.a||seen.b!==j.b)return 0;
+    const same=CARRY_FIELDS.every(field=>seen[field]===j[field])&&
+      seen.ru[0]===j.ru[0]&&seen.ru[1]===j.ru[1]&&seen.rv[0]===j.rv[0]&&seen.rv[1]===j.rv[1];
+    return same?layoutAsLaidOut(link).length:0;
+  }finally{countingPockets=false;}
+}
+/* Rule 11: the stretches along a piece (direction t) that the pocket holes in its own ends take up on one face
+   (out: the way that face looks). A pocket hole opens as a long oval: the 3/8" bit crosses the face at 15 degrees,
+   so the oval runs about 3/4" each way from where the middle of the bit comes out (f.pocket.mouth), and the hole
+   goes on inside to where the head sits (f.pos). Only asked for a row along the piece (a top on an apron), never
+   for the joints at its ends, so working out their layouts here does not come back to this one.
+   Returns {spans: [[lo, hi]] along t, names: the pieces those holes go into}. */
+const END_HOLE_WEB=.25;   // wood left between two holes (inches), on top of the half hole clearOf keeps
+function endHoleSpans(piece,j,out,t){
+  const none={spans:[],names:[]};
+  if(typeof connGraph!=='function'||!S.parts.includes(piece)||j.k===piece.ax[0]||t!==piece.ax[0])return none;
+  const ovalHalf=dia=>(dia/2)/Math.sin(FASTEN.pocketDegrees*Math.PI/180);
+  const spans=[],names=new Set();
+  for(const link of connectionsOf(piece.id)){
+    const end=link.joint;
+    if(link.type!=='pocket'||!link.fastened||!end||end.key===j.key||end.k!==piece.ax[0])continue;
+    if(pocketPiece(end)!==piece)continue;
+    for(const f of layoutAsLaidOut(link)){
+      if(!f.pocket||f.pocket.out.some((v,k)=>Math.abs(v-out[k])>1e-6))continue;   // drilled in another face
+      const half=ovalHalf(f.pocket.dia)+END_HOLE_WEB;
+      spans.push([Math.min(f.pocket.mouth[t],f.pos[t])-half,Math.max(f.pocket.mouth[t],f.pos[t])+half]);
+      names.add((end.a===piece?end.b:end.a).name);
+    }
+  }
+  return spans.length?{spans,names:[...names]}:none;
+}
+/* Does this face of a piece look into the design (a line straight out of its middle runs into other wood within
+   4 ft)? Then a pocket hole there is out of sight as much as one on the other face. Looks at every piece, so it
+   is only asked about pieces held by pocket holes at both ends, and not in a very big design. */
+const INSIDE_LOOK=48,INSIDE_MAX_PIECES=1500;
+function faceIsInside(piece,axis,side){
+  if(S.parts.length>INSIDE_MAX_PIECES)return false;
+  const b=plainBox(piece),from=b.lo.map((v,k)=>(v+b.hi[k])/2);
+  from[axis]=side>0?b.hi[axis]+.05:b.lo[axis]-.05;
+  const way=alongAxis(axis,side);
+  return S.parts.some(other=>{
+    if(other===piece||isProp(other)||tilted(other))return false;
+    const o=plainBox(other);
+    if(!rayHitsBox(from,way,o))return false;
+    const distance=side>0?o.lo[axis]-from[axis]:from[axis]-o.hi[axis];
+    return distance<=INSIDE_LOOK;
+  });
+}
+/* The stretches along direction t of a piece's face that other pieces cover: those that lie against the face
+   (face: {axis, at, out}, the face at "at" facing "out") within a stretch along a second direction (band: {axis,
+   range}). Only pieces that touch the piece are looked at (its neighbours in the connection graph), so this stays
+   quick in a big design. skip: pieces that do not count (the two of the joint). Returns {spans: [[lo, hi]],
+   names: the names of the pieces that cover, count: how many neighbours were looked at}. */
+function coveredSpans(piece,skip,face,band,t){
+  const spans=[],names=new Set();
+  let count=0;
+  if(typeof connGraph!=='function'||!S.parts.includes(piece))return{spans,names:[],count};
+  const lo=Math.min(band.range[0],band.range[1]),hi=Math.max(band.range[0],band.range[1]);
+  for(const link of connectionsOf(piece.id)){
+    const other=link.a===piece?link.b:link.a;
+    count++;
+    if(skip.includes(other)||other===piece||isProp(other)||tilted(other))continue;
+    if(M[other.mat].kind==='sheet'&&other.t<=THIN_COVER)continue;   // a thin back is nailed on after the holes are drilled and driven
+    const b=plainBox(other);
+    // it lies against the face: it starts at the face and reaches out from it
+    const against=face.out>0?Math.abs(b.lo[face.axis]-face.at)<.03:Math.abs(b.hi[face.axis]-face.at)<.03;
+    if(!against)continue;
+    if(b.hi[band.axis]<=lo+.01||b.lo[band.axis]>=hi-.01)continue;
+    spans.push([b.lo[t],b.hi[t]]);
+    names.add(other.name);
+  }
+  return{spans,names:[...names],count};
+}
+/* Places along a row (absolute positions), each moved off the covered spans to the nearest place that is clear,
+   keeping endMin from the ends of the row and about an inch from the other places. room: half the width a
+   place needs (half a hole and a little). Returns [{at, moved}] in the same order. */
+function clearOf(places,spans,range,endMin,room){
+  if(!spans.length)return places.map(at=>({at,moved:false}));
+  const lo=range[0]+Math.min(endMin,(range[1]-range[0])/2),hi=range[1]-Math.min(endMin,(range[1]-range[0])/2);
+  const free=at=>at>=lo-1e-6&&at<=hi+1e-6&&!spans.some(([a,b])=>at>a-room&&at<b+room);
+  const out=places.map(at=>({at,moved:false}));
+  out.forEach((place,index)=>{
+    if(free(place.at))return;
+    // the nearest clear places on both sides of the span it is in
+    const candidates=[];
+    for(const[a,b]of spans){candidates.push(a-room-.05,b+room+.05);}
+    candidates.sort((x,y)=>Math.abs(x-place.at)-Math.abs(y-place.at));
+    const apart=at=>out.every((other,i)=>i===index||Math.abs(other.at-at)>=1);
+    const pick=candidates.find(at=>free(at)&&apart(at));
+    if(pick!==undefined){place.at=r16(pick);place.moved=true;}
+  });
+  return out;
 }
 /* Dowels (rule 6). */
 function dowelPegs(j,shape,n,dia,len,label){
@@ -321,27 +520,39 @@ function cornerBrackets(j,shape,n,label){
     const other=shape.other(piece),mine=boxes.get(piece),theirs=boxes.get(other);
     for(const s of[shape.W,shape.L]){
       const range=s===shape.W?shape.rangeW:shape.rangeL;
+      const t=[0,1,2].find(i=>i!==shape.k&&i!==s),rangeT=t===shape.L?shape.rangeL:shape.rangeW;
       for(const side of[-1,1]){
         const edge=side>0?range[1]:range[0];
         if(Math.abs((side>0?mine.hi[s]:mine.lo[s])-edge)>.02)continue;      // this piece does not end here
         const beyond=side>0?theirs.hi[s]-edge:edge-theirs.lo[s];              // how far the other runs on
         const corner=beyond>=.75,flush=Math.abs(beyond)<.02;
         if(!corner&&!flush)continue;
-        const score=(corner?8:0)+(s===shape.W?4:0)+(hiddenSide(piece,s)===side?0:2); // an inside corner first, across the narrow way, on the hidden side
-        if(!best||score>best.score)best={score,piece,other,s,side,edge,flat:!corner,room:corner?Math.min(F.bracketLeg,beyond):F.bracketLeg};
+        // a third piece against that face (an apron against the inside of a leg) leaves less room for the plate
+        const up=shape.signInto(piece),legOnPiece=Math.min(F.bracketLeg,shape.depthOf(piece));
+        const covered=coveredSpans(piece,[other],{axis:s,at:edge,out:side},{axis:shape.k,range:[shape.plane,shape.plane+up*legOnPiece]},t);
+        const open=openLength(rangeT,covered.spans,F.bracketWide/2+.05);
+        if(open<F.bracketWide+.1)continue;                                    // no room for a plate here
+        // an inside corner first, on the hidden side (the inside of the frame), with its other leg on a hidden face
+        // of the other piece too (that face looks the way "up" goes), and across the narrow way
+        const otherHidden=corner&&hiddenSide(other,shape.k)===up;
+        const score=(corner?8:0)+(hiddenSide(piece,s)===side?6:0)+(otherHidden?6:0)+(s===shape.W?2:0);
+        if(!best||score>best.score)best={score,piece,other,s,side,edge,flat:!corner,room:corner?Math.min(F.bracketLeg,beyond):F.bracketLeg,covered};
       }
     }
   }
-  if(!best)best={piece:j.a,other:j.b,s:shape.W,side:1,edge:shape.rangeW[1],flat:true,room:F.bracketLeg};
+  if(!best)best={piece:j.a,other:j.b,s:shape.W,side:1,edge:shape.rangeW[1],flat:true,room:F.bracketLeg,covered:{spans:[],names:[]}};
   const{piece,other,s,side,edge,flat}=best,k=shape.k,t=[0,1,2].find(i=>i!==k&&i!==s);
   const rangeT=t===shape.L?shape.rangeL:shape.rangeW;
   const up=shape.signInto(piece);                                  // along k, from the joint into "piece"
   const legOnPiece=Math.min(F.bracketLeg,shape.depthOf(piece)),legOnOther=flat?Math.min(F.bracketLeg,shape.depthOf(other)):best.room;
   const screwAt=[.3,.75];                                          // along a leg, as a share of its length
-  return spreadAlong(n,rangeT[1]-rangeT[0],1).map(along=>{
+  const screwLen=bracketScrew(j).len;
+  const places=clearOf(bracketSpread(n,rangeT),best.covered.spans,rangeT,F.bracketWide/2,F.bracketWide/2+.05);
+  return places.map(({at:placeAt,moved})=>{
+    const along=placeAt-rangeT[0];
     const at=(depth,across)=>{const p=[0,0,0];p[k]=shape.plane+depth;p[s]=edge+across;p[t]=rangeT[0]+along;return p;};
     const box=(c,sk,ss)=>{const sz=[0,0,0];sz[k]=sk;sz[s]=ss;sz[t]=F.bracketWide;return{c,s:sz};};
-    const screw=(pos,dir)=>({pos,dir,len:F.bracketScrew,dia:FASTENER_SIZE.screw.dia,head:.3});
+    const screw=(pos,dir)=>({pos,dir,len:screwLen,dia:FASTENER_SIZE.screw.dia,head:.3});
     const plates=[box(at(up*legOnPiece/2,side*F.bracketThick/2),legOnPiece,F.bracketThick)],screws=[];
     for(const share of screwAt)screws.push(screw(at(up*legOnPiece*share,side*F.bracketThick),alongAxis(s,-side)));
     if(flat){ // the second leg lies on the same side face, across the seam
@@ -352,8 +563,28 @@ function cornerBrackets(j,shape,n,label){
       for(const share of screwAt)screws.push(screw(at(up*F.bracketThick,side*legOnOther*share),alongAxis(k,-up)));
     }
     return{kind:'bracket',pos:at(0,0),dir:alongAxis(s,side),len:F.bracketLeg,dia:F.bracketWide,head:0,through:piece,into:other,label,plates,screws,flat,
+      ...(moved?{clear:best.covered.names}:{}),
       tip:`${label} with 4 short screws. Holds ${piece.name} to ${other.name}`+(flat?', flat across the seam.':' in the inside corner.')};
   });
+}
+/* Rule 8: where n brackets sit along a joint (absolute positions): one about every 12", the first and the last
+   within 4" of the ends (BRACKET_EVERY, BRACKET_FROM_END in js/style.js); one alone in the middle. */
+function bracketSpread(n,range){
+  const long=range[1]-range[0];
+  if(n<=1)return[range[0]+long/2];
+  const fromEnd=Math.min(BRACKET_FROM_END,long/4);
+  return Array.from({length:n},(unused,i)=>range[0]+fromEnd+i*(long-2*fromEnd)/(n-1));
+}
+/* how much of a row is not covered by the spans (each widened by room on both sides) */
+function openLength(range,spans,room){
+  const cuts=spans.map(([a,b])=>[Math.max(range[0],a-room),Math.min(range[1],b+room)]).filter(([a,b])=>b>a).sort((x,y)=>x[0]-y[0]);
+  let covered=0,reach=range[0];
+  for(const[a,b]of cuts){
+    if(b<=reach)continue;
+    covered+=b-Math.max(a,reach);
+    reach=b;
+  }
+  return range[1]-range[0]-covered;
 }
 
 /* ---------- the layout of one joint ---------- */
@@ -362,7 +593,9 @@ function fastenerLayout(j,type){
   // (squaredUp, js/neighbors.js). Its fasteners are in the frame of the set and say so (f.frame): whoever draws
   // them in the world takes them there with fastenerInWorld.
   if(j.frame&&!squaredNow)return squaredUp(()=>fastenerLayout(j,type));
-  const spec=jSpec(j,type),n=spec.n;
+  // the count by the rules of thumb alone: a pocket-hole row may then drop holes that have no room (rule 11),
+  // and jSpec gives the count that is laid out from then on (pocketCountAsLaidOut)
+  const spec=jSpec(j,type,{asPlanned:true}),n=spec.n;
   if(!n||!spec.hw.length)return[];
   const shape=jointShape(j),sizes=sizesInLabel(spec.hw[0][0]),label=oneOf(spec.hw[0][0]);
   let list=[];
@@ -372,7 +605,10 @@ function fastenerLayout(j,type){
   }
   else if(type==='pocket')list=pocketScrews(j,shape,n,sizes[0]||1.25,label);
   else if(type==='dowel')list=dowelPegs(j,shape,n,sizes[0]||.375,sizes[1]||1.5,label);
-  else if(type==='bracket')list=cornerBrackets(j,shape,n,label);
+  else if(type==='bracket'){
+    list=cornerBrackets(j,shape,n,label);
+    list.loose=true;   // where a plate goes depends on the pieces beside the joint (rule 10)
+  }
   else if(spec.drive)list=framingLayout(j,shape,spec);   // 'frame' and 'toenail': js/framing.js says how they are driven
   for(const f of list){
     f.type=type;
@@ -425,7 +661,9 @@ function layoutAsLaidOut(link){
   const j=link.joint,middle=designMiddle().map(v=>Math.round(v/6)).join();
   if(middle!==carryMiddle||layoutCarry.size>60000){layoutCarry.clear();carryMiddle=middle;}
   const old=layoutCarry.get(link.key);
-  if(sameJointAsBefore(old,j,link.type)){
+  // (a layout that looked at the neighbours of a piece is only kept while that piece has as many neighbours)
+  const sameNeighbours=!old||!old.list.near||connectionsOf(old.list.near.id).length===old.list.near.count;
+  if(sameJointAsBefore(old,j,link.type)&&sameNeighbours){
     list=old.list;
     if(j.frame)for(const f of list)f.frame=j.frame;   // the same set, as it was found this time
   }
@@ -516,9 +754,11 @@ function settledLayouts(){
   // the screws that are settled so far, in a grid of 4" cells, each frame of a turned set by itself
   const cells=new Map();
   const cellsOf=f=>{
-    const end=pointPlus(f.pos,f.dir,f.len),keys=[],frame=f.frame?f.frame.id:'';
-    // (a little wider than the screw, so that two screws on either side of the edge of a cell still find each other)
-    const lo=f.pos.map((v,k)=>Math.floor((Math.min(v,end[k])-.3)/4)),hi=f.pos.map((v,k)=>Math.floor((Math.max(v,end[k])+.3)/4));
+    const keys=[],frame=f.frame?f.frame.id:'';
+    // everything the screw takes up, its hole included (drilledStretches), a little wider than that, so that two
+    // screws on either side of the edge of a cell still find each other
+    const ends=drilledStretches(f).flatMap(x=>[x.from,pointPlus(x.from,x.dir,x.len)]);
+    const lo=[0,1,2].map(k=>Math.floor((Math.min(...ends.map(p=>p[k]))-.3)/4)),hi=[0,1,2].map(k=>Math.floor((Math.max(...ends.map(p=>p[k]))+.3)/4));
     for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++)keys.push(frame+'|'+x+'|'+y+'|'+z);
     return keys;
   };
@@ -664,8 +904,34 @@ const SCREW_CLEARANCE=.04;
    other's way. */
 const HEAD_DEPTH=.25;
 function screwsMeet(a,b){
-  const from=f=>pointPlus(f.pos,f.dir,Math.min(HEAD_DEPTH,f.len/2));
-  return stretchGap(from(a),a.dir,a.len-Math.min(HEAD_DEPTH,a.len/2),from(b),b.dir,b.len-Math.min(HEAD_DEPTH,b.len/2))<(a.dia+b.dia)/2+SCREW_CLEARANCE;
+  for(const x of drilledStretches(a)){
+    for(const y of drilledStretches(b)){
+      if(stretchGap(x.from,x.dir,x.len,y.from,y.dir,y.len)<x.r+y.r+SCREW_CLEARANCE)return true;
+    }
+  }
+  return false;
+}
+/* What a screw takes up inside the wood, as stretches {from, dir, len, r}: its shank, from 1/4" under the head
+   on; for a pocket-hole screw also the hole the head sits in (the 3/8" bore from where it opens on the face to
+   the head, and the long oval it makes on the face, which runs about 3/4" past where the middle of the bit comes
+   out); for a screw whose head sits in a deep hole (f.sunk) that hole. Two holes that run into each other, or a
+   screw driven through another screw's hole, cannot both be made, so these count as meeting too (the holes of
+   two pocket screws at the two ends of a short apron, a screw through a 4x4 leg whose deep hole meets the deep
+   hole of the screw from the next face). COUNTERBORE_DIA: the bit for that deep hole (3/8" for a #8 head). */
+const COUNTERBORE_DIA=.375;
+function drilledStretches(f){
+  const head=Math.min(HEAD_DEPTH,f.len/2);
+  const out=[{from:pointPlus(f.pos,f.dir,head),dir:f.dir,len:f.len-head,r:f.dia/2}];
+  if(f.kind==='pocket'&&f.pocket){
+    const r=f.pocket.dia/2,oval=r/Math.sin(FASTEN.pocketDegrees*Math.PI/180)-r;
+    const deep=Math.hypot(...f.pos.map((v,k)=>v-f.pocket.mouth[k]));
+    out.push({from:pointPlus(f.pocket.mouth,f.dir,-oval),dir:f.dir,len:deep+oval,r});
+  }
+  if(f.sunk>0){
+    const r=Math.max(f.head||FASTENER_SIZE.screw.head,COUNTERBORE_DIA)/2;
+    out.push({from:pointPlus(f.pos,f.dir,-f.sunk),dir:f.dir,len:f.sunk,r});
+  }
+  return out;
 }
 function screwsThatMeet(){
   const screws=[];
@@ -674,7 +940,10 @@ function screwsThatMeet(){
     for(const f of fastenersOfLink(link))if(f.kind==='screw'||f.kind==='pocket')screws.push({f,link});
   }
   // sorted along x, so that only neighbours are compared
-  const reach=item=>{const end=pointPlus(item.f.pos,item.f.dir,item.f.len);return[Math.min(item.f.pos[0],end[0]),Math.max(item.f.pos[0],end[0])];};
+  const reach=item=>{
+    const xs=drilledStretches(item.f).flatMap(x=>[x.from[0],x.from[0]+x.dir[0]*x.len]);
+    return[Math.min(...xs),Math.max(...xs)];
+  };
   for(const item of screws)item.x=reach(item);
   screws.sort((a,b)=>a.x[0]-b.x[0]);
   const met=[];

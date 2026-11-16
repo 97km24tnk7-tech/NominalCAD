@@ -17,7 +17,10 @@
            joints     { 'idA-idB': 'screw' }             fasteners chosen by hand (S.joints)
            namedJoints [['Side','Top','glue'], ...]      fasteners a preset names by piece name (its `joints`); used for
                                                          pieces that are not in a project yet, where joints has no keys
+           styled     { 'idA-idB': 'pocketUnlessRustic' } joints whose fastener follows the style (S.styled, STYLE_RULES
+                                                         in js/joints.js); a rule in namedJoints is read the same way
            style      'std'                              the build style (S.look.style); it nudges default fasteners
+                                                         and picks the fastener of a style rule
            hardware   [ {on: idA, to: idB}, ... ]        the hardware that is really placed in the design and holds one
                                                          piece to another (hinges, drawer slides), and the pieces a
                                                          preset declares as hung, each with the piece it hangs from.
@@ -556,7 +559,7 @@ function hardwareMount(hung,wood){
   return best?best.node:null;
 }
 function verifyContacts(model,opt){
-  const joints=opt.joints||{};
+  const joints=opt.joints||{},styled=opt.styled&&typeof opt.styled==='object'?opt.styled:{};
   // a preset's own fasteners, by piece name, for pieces that have no ids yet (see checkPreset)
   const named=Array.isArray(opt.namedJoints)?opt.namedJoints:[];
   const namedType=j=>namedJointType(j,named);   // js/joints.js: the same reading of the list as placePreset
@@ -587,7 +590,9 @@ function verifyContacts(model,opt){
         verifyLink(first.n,second.n,below?'bear':'side',chosen,null,below).overlap=deep[k];
         continue;
       }
-      const type=joints[j.key]||namedType(j)||styleType(defaultType(j),j,opt.style||'std');
+      // a choice made by hand, else the preset's rule for this joint (it may follow the style), else the suggestion
+      const style=opt.style||'std',rule=styled[j.key];
+      const type=joints[j.key]||(isStyleRule(rule)?typeForStyle(rule,style):'')||typeForStyle(namedType(j),style)||styleType(defaultType(j),j,style);
       verifyLink(first.n,second.n,j.k===1?'bear':'side',type,j);
     }
   }
@@ -1623,6 +1628,7 @@ function verifyDesign(parts,options){
 function verifyOptionsOf(project){
   project=project||{};   // an older project file has none of these fields
   return{uses:project.uses||{},wall:project.wall||[],hung:project.hung||[],joints:project.joints||{},
+    styled:project.styled&&typeof project.styled==='object'?project.styled:{},
     style:(project.look&&project.look.style)||'std',wallFixed:!!project.wallFixed,
     sets:project.sets&&typeof project.sets==='object'?project.sets:{}};
 }

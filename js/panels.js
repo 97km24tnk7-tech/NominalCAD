@@ -175,8 +175,9 @@ function renderJoints(){
         Object.entries(JTYPES).map(([key,type])=>`<option value="${key}"${key===current?' selected':''}>${type[0]}</option>`).join('');
       return`<tr><td class="nowrap"><b>${esc(g.A[0])}</b> to <b>${esc(g.B[0])}</b></td><td class="num">${g.js.length}</td><td class="nowrap">${g.A[1]} to ${g.B[1]}</td>`+
         `<td><select class="fld" data-g="${i}" aria-label="Fastener"${current?` title="${esc(JTYPES[current][2])}"`:''}>${choices}</select></td>`+
-        `<td>${current?esc(jSpec(g.js[0],current).text):'Mixed'}</td></tr>`;
+        `<td>${current?esc(jSpec(g.js[0],current).text):'Mixed'}${followsStyle(g)?' <small>(follows the style)</small>':''}</td></tr>`;
     });
+    h+=`<p class="hint">A fastener the program suggests follows the build style (Style &amp; finish). On furniture for the house a top is held on from underneath in Everyday and Fine furniture, with pocket holes drilled in the apron or rail under it, and screwed down from above in Rustic / rough. "Per joint" says which piece gets the pocket holes. A fastener you pick here or in Properties stays as you picked it in every style; Reset all to suggested gives the suggestions back.</p>`;
     h+=docTable([['Pieces',''],['Joints','num'],['How they meet',''],['Fasten with',''],['Per joint','']],rows)+
       `<p class="noprint"><button class="btn" id="bJReset" title="Forget the fasteners picked by hand and go back to the suggested ones">Reset all to suggested</button></p>`;
     // how to make each kind of joint that is in use, once, instead of under every row
@@ -204,3 +205,7 @@ function hwTable(hw){
   return docTable([['Item',''],['Quantity','num']],rows,'half')+`<p class="hint">Buy a few extra screws; boxes are cheap and some will strip.</p>`;
 }
 
+/* a row of the Fasteners page whose joints all follow the build style (STYLE_RULES in js/joints.js): none picked by hand */
+function followsStyle(group){
+  return group.js.every(j=>!S.joints[j.key]&&S.styled&&isStyleRule(S.styled[j.key]));
+}

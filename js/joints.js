@@ -35,6 +35,46 @@ function findJointsAllPairs(){
       break;}}
   return out;
 }
+/* ---------- fasteners that follow the build style ----------
+   Furniture for the house is fastened so that nothing shows on its top or its front, unless the person picked the
+   Rustic / rough style, where screw heads on top are the look (the owner: "we don't want furniture looking THAT
+   rough ... unless you set the style to rough/rustic"). A preset says so for a joint by naming one of these rules
+   in its `joints` list instead of a fastener type: ['Top','Long apron','pocketUnlessRustic'].
+   Such a joint is not stored like a choice made by hand (S.joints): it is kept in S.styled[key] as the rule, and the
+   fastener is read from the style every time (suggestedType). So changing the style on the style cards changes
+   these joints at once, everywhere, while a fastener picked by hand in Properties or on the Fasteners tab still
+   wins over the rule. Each rule gives the fastener for each key of STYLES (js/style.js). */
+const STYLE_RULES={
+  // a top held on from underneath (pocket holes in the apron or rail under it, driven up into the top);
+  // Rustic screws it down through its face. Also a rail held from its own inside face, not through the front.
+  pocketUnlessRustic:{rustic:'screw',std:'pocket',fine:'pocket'},
+  // a top that only rests on the end of a leg (the aprons carry it); Rustic screws down into the leg too
+  restsUnlessRustic:{rustic:'screw',std:'none',fine:'none'},
+  // a metal corner bracket on the inside of a frame, where no pocket hole can be drilled (a 4x4 leg);
+  // Rustic screws straight through from outside
+  bracketUnlessRustic:{rustic:'screw',std:'bracket',fine:'bracket'},
+  // a shop top screwed down so it can be replaced when it wears; in Fine furniture it only rests on the legs
+  // (the aprons and rails hold it from below there)
+  restsInFine:{rustic:'screw',std:'screw',fine:'none'},
+  // an apron too short for pocket holes at both ends and the holes for the top as well (TABLE_KINDS: shortEnds):
+  // screwed through the leg from the end of the piece, and doweled in Fine furniture
+  doweledInFine:{rustic:'screw',std:'screw',fine:'dowel'}
+};
+const isStyleRule=type=>typeof type==='string'&&Object.prototype.hasOwnProperty.call(STYLE_RULES,type);
+/* the fastener a type or a rule stands for in this style ('std' when none is given and there is no design yet) */
+function typeForStyle(type,style){
+  if(!isStyleRule(type))return type;
+  const rule=STYLE_RULES[type];
+  return rule[style||(typeof S!=='undefined'&&S&&S.look&&S.look.style)||'std']||rule.std;
+}
+/* The fastener the program suggests for a joint, before any choice made by hand: the preset's rule for it
+   (S.styled, kept per joint by storeNamedJoints), else the one worked out from the shapes, nudged by the style.
+   jType (js/style.js) puts a choice made by hand in front of this. */
+function suggestedType(j,style){
+  const rule=S.styled&&S.styled[j.key];
+  if(rule&&isStyleRule(rule))return typeForStyle(rule,style);
+  return styleType(defaultType(j),j,style);
+}
 /* The fastener a preset names for this joint in its `joints` list, or '' when it names none.
    A row is [pieceNameA, pieceNameB, type] and may carry a fourth part, 'faceOfA-faceOfB', for two kinds of piece
    that meet in more than one way: ['Post','Shelf deck','none','face-edge'] is only the joint where the face of a
@@ -56,11 +96,18 @@ function namedJointType(j,list){
    self-checks that place a preset without the dialog (placeForCheck, js/fasteners.js). */
 function storeNamedJoints(preset,parts){
   if(!preset.joints)return;
-  const own=new Set(parts);
+  const own=new Set(parts),pocketRules=[];
   for(const j of findJoints()){
     if(!own.has(j.a)||!own.has(j.b))continue;
     const type=namedJointType(j,preset.joints);   // the first row of the list that fits
     if(!type)continue;
+    if(isStyleRule(type)){
+      // a fastener that follows the style: kept as the rule, read through suggestedType, never frozen
+      if(!S.styled||typeof S.styled!=='object')S.styled={};
+      S.styled[j.key]=type;
+      if(type==='pocketUnlessRustic')pocketRules.push(j.key);
+      continue;
+    }
     S.joints[j.key]=type;
     // What the preset named is also kept apart from what the person chooses later (S.named). Unfasten stores
     // "Not joined", and that is forgotten when the two pieces part (rule 2 in js/connections.js); the preset's
@@ -68,6 +115,30 @@ function storeNamedJoints(preset,parts){
     // fastened the way the preset fastens it, and not screwed to the sides it only rests on.
     if(!S.named||typeof S.named!=='object')S.named={};
     S.named[j.key]=type;
+  }
+  roomForTopRows(pocketRules);
+}
+/* A top board that only crosses an apron right beside a leg has no room there for a pocket hole: the holes that
+   hold the apron to the leg take up that end of the apron (rule 11 in js/fasteners.js). Such a board is held by
+   the long apron that runs under it, so in Everyday and Fine furniture that joint only rests ('restsUnlessRustic');
+   Rustic / rough still screws down through it. Worked out once, when the preset is placed, on the design as it
+   is then, laid out as in the Everyday style (the rows of holes of Fine furniture are the same). */
+function roomForTopRows(keys){
+  if(!keys.length||typeof buildConnGraph!=='function'||typeof fastenerLayout!=='function')return;
+  const saved=connCache,style=look().style;
+  look().style='std';
+  try{
+    // a graph of the design as it is now, with the rules just stored, for the layouts below to look around in
+    connCache=buildConnGraph(findJoints(),[],[]);
+    for(const key of keys){
+      const link=connCache.byKey.get(key);
+      if(!link||link.type!=='pocket'||!link.joint)continue;
+      if(fastenerLayout(link.joint,'pocket').noRoom)S.styled[key]='restsUnlessRustic';
+    }
+  }finally{
+    connCache=saved;
+    look().style=style;
+    if(typeof layoutCarry!=='undefined')layoutCarry.clear();   // nothing laid out on that graph is kept
   }
 }
 function thruPart(j){ // the piece a fastener passes through first

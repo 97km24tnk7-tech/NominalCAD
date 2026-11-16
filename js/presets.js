@@ -122,7 +122,7 @@ const PRESETS=[
    ...bookshelfOpeningFields()],
   build:buildBookshelf,steps:bookshelfSteps,info:bookshelfInfo,notes:bookshelfNotes,hw:bookshelfHardware,check:bookshelfCheck,
   // variants: the structural list also tries shelves at uneven heights, at every limit of the form
-  uses:BOOKSHELF_USES,wall:p=>bookshelfPlan(p).anchored,variants:[{spacing:'set',o1:14,o2:8},{spacing:'set',o1:4,o2:0,o3:6}]},
+  uses:BOOKSHELF_USES,wall:p=>bookshelfPlan(p).anchored,joints:BOOKSHELF_JOINTS,variants:[{spacing:'set',o1:14,o2:8},{spacing:'set',o1:4,o2:0,o3:6}]},
  /* The tables, desks and benches below are all made by tablePreset (js/builders-furniture.js): what each is made of
     is one row of TABLE_KINDS there, and the plan adds cross rails and deeper aprons as the sizes typed here need them. */
  tablePreset('Dining table','4x4 legs, 2x4 aprons, 2x6 plank top on cross rails.',
@@ -137,7 +137,7 @@ const PRESETS=[
   [num('L','Length',48,24,108),num('W','Seat depth',16.5,14,24),num('H','Seat height',18,14,24)]),
  {name:'Five-board bench',spec:'Classic first project',desc:'Classic beginner bench: two plank legs, a seat, and two aprons lapped over the legs.',
   params:[num('L','Length',36,18,72),num('H','Seat height',18,10,20),{k:'board',label:'Seat board',opts:[['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x12'}],
-  build:buildFiveBoard,notes:fiveBoardNotes,info:p=>fiveBoardNotes(p)[0],check:p=>fiveBoardPlan(p).problems,
+  build:buildFiveBoard,notes:fiveBoardNotes,info:p=>fiveBoardNotes(p)[0],check:p=>fiveBoardPlan(p).problems,joints:FIVE_BOARD_JOINTS,
   uses:{'Seat':'seat','Apron':'seat'}},
  tablePreset('Workbench','Heavy 4x4 frame, 3/4" plywood top on cross rails, and a lower shelf.',
   [num('L','Length',60,36,96),num('W','Depth',24,18,48),num('H','Height',34,28,42)]),
@@ -151,7 +151,7 @@ const PRESETS=[
  {name:'Storage box / toy chest',spec:'Plywood box, hinged lid',desc:'Plywood box with a hinged lid.',
   params:[num('W','Width',30,...STORAGE_BOX_LIMITS.W),num('D','Depth',16,...STORAGE_BOX_LIMITS.D),num('H','Height',16,...STORAGE_BOX_LIMITS.H),
    {k:'ply',label:'Plywood',opts:[['ply34','3/4"'],['ply12','1/2"']],v:'ply34'},{k:'lid',label:'Lid',check:1,v:true}],
-  build:buildStorageBox,steps:storageBoxSteps,info:storageBoxInfo,notes:storageBoxNotes,hw:storageBoxHardware,uses:STORAGE_BOX_USES},
+  build:buildStorageBox,steps:storageBoxSteps,info:storageBoxInfo,notes:storageBoxNotes,hw:storageBoxHardware,uses:STORAGE_BOX_USES,joints:STORAGE_BOX_JOINTS},
  {name:'Planter box',spec:'1x6 sides, slatted bottom',desc:'1x6 sides on 2x2 corner posts that double as feet, with a slatted bottom that drains.',
   params:[num('L','Length',36,...BOX_KINDS.planter.limits.L),num('D','Width',16,...BOX_KINDS.planter.limits.D),
    {k:'rows',label:'Boards high',v:2,int:1,min:BOX_KINDS.planter.limits.rows[0],max:BOX_KINDS.planter.limits.rows[1]}],
@@ -172,7 +172,7 @@ const PRESETS=[
   params:[num('L','Length',36,...WALL_SHELF_LIMITS.L),{k:'board',label:'Shelf depth',opts:[['1x6','5 1/2" (1x6)'],['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)']],v:'1x8'},
    num('up','Height on the wall',54,...WALL_SHELF_LIMITS.up)],
   build:buildWallShelf,steps:wallShelfSteps,info:wallShelfInfo,notes:wallShelfNotes,hw:wallShelfHardware,
-  uses:WALL_SHELF_USES,wall:WALL_SHELF_ON_WALL},
+  uses:WALL_SHELF_USES,wall:WALL_SHELF_ON_WALL,joints:WALL_SHELF_JOINTS},
 ];
 
 /* ---------- step-by-step instructions for presets ----------
@@ -183,19 +183,38 @@ const CUT={t:'Cut every piece on the cut list and pencil its letter on it. Measu
 const FIN={t:'Sand everything: 80 grit, then 120, then 180, and round over the sharp edges. Wipe off the dust, then paint or stain, and finish with at least two coats of clear coat.',add:[]};
 /* The steps for a table, desk or bench, written from its plan (tablePlan in js/builders-furniture.js), so they
    name exactly the pieces that are built: cross rails, stretchers, shelf rails and the shelf only when it has them. */
+/* The words follow the build style where the work does (styledStep, js/style.js): a table for the house holds its
+   top on from underneath with pocket screws in the aprons and cross rails (TABLE_HOUSE_JOINTS in
+   js/builders-furniture.js), and in Rustic / rough it is screwed down through the top, heads showing. A shop
+   workbench (TABLE_KINDS: shop) keeps its top screwed down in Everyday too. */
 function tableSteps(plan){
   const shelf=plan.shelf,low=fmt(shelf?shelf.low:plan.lowY),seat=plan.topName==='Seat board';
+  const shop=!!(TABLE_KINDS[plan.name]&&TABLE_KINDS[plan.name].shop),surface=seat?'seat':'top';
   const steps=[CUT];
-  steps.push({
-    t:'Build the two end frames. Lay two legs on a flat surface and fit a short apron between them, flush with the top of the legs and with their outside faces.'+
-      (shelf&&shelf.ends?` Fit a short stretcher the same way, with its underside ${low} up from the bottom of the legs.`:'')+
-      ' Glue each joint and drive two pocket screws through each end of the apron into the leg. Drill the pocket holes on the inside face, where they will not show. Then check each corner with a square.',
-    add:['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[])});
-  steps.push({
-    t:'Stand the end frames up and join them with the two long aprons, flush with the top of the legs and with their outside faces.'+
-      (shelf?` Add the long stretchers with their undersides ${low} up from the floor.`:'')+
-      ' Glue these joints and fasten them with two pocket screws at each end, the same way. Measure corner to corner both ways: the frame is square when the two measurements match.',
-    add:['Long apron'].concat(shelf?['Long stretcher']:[])});
+  const endFrames='Build the two end frames. Lay two legs on a flat surface and fit a short apron between them, flush with the top of the legs and with their outside faces.'+
+    (shelf&&shelf.ends?` Fit a short stretcher the same way, with its underside ${low} up from the bottom of the legs.`:'');
+  const square=' Then check each corner with a square.';
+  // the holes that will hold the top are drilled now, while the aprons are loose: in a built frame the jig does not fit
+  const drillForTop=` Before you put the frames together, also drill the pocket holes that will hold the ${surface}: along the top edge of the inside face of every apron${plan.railCount?' and cross rail':''}, as many as the step that fastens the ${surface} lists, with the jig set as that list says.`;
+  const pocketWords=' Glue each joint and drive two pocket screws through each end of the apron into the leg. Drill the pocket holes on the inside face, where they will not show.';
+  const throughLeg=' Glue each joint, drill pilot holes, and drive the screws listed below in through the outside face of the leg into each end of the apron. Where the list says to, drill a deep hole for each head first, so the screw reaches.';
+  // TABLE_KINDS shortEnds: a short apron with no room for pocket holes at both ends and the seat's holes as well
+  const shortEnds=!!(TABLE_KINDS[plan.name]&&TABLE_KINDS[plan.name].shortEnds);
+  const shortWhy=` The short aprons are too short for pocket holes at their ends: those holes would take up the room the holes that hold the ${surface} need.`;
+  const dowelWords=' Glue each joint and join it with the dowels listed below: mark matching places on the leg and on the end of the apron, drill the holes with a doweling jig, glue the dowels in and clamp the joint.';
+  steps.push(styledStep({
+    std:endFrames+(shortEnds?throughLeg+shortWhy:pocketWords)+(shop?'':drillForTop)+square,
+    fine:endFrames+(shortEnds?dowelWords+shortWhy:pocketWords)+drillForTop+square,
+    rustic:endFrames+throughLeg+square},
+    ['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[])));
+  const longAprons='Stand the end frames up and join them with the two long aprons, flush with the top of the legs and with their outside faces.'+
+    (shelf?` Add the long stretchers with their undersides ${low} up from the floor.`:'');
+  const squareFrame=' Measure corner to corner both ways: the frame is square when the two measurements match.';
+  steps.push(styledStep({
+    std:longAprons+(shortEnds?' Glue these joints and fasten them with two pocket screws at each end, from holes drilled on the inside face of the long apron, where they will not show.'
+      :' Glue these joints and fasten them with two pocket screws at each end, the same way.')+squareFrame,
+    rustic:longAprons+' Glue these joints and screw them through the legs the same way, with the screws listed below.'+squareFrame},
+    ['Long apron'].concat(shelf?['Long stretcher']:[])));
   if(plan.railCount){
     // where the middle of each cross rail goes, measured along a long apron from the outside face of one end frame
     const middles=[];
@@ -203,9 +222,11 @@ function tableSteps(plan){
     const one=plan.railCount===1;
     const where=one?`with its middle ${middles[0]} from the outside face of either end frame, which is halfway along`
       :`with their middles ${middles.slice(0,-1).join(', ')} and ${middles[middles.length-1]} from the outside face of one end frame`;
-    steps.push({
-      t:`Fasten the ${one?'cross rail':plan.railCount+' cross rails'} between the long aprons, on edge and flush with their top edges, ${where}. Mark those places on both aprons first. Drive two screws through each apron into each end of ${one?'the rail':'a rail'}. The ${seat?'seat':'top'} rests on ${one?'it':'these'}, so it cannot sag in the middle.`,
-      add:['Cross rail']});
+    const place=`Fasten the ${one?'cross rail':plan.railCount+' cross rails'} between the long aprons, on edge and flush with their top edges, ${where}. Mark those places on both aprons first.`;
+    const carries=` The ${seat?'seat':'top'} rests on ${one?'it':'these'}, so it cannot sag in the middle.`;
+    const throughApron=` Drive two screws through each apron into each end of ${one?'the rail':'a rail'}.`;
+    const fromRail=` Drive the pocket screws listed below from the holes in each end of ${one?'the rail':'a rail'} into the apron. Drill those holes, and the holes along its top edge that will hold the ${surface}, before the rail goes in. Nothing goes through the front apron.`;
+    steps.push(styledStep({std:place+(shop?throughApron:fromRail)+carries,fine:place+fromRail+carries,rustic:place+throughApron+carries},['Cross rail']));
   }
   if(shelf&&shelf.rails.length){
     // where the middle of each rail between the two end ones goes, measured along a stretcher from the outside
@@ -213,41 +234,63 @@ function tableSteps(plan){
     const inner=shelf.rails.slice(1,-1).map(x=>fmt(r16(x-plan.over+plan.railT/2)));
     const middleWords=!inner.length?'':inner.length===1?`, and the one between them with its middle ${inner[0]} from the outside face of either end frame`
       :`, and the ${inner.length} between them with their middles ${inner.slice(0,-1).join(', ')} and ${inner[inner.length-1]} from the outside face of one end frame (mark those places on both stretchers first)`;
-    steps.push({
-      t:`Fasten the ${shelf.rails.length} shelf rails between the long stretchers, on edge and flush with their top edges: one tight against the legs at each end${middleWords}. Drive two screws through each stretcher into each end of a rail, and two through each of the two end rails into each leg it lies against.`,
-      add:['Shelf rail']});
+    const railPlace=`Fasten the ${shelf.rails.length} shelf rails between the long stretchers, on edge and flush with their top edges: one tight against the legs at each end${middleWords}.`;
+    const toLegs=' and two screws through each of the two end rails into each leg it lies against.';
+    steps.push(styledStep({
+      std:railPlace+' Drive two screws through each stretcher into each end of a rail,'+toLegs,
+      fine:railPlace+' Drive the pocket screws listed below from holes in each end of a rail into the stretchers (drill them before the rails go in),'+toLegs},
+      ['Shelf rail']));
   }
   if(shelf&&shelf.slats){
-    steps.push({t:`Lay the shelf slats across the long stretchers with even gaps of about ${fmt(shelf.slatGap)}, and drive two screws down through each end of every slat into the stretcher under it.`,add:['Shelf slat']});
+    const lay=`Lay the shelf slats across the long stretchers with even gaps of about ${fmt(shelf.slatGap)}`;
+    const down=`${lay}, and drive two screws down through each end of every slat into the stretcher under it.`;
+    const below=`${lay}, and fasten each one from below: drive the pocket screws listed below from the holes on the inside face of the long stretchers up into the ends of the slats. Drill those holes before the stretchers go in, at the places the list gives.`;
+    steps.push(styledStep({std:below,fine:below,rustic:down},['Shelf slat']));
   }
   if(shelf&&shelf.sheet){
-    steps.push({t:'Drop the lower shelf onto the stretchers and shelf rails, between the legs, and screw it down about every 8" into the stretchers and the shelf rails.',add:['Lower shelf']});
+    const drop='Drop the lower shelf onto the stretchers and shelf rails, between the legs, and ';
+    steps.push(styledStep({
+      std:drop+'screw it down about every 8" into the stretchers and the shelf rails.',
+      fine:drop+'fasten it from below with the pocket screws listed below, from holes on the inside of the stretchers and the shelf rails.'},
+      ['Lower shelf']));
   }
   const rails=plan.railCount?(plan.railCount===1?' and the cross rail':' and each cross rail'):'';
-  if(plan.planks){
-    steps.push({
-      t:`Lay the ${seat?'seat':'top'} boards on the frame, best face up and tight together, overhanging ${fmt(plan.over)} past the legs on every side. Screw down through each board with the screws listed below: into each short apron${rails} it crosses and into the top of a leg where the board lies over one (two screws where the board covers ${fmt(TWO_SCREWS_FROM)} or more of the piece under it, one where it covers less, so the wood does not split), and one about every 8" along the long apron under each of the two outer boards. Drill pilot holes, and set the screw heads just below the surface.`,
-      add:[plan.topName]});
-  }else{
-    steps.push({
-      t:`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${plan.railCount?' and the cross rails':''}, and ${plan.leg>=TWO_SCREWS_FROM?'two':'one'} into the top of each leg. Set the screw heads just below the surface.`,
-      add:['Top']});
-  }
+  // Held from underneath (Everyday and Fine for the house, Fine for a shop bench): the usual way to work is upside
+  // down on a blanket, so the overhang can be marked all round and every pocket hole is easy to reach.
+  const fromBelow=(plan.planks
+    ?`Lay the ${surface} boards best face down on a blanket or a piece of carpet, tight together. Turn the frame upside down and set it on them, so that the ${surface} overhangs ${fmt(plan.over)} past the legs on every side: mark the overhang at each corner and measure it all round before you drive anything.`
+    :`Lay the top best face down on a blanket or a piece of carpet. Turn the frame upside down and set it on the top, so that the top overhangs ${fmt(plan.over)} past the legs on every side: mark the overhang at each corner and measure it all round before you drive anything.`)+
+    ` Drive the pocket screws listed below from the holes on the inside of the aprons${plan.railCount?' and the cross rails':''} up into the underside of the ${surface}`+
+    (plan.planks?`: every board is held near both ends${plan.railCount?' and wherever it crosses a cross rail':''}, the inner boards by the short aprons and the two outer boards by the long aprons under them, all along their length. Right beside a leg there are no holes: the holes that hold the apron to the leg take up that end of the apron.`:'.')+
+    ` The ${surface} only rests on the tops of the legs: nothing is driven into them. The screws stop short of the ${surface} surface, so nothing shows on it. Turn it right side up.`;
+  const screwDown=plan.planks
+    ?`Lay the ${surface} boards on the frame, best face up and tight together, overhanging ${fmt(plan.over)} past the legs on every side. Screw down through each board with the screws listed below: into each short apron${rails} it crosses and into the top of a leg where the board lies over one (two screws where the board covers ${fmt(TWO_SCREWS_FROM)} or more of the piece under it, one where it covers less, so the wood does not split), and one about every 8" along the long apron under each of the two outer boards. Drill pilot holes, and set the screw heads just below the surface.`
+    :`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${plan.railCount?' and the cross rails':''}, and ${plan.leg>=TWO_SCREWS_FROM?'two':'one'} into the top of each leg. Set the screw heads just below the surface.`;
+  steps.push(styledStep({std:shop?screwDown:fromBelow,fine:fromBelow,rustic:screwDown},[plan.topName]));
   steps.push(FIN);
   return steps;
 }
 function bedSteps(p){
   const plan=bedPlan(p),beams=plan.beamXs.length,legs=plan.beamLegZs.length;
+  // The head and the foot are the ends people look at: in Everyday and Fine nothing goes through the end rails
+  // (BED_JOINTS in js/builders-furniture.js); in Rustic / rough the end rails are screwed through, heads showing.
+  const rails='Stand the two side rails on edge, cleats facing in, and fit the two end rails (the head and the foot of the bed) between them, flush with the ends of the side rails. Glue each joint and drive two 3" screws through the side rail into the end of the end rail. Then stand a leg in each inside corner, in the space past the end of the cleat, with its top level with the top of the cleat.';
   const steps=[CUT,
    {t:'Screw a cleat along the inside of each side rail, 1 3/4" below the top edge and centered end to end. Glue it and drive a 2 1/2" screw every 8". The slats rest on these, so do not skimp on the screws.',add:['Side rail','Cleat']},
-   {t:'Stand the two side rails on edge, cleats facing in, and fit the two end rails (the head and the foot of the bed) between them, flush with the ends of the side rails. Glue each joint and drive two 3" screws through the side rail into the end of the end rail. Then stand a leg in each inside corner, in the space past the end of the cleat, with its top level with the top of the cleat. Glue it and drive two 3" screws through the side rail and two through the end rail into it.',add:['End rail','Leg']}];
+   styledStep({
+     std:rails+' Glue it and drive two 3" screws through the side rail into it, and hold it to the end rail with the L-bracket listed below, inside the corner, so that no screw shows on the head or the foot.',
+     rustic:rails+' Glue it and drive two 3" screws through the side rail and two through the end rail into it.'},['End rail','Leg'])];
   if(beams){
     const one=beams===1,theBeam=one?'the beam':'each beam';
-    steps.push({
-      t:`Fasten the ${one?'center beam':beams+' center beams'} between the head and foot rails, on edge, with ${one?'its top':'their tops'} level with the cleats${one?', in the middle of the bed':', spaced evenly across the bed'}. Drive two 3" screws through each rail into the end of ${theBeam}. `+
-        `Stand ${legs} center legs against one side of ${theBeam}${one?'':' (the side that faces the middle of the bed)'}, with their tops level with the top of the beam: one at each end, tight against the head or foot rail, and ${legs===3?'one in the middle':'the rest evenly spaced between'}. `+
-        `Glue each leg to the beam and drive two 3" screws through the beam into it. Then drive two 3" screws through the head rail and two through the foot rail into the leg that stands against it: that leg reaches ${fmt(plan.railLap)} up the rail, which is the room you have for them.`,
-      add:['Center beam','Center leg']});
+    const place=`Fasten the ${one?'center beam':beams+' center beams'} between the head and foot rails, on edge, with ${one?'its top':'their tops'} level with the cleats${one?', in the middle of the bed':', spaced evenly across the bed'}. `;
+    const legsWords=`Stand ${legs} center legs against one side of ${theBeam}${one?'':' (the side that faces the middle of the bed)'}, with their tops level with the top of the beam: one at each end, tight against the head or foot rail, and ${legs===3?'one in the middle':'the rest evenly spaced between'}. `+
+      'Glue each leg to the beam and drive two 3" screws through the beam into it. ';
+    steps.push(styledStep({
+      std:place+`Drive the pocket screws listed below from the holes in each end of ${theBeam} into the head and foot rails (drill them before the beam goes in). `+legsWords+
+        'Then hold the leg that stands against the head rail, and the one against the foot rail, to that rail with the L-brackets listed below, inside the bed.',
+      rustic:place+`Drive two 3" screws through each rail into the end of ${theBeam}. `+legsWords+
+        `Then drive two 3" screws through the head rail and two through the foot rail into the leg that stands against it: that leg reaches ${fmt(plan.railLap)} up the rail, which is the room you have for them.`},
+      ['Center beam','Center leg']));
   }
   steps.push({t:`Lay the slats across with even gaps of about ${fmt(plan.slatGap)}; the first and the last lie tight against the head and foot rails, on the tops of the corner legs. Drive two 1 5/8" screws down through each end of every slat into the cleat${beams?', and two more into '+(beams===1?'the center beam':'each center beam'):''}. Where a slat lies on the top of a leg, its two screws go into the leg. The mattress sits about 1" down inside the frame so it cannot slide.`,add:['Slat']},
     FIN,{t:'Set the mattress on the slats.',add:['Mattress']});
@@ -255,9 +298,19 @@ function bedSteps(p){
 }
 function fiveBoardSteps(p){
   const plan=fiveBoardPlan(p),F=FIVE_BOARD;
+  // Everyday and Fine: nothing shows on the seat or the front (FIVE_BOARD_JOINTS in js/builders-furniture.js)
+  const legs=`Cut a shallow V or an arch out of the bottom of each leg so it stands on two feet and does not rock. Stand the legs up and glue the two aprons across their edges, flush with the tops of the legs. Each leg sits ${fmt(F.legInset-F.apronInset)} in from the ends of the aprons.`;
+  const overhang=`overhangs the aprons ${fmt(F.apronInset)} at each end and ${fmt(plan.edge)} front and back`;
   return[CUT,
-   {t:`Cut a shallow V or an arch out of the bottom of each leg so it stands on two feet and does not rock. Stand the legs up and glue and screw the two aprons across their edges, flush with the tops of the legs. Each leg sits ${fmt(F.legInset-F.apronInset)} in from the ends of the aprons. Drill pilot holes and drive two screws through the apron into the edge of each leg, then check that the legs are square to the aprons.`,add:['Leg','Apron']},
-   {t:`Center the seat on top so it overhangs the aprons ${fmt(F.apronInset)} at each end and ${fmt(plan.edge)} front and back. Glue it, then screw down into the legs and into both aprons every 8".`,add:['Seat']},FIN];
+   styledStep({
+     std:`Before you put anything together, drill the pocket holes: on the inside face of each leg, near its edges for the aprons and near its top end for the seat, and along the top edge of the inside face of each apron for the seat, as many as the lists of this step and the next say. `+legs+
+       ' Drive the pocket screws listed below from the holes in the legs into the aprons, then check that the legs are square to the aprons.',
+     rustic:legs.replace('glue the two aprons','glue and screw the two aprons')+' Drill pilot holes and drive two screws through the apron into the edge of each leg, then check that the legs are square to the aprons.'},
+     ['Leg','Apron']),
+   styledStep({
+     std:`Lay the seat best face down on a blanket or a piece of carpet, and set the legs and aprons upside down on it, centered so that the seat ${overhang}: measure it all round. Glue it, and drive the pocket screws listed below from the holes on the inside of the aprons and the legs up into the seat. They stop short of the top, so nothing shows on it. Turn the bench right side up.`,
+     rustic:`Center the seat on top so it ${overhang}. Glue it, then screw down into the legs and into both aprons every 8".`},
+     ['Seat']),FIN];
 }
 const STEPS={
  'Fish tank wall / rack':p=>rackSteps(p,true),

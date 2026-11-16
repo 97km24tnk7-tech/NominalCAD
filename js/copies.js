@@ -86,6 +86,11 @@ function addCopies(sources,clones){
     const dash=key.indexOf('-'),idA=+key.slice(0,dash),idB=+key.slice(dash+1);
     if(copyOf.has(idA)&&copyOf.has(idB))S.named[copyOf.get(idA)+'-'+copyOf.get(idB)]=S.named[key];
   }
+  // and a joint that follows the style (S.styled, js/joints.js) follows it between the two copies too
+  for(const key of Object.keys(S.styled||{})){
+    const dash=key.indexOf('-'),idA=+key.slice(0,dash),idB=+key.slice(dash+1);
+    if(copyOf.has(idA)&&copyOf.has(idB))S.styled[copyOf.get(idA)+'-'+copyOf.get(idB)]=S.styled[key];
+  }
   copyHardware(copyOf); // the hardware mounted on the originals is copied with them (js/hardware.js)
   bornTogether(ids);
   compsChanged();

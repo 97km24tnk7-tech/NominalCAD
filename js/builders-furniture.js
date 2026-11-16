@@ -33,15 +33,20 @@ const TABLE_RULES={
      shelf       material of the lower shelf (a board: slats across; a sheet: one panel)
      lowY        how far its frame is off the floor when the stretchers are the shallowest size (deeper ones reach lower)
      endStretch  the lower frame also has short stretchers at the ends
-     spec        the short line under the name on the preset's tile in the Furniture presets dialog (about 25 letters) */
+     shop        a shop piece: its top stays screwed down through its face in the Everyday style (tableJoints)
+     shortEnds   the short aprons are too short for pocket holes at both ends AND the holes that hold the seat
+                 boards (a 5 1/2" apron between 4x4 legs: the holes into the legs take up the whole apron), so they
+                 are held to the legs by screws through the leg, from the end of the bench (dowels in Fine
+                 furniture), and the middle seat boards are held at their ends by pocket holes in the short aprons
+     spec       the short line under the name on the preset's tile in the Furniture presets dialog (about 25 letters) */
 const TABLE_KINDS={
   'Dining table':           {leg:'4x4',aprons:['2x4','2x6'],top:'2x6',over:2,use:'tableTop',sitsAt:true,spec:'4x4 legs, 2x6 plank top'},
   'Coffee table':           {leg:'2x2',aprons:['1x4','1x6'],top:'1x6',over:1,use:'tableTop',shelf:'1x4',lowY:3,spec:'Slatted lower shelf'},
   'Side table / nightstand':{leg:'2x2',aprons:['1x4','1x6'],top:'1x6',over:1,use:'tableTop',spec:'2x2 legs, board top'},
   'Desk':                   {leg:'4x4',aprons:['2x4','2x6'],top:'ply34',over:1,use:'tableTop',sitsAt:true,spec:'4x4 legs, plywood top'},
-  'Sturdy bench':           {leg:'4x4',aprons:['2x4','2x6'],top:'2x6',over:2,use:'seat',seatBoards:true,spec:'4x4s, 2x4s and 2x6s'},
+  'Sturdy bench':           {leg:'4x4',aprons:['2x4','2x6'],top:'2x6',over:2,use:'seat',seatBoards:true,shortEnds:true,spec:'4x4s, 2x4s and 2x6s'},
   // the 2x10 is what lets a full 4 ft by 8 ft sheet be a workbench top on four legs
-  'Workbench':              {leg:'4x4',aprons:['2x4','2x6','2x8','2x10'],top:'ply34',over:1,use:'benchTop',shelf:'ply34',lowY:6,endStretch:true,spec:'4x4 frame, plywood top'},
+  'Workbench':              {leg:'4x4',aprons:['2x4','2x6','2x8','2x10'],top:'ply34',over:1,use:'benchTop',shelf:'ply34',lowY:6,endStretch:true,shop:true,spec:'4x4 frame, plywood top'},
   'Entryway shoe bench':    {leg:'2x2',aprons:['1x4','1x6'],top:'1x6',over:1,use:'seat',seatBoards:true,shelf:'1x4',lowY:3,shoes:true,spec:'Seat over a shoe shelf'}
 };
 /* the form values of a table preset together with what it is made of: what tablePlan and buildTable take */
@@ -268,15 +273,52 @@ function tableNotes(name,p){
    The boards of a plank top are each screwed down to the frame and are not glued to each other, and the lower
    shelf only touches the legs it is fitted between. */
 const TABLE_JOINTS=[['Top board','Top board','none'],['Seat board','Seat board','none'],['Leg','Lower shelf','none']];
+/* Furniture for the house shows no fastener on its top or its front, unless it is built in the Rustic / rough style
+   (the owner's rule; STYLE_RULES in js/joints.js). So the fasteners of these joints follow the style:
+   - the top (or each top or seat board) is held on from underneath: pocket holes on the inside face of the aprons
+     and the cross rails, driven up into its underside. It only rests on the ends of the legs; the aprons carry it.
+     The boards are not glued to each other, so each can swell and shrink by itself and plain screws from below
+     are fine (a wide glued-up top would want tabletop fasteners; plywood does not move).
+   - a cross rail is held by pocket holes in its own ends, so nothing goes through the front apron;
+   - the slats of a lower shelf are held from below the same way, by pocket holes in the stretchers.
+   In Rustic / rough all of these are screwed through from outside, heads showing, as a rough piece is built. */
+const TABLE_TOPS=['Top','Top board','Seat board'];
+const TABLE_HOUSE_JOINTS=TABLE_JOINTS.concat(
+  TABLE_TOPS.flatMap(top=>[[top,'Long apron','pocketUnlessRustic'],[top,'Short apron','pocketUnlessRustic'],
+    [top,'Cross rail','pocketUnlessRustic'],[top,'Leg','restsUnlessRustic']]),
+  [['Long apron','Cross rail','pocketUnlessRustic'],['Shelf slat','Long stretcher','pocketUnlessRustic']]);
+/* A shop workbench keeps its top screwed down through the face, so that a worn top can be unscrewed and replaced:
+   that is how shop benches are built. In Fine furniture its top is held from below like a table's (the style
+   turns those screws into pocket holes in the aprons and rails) and only rests on the legs. */
+const TABLE_SHOP_JOINTS=TABLE_JOINTS.concat(TABLE_TOPS.map(top=>[top,'Leg','restsInFine']));
+/* One short sentence for the remark under the form: how the top is held on in this style. A new design starts in
+   the Everyday style (placePreset, js/app.js); Style & finish changes it later. */
+function tableTopWords(name,style){
+  const kind=TABLE_KINDS[name],surface=kind.seatBoards?'seat':'top',styleName=STYLES[style][0];
+  const fromBelow=!kind.shop?style!=='rustic':style==='fine';
+  if(fromBelow)return`In the ${styleName} style the ${surface} is held on from underneath by pocket screws in the aprons, so no screw shows on it${style==='rustic'?'':' (Rustic / rough screws it down from above)'}.`;
+  if(kind.shop&&style==='std')return`In the ${styleName} style the ${surface} is screwed down through its face, so a worn top can be unscrewed and replaced (Fine furniture holds it from underneath).`;
+  return`In the ${styleName} style the ${surface} is screwed down through its face, with the screw heads showing.`;
+}
+/* A short apron too short for pocket holes at both ends and for the seat's holes (TABLE_KINDS: shortEnds) is held
+   to the legs by screws through the leg, from the end of the piece; Fine furniture dowels it instead. */
+const SHORT_END_JOINTS=[['Leg','Short apron','doweledInFine']];
+/* the joints list of a table preset: house furniture or a shop piece (TABLE_KINDS: shop) */
+const tableJoints=name=>{
+  const kind=TABLE_KINDS[name];
+  if(kind.shop)return TABLE_SHOP_JOINTS;
+  return kind.shortEnds?SHORT_END_JOINTS.concat(TABLE_HOUSE_JOINTS):TABLE_HOUSE_JOINTS;
+};
 /* A table, desk or bench preset: everything but the name, the description and the form comes from the tables above. */
 function tablePreset(name,desc,params){
   return{name,spec:TABLE_KINDS[name].spec,desc,params,
     build:p=>buildTable(tableArgs(name,p)),
     uses:tableUses(name),
-    joints:TABLE_JOINTS,
+    joints:tableJoints(name),
     check:p=>tablePlan(tableArgs(name,p)).problems,
     notes:p=>tableNotes(name,p),
-    info:p=>tableNotes(name,p).slice(0,3).join(' '),
+    // Create makes a new design in the Everyday style (placePreset, js/app.js), so that is the style the remark speaks of
+    info:p=>[tableTopWords(name,'std')].concat(tableNotes(name,p).slice(0,2)).join(' '),
     steps:p=>tableSteps(tablePlan(tableArgs(name,p)))};
 }
 
@@ -290,6 +332,11 @@ const FIVE_BOARD={
   legInset:3,     // the legs stand this far in from the ends of the seat
   apronInset:1    // the aprons stop this far short of the ends of the seat
 };
+/* The five-board bench is house furniture (STYLE_RULES in js/joints.js): the seat is held from underneath by
+   pocket holes on the inside faces of the aprons and of the legs, and the aprons are held to the legs by pocket
+   holes on the inside faces of the legs, glued, so nothing shows on the seat or the front. Rustic / rough screws
+   down through the seat and in through the aprons, heads showing. */
+const FIVE_BOARD_JOINTS=[['Seat','Apron','pocketUnlessRustic'],['Seat','Leg','pocketUnlessRustic'],['Apron','Leg','pocketUnlessRustic']];
 function fiveBoardPlan(p){
   const F=FIVE_BOARD,seatMat=F.legFor[p.board]?p.board:'1x12',legMat=F.legFor[seatMat];
   const seatM=M[seatMat],legM=M[legMat],apronM=M[F.apron];
@@ -387,7 +434,10 @@ function buildBed(p){
 }
 /* Fasteners the bed names itself: the slats only touch the rails they lie between (they are screwed down into
    the cleats, the beams and the tops of the legs), and a cleat only touches the legs at its ends. */
-const BED_JOINTS=[['Side rail','Slat','none'],['End rail','Slat','none'],['Cleat','Leg','none']];
+const BED_JOINTS=[['Side rail','Slat','none'],['End rail','Slat','none'],['Cleat','Leg','none'],
+  // the head and the foot are the show ends of a bed: the center beams are held by pocket holes in their own ends and
+  // the legs by L-brackets inside the corners, so nothing goes through the end rails (Rustic / rough screws through them)
+  ['End rail','Center beam','pocketUnlessRustic'],['End rail','Leg','bracketUnlessRustic'],['End rail','Center leg','bracketUnlessRustic']];
 function bedNotes(p){
   const plan=bedPlan(p),beams=plan.beamXs.length,legs=plan.beamLegZs.length,notes=[];
   const onLegs=beams===1?`on ${legs} legs of its own`:`each on ${legs} legs of its own`;

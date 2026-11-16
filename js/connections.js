@@ -239,6 +239,13 @@ function settleConnections(){
       else delete S.joints[key];
     }
   }
+  // the joints that follow the style (S.styled, js/joints.js) are forgotten with their pieces
+  if(S.styled&&typeof S.styled==='object'){
+    for(const key of Object.keys(S.styled)){
+      const dash=key.indexOf('-');
+      if(!alive.has(+key.slice(0,dash))||!alive.has(+key.slice(dash+1)))delete S.styled[key];
+    }
+  }
   if(named){
     for(const key of Object.keys(named)){
       const dash=key.indexOf('-');
@@ -290,7 +297,7 @@ ON_LOAD.push(()=>{
 /* the fastener to use when the person asks for these two to be fastened: the suggestion, or, where the
    suggestion is "only touching" (a lid, a door, boards stacked on edge), the plainest fastener that works */
 function fastenerFor(joint){
-  const suggested=styleType(defaultType(joint),joint);
+  const suggested=suggestedType(joint);
   if(suggested!=='none')return suggested;
   return thruPart(joint)?'screw':'pocket';
 }
@@ -304,7 +311,7 @@ function fastenPair(pA,pB){
     // Where the suggestion is a real fastener and will apply by itself, nothing needs storing (and the joint keeps
     // following the style). Otherwise the fastener is stored: for a lid or a door, and for a contact that is new
     // while Auto-fasten is off.
-    const suggested=styleType(defaultType(joint),joint);
+    const suggested=suggestedType(joint);
     const appliesByItself=suggested!=='none'&&(autoFasten||connGraph().byKey.has(joint.key));
     if(appliesByItself)delete S.joints[joint.key];
     else S.joints[joint.key]=fastenerFor(joint);

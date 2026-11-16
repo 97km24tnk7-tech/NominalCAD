@@ -70,6 +70,13 @@ const BOOKSHELF_LIMITS={W:[12,72],H:[24,84],n:[0,8]};
    limit is that a hand can still reach in. Shelves that meet a divider are fastened from underneath, and the
    drill needs room. Closer than that cannot be built, so the form says why and builds nothing. */
 const BOOKSHELF_MIN_OPENING={plain:4,atDivider:6};
+/* House furniture shows no fastener on its top or its front, unless it is built Rustic / rough (STYLE_RULES in
+   js/joints.js). The bookshelf's top is held to the back rail by pocket holes in the rail (on its back face, which
+   the back panel covers); the toy chest's front is held by pocket holes inside the sides and the bottom; the wall
+   shelf is held from underneath by pocket holes in the cleat (on its back, against the wall) and the supports. */
+const BOOKSHELF_JOINTS=[['Top','Back rail','pocketUnlessRustic'],['Top','Divider','pocketUnlessRustic']];
+const STORAGE_BOX_JOINTS=[['Front','Side','pocketUnlessRustic'],['Front','Bottom','pocketUnlessRustic']];
+const WALL_SHELF_JOINTS=[['Shelf','Wall cleat','pocketUnlessRustic'],['Shelf','Support','pocketUnlessRustic']];
 const BOOKSHELF_USES={Top:'books',Bottom:'books',Shelf:'books','Toe kick':'books','Base rail':'books','Back rail':'none'};
 const SHEET_WIDTH=48;               // a sheet of plywood is 4 ft wide
 
@@ -270,11 +277,18 @@ function bookshelfSteps(p){
       (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':''),add:['Toe kick','Base rail']},
     ...(heights.length?[{t:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pilot holes, glue, and two screws through the ${div?'upright':'side'} into each end of a shelf.`+
       (div?' '+secondSideOfUpright('divider'):''),add:['Shelf']}]:[]),
-    {t:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`,add:['Top']}];
+    styledStep({
+      std:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then fasten it to the top of '+(div>1?'each divider':'the divider')+' with the pocket screws listed below, from holes drilled in the faces of the divider near its top end, so nothing shows on the top':''}.`,
+      rustic:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`},['Top'])];
   if(s.backRail){
-    steps.push({t:`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, drive two screws through each ${div?'upright':'side'} into each of its ends, and screw down through the top into it about every 8".`+
+    const railWords=`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, drive two screws through each ${div?'upright':'side'} into each of its ends, and `;
+    const railMore=
       (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+
-      (s.back?'':' Together with the base rail'+(div?'s':'')+' it keeps the case (the box that the sides, the top and the bottom make) from leaning sideways.')+(s.anchored?' The screws into the wall studs will go through this rail.':''),add:['Back rail']});
+      (s.back?'':' Together with the base rail'+(div?'s':'')+' it keeps the case (the box that the sides, the top and the bottom make) from leaning sideways.')+(s.anchored?' The screws into the wall studs will go through this rail.':'');
+    steps.push(styledStep({
+      std:railWords+'fasten the top to it with the pocket screws listed below, from holes drilled in the back face of the rail before it goes in (the back face is covered by the back panel or the wall, so no hole shows, and nothing goes down through the top).'+railMore,
+      fine:`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, and drive the pocket screws listed below from holes drilled in its back face before it goes in: at each end into the ${div?'upright':'side'}, and along it up into the top (the back face is covered by the back panel or the wall, so no hole shows).`+railMore,
+      rustic:railWords+'screw down through the top into it about every 8".'+railMore},['Back rail']));
   }
   if(s.back){
     steps.push({t:'Lay the case (the box you have built so far) face down. Measure corner to corner both ways and nudge it until the two measurements match, then glue and nail the back on, with a nail about every 6" into the back edge of every board it lies against: the sides, the top, '+(div?'the bottom boards'+(heights.length?', the shelves':'')+' and the '+(div>1?'dividers':'divider'):heights.length?'the bottom board and the shelves':'and the bottom board')+'.'+
@@ -532,8 +546,12 @@ function wallShelfHardware(p){
 function wallShelfSteps(p){
   const s=wallShelfPlan(p),n=s.supportX.length;
   return[STORAGE_CUT_STEP,
-    {t:'Glue and screw the shelf onto the top edge of the wall cleat, flush along the back, with a screw every 8".',add:['Wall cleat','Shelf']},
-    {t:`Fasten the ${n} supports under the shelf, tight against the cleat: one ${fmt(WALL_SHELF_INSET)} in from each end${n>2?' and the rest spaced evenly between them':''}. Drive two screws in through the back of the cleat into the end of each support and two down through the shelf into it. The supports are what hold the front of the shelf up.`,add:['Support']},
+    styledStep({
+      std:'Glue the shelf onto the top edge of the wall cleat, flush along the back, and fasten it from below with the pocket screws listed below, from holes drilled in the back face of the cleat (the face that goes against the wall, so no hole shows).',
+      rustic:'Glue and screw the shelf onto the top edge of the wall cleat, flush along the back, with a screw every 8".'},['Wall cleat','Shelf']),
+    styledStep({
+      std:`Fasten the ${n} supports under the shelf, tight against the cleat: one ${fmt(WALL_SHELF_INSET)} in from each end${n>2?' and the rest spaced evenly between them':''}. Drive two screws in through the back of the cleat into the end of each support, and fasten the shelf to each support with the pocket screws listed below, from holes in a face of the support near its top edge. The supports are what hold the front of the shelf up.`,
+      rustic:`Fasten the ${n} supports under the shelf, tight against the cleat: one ${fmt(WALL_SHELF_INSET)} in from each end${n>2?' and the rest spaced evenly between them':''}. Drive two screws in through the back of the cleat into the end of each support and two down through the shelf into it. The supports are what hold the front of the shelf up.`},['Support']),
     STORAGE_FINISH_STEP,
     {t:`Find the wall studs with a stud finder. Hold the shelf level with its top ${fmt(s.up+4.25)} above the floor and drive two 3" screws through the cleat into every stud it crosses.`+
       (s.L<32?' If it crosses only one stud, add a heavy-duty toggle bolt through the cleat near each end.':'')+' Do not rely on plastic drywall anchors for a loaded shelf.',add:[]}];
@@ -580,8 +598,12 @@ function storageBoxHardware(p){
 function storageBoxSteps(p){
   const s=storageBoxPlan(p);
   const steps=[STORAGE_CUT_STEP,
-    {t:'Fasten the two sides between the front and the back. Glue each joint, drill pilot holes and screw through the front and the back into the side edges, a screw every 6".',add:['Front','Back','Side']},
-    {t:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".',add:['Bottom']},
+    styledStep({
+      std:'Fasten the two sides between the front and the back. Glue each joint. Hold the front with the pocket screws listed below, from holes drilled on the inside faces of the sides, so nothing shows on the front; drill pilot holes and screw through the back into the side edges, a screw every 6".',
+      rustic:'Fasten the two sides between the front and the back. Glue each joint, drill pilot holes and screw through the front and the back into the side edges, a screw every 6".'},['Front','Back','Side']),
+    styledStep({
+      std:'Drop the bottom in flush with the lower edges. Glue it, screw through the back and the two sides into it with a screw every 6", and hold the front to it with the pocket screws listed below, from holes drilled on the underside of the bottom.',
+      rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom']),
     {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit a soft-close lid support inside so it cannot slam on fingers.',add:['Lid']},
     STORAGE_FINISH_STEP];
   return stepsForPieces(s.lid?steps:steps.filter(step=>!step.add.includes('Lid')),buildStorageBox(p));

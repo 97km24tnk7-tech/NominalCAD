@@ -635,7 +635,7 @@ function stepScene(plan,index){
 /* how far the doors and drawers of a hardware step are drawn open: enough to see the hinges and the slides */
 const PICTURE_OPEN={swing:.7,slide:.75};
 /* the eye of a step picture: the usual corner, near enough that what is shown fills the picture */
-function aimAtShown(visible,behind){
+function aimAtShown(visible,behind,below){
   const bounds=new THREE.Box3(),one=new THREE.Box3();
   for(const p of S.parts){
     const g=meshes.get(p.id);
@@ -646,7 +646,7 @@ function aimAtShown(visible,behind){
   if(bounds.isEmpty())return;
   bounds.getCenter(cam.target);
   cam.r=Math.max(16,bounds.getSize(new THREE.Vector3()).length()*1.7)*.85;
-  cam.th=behind?-1.05:1.05;cam.ph=1.15;
+  cam.th=behind?-1.05:1.05;cam.ph=below?Math.PI-1.15:1.15;
   updateCam();
 }
 /* where the balloon of a "Fasten with" line points: the middle of the fasteners of one of its joints that is in
@@ -715,9 +715,14 @@ function stepPictures(plan){
       for(const p of S.parts)setMeshPos(p);
     }
     if(view.apart)grid.visible=floor.visible=false;   // a part drawn by itself does not stand on the floor of the design
-    aimAtShown(view.visible,view.behind);
-    const reach=cam.r*.0036;   // how thick a fastener is drawn in the step picture: about 3 pixels across
     const fasteners=stepFasteners(step).filter(f=>view.visible(f.through.id)&&view.visible(f.into.id));
+    // a step whose screws are all driven up into the underside of a top (a top held on from underneath) is seen
+    // from below, where the work is done; seen from above its screws would seem to be on the top
+    const fromBelow=fasteners.length>0&&fasteners.every(f=>f.dir[1]>.5);
+    if(fromBelow)entry.notes=entry.notes.concat('Seen from below: these screws are driven up into the underside, and nothing shows on top.');
+    if(fromBelow)grid.visible=floor.visible=false;   // the floor would hide what is seen from under it
+    aimAtShown(view.visible,view.behind,fromBelow);
+    const reach=cam.r*.0036;   // how thick a fastener is drawn in the step picture: about 3 pixels across
     entry.total=fasteners.length;
     entry.drawn=Math.min(fasteners.length,MARKERS_MAX);
     const markers=fastenerMarkers(fasteners.slice(0,MARKERS_MAX),{color:STEP_COL.fastener,minRadius:reach,onTop:true});

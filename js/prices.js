@@ -93,6 +93,8 @@ const HARDWARE_PRICES=[
   ...priceByLength('wood-screws','Wood screws, #8',length=>`#8 × ${length} wood screws`,100,'box of 100',
     [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]],
     '(?:wood |construction )?screws(?: for the wall studs)?'),
+  // the short screws of a bracket under a 3/4" top are 1/2" (bracketScrew, js/style.js)
+  {id:'bracket-screws-half',name:'Short screws for brackets, #8 × 1/2"',match:/1\/2" screws for brackets/i,pack:100,sold:'box of 100',price:5},
   {id:'bracket-screws',name:'Short screws for brackets, #8 × 5/8"',match:/screws for brackets/i,pack:100,sold:'box of 100',price:5},
   {id:'wood-screws',name:'Wood screws, #8, other lengths',match:/wood screws/i,pack:100,sold:'box of 100',price:9},
   {id:'dowels',name:'Wood dowels',match:/wood dowels/i,pack:30,sold:'bag of 30',price:4},

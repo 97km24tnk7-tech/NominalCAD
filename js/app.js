@@ -427,7 +427,7 @@ function placePreset(preset,vals,parts,add){
     S.notes=(S.notes||[]).concat(notes);
     S.steps=[]; // two designs side by side have no single order of steps: the steps are then worked out from the pieces, as a suggested order (js/buildsteps.js)
   }else{
-    S.parts=[];S.joints={};S.named={};S.comps=[];S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
+    S.parts=[];S.joints={};S.named={};S.styled={};S.comps=[];S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
     // every design starts in the everyday style, in pine, with a clear coat, unless its preset says otherwise
     // (look:{finish:'none'} on the outdoor presets, so nobody is told to buy polyurethane for a shed)
     S.look={style:'std',wood:'pine',finish:'clear',...(preset.look||{})};

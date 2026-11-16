@@ -5,9 +5,12 @@ const WOODS={pine:['Construction pine or spruce (cheapest)',0xe6c592,1,0],select
  cedar:['Cedar (outdoor, resists rot)',0xcb8f62,2.6,0],pt:['Pressure-treated pine (outdoor)',0xb7b587,1.4,0],oak:['Red oak (hardwood)',0xcf9a63,4,1],rough:['Rough-sawn or reclaimed boards',0xa5855e,1.3,0]}; // name, color, price multiplier, hardwood
 const FINISHES={none:['Bare wood',null,0],clear:['Clear coat (polyurethane)',null,0],stainL:['Light stain + clear coat',0xb07a3a,1],stainD:['Dark stain + clear coat',0x5a3a20,1],
  white:['Painted white',0xf3f1ea,2],black:['Painted black',0x2e2e2e,2],gray:['Painted gray',0x8d9499,2],blue:['Painted navy blue',0x2f4a6b,2],green:['Painted sage green',0x7c9473,2]}; // name, color, 1 = stain, 2 = paint
-const STYLES={rustic:['Rustic / rough','Construction lumber, screws left showing, quick sanding. Fastest, cheapest and the most forgiving.'],
- std:['Everyday','Clean and sturdy. Screws where they are easy, pocket holes where they hide. A normal sanding and finish.'],
- fine:['Fine furniture','No fasteners showing: pocket holes and glue, holes filled, sanded smooth to 220 grit. Takes the most time and care.']};
+/* The three build styles. The words on each card must stay true: the style decides how tops and fronts are
+   fastened (STYLE_RULES in js/joints.js, styleType below), and a beginner must be able to tell from these words
+   that only Rustic / rough leaves screw heads showing on top. */
+const STYLES={rustic:['Rustic / rough','Construction lumber and quick sanding. Screws go straight in from outside, so their heads show, on the top of a table or bench too. Fastest, cheapest and the most forgiving.'],
+ std:['Everyday','Clean and sturdy. Nothing shows on the top or the front of furniture: tops are held on from underneath with pocket screws. Plain screws where they are easy, on sides and backs and on shop pieces. A normal sanding and finish.'],
+ fine:['Fine furniture','Fasteners hidden almost everywhere: pocket holes on the hidden side and glue, the few holes left filled, sanded smooth to 220 grit. Takes the most time and care.']};
 const look=()=>S.look||(S.look={style:'std',wood:'pine',finish:'clear'});
 function partColor(p){const m=M[p.mat];if(m.kind==='prop')return m.color;const L=look(),c=new THREE.Color(WOODS[m.treated?'pt':L.wood][1]),f=FINISHES[L.finish]; // a pressure-treated board keeps its own greenish color
   if(m.kind==='sheet')c.multiplyScalar(.93);else if(m.id==='4x4')c.multiplyScalar(.96);
@@ -15,8 +18,38 @@ function partColor(p){const m=M[p.mat];if(m.kind==='prop')return m.color;const L
   return c.getHex();}
 function styleType(t,j,style){const s=style||look().style; // the style nudges the suggested fastener; a choice made by hand always wins (js/verify.js passes the style itself)
   if(s==='rustic'&&(t==='pocket'||t==='dowel'))return'screw';
-  if(s==='fine'&&t==='screw'&&!(j.fa==='face'&&j.fb==='face'))return'pocket';
+  // Fine furniture hides a screw in a pocket hole, but a pocket-hole jig only takes stock up to 1 1/2" thick:
+  // a hole cannot be drilled in a 4x4 that way, so there the screw stays
+  if(s==='fine'&&t==='screw'&&!(j.fa==='face'&&j.fb==='face')&&pocketPiece(j).t<=POCKET_JIG_MAX+1e-6)return'pocket';
   return t;}
+/* ---------- pocket holes: the jig ----------
+   A pocket-hole jig is set for the thickness of the stock, and each setting has its screw (the chart on every
+   jig). Where the two pieces differ, the jig is set for the thinner one, so the screw cannot come out of it.
+   The bit drills to a fixed stop, so the head of the screw always seats at the same place in the hole: SHOULDER
+   is how far that is from where the screw leaves the piece, along the screw. What is left of the screw goes into
+   the second piece, at 15 degrees. These are rule-of-thumb numbers, close to the usual jigs, not a maker's chart.
+     set       the thickness the jig is set for (inches)
+     screw     the screw for that setting: its length, and the shopping-list size
+     shoulder  from the head of the screw to where it leaves the piece, along the screw */
+const POCKET_JIG=[
+  {set:.5,  screw:1,   size:'1"',     shoulder:.65},
+  {set:.75, screw:1.25,size:'1-1/4"', shoulder:.75},
+  {set:1,   screw:1.5, size:'1-1/2"', shoulder:1},
+  {set:1.5, screw:2.5, size:'2-1/2"', shoulder:1.5}
+];
+const POCKET_JIG_MAX=1.5;     // the thickest stock a pocket-hole jig takes
+const POCKET_COVER=.25;       // wood wanted over the point of a pocket screw, where the stock allows
+const POCKET_COVER_MIN=.125;  // never less than this
+/* The jig setting for a pocket-hole joint: hp is the piece with the holes, mateDepth how thick the other piece is
+   where the screw goes in. The jig is set for the thinner of the two, to the nearest setting at or below it. */
+function pocketJig(hp,mateDepth){
+  const thinner=Math.min(hp.t,mateDepth);
+  let row=POCKET_JIG[0];
+  for(const candidate of POCKET_JIG)if(candidate.set<=thinner+.02)row=candidate;
+  return row;
+}
+/* how deep the point of a pocket screw of this setting ends in the second piece, square to the joint */
+const pocketReach=jig=>(jig.screw-jig.shoulder)*Math.cos(15*Math.PI/180);
 /* Wood for outdoors: cedar or pressure-treated. Screws in it are bought as exterior screws (plain steel rusts away
    in treated lumber), and a finish for it is an exterior one. */
 const outdoorWood=()=>look().wood==='cedar'||look().wood==='pt';
@@ -48,7 +81,12 @@ function finText(){const L=look(),f=FINISHES[L.finish],out=outdoorWood(),coats=L
     :f[2]===2?`Prime first, using a stain-blocking primer over any knots, then roll or brush on two coats of ${out?'exterior ':''}paint, sanding lightly between coats.`
     :`Brush on ${coats} thin coats of ${out?'exterior spar urethane':'water-based polyurethane'}, sanding lightly with 320 grit between coats.`;
   return sand+' '+fin;}
-const stepText=st=>st.t===FIN.t?finText():st.t;
+/* The words of a preset step. A step whose work depends on the build style (a top screwed down through its face
+   in Rustic / rough, held from underneath in the other two) carries its words for each style in byStyle; st.t is
+   the Everyday wording. */
+const stepText=st=>st.t===FIN.t?finText():(st.byStyle&&st.byStyle[look().style])||st.t;
+/* a step with words for each style: {t: the Everyday words, byStyle: {rustic, std, fine}} */
+const styledStep=(words,add)=>({t:words.std,byStyle:{rustic:words.rustic,std:words.std,fine:words.fine||words.std},add});
 const surfaceSqFt=()=>S.parts.reduce((a,p)=>isProp(p)?a:a+2*(p.l*p.w+p.l*p.t+p.w*p.t)/144,0);
 function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceSqFt();if(!a)return rows;
   const qt=c=>Math.max(1,Math.ceil(a*c/100)); // a quart covers about 100 sq ft per coat
@@ -87,9 +125,20 @@ function renderStyle(){
   $('#woodSel').innerHTML=Object.entries(WOODS).map(([k,v])=>`<option value="${k}"${k===L.wood?' selected':''}>${v[0]}${v[2]>1?` (about ${v[2]}× the price)`:''}</option>`).join('');
   $('#finSel').innerHTML=Object.entries(FINISHES).map(([k,v])=>`<option value="${k}"${k===L.finish?' selected':''}>${v[0]}</option>`).join('');
 }
-const jType=j=>S.joints[j.key]||styleType(defaultType(j),j);
+/* the fastener of a joint: the one picked by hand (or named by the preset as a fixed type), else the suggestion,
+   which may follow the style (suggestedType and STYLE_RULES in js/joints.js) */
+const jType=j=>S.joints[j.key]||suggestedType(j);
 const TWO_SCREWS_FROM=2.25;   // inches of contact: 3/4 in at each end and 3/4 in between two screws
-function jSpec(j,type){
+/* Small L-brackets: one about every 12", the first and the last within 4" of the ends of the joint (BRACKET in
+   js/fasteners.js places them); a joint under 8" takes one, in its middle. */
+const BRACKET_EVERY=12,BRACKET_FROM_END=4;
+const bracketCount=long=>long<2*BRACKET_FROM_END?1:Math.ceil((long-2*BRACKET_FROM_END)/BRACKET_EVERY)+1;
+/* The short screws of a bracket: 5/8" usually, 1/2" where one of the pieces is thinner than 1", so that the point
+   stays at least 1/4" under the far face of a 3/4" top (the plate itself is about 1/16" thick). */
+function bracketScrew(j){
+  return Math.min(j.da,j.db,j.a.t,j.b.t)<1-1e-6?{len:.5,size:'1/2"'}:{len:.625,size:'5/8"'};
+}
+function jSpec(j,type,opts){
   if(type==='frame'||type==='toenail'){   // nails for framing: js/framing.js
     // (framing looks at where the two pieces stand; inside a turned set that is read with the set standing square, js/neighbors.js)
     return j.frame&&!squaredNow?squaredUp(()=>framingSpec(j,type)):framingSpec(j,type);
@@ -108,17 +157,25 @@ function jSpec(j,type){
     const len=th?pickLE(SCREWS,Math.min(dT+Math.min(1.5,Math.max(.75,dT*1.2)),stopShort)):SCREWS[4];
     const screws=`#8 × ${len[1]} ${screwKind()}`;   // exterior screws in cedar and pressure-treated lumber
     text=`${n} × ${screws}`+(th?'':' driven at an angle');hw.push([screws,n]);glue=true;}
-  else if(type==='pocket'){n=long<2?1:Math.max(2,Math.ceil(long/6));
-    const hp=th?(th==='a'?j.b:j.a):(j.fa==='end'?j.a:j.fb==='end'?j.b:(j.a.t<=j.b.t?j.a:j.b)),t=hp.t;
-    const len=t<=.55?'1"':t<=.8?'1-1/4"':t<=1.1?'1-1/2"':'2-1/2"';
-    text=`${n} × ${len} pocket screws (holes in the ${hp.name.toLowerCase()})`;hw.push([`${len} pocket-hole screws`,n]);}
+  else if(type==='pocket'){n=long<TWO_SCREWS_FROM?1:Math.max(2,Math.ceil(long/6));   // two holes need the same room as two screws
+    // a row that had to leave out holes with no room past the holes in the ends of its piece (rule 11 in
+    // js/fasteners.js) is counted as it is laid out, so the lists buy what is drawn (opts.asPlanned: the count
+    // before that, which the layout itself starts from)
+    if(!(opts&&opts.asPlanned)){const laid=pocketCountAsLaidOut(j);if(laid)n=laid;}
+    // the holes are drilled in the piece that is not lying flat against the joint (pocketPiece, js/fasteners.js),
+    // and the jig is set for the thinner of the two pieces (pocketJig above)
+    const hp=pocketPiece(j),mateDepth=hp===j.a?j.db:j.da,jig=pocketJig(hp,mateDepth);
+    text=`${n} × ${jig.size} pocket screws (holes in the ${hp.name.toLowerCase()}, jig set for ${fmt(jig.set)} stock)`;
+    hw.push([`${jig.size} pocket-hole screws`,n]);}
   else if(type==='dowel'){n=Math.max(2,Math.ceil(long/6));const thin=Math.min(j.a.t,j.b.t)<.7;
     const d=thin?'1/4" × 1"':'3/8" × 1-1/2"';text=`${n} × ${d} dowels + glue`;hw.push([`${d} wood dowels`,n]);glue=true;}
   else if(type==='nail'){n=Math.max(2,Math.ceil(long/6));
     const len=th?pickLE(BRADS,Math.min(dT*2.5,stopShort)):BRADS[3];
     text=`${n} × ${len[1]} brad nails + glue`;hw.push([`${len[1]} brad nails (18 gauge)`,n]);glue=true;}
-  else if(type==='bracket'){n=Math.max(1,Math.ceil(long/18));
-    text=`${n} × 1-1/2" L-bracket${n>1?'s':''} (4 screws each)`;hw.push(['1-1/2" L-brackets (corner braces)',n],['#8 × 5/8" screws for brackets',n*4]);}
+  else if(type==='bracket'){n=bracketCount(long);
+    const screw=bracketScrew(j);
+    text=`${n} × 1-1/2" L-bracket${n>1?'s':''} on the hidden side, inside the corner (4 × #8 × ${screw.size} screws each)`;
+    hw.push(['1-1/2" L-brackets (corner braces)',n],[`#8 × ${screw.size} screws for brackets`,n*4]);}
   else if(type==='glue'){text='Wood glue and clamps';glue=true;}
   else text='No fastener: the pieces only touch';
   return{text,hw,n,glue};

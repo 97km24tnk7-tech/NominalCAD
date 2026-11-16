@@ -2,11 +2,11 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='1896ace';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='9a07f59';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=1896ace">
+<link rel="stylesheet" href="css/style.css?v=9a07f59">
 </head>
 <body data-tab="design">
 
@@ -636,6 +636,7 @@
       <dt>Right-click</dt><dd>Right-click a piece for a menu of everything you can do to it. Right-click empty space for view options.</dd>
       <dt>Hide and see through</dt><dd>H hides the selected pieces, Shift+H shows only them, Alt+H brings everything back. Display, then Exploded view, pulls the pieces apart. <b>Show me</b>, beside a word under "Words used in this design" on the pages, shows where those pieces are: they turn blue and the rest goes see-through until you click.</dd>
       <dt>Screws and other fasteners</dt><dd>Every screw, pocket hole, dowel, brad and bracket is drawn where it goes, at its real size. In <b>Display</b> the Wood row picks how to see them: <b>Solid</b> shows the heads on the surface, <b>See-through</b> (Shift+S) lets you watch a screw pass through one piece into the next, and <b>Fasteners only</b> (Shift+F) leaves just outlines of the wood. Point at a fastener to read what it is and what it goes through. Click one to change the fastener of that connection in the Properties panel, or to delete the connection.</dd>
+      <dt>The style decides what shows</dt><dd><b>Style &amp; finish</b> picks how a design is fastened, and you see the change at once in the 3D view, the lists and the steps. In <b>Everyday</b> and <b>Fine furniture</b> nothing shows on the top or the front of furniture for the house: a table, desk or bench top is held on from underneath, with pocket screws driven up through holes on the inside of the aprons and cross rails, and it only rests on the legs. The build step says how: lay the top face down on a blanket, set the frame upside down on it, mark the overhang all round and drive the screws. In <b>Rustic / rough</b> the top is screwed down from above, with the heads showing. A workbench, garage shelves and outdoor pieces keep their screws through the top in Everyday, because that is how those are built. A fastener you pick by hand stays as you picked it in every style.</dd>
       <dt>Hardware</dt><dd><b>Hardware</b>, in the Add group, has hinges, drawer slides, pulls, catches, casters and more. Pick one, then click the piece it goes on; a blue preview shows where it will sit. Click a piece of hardware to change its size, drag it to slide it along its piece, press Delete to remove it. It is listed under its piece in the Pieces panel and counted in the shopping list.</dd>
       <dt>Doors, lids and drawers</dt><dd>Select a door or a lid and choose <b>Hang this door or lid</b> (Hardware pulldown, right-click menu, or Properties): it gets hinges on the edge next to its frame, a pull and a catch. For a new drawer, choose <b>Drawer</b> under More in the Add group, pick metal slides or wooden runners, and click inside the space it goes in (between two sides, with something above and below): it is built to fit, on real slides, with a pull. For a drawer box you built yourself, select it and choose <b>Mount this drawer on slides</b>; the box needs a 1/2" gap on each side for metal slides. A hinged door moves with its cabinet. To open a door, lid or drawer, double-click it (double-click again to close it). Or select it and drag its blue handle, a ball for a hinge and a cone for a drawer (a click on the handle opens or closes it all the way), or use the Open slider in Properties. Display has <b>Open all doors and drawers</b> (Alt+O). If something is in the way, both pieces turn red and the status bar says what it hits. Opening never changes the cut list.</dd>
       <dt>Fastened pieces</dt><dd>Pieces that are screwed, nailed or glued together move and turn together: drag one and the rest come along, shown with a lighter outline. Stretching still changes only the piece you stretch. To move one piece alone, select it and press <b>Unfasten</b> (U): it lists the connections and asks before deleting them. <b>Connect</b> (C) fastens two pieces again. Pieces that end up touching are fastened by themselves; in Expert, the <b>Auto-fasten</b> switch in the status bar turns that off.</dd>
@@ -674,66 +675,67 @@
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=1896ace"></script>
+<script src="three.min.js?v=9a07f59"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=1896ace"></script>
-<script src="js/hosted.js?v=1896ace"></script>
-<script src="js/dialogs.js?v=1896ace"></script>
-<script src="js/lengthboxes.js?v=1896ace"></script>
-<script src="js/orient.js?v=1896ace"></script>
-<script src="js/verify.js?v=1896ace"></script>
-<script src="js/builders-furniture.js?v=1896ace"></script>
-<script src="js/builders-fish.js?v=1896ace"></script>
-<script src="js/builders-shed.js?v=1896ace"></script>
-<script src="js/builders-storage.js?v=1896ace"></script>
-<script src="js/builders-outdoor.js?v=1896ace"></script>
-<script src="js/presets.js?v=1896ace"></script>
-<script src="js/drawers.js?v=1896ace"></script>
-<script src="js/nightstand.js?v=1896ace"></script>
-<script src="js/state.js?v=1896ace"></script>
-<script src="js/joints.js?v=1896ace"></script>
-<script src="js/neighbors.js?v=1896ace"></script>
-<script src="js/framing.js?v=1896ace"></script>
-<script src="js/style.js?v=1896ace"></script>
-<script src="js/fasteners.js?v=1896ace"></script>
-<script src="js/visibility.js?v=1896ace"></script>
-<script src="js/view3d.js?v=1896ace"></script>
-<script src="js/viewmodes.js?v=1896ace"></script>
-<script src="js/groups.js?v=1896ace"></script>
-<script src="js/connections.js?v=1896ace"></script>
-<script src="js/components.js?v=1896ace"></script>
-<script src="js/hardware.js?v=1896ace"></script>
-<script src="js/holds.js?v=1896ace"></script>
-<script src="js/hardwareshapes.js?v=1896ace"></script>
-<script src="js/copies.js?v=1896ace"></script>
-<script src="js/tools.js?v=1896ace"></script>
-<script src="js/transform.js?v=1896ace"></script>
-<script src="js/panels.js?v=1896ace"></script>
-<script src="js/piecetree.js?v=1896ace"></script>
-<script src="js/unfasten.js?v=1896ace"></script>
-<script src="js/statusbar.js?v=1896ace"></script>
-<script src="js/viewpick.js?v=1896ace"></script>
-<script src="js/fastenerview.js?v=1896ace"></script>
-<script src="js/motion.js?v=1896ace"></script>
-<script src="js/hanging.js?v=1896ace"></script>
-<script src="js/hardwaretool.js?v=1896ace"></script>
-<script src="js/drawertool.js?v=1896ace"></script>
-<script src="js/plans.js?v=1896ace"></script>
-<script src="js/buildsteps.js?v=1896ace"></script>
-<script src="js/steppictures.js?v=1896ace"></script>
-<script src="js/stepmode.js?v=1896ace"></script>
-<script src="js/prices.js?v=1896ace"></script>
-<script src="js/layout.js?v=1896ace"></script>
-<script src="js/preview.js?v=1896ace"></script>
-<script src="js/checkui.js?v=1896ace"></script>
-<script src="js/app.js?v=1896ace"></script>
-<script src="js/level.js?v=1896ace"></script>
-<script src="js/glossary.js?v=1896ace"></script>
-<script src="js/jointhelp.js?v=1896ace"></script>
-<script src="js/wordlinks.js?v=1896ace"></script>
-<script src="js/transfer.js?v=1896ace"></script>
-<script src="js/menus.js?v=1896ace"></script>
-<script src="js/selftest.js?v=1896ace"></script>
+<script src="js/core.js?v=9a07f59"></script>
+<script src="js/hosted.js?v=9a07f59"></script>
+<script src="js/dialogs.js?v=9a07f59"></script>
+<script src="js/lengthboxes.js?v=9a07f59"></script>
+<script src="js/orient.js?v=9a07f59"></script>
+<script src="js/verify.js?v=9a07f59"></script>
+<script src="js/builders-furniture.js?v=9a07f59"></script>
+<script src="js/builders-fish.js?v=9a07f59"></script>
+<script src="js/builders-shed.js?v=9a07f59"></script>
+<script src="js/builders-storage.js?v=9a07f59"></script>
+<script src="js/builders-outdoor.js?v=9a07f59"></script>
+<script src="js/presets.js?v=9a07f59"></script>
+<script src="js/drawers.js?v=9a07f59"></script>
+<script src="js/nightstand.js?v=9a07f59"></script>
+<script src="js/state.js?v=9a07f59"></script>
+<script src="js/joints.js?v=9a07f59"></script>
+<script src="js/neighbors.js?v=9a07f59"></script>
+<script src="js/framing.js?v=9a07f59"></script>
+<script src="js/style.js?v=9a07f59"></script>
+<script src="js/fasteners.js?v=9a07f59"></script>
+<script src="js/visibility.js?v=9a07f59"></script>
+<script src="js/view3d.js?v=9a07f59"></script>
+<script src="js/viewmodes.js?v=9a07f59"></script>
+<script src="js/groups.js?v=9a07f59"></script>
+<script src="js/connections.js?v=9a07f59"></script>
+<script src="js/components.js?v=9a07f59"></script>
+<script src="js/hardware.js?v=9a07f59"></script>
+<script src="js/holds.js?v=9a07f59"></script>
+<script src="js/hardwareshapes.js?v=9a07f59"></script>
+<script src="js/copies.js?v=9a07f59"></script>
+<script src="js/tools.js?v=9a07f59"></script>
+<script src="js/transform.js?v=9a07f59"></script>
+<script src="js/panels.js?v=9a07f59"></script>
+<script src="js/piecetree.js?v=9a07f59"></script>
+<script src="js/unfasten.js?v=9a07f59"></script>
+<script src="js/statusbar.js?v=9a07f59"></script>
+<script src="js/viewpick.js?v=9a07f59"></script>
+<script src="js/fastenerview.js?v=9a07f59"></script>
+<script src="js/showfaces.js?v=9a07f59"></script>
+<script src="js/motion.js?v=9a07f59"></script>
+<script src="js/hanging.js?v=9a07f59"></script>
+<script src="js/hardwaretool.js?v=9a07f59"></script>
+<script src="js/drawertool.js?v=9a07f59"></script>
+<script src="js/plans.js?v=9a07f59"></script>
+<script src="js/buildsteps.js?v=9a07f59"></script>
+<script src="js/steppictures.js?v=9a07f59"></script>
+<script src="js/stepmode.js?v=9a07f59"></script>
+<script src="js/prices.js?v=9a07f59"></script>
+<script src="js/layout.js?v=9a07f59"></script>
+<script src="js/preview.js?v=9a07f59"></script>
+<script src="js/checkui.js?v=9a07f59"></script>
+<script src="js/app.js?v=9a07f59"></script>
+<script src="js/level.js?v=9a07f59"></script>
+<script src="js/glossary.js?v=9a07f59"></script>
+<script src="js/jointhelp.js?v=9a07f59"></script>
+<script src="js/wordlinks.js?v=9a07f59"></script>
+<script src="js/transfer.js?v=9a07f59"></script>
+<script src="js/menus.js?v=9a07f59"></script>
+<script src="js/selftest.js?v=9a07f59"></script>
 </body>
 </html>

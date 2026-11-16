@@ -224,7 +224,21 @@ function fastenerPlaces(joint,layout){
     const wholeEnd=Math.abs(range[0]-throughBox.lo[axis])<.07&&Math.abs(range[1]-throughBox.hi[axis])<.07;
     const ref=wholeEnd?`the ${through.name}`:'the joint',refSide=wholeEnd?sideWord(through,axis):'end';
     let text;
-    if(layout.length===1)text=`Put the ${what} in the middle of ${wholeEnd?'the '+through.name:'the joint'}.`;
+    // a row with a hole moved off a piece that lies against that face (rule 10 in js/fasteners.js) is not evenly
+    // spaced: every place is given, measured along the piece the holes are drilled in
+    const cleared=layout.find(f=>f.clear||f.passEnds);
+    const fromLow=spots.map(v=>v-throughBox.lo[axis]),lowEnd=DIRECTION_ENDS[axis][0];
+    if(cleared){
+      const kept=listWords(fromLow.map(inchWords));
+      text=`Put the ${what}s ${kept} from the ${lowEnd} ${sideWord(through,axis)} of the ${through.name}. `+
+        notEvenlyWords(layout,through.name);
+    }
+    // a joint over part of the piece (a top board crossing a cross rail): the places along the piece itself, which
+    // is what gets marked and drilled before the piece goes in
+    else if(!wholeEnd&&pocket){
+      text=`Put the ${what}${layout.length>1?'s':''} ${listWords(fromLow.map(inchWords))} from the ${lowEnd} ${sideWord(through,axis)} of the ${through.name}.`;
+    }
+    else if(layout.length===1)text=`Put the ${what} in the middle of ${wholeEnd?'the '+through.name:'the joint'}.`;
     else if(layout.length===2)text=`Put one ${what} ${inchWords(first)} in from each ${refSide} of ${ref}.`;
     else text=`Put the first ${what} ${inchWords(first)} from the ${refSide} of ${ref}, then one about every ${inchWords(spots[1]-spots[0])}.`;
     if(f0.toe){
@@ -233,14 +247,19 @@ function fastenerPlaces(joint,layout){
     }
     const start=pointOf(layout.slice().sort((a,b)=>pointOf(a)[axis]-pointOf(b)[axis])[0]);
     const from=start.slice(),to=start.slice();
-    from[axis]=range[0];
-    const dims=first>.05?[{from,to}]:[];
-    if(layout.length>1){
+    // (measured the way the words measure: from the low end of the piece when they give places along it)
+    const alongPiece=pocket&&(cleared||!wholeEnd);
+    from[axis]=alongPiece?throughBox.lo[axis]:range[0];
+    const dims=(alongPiece?fromLow[0]:first)>.05?[{from,to}]:[];
+    if(layout.length>1&&!alongPiece){
       const next=start.slice();
       next[axis]=spots[1];
       dims.push({from:start.slice(),to:next});
     }
-    return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:layout.length>1?r16(spots[1]-spots[0]):null};
+    // (the places along the piece the holes are drilled in, for a line of several joints on one such piece: whereWords)
+    const row=pocket?{through,axis,lowEnd,side:sideWord(through,axis),at:fromLow.map(r16),
+      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null}:null;
+    return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:layout.length>1?r16(spots[1]-spots[0]):null,row};
   }
 
   /* driven straight in (screws, brads, nails, dowels): a line across the joint, and places along it.
@@ -439,6 +458,11 @@ function movedMarks(facts){
   const b=plainBox(facts.through),k=facts.joint.k;
   return'moved:'+facts.layout.map(f=>[0,1,2].filter(axis=>axis!==k).map(axis=>r16(Math.min(f.pos[axis]-b.lo[axis],b.hi[axis]-f.pos[axis]))).join('/')).sort().join(',');
 }
+/* the short screws of a bracket line, as the shopping list names them: '#8 × 1/2"' */
+function bracketScrewWords(spec){
+  const row=spec.hw.find(entry=>/screws for brackets/.test(entry[0]));
+  return row?row[0].replace(/ screws for brackets$/,''):'#8 × 5/8"';
+}
 /* One "Fasten with" line for these joints: {type, links, places, each, total, label, hardware, line, where, sample}. */
 function fastenLine(links,letterOf){
   const all=links.map(linkFacts),one=all[0],type=one.link.type,spec=one.spec;
@@ -497,7 +521,7 @@ function fastenLine(links,letterOf){
     const share=sameCount?`${spec.n} at each of ${places} places`:`spaced evenly along ${places} joints, more in a longer joint${here.gap?' (about '+inchWords(here.gap)+' apart)':''}`;
     const how=f.kind==='pocket'?'Each is driven from a pocket hole in the piece named first, into the piece named second'
       :f.kind==='dowel'?'Half of each goes in the piece named first, half in the piece named second'
-      :f.kind==='bracket'?'Each holds the piece named first to the piece named second, with 4 short screws (#8 × 5/8")'
+      :f.kind==='bracket'?'Each holds the piece named first to the piece named second, with 4 short screws ('+bracketScrewWords(spec)+')'
       :f.toe?`Each is driven at an angle through the ${spec.drive?'side':'end'} of the piece named first, into the piece named second`
       :'Each goes through the piece named first into the piece named second';
     const list=byPlaces.map(pair=>{
@@ -524,7 +548,7 @@ function fastenLine(links,letterOf){
   }else if(f.kind==='dowel'){
     line=`${capital(count)}, glued: half of each in ${through}, half in ${intoPlain}.`+atEach;
   }else if(f.kind==='bracket'){
-    line=`${capital(count)}, ${f.flat?'flat across the seam between':'in the inside corner between'} ${through} and ${intoPlain}, each with 4 short screws (#8 × 5/8").`+atEach;
+    line=`${capital(count)}, ${f.flat?'flat across the seam between':'in the inside corner between'} ${through} and ${intoPlain}, each with 4 short screws (${bracketScrewWords(spec)}). Put the brackets on the hidden side, inside the corner.`+atEach;
   }else if(f.toe){
     line=`${capital(count)}, driven at an angle through the ${spec.drive?'side':'end'} of ${through} into ${intoPlain}${sample.layout.length>1?', from both sides in turn':''}.`+atEach;
   }else{
@@ -554,6 +578,8 @@ function whereWords(places,here,group){
     const texts=new Map();
     for(const place of places)texts.set(place.text,(texts.get(place.text)||0)+1);
     if(texts.size<=1)return here.text;
+    const rows=pocketRowsWords(places);
+    if(rows)return rows;
     if(texts.size>SORTS_MAX)return'';
     return'The places of this line are not all alike. '+[...texts.entries()].map(([text,count])=>`At ${count} of them: ${text}`).join(' ');
   }
@@ -584,6 +610,36 @@ function whereWords(places,here,group){
   }
   const gap=here.spot.gap;
   return`Spread them evenly along each place where the two pieces touch${gap?`, about ${inchWords(gap)} apart`:''}: the first and the last half that far from its ends, and never nearer than 3/4" to an end, so the wood does not split.`;
+}
+/* Pocket holes of several joints drilled in the same kind of piece (a cross rail under several top boards, each
+   board its own joint): the holes of each such piece as one row, measured from one end of it. When every piece
+   of the line has the same row, one sentence gives it; otherwise null, and the line says it joint by joint. */
+const ROW_PLACES_MAX=10;
+function pocketRowsWords(places){
+  if(!places.every(place=>place.row))return null;
+  const byPiece=new Map();
+  for(const place of places){
+    const id=place.row.through.id;
+    if(!byPiece.has(id))byPiece.set(id,{row:place.row,at:[]});
+    byPiece.get(id).at.push(...place.row.at);
+  }
+  const lists=[...byPiece.values()].map(entry=>({...entry,at:entry.at.slice().sort((a,b)=>a-b)}));
+  const first=lists[0],same=lists.every(entry=>entry.row.axis===first.row.axis&&entry.at.length===first.at.length&&entry.at.every((v,i)=>Math.abs(v-first.at[i])<.07));
+  if(!same||first.at.length>ROW_PLACES_MAX)return null;
+  const name=first.row.through.name,each=lists.length>1?`each ${name}`:`the ${name}`;
+  const clear=[...new Set(places.flatMap(place=>place.row.clear||[]))];
+  const passEnds=[...new Set(places.flatMap(place=>place.row.passEnds||[]))];
+  const why=clear.length||passEnds.length?' '+notEvenlyWords([{clear,passEnds}],name):'';
+  return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from its ${first.row.lowEnd} ${first.row.side}.`+why;
+}
+/* Why a row of pocket holes is not evenly spaced (rules 10 and 11 in js/fasteners.js): a hole was moved off a piece
+   that lies against the face, or past the pocket holes in the ends of the piece. */
+function notEvenlyWords(layout,name){
+  const clear=[...new Set(layout.flatMap(f=>f.clear||[]))],passEnds=[...new Set(layout.flatMap(f=>f.passEnds||[]))];
+  const reasons=[];
+  if(clear.length)reasons.push(`no hole may open where the ${listWords(clear)} lies against the ${name}`);
+  if(passEnds.length)reasons.push(`the holes stay clear of the pocket holes in the ends of the ${name} that hold it to the ${listWords(passEnds)}`);
+  return reasons.length?`They are not evenly spaced on purpose: ${reasons.join(', and ')}.`:'';
 }
 /* The joints of one step, sorted into lines: joints between the same two kinds of piece share a line; when that
    leaves too many lines, every kind of fastener gets one line that lists its pairs of pieces. */
