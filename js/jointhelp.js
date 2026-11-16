@@ -10,7 +10,8 @@
 
    The drawings are plain SVG, 300 x 160, drawn as a cut through the joint. Their colors come from the
    style sheet (svg.jh): .w and .w2 are the two pieces of wood, .m is metal, .g is glue, .peg a dowel,
-   .hole a drilled hole, .ld a leader line from a label, .ah an arrow head, .t label text. */
+   .hole a drilled hole, .ld a leader line from a label, .ah an arrow head, .t label text.
+   Sizes in the text are written like 1-1/4 inch. */
 'use strict';
 
 /* An arrow from one point to another. Drawn as a line and a small triangle (not an SVG marker: a marker is found
@@ -25,26 +26,30 @@ const jhSvg=(label,inner)=>`<svg class="jh" viewBox="0 0 300 160" role="img" ari
 const JOINT_HELP={
   screw:{
     title:'Wood screws',
-    what:'A screw passes through the first piece and bites into the second, pulling the two tight together. The everyday joint.',
+    what:'A screw passes through the first piece and its threads grip the second. The head presses down on the first piece, so tightening the screw squeezes the two together. The everyday joint.',
     picture:jhSvg('A screw through one board into the end of another',
       '<rect class="w2" x="118" y="52" width="44" height="100"/>'+
       '<rect class="w" x="20" y="22" width="156" height="30"/>'+
-      '<path class="hole" d="M136 22V112M144 22V112"/>'+
+      // the pilot hole is thinner than the threads, so the threads are drawn cutting into the wood beside it
+      '<path class="hole" d="M137.5 22V112M142.5 22V112"/>'+
       '<path class="m" d="M131 22h18l-5 7h-8z"/><rect class="m" x="138.5" y="29" width="3" height="74"/><path class="m" d="M138.5 103h3l-1.5 7z"/>'+
-      '<path class="m thread" d="M136 60l8 3M136 68l8 3M136 76l8 3M136 84l8 3M136 92l8 3"/>'+
+      '<path class="m thread" d="M134 60l12 3M134 68l12 3M134 76l12 3M134 84l12 3M134 92l12 3"/>'+
       '<text class="t" x="26" y="41">goes through this piece</text>'+
       '<text class="t" x="20" y="100">and into this one</text><path class="ld" d="M102 97h14"/>'+
       '<path class="ld" d="M150 24l34-10"/><text class="t" x="187" y="12">head level with</text><text class="t" x="187" y="23">the surface</text>'+
-      '<path class="ld" d="M146 70h36"/><text class="t" x="185" y="68">pilot hole first,</text><text class="t" x="185" y="79">1/8 in bit</text>'+
-      '<path class="ld" d="M146 100h36"/><text class="t" x="185" y="104">most of the screw is</text><text class="t" x="185" y="115">in the second piece</text>'),
-    need:['Drill','1/8 inch drill bit for the pilot holes','Driver bit that fits the screw heads','Wood glue (optional, and it makes the joint much stronger)'],
+      '<path class="ld" d="M148 70h34"/><text class="t" x="185" y="68">pilot hole first,</text><text class="t" x="185" y="79">thinner than the screw</text>'+
+      '<path class="ld" d="M148 100h34"/><text class="t" x="185" y="104">most of the screw is</text><text class="t" x="185" y="115">in the second piece</text>'),
+    need:['Drill','7/64 inch drill bit for the pilot holes (1/8 inch for oak and other hard woods)','Driver bit that fits the screw heads',
+      'Wood glue (optional). It adds a lot of strength where a face or an edge is glued, and only a little on a cut end.'],
     steps:['Hold or clamp the two pieces exactly where they go.',
-      'Drill a pilot hole where each screw will go, through the first piece and into the second.',
+      'Drill a pilot hole where each screw will go, through the first piece and into the second, about as deep as the screw is long.',
       'Widen the top of each hole a little (a countersink bit does it) so the screw head can sit level with the surface.',
       'For a stronger joint, take the pieces apart, spread glue where they meet, and put them back.',
       'Drive the screws until the heads are level with the wood, then stop. Driving them deeper crushes the wood and weakens the joint.'],
-    tips:['Keep screws at least 3/4 inch from the end of a board, or the board may split.',
-      'The screw has to be shorter than the two pieces together, or its point comes out the far side. The lengths in the lists already allow for that.']},
+    tips:['Wood splits most easily near the end of a board. Keep screws 3/4 inch or more from an end where you can. Where a screw has to be closer, as at a corner of 3/4 inch boards, the pilot hole is what prevents the split.',
+      'The screw has to be shorter than the two pieces together, or its point comes out the far side. The lengths in the lists already allow for that.',
+      'When the list says "driven at an angle", start the screw in the side of the first piece about 1 inch from the joint and slant it so it passes through the corner into the second piece. Drill the slanted pilot hole first.',
+      'If a gap stays between the pieces, back the screw out, squeeze the pieces together with a clamp, and drive it again.']},
   pocket:{
     title:'Pocket-hole screws',
     what:'A slanted hole is drilled into the hidden side of one piece, so a screw can go out through its end and into the next piece. Strong, quick, and no screw shows.',
@@ -56,13 +61,16 @@ const JOINT_HELP={
       '<text class="t" x="32" y="74">this piece gets the pockets</text>'+
       '<path class="ld" d="M148 98v22"/><text class="t" x="60" y="132">pocket drilled with a jig,</text><text class="t" x="60" y="143">on the side nobody sees</text>'+
       '<path class="ld" d="M222 68l-30-34"/><text class="t" x="60" y="26">the screw comes out the end</text><text class="t" x="60" y="37">and into the next piece</text>'),
-    need:['Pocket-hole jig, with its stepped drill bit and stop collar','Drill','The long square-drive bit that comes with the jig','A clamp','Pocket-hole screws (coarse thread for pine and plywood)'],
-    steps:['Set the jig and the stop collar on the bit for the thickness of your board: 3/4 inch for a 1x board or 3/4 inch plywood, 1-1/2 inch for a 2x4.',
+    need:['Pocket-hole jig, with its stepped drill bit and stop collar (the ring that clamps on the bit and sets how deep it drills)','Drill',
+      'The long square-drive bit that comes with the jig','A clamp',
+      'Pocket-hole screws (coarse thread for pine and plywood, fine thread for oak and other hard woods)'],
+    steps:['Set the jig and the stop collar on the bit for the thickness of your board: 3/4 inch for 3/4 inch plywood or a board sold as 1x (such as a 1x4), 1-1/2 inch for a 2x4, 1/2 inch for 1/2 inch plywood.',
       'Clamp the jig on the side of the board that will be hidden, at its end, and drill the holes.',
       'Put the two pieces together where they go and clamp them so they cannot slide.',
       'Drive a pocket screw through each hole until it is snug.'],
-    tips:['Use 1-1/4 inch screws for 3/4 inch wood and 2-1/2 inch screws for 1-1/2 inch wood.',
-      'The pieces try to slide as the screw goes in. A clamp across the joint stops that.']},
+    tips:['Use 1 inch screws for 1/2 inch wood, 1-1/4 inch screws for 3/4 inch wood and 2-1/2 inch screws for 1-1/2 inch wood.',
+      'The pieces try to slide as the screw goes in. A clamp across the joint stops that.',
+      'Use only pocket-hole screws. The cone-shaped head of an ordinary screw splits the pocket.']},
   dowel:{
     title:'Dowels and glue',
     what:'Short wooden pegs are glued into matching holes in both pieces. Nothing shows on the outside.',
@@ -74,17 +82,19 @@ const JOINT_HELP={
       jhArrow(58,112,104,112)+jhArrow(262,78,234,78)+
       '<path class="ld" d="M150 70l-22-28"/><text class="t" x="22" y="26">wooden peg (dowel),</text><text class="t" x="22" y="37">glue on it and in the holes</text>'+
       '<path class="ld" d="M112 87v40"/><text class="t" x="20" y="140">matching holes in both pieces,</text><text class="t" x="20" y="151">lined up with a dowel jig</text>'),
-    need:['Drill','Dowel jig (it keeps the holes straight and lined up)','Drill bit the size of the dowels, with a depth stop or a flag of tape','Dowels, wood glue and clamps'],
+    need:['Drill','Dowel jig (it keeps the holes straight and lined up)',
+      'Drill bit the size of the dowels, with a depth stop (a ring that clamps on the bit) or a piece of tape wrapped around the bit to mark how deep to drill',
+      'Dowel pins in the size the list gives (short grooved pegs sold in bags, not a long dowel rod), wood glue and clamps'],
     steps:['Mark where the two pieces meet.',
-      'With the jig, drill the holes in the first piece, a little deeper than half the length of a dowel.',
+      'With the jig, drill the holes in the first piece, a little deeper than half the length of a dowel. Where a hole goes into the face of a board, stop at least 1/4 inch short of the far side and drill the matching hole in the other piece deeper to make up.',
       'Drill the matching holes in the second piece. They must line up exactly, and that is the job of the jig.',
       'Put glue in the holes and where the pieces meet, push the dowels in, and bring the pieces together.',
-      'Clamp it and leave it until the glue is dry.'],
-    tips:['Try the joint dry, with no glue, first. If it will not close, a hole is too shallow.',
+      'Clamp it and leave it clamped at least 30 minutes. Do not put weight on the joint for a day.'],
+    tips:['Try the joint dry, with no glue, first. If it will not close, a hole is too shallow or out of line.',
       'Dowels need accurate holes. On a first project, screws are more forgiving.']},
   nail:{
     title:'Brad nails and glue',
-    what:'Glue does the holding. Thin nails called brads only keep the piece from sliding while the glue dries. Used for thin panels such as cabinet backs and drawer bottoms.',
+    what:'Glue does the holding. Thin nails called brads only keep the piece from sliding while the glue dries. Used for thin panels such as cabinet backs and drawer bottoms, and for the corners of small drawer boxes.',
     picture:jhSvg('A thin panel glued to the edge of a board, held by thin nails',
       '<rect class="w2" x="24" y="84" width="252" height="40"/>'+
       '<rect class="w" x="24" y="72" width="252" height="12"/>'+
@@ -99,6 +109,7 @@ const JOINT_HELP={
       'Drive a brad about every 6 inches, straight down into the middle of the edge under it.',
       'Wipe off any glue that squeezes out.'],
     tips:['Aim for the middle of the edge. A brad too near the side breaks out through it.',
+      'Keep your free hand several inches from where the brad goes in. A brad can curve inside the wood and come out the side.',
       'On a cabinet back, check the cabinet is square (measure corner to corner both ways) before the glue sets. The back locks the cabinet in whatever shape it is in.']},
   bracket:{
     title:'L-brackets',
@@ -109,11 +120,11 @@ const JOINT_HELP={
       '<path class="m" d="M74 58h6v48h48v6h-54z"/>'+
       '<path class="m brad" d="M80 72h-22M80 94h-22M96 106v20M118 106v20"/>'+
       '<path class="ld" d="M82 60l40-24"/><text class="t" x="126" y="30">metal corner bracket on the</text><text class="t" x="126" y="41">inside, where it does not show</text>'+
-      '<path class="ld" d="M120 124l34-44"/><text class="t" x="126" y="68">short screws into both pieces</text><text class="t" x="126" y="79">(5/8 in for 3/4 in wood)</text>'),
+      '<path class="ld" d="M120 124l34-44"/><text class="t" x="126" y="68">short screws into both pieces</text><text class="t" x="126" y="79">(5/8 inch for 3/4 inch wood)</text>'),
     need:['Screwdriver or drill','L-brackets (sold as corner braces) with their screws'],
     steps:['Hold the two pieces where they go.',
       'Set a bracket into the inside corner, where it will not show.',
-      'Mark the holes, drill small pilot holes, and drive the screws into both pieces.'],
+      'Mark the holes, drill small pilot holes no more than 1/2 inch deep, and drive the screws into both pieces.'],
     tips:['Use screws shorter than the wood is thick, or they come out the other side.',
       'Brackets are fine for light shelves and boxes. For anything that carries real weight, use screws or pocket holes as well.']},
   glue:{
@@ -126,17 +137,19 @@ const JOINT_HELP={
       jhArrow(90,14,90,44)+jhArrow(210,14,210,44)+jhArrow(90,146,90,116)+jhArrow(210,146,210,116)+
       '<text class="t" x="104" y="24">clamps squeeze here</text>'+
       '<text class="t" x="52" y="66">thin, even glue on the meeting surfaces</text>'+
-      '<text class="t" x="52" y="101">a thin line squeezing out means enough</text>'),
+      '<text class="t" x="52" y="101">a thin line squeezing out: enough glue</text>'),
     need:['Wood glue','Clamps','A damp rag'],
     steps:['Check that the two surfaces meet with no gaps.',
       'Spread a thin, even layer of glue on one of them.',
       'Bring the pieces together and clamp until a thin line of glue squeezes out along the whole joint.',
       'Wipe off the squeezed-out glue. Leave it clamped at least 30 minutes. Full strength takes a day.'],
     tips:['Glue holds poorly on the cut end of a board. Ends need screws, dowels or pocket holes.',
-      'No clamps? Heavy weights, tape pulled tight, or a few screws can do the squeezing.']},
+      'No clamps? Heavy weights, tape pulled tight, or a few screws can do the squeezing.',
+      'Wood glue does not set properly below about 50 degrees F, so glue in a warm room.',
+      'For anything that stays outdoors or near water, buy wood glue marked water resistant or waterproof.']},
 };
 
-/* one card as HTML: title, what it is, the drawing, what you need, the steps, good to know */
+/* one card as HTML: what it is, the drawing, what you need, the steps, good to know */
 function jointCard(key){
   const card=JOINT_HELP[key];
   if(!card)return'';

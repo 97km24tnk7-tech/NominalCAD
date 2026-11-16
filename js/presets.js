@@ -171,7 +171,7 @@ const PRESETS=[
 ];
 
 /* ---------- step-by-step instructions for presets ---------- */
-const CUT={t:'Cut every piece on the cut list and pencil its name on it. Measure twice, cut once, and cut the longest pieces first.',add:[]};
+const CUT={t:'Cut every piece on the cut list and pencil its letter on it. Measure twice, cut once, and cut the longest pieces first.',add:[]};
 const FIN={t:'Sand everything: 80 grit, then 120, then 180, and round over the sharp edges. Wipe off the dust, then paint or stain, and finish with at least two coats of clear coat.',add:[]};
 function tableSteps(p,o){
   const s=[CUT,

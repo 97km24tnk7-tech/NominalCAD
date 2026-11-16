@@ -23,6 +23,8 @@ const WORD_LINKS=[
   {re:/\bbrad nails?\b|\bbrads\b/i,joint:'nail'},
   {re:/\bL-brackets?\b/i,joint:'bracket'},
   {re:/\bwood glue and clamps\b|\bwood glue\b|\bglue only\b/i,joint:'glue'},
+  {re:/\bdriven at an angle\b/i,word:'Driven at an angle'},
+  {re:/#\d+\b/,word:'Screw size'},
   {re:/\bpilot holes?\b/i,word:'Pilot hole'},
   {re:/\bcountersink\b/i,word:'Countersink'},
   {re:/\bflush\b/i,word:'Flush'},
@@ -37,7 +39,14 @@ const WORD_LINKS=[
   {re:/\bgrit\b/i,word:'Sandpaper grit'},
   {re:/\bracking\b/i,word:'Racking'},
   {re:/\bdrawer slides?\b|\bslides\b/i,word:'Drawer slide'},
+  {re:/\bfull overlay\b|\boverlay hinges?\b/i,word:'Overlay hinge'},
   {re:/\bhinges?\b/i,word:'Hinge'},
+  {re:/\bwall studs?\b|\bstud finder\b/i,word:'Wall stud and stud finder'},
+  {re:/\bshims?\b/i,word:'Shim'},
+  {re:/\bdriver bits?\b/i,word:'Driver bit'},
+  {re:/\bpressure[- ]treated\b/i,word:'Pressure-treated lumber'},
+  {re:/\bwood filler\b/i,word:'Wood filler'},
+  {re:/\bprimer\b/i,word:'Primer'},
 ];
 /* text inside these is left alone: controls, headings, the vocabulary's own entries, and words already wrapped */
 const WORD_SKIP='button,select,option,input,textarea,a,svg,script,style,h1,h2,h3,h4,th,.term,.terms,.titleblock,.jcard';
@@ -158,7 +167,7 @@ SELFTESTS.push(function clickableWords(problems){
     '<ul><li>3 × 1-1/4" pocket screws (holes in the apron)</li><li>4 × 3/4" brad nails + glue</li><li>dowels</li><li>L-brackets</li><li>Wood glue and clamps</li></ul>';
   linkWords(page);
   const got=[...page.querySelectorAll('.term')].map(span=>span.textContent.toLowerCase()).join('|');
-  const want='pilot holes|wood screws|wood screws|pocket screws|brad nails|dowels|l-brackets|wood glue and clamps';
+  const want='pilot holes|#8|wood screws|wood screws|pocket screws|brad nails|dowels|l-brackets|wood glue and clamps';
   if(got!==want)problems.push(`word links: expected the words "${want}" to be clickable, got "${got}"`);
   if(page.querySelector('h2 .term'))problems.push('word links: a heading was wrapped');
   // the card opens for a joint word, shows its drawing, and closes again

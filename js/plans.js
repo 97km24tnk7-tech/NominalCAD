@@ -145,7 +145,7 @@ function takePictures(full){
 }
 function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.mat].kind==='sheet');
   const L=['Tape measure, pencil and a square','Saw (a circular saw or miter saw)','Drill/driver with bits','Clamps','Sandpaper: 80, 120 and 180 grit','Safety glasses and hearing protection'];
-  if(t.has('screw'))L.push('Countersink or pilot-hole bit (1/8")');
+  if(t.has('screw'))L.push('Drill bit for pilot holes (7/64" for pine, 1/8" for oak and other hard woods) and a countersink bit');
   if(t.has('pocket'))L.push('Pocket-hole jig');
   if(t.has('dowel'))L.push('Dowel jig and a mallet');
   if(t.has('nail'))L.push('Brad nailer, or a hammer and nail set');
