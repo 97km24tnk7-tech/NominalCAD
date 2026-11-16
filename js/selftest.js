@@ -418,12 +418,13 @@ function selfTest(opt){
       if(opt.only&&!opt.only.includes(pr.name))return;
       try{
         if(!$('#presetDlg').open)$('#bPreset').click();
-        $(`#presetCards .card[data-i="${i}"]`).click();
+        const tile=presetTileInWindow(i); // js/catalog.js: clicks the preset's group on the left, gives back its tile
+        if(!tile)return note(pr.name,'cannot be reached in the presets window by clicking its group');
+        tile.click();
         for(const[k,v]of Object.entries(opt.set||{})){const el=$(`#presetForm [data-k="${k}"]`);if(!el)continue;
           if(el.type==='checkbox')el.checked=!!v;else el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));}
         if(!$('#presetSum b'))note(pr.name,'the presets dialog shows no live summary (size, pieces, lumber, cost): '+$('#presetSum').textContent);
         if(!previewFailed&&!(previewKit&&previewKit.content.children.length))note(pr.name,'the presets dialog shows no picture of the design');
-        const tile=$(`#presetCards .card[data-i="${i}"]`);
         if(!pr.spec)note(pr.name,'has no spec (the short line on its tile)');
         if([...tile.querySelectorAll('b,small')].some(line=>line.scrollWidth>line.clientWidth))note(pr.name,'the name or the short line on its tile does not fit and is cut off');
         $('#bPGo').click();checked++;

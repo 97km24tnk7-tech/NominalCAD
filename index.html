@@ -2,11 +2,12 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='7b27a1c';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='f5944ee';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=7b27a1c">
+<link rel="stylesheet" href="css/style.css?v=f5944ee">
+<link rel="stylesheet" href="css/catalog.css?v=f5944ee">
 </head>
 <body data-tab="design">
 
@@ -71,7 +72,7 @@
   <!-- prices (js/prices.js): a price tag, and two arrows going round for Update prices -->
   <symbol id="i-price" viewBox="0 0 24 24"><path d="M3.5 12.5v-9h9l8 8-9 9z"/><circle cx="8" cy="8" r="1.5"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 9.5A7.5 7.5 0 0 0 5.6 8M5 14.5A7.5 7.5 0 0 0 18.4 16"/><path d="M19.5 4.5v5h-5M4.5 19.5v-5h5"/></symbol>
-  <!-- pictures for the tiles in the Furniture presets dialog (PRESET_ICONS in js/presets.js says which preset gets which) -->
+  <!-- pictures for the tiles in the Furniture presets dialog (the icon of each entry of CATALOG in js/catalog.js says which piece gets which) -->
   <symbol id="i-p-rack" viewBox="0 0 24 24"><path d="M4 3v18M20 3v18M4 10.5h16M4 18h16"/><path class="ia" d="M7 5.5h10v5H7zM7 13h10v5H7z"/></symbol>
   <symbol id="i-p-stand" viewBox="0 0 24 24"><path d="M5 12h14v8.5H5zM12 12v8.5"/><path class="ia" d="M6 4.5h12V12H6zM6 7h12"/></symbol>
   <symbol id="i-p-bench" viewBox="0 0 24 24"><path d="M2.5 10.5h19V13h-19z"/><path d="M5 13v6.5M19 13v6.5"/><path class="ia" d="M5 16.5h14"/></symbol>
@@ -419,6 +420,7 @@
 <dialog class="dlg" id="presetDlg">
   <div class="dlg-h"><span>Furniture presets</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="preset">
+    <div class="pgroups" id="presetGroups" aria-label="Groups"></div>
     <div class="pick" id="presetCards"></div>
     <div class="pform" id="presetForm"></div>
   </div>
@@ -609,12 +611,13 @@
   <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b help">
     <div class="sec">The quick way</div>
-    <p>Click <b>Furniture presets</b> (the dark button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Every size has a smallest and a largest value: a box turns red when a number is outside them, and a line says what it must be. If your numbers cannot work together, a warning box says what is wrong, why, and what to change, and nothing is built until they can.
+    <p>Click <b>Furniture presets</b> (the dark button at the left of the ribbon), pick a design in the middle, set your size on the right, and press <b>Create</b>. Every size has a smallest and a largest value: a box turns red when a number is outside them, and a line says what it must be. If your numbers cannot work together, a warning box says what is wrong, why, and what to change, and nothing is built until they can.
  Then open the <b>Build instructions</b> tab for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
     <p>New to woodworking? <button class="lnk" data-open-words>Woodworking words</button> explains every name the program uses for a piece (apron, cleat, slat) and shows how each joint is made, with a drawing. On the pages, a highlighted word can be clicked for the same thing.</p>
     <div class="sec">Where things are</div>
     <dl>
       <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: Design, Cut list &amp; shopping, Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
+      <dt>Furniture presets</dt><dd>The window has three parts side by side. On the left, <b>Start here</b> (good first projects), <b>Recent</b> (what you made last in this browser), <b>Favorites</b>, <b>All designs</b> and the groups, each with how many designs it holds. In the middle, the designs of the group you picked; type in <b>Find a design</b> to look through all of them by name, by what they are made of or by what they are for, and click the buttons beside it (Beginner-friendly, Outdoor and so on) to narrow the list. Click the star on a design to add it to Favorites. On the right, the design you picked: its live picture, which changes as you type, its sizes and choices, and a box that says what cannot work and why. The sizes you type for a design are kept while you look at others; <b>Reset sizes</b>, beside its name, puts them back where they started. Keyboard: the window opens with the cursor in Find a design; type, then Enter picks the first design found and moves to its sizes, and Enter there presses Create. The arrow keys move through the designs, and Esc in the list clears what you typed before it closes the window.</dd>
       <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, makes the wood see-through or shows the fasteners only, opens all doors and drawers, turns on the exploded view and the color key, and turns the move arrows on or off. A command that is gray needs something first, usually a selected piece.</dd>
       <dt>Panels</dt><dd>The <b>Pieces</b> list and the <b>Properties</b> of the selected piece float over the 3D view. Drag one by its title bar, roll it up with the dash, or hide it. The two buttons at the right edge of the view bring them back. Properties appears when a piece is selected.</dd>
       <dt>Status bar</dt><dd>The bar along the bottom says what to do next with the current tool and shows live sizes while you drag. It also has the overall size, the piece count, a warning when pieces overlap, the Fasteners and Sizes switches, and the Snap size.</dd>
@@ -680,70 +683,71 @@
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=7b27a1c"></script>
+<script src="three.min.js?v=f5944ee"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=7b27a1c"></script>
-<script src="js/hosted.js?v=7b27a1c"></script>
-<script src="js/dialogs.js?v=7b27a1c"></script>
-<script src="js/lengthboxes.js?v=7b27a1c"></script>
-<script src="js/orient.js?v=7b27a1c"></script>
-<script src="js/verify.js?v=7b27a1c"></script>
-<script src="js/builders-furniture.js?v=7b27a1c"></script>
-<script src="js/builders-fish.js?v=7b27a1c"></script>
-<script src="js/rackjoints.js?v=7b27a1c"></script>
-<script src="js/builders-shed.js?v=7b27a1c"></script>
-<script src="js/builders-storage.js?v=7b27a1c"></script>
-<script src="js/builders-outdoor.js?v=7b27a1c"></script>
-<script src="js/presets.js?v=7b27a1c"></script>
-<script src="js/drawers.js?v=7b27a1c"></script>
-<script src="js/nightstand.js?v=7b27a1c"></script>
-<script src="js/state.js?v=7b27a1c"></script>
-<script src="js/joints.js?v=7b27a1c"></script>
-<script src="js/neighbors.js?v=7b27a1c"></script>
-<script src="js/framing.js?v=7b27a1c"></script>
-<script src="js/style.js?v=7b27a1c"></script>
-<script src="js/fasteners.js?v=7b27a1c"></script>
-<script src="js/fastenerroom.js?v=7b27a1c"></script>
-<script src="js/visibility.js?v=7b27a1c"></script>
-<script src="js/view3d.js?v=7b27a1c"></script>
-<script src="js/viewmodes.js?v=7b27a1c"></script>
-<script src="js/groups.js?v=7b27a1c"></script>
-<script src="js/connections.js?v=7b27a1c"></script>
-<script src="js/components.js?v=7b27a1c"></script>
-<script src="js/hardware.js?v=7b27a1c"></script>
-<script src="js/holds.js?v=7b27a1c"></script>
-<script src="js/hardwareshapes.js?v=7b27a1c"></script>
-<script src="js/copies.js?v=7b27a1c"></script>
-<script src="js/tools.js?v=7b27a1c"></script>
-<script src="js/transform.js?v=7b27a1c"></script>
-<script src="js/panels.js?v=7b27a1c"></script>
-<script src="js/piecetree.js?v=7b27a1c"></script>
-<script src="js/unfasten.js?v=7b27a1c"></script>
-<script src="js/statusbar.js?v=7b27a1c"></script>
-<script src="js/viewpick.js?v=7b27a1c"></script>
-<script src="js/fastenerview.js?v=7b27a1c"></script>
-<script src="js/showfaces.js?v=7b27a1c"></script>
-<script src="js/motion.js?v=7b27a1c"></script>
-<script src="js/hanging.js?v=7b27a1c"></script>
-<script src="js/hardwaretool.js?v=7b27a1c"></script>
-<script src="js/drawertool.js?v=7b27a1c"></script>
-<script src="js/plans.js?v=7b27a1c"></script>
-<script src="js/buildsteps.js?v=7b27a1c"></script>
-<script src="js/steppictures.js?v=7b27a1c"></script>
-<script src="js/stepmode.js?v=7b27a1c"></script>
-<script src="js/prices.js?v=7b27a1c"></script>
-<script src="js/layout.js?v=7b27a1c"></script>
-<script src="js/preview.js?v=7b27a1c"></script>
-<script src="js/checkui.js?v=7b27a1c"></script>
-<script src="js/app.js?v=7b27a1c"></script>
-<script src="js/level.js?v=7b27a1c"></script>
-<script src="js/glossary.js?v=7b27a1c"></script>
-<script src="js/jointhelp.js?v=7b27a1c"></script>
-<script src="js/wordlinks.js?v=7b27a1c"></script>
-<script src="js/transfer.js?v=7b27a1c"></script>
-<script src="js/menus.js?v=7b27a1c"></script>
-<script src="js/selftest.js?v=7b27a1c"></script>
-<script src="js/visits.js?v=7b27a1c"></script>
+<script src="js/core.js?v=f5944ee"></script>
+<script src="js/hosted.js?v=f5944ee"></script>
+<script src="js/dialogs.js?v=f5944ee"></script>
+<script src="js/lengthboxes.js?v=f5944ee"></script>
+<script src="js/orient.js?v=f5944ee"></script>
+<script src="js/verify.js?v=f5944ee"></script>
+<script src="js/builders-furniture.js?v=f5944ee"></script>
+<script src="js/builders-fish.js?v=f5944ee"></script>
+<script src="js/rackjoints.js?v=f5944ee"></script>
+<script src="js/builders-shed.js?v=f5944ee"></script>
+<script src="js/builders-storage.js?v=f5944ee"></script>
+<script src="js/builders-outdoor.js?v=f5944ee"></script>
+<script src="js/presets.js?v=f5944ee"></script>
+<script src="js/drawers.js?v=f5944ee"></script>
+<script src="js/nightstand.js?v=f5944ee"></script>
+<script src="js/state.js?v=f5944ee"></script>
+<script src="js/joints.js?v=f5944ee"></script>
+<script src="js/neighbors.js?v=f5944ee"></script>
+<script src="js/framing.js?v=f5944ee"></script>
+<script src="js/style.js?v=f5944ee"></script>
+<script src="js/fasteners.js?v=f5944ee"></script>
+<script src="js/fastenerroom.js?v=f5944ee"></script>
+<script src="js/visibility.js?v=f5944ee"></script>
+<script src="js/view3d.js?v=f5944ee"></script>
+<script src="js/viewmodes.js?v=f5944ee"></script>
+<script src="js/groups.js?v=f5944ee"></script>
+<script src="js/connections.js?v=f5944ee"></script>
+<script src="js/components.js?v=f5944ee"></script>
+<script src="js/hardware.js?v=f5944ee"></script>
+<script src="js/holds.js?v=f5944ee"></script>
+<script src="js/hardwareshapes.js?v=f5944ee"></script>
+<script src="js/copies.js?v=f5944ee"></script>
+<script src="js/tools.js?v=f5944ee"></script>
+<script src="js/transform.js?v=f5944ee"></script>
+<script src="js/panels.js?v=f5944ee"></script>
+<script src="js/piecetree.js?v=f5944ee"></script>
+<script src="js/unfasten.js?v=f5944ee"></script>
+<script src="js/statusbar.js?v=f5944ee"></script>
+<script src="js/viewpick.js?v=f5944ee"></script>
+<script src="js/fastenerview.js?v=f5944ee"></script>
+<script src="js/showfaces.js?v=f5944ee"></script>
+<script src="js/motion.js?v=f5944ee"></script>
+<script src="js/hanging.js?v=f5944ee"></script>
+<script src="js/hardwaretool.js?v=f5944ee"></script>
+<script src="js/drawertool.js?v=f5944ee"></script>
+<script src="js/plans.js?v=f5944ee"></script>
+<script src="js/buildsteps.js?v=f5944ee"></script>
+<script src="js/steppictures.js?v=f5944ee"></script>
+<script src="js/stepmode.js?v=f5944ee"></script>
+<script src="js/prices.js?v=f5944ee"></script>
+<script src="js/layout.js?v=f5944ee"></script>
+<script src="js/preview.js?v=f5944ee"></script>
+<script src="js/checkui.js?v=f5944ee"></script>
+<script src="js/catalog.js?v=f5944ee"></script>
+<script src="js/app.js?v=f5944ee"></script>
+<script src="js/level.js?v=f5944ee"></script>
+<script src="js/glossary.js?v=f5944ee"></script>
+<script src="js/jointhelp.js?v=f5944ee"></script>
+<script src="js/wordlinks.js?v=f5944ee"></script>
+<script src="js/transfer.js?v=f5944ee"></script>
+<script src="js/menus.js?v=f5944ee"></script>
+<script src="js/selftest.js?v=f5944ee"></script>
+<script src="js/visits.js?v=f5944ee"></script>
 </body>
 </html>

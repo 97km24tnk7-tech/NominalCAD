@@ -362,35 +362,15 @@ const STEPS={
         not already count: the screws, nails and glue between the pieces are worked out from the joints, so a screw
         listed here as well is bought twice. Screws into the wall, hinges, slides and braces belong here. Every
         name needs a price: a row of HARDWARE_PRICES in js/prices.js must match it (selfTest checks both).
-   2. Put its name in a group below so it shows up under the right heading. Anything not listed lands under "More".
-   3. Optional: give its tile a picture by adding its name to PRESET_ICONS (or put icon:'i-...' on the preset itself). */
+   2. Give it an entry in CATALOG in js/catalog.js: that is its tile in the Furniture presets window (name, group,
+      short line, icon, tags). A preset without an entry shows under "More", and selfTest() reports it.
+   3. If it is an outdoor preset, also put its name in the Outdoors row below (the bare-wood checks read it). */
 const PRESET_GROUPS=[
  ['Aquariums and fish rooms',['Fish tank wall / rack','Cabinet stand with a row of tanks','Single aquarium stand']],
  ['Tables and seating',['Dining table','Coffee table','Side table / nightstand','Desk','Sturdy bench','Five-board bench','Entryway shoe bench']],
  ['Storage and shelving',['Bookshelf','Garage shelves','Base cabinet with doors','Storage box / toy chest','Wall shelf','Workbench']],
  ['Bedroom',['Platform bed']],
  ['Outdoors',['Shed','Planter box','Raised garden bed','Bird feeder']]];
-/* The small picture on a preset's tile: the id of an icon in the #sprite block at the top of index.html.
-   A preset that is not listed here gets the plain table icon. */
-const PRESET_ICONS={
- 'Fish tank wall / rack':'i-p-rack','Cabinet stand with a row of tanks':'i-p-stand','Single aquarium stand':'i-p-stand',
- 'Sturdy bench':'i-p-bench','Five-board bench':'i-p-bench','Entryway shoe bench':'i-p-bench',
- 'Bookshelf':'i-p-shelf','Garage shelves':'i-p-shelf','Base cabinet with doors':'i-p-cabinet','Storage box / toy chest':'i-p-box','Wall shelf':'i-p-wallshelf',
- 'Platform bed':'i-p-bed','Shed':'i-p-shed','Planter box':'i-p-planter','Raised garden bed':'i-p-planter','Bird feeder':'i-p-feeder'};
-/* The left side of the Furniture presets dialog: a heading for each group, then its presets as tiles, two to a row.
-   Each tile carries data-i, the preset's place in PRESETS; app.js opens that preset's form when the tile is clicked. */
-function renderPresetCards(){
-  const listed=new Set(PRESET_GROUPS.flatMap(group=>group[1]));
-  const unlisted=PRESETS.filter(p=>!listed.has(p.name)).map(p=>p.name);
-  const groups=unlisted.length?[...PRESET_GROUPS,['More',unlisted]]:PRESET_GROUPS;
-  const tile=name=>{
-    const i=PRESETS.findIndex(p=>p.name===name);
-    if(i<0)return'';
-    const preset=PRESETS[i],picture=preset.icon||PRESET_ICONS[name]||'i-presets';
-    // a tile has room for a short name and one short line; the full name and description are in its tooltip and on the right
-    return`<button class="card" data-i="${i}" title="${esc(preset.name+'. '+preset.desc)}">${icon(picture,'l')}`+
-      `<span><b>${esc(preset.tile||preset.name)}</b><small>${esc(preset.spec||'')}</small></span></button>`;
-  };
-  $('#presetCards').innerHTML=groups.map(([title,names])=>
-    `<div class="sec">${esc(title)}</div><div class="tiles">${names.map(tile).join('')}</div>`).join('');
-}
+/* PRESET_GROUPS is the older grouping. The Furniture presets window no longer shows it: its groups, tiles and
+   icons are the catalog in js/catalog.js (renderPresetCards there). The checks that outdoor presets start as bare
+   wood still read its Outdoors row, and a self-check keeps that row equal to the Outdoors group of the catalog. */

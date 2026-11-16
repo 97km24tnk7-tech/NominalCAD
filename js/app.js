@@ -193,7 +193,8 @@ window.addEventListener('keydown',e=>{
 });
 
 /* ---------- Furniture presets dialog ----------
-   Left: the catalog as tiles (drawn by renderPresetCards in presets.js). Right: the chosen preset: its name and
+   Left and middle: the groups and the tiles of the catalog (js/catalog.js, which also handles a click on a tile).
+   Right, the live pane: the chosen preset: its name and
    description, a live picture of what the sizes typed so far will build (preview.js), the form made from its
    params, and a live summary underneath. The footer has Create and, when there is already a design, Add beside
    the current design. A preset is always chosen when the dialog opens, so the right side is never empty. */
@@ -483,13 +484,8 @@ function openPresets(){
   if(curPreset){$('#bPAdd').hidden=!S.parts.length;showPresetSummary();} // back where it was left, sizes and all
   else choosePreset(startingPreset());
   $('#presetDlg').showModal();
-  const tile=$('#presetCards .card.on')||$('#presetCards .card'); // the keyboard starts on the chosen design
-  if(tile){tile.focus();tile.scrollIntoView({block:'nearest'});}
+  catalogOpened(); // js/catalog.js: the groups and tiles show the chosen design, the keyboard is in the search box
 }
-$('#presetCards').onclick=e=>{
-  const card=e.target.closest('.card');
-  if(card)choosePreset(+card.dataset.i);
-};
 $('#presetForm').oninput=e=>{presetEdited=e.target;clearTimeout(presetTimer);presetTimer=setTimeout(showPresetSummary,180);};
 $('#presetForm').onchange=e=>{if(!curPreset)return;presetEdited=e.target;presetFieldChanged(e.target);showPresetSummary();};
 $('#bPGo').onclick=()=>makePreset(false);

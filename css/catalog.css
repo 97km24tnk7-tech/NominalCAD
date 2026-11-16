@@ -1,0 +1,50 @@
+/* NominalCAD: the Furniture presets window in three panes (js/catalog.js).
+   GROUPS | PIECES | THE LIVE PANE. The live pane (.pform) keeps the rules of section 11 in style.css; this file
+   only sizes the window and its three columns and styles the groups list, the search row and the tiles' stars.
+   Loaded after style.css, so these rules win over the older two-pane layout there.
+
+   Sizes: the window takes the page up to 1360px wide. The groups get 208px and the live pane a fixed 500px, so
+   its form never gets narrower than it was designed for; the tiles get what is left (one column of tiles from
+   about 1100px wide, two above that). Each pane scrolls on its own: the groups list, the tiles under the search
+   row, and the form of the live pane. */
+
+#presetDlg{width:min(1360px,calc(100vw - 32px))}
+#presetDlg .preset{flex:0 1 760px;grid-template-columns:208px minmax(0,1fr) 500px}
+
+/* ---- the groups ---- */
+.pgroups{min-height:0;overflow:auto;padding:6px 0 12px;border-right:1px solid var(--n300);background:var(--n50)}
+.pgrp{display:flex;align-items:center;gap:8px;width:100%;height:var(--h);padding:0 12px 0 10px;border:0;border-left:2px solid transparent;background:none;color:var(--n800);text-align:left;white-space:nowrap}
+.pgrp span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pgrp small{flex:none;color:var(--n500);font-size:var(--fs-s);font-variant-numeric:tabular-nums}
+.pgrp:hover{background:var(--n200)}
+.pgrp.on{background:var(--blue-50);border-left-color:var(--blue);color:var(--blue-d);font-weight:600}
+.pgrp:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
+.pgrp-all{margin-top:6px;border-top:1px solid var(--n300)}        /* All designs heads the groups, under a line */
+
+/* ---- the pieces: search row on top, tiles under it ---- */
+#presetDlg .pick{display:flex;flex-direction:column;overflow:hidden;padding:0;scrollbar-gutter:auto}
+.pfind{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 12px 8px;border-bottom:1px solid var(--n200)}
+.pfind input{width:220px;max-width:100%}
+.pchips{display:flex;flex-wrap:wrap;gap:4px}
+.ptiles{flex:1 1 0;min-height:0;overflow:auto;scrollbar-gutter:stable;padding:0 8px 12px 12px}
+/* the heading over the tiles. Its own class: .phead in style.css is the header row of the Pieces panel */
+.pcat-head{display:flex;align-items:baseline;gap:8px;margin:10px 0 6px}
+.pcat-head b{min-width:0;font-size:var(--fs-h);font-weight:600;color:var(--n900);overflow-wrap:break-word} /* wraps when many chips are named */
+.pcat-head small{flex:none;font-size:var(--fs-s);color:var(--n600)}
+#presetDlg .tiles{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.pnone{margin:16px 0;color:var(--n600)}
+
+/* Reset sizes, at the right end of the name line of the live pane */
+#presetDlg .pform-h{position:relative}
+#presetDlg .pform-h h4{padding-right:84px}
+.preset-reset{position:absolute;top:12px;right:16px;line-height:20px;font-size:var(--fs-s)}
+
+/* a tile with its star: the star sits over the right end of the tile, outside the tile's own button */
+.ptile{position:relative}
+.ptile .card{width:100%;height:44px;padding-right:30px}
+.pstar{position:absolute;top:50%;right:4px;width:var(--h);height:var(--h);margin-top:calc(var(--h) / -2);display:grid;place-items:center;padding:0;border:0;border-radius:var(--r);background:none;color:var(--n400)}
+.pstar svg{fill:none;stroke:currentColor}
+.pstar:hover{background:var(--n200);color:var(--n800)}
+.pstar.on{color:var(--blue)}
+.pstar.on svg{fill:currentColor}
+.pstar:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
