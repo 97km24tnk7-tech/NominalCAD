@@ -89,7 +89,7 @@ const CATALOG=[
   {id:'cabinet-stand',name:'Cabinet stand',group:'aquariums',spec:'Doors below, tanks on top',icon:'i-p-stand',
     builder:'Cabinet stand with a row of tanks',tags:['tanks','doors','fish','aquarium','cabinet','row of tanks','door']},
   {id:'aquarium-stand',name:'Single aquarium stand',group:'aquariums',spec:'One tank, cabinet below',icon:'i-p-stand',
-    builder:'Single aquarium stand',tags:['tanks','doors','beginner','fish','aquarium','cabinet','door']},
+    builder:'Single aquarium stand',tags:['tanks','doors','fish','aquarium','cabinet','door']},
   // Tables and desks
   {id:'dining-table',name:'Dining table',group:'tables',spec:'4x4 legs, 2x6 plank top',icon:'i-presets',
     builder:'Dining table',tags:['beginner','table','kitchen','farmhouse']},
@@ -98,7 +98,7 @@ const CATALOG=[
   {id:'side-table',name:'Side table / nightstand',group:'tables',spec:'2x2 legs, board top',icon:'i-presets',
     builder:'Side table / nightstand',tags:['beginner','table','end table','bedside','nightstand']},
   {id:'desk',name:'Desk',group:'tables',spec:'4x4 legs, plywood top',icon:'i-presets',
-    builder:'Desk',tags:['table','office','computer','study']},
+    builder:'Desk',tags:['beginner','table','office','computer','study']},
   // Seating
   {id:'sturdy-bench',name:'Sturdy bench',group:'seating',spec:'4x4s, 2x4s and 2x6s',icon:'i-p-bench',
     builder:'Sturdy bench',tags:['beginner','bench','seat','patio']},
@@ -108,9 +108,9 @@ const CATALOG=[
     builder:'Entryway shoe bench',tags:['beginner','bench','seat','shoes','hallway','mudroom']},
   // Storage and shelving
   {id:'bookshelf',name:'Bookshelf',group:'storage',spec:'Fixed shelves, thin back',icon:'i-p-shelf',
-    builder:'Bookshelf',tags:['shelves','books','bookcase']},
+    builder:'Bookshelf',tags:['beginner','shelves','books','bookcase']},
   {id:'garage-shelves',name:'Garage shelves',group:'storage',spec:'2x4 frame, plywood decks',icon:'i-p-shelf',
-    builder:'Garage shelves',tags:['shop','shelves','garage','shelving unit']},
+    builder:'Garage shelves',tags:['shop','beginner','shelves','garage','shelving unit']},
   {id:'base-cabinet',name:'Base cabinet',group:'storage',spec:'Shelf, doors and a top',icon:'i-p-cabinet',
     builder:'Base cabinet with doors',tags:['doors','cabinet','cupboard','kitchen','door']},
   {id:'storage-box',name:'Storage box / toy chest',group:'storage',spec:'Plywood box, hinged lid',icon:'i-p-box',
@@ -119,7 +119,7 @@ const CATALOG=[
     builder:'Wall shelf',tags:['beginner','shelf','floating shelf']},
   // Bedroom
   {id:'platform-bed',name:'Platform bed',group:'bedroom',spec:'2x6 frame, 1x4 slats',icon:'i-p-bed',
-    builder:'Platform bed',tags:['bed','mattress','twin','queen','king']},
+    builder:'Platform bed',tags:['beginner','bed','mattress','twin','queen','king']},
   {id:'drawer-nightstand',name:'Drawer nightstand',group:'bedroom',spec:'Plywood, 1 to 4 drawers',icon:'i-p-cabinet',
     builder:'Nightstand with drawers',tags:['doors','drawers','bedside','nightstand','dresser']},
   // Outdoors
@@ -130,16 +130,18 @@ const CATALOG=[
   {id:'raised-garden-bed',name:'Raised garden bed',group:'outdoors',spec:'2x6 sides, 4x4 posts',icon:'i-p-planter',
     builder:'Raised garden bed',tags:['outdoor','beginner','garden','vegetables','plants','cedar']},
   {id:'bird-feeder',name:'Bird feeder',group:'outdoors',spec:'Tray with a pitched roof',icon:'i-p-feeder',
-    builder:'Bird feeder',tags:['outdoor','birds','garden','cedar']},
+    builder:'Bird feeder',tags:['outdoor','beginner','birds','garden','cedar']},
   // Workshop
   {id:'workbench',name:'Workbench',group:'workshop',spec:'4x4 frame, plywood top',icon:'i-presets',
-    builder:'Workbench',tags:['shop','bench','table','garage']},
+    builder:'Workbench',tags:['shop','beginner','bench','table','garage']},
 ];
 
-/* Start here: a few good first projects, in this order. Each must carry the beginner tag (selfTest checks).
-   The Bookshelf, the Storage box, the Base cabinet and the Drawer nightstand are not here (nor tagged beginner):
-   in the Everyday style they are held together with pocket screws, so no screw head shows on a top, front or side (js/showfaces.js), and a pocket-hole jig on top of the plywood is what the window rates "Beginner with patience", not "a good first project". */
-const CATALOG_START=['five-board-bench','wall-shelf','planter-box','side-table','raised-garden-bed','sturdy-bench'];
+/* Start here: a few good first projects, in this order. Each must carry the beginner tag, and so be rated "a good
+   first project" by the skill rating (SKILL in js/style.js); selfTest checks both. Nothing with doors or drawers
+   is here: the rating counts hanging doors and fitting drawers as the unforgiving jobs they are. The pocket screws
+   that keep screw heads off the tops, fronts and sides of house furniture (js/showfaces.js) and the plugs over the
+   few heads that must stay on a face add no points: a pocket-hole jig and a plug cutter are beginner's tools. */
+const CATALOG_START=['five-board-bench','wall-shelf','bookshelf','planter-box','side-table','raised-garden-bed','sturdy-bench'];
 
 const CATALOG_RECENT_KEY='woodshop.catalog.recent';       // browser storage: ids of the entries made last, newest first
 const CATALOG_FAVORITES_KEY='woodshop.catalog.favorites'; // browser storage: ids of the starred entries
@@ -157,6 +159,7 @@ const CATALOG_VIEWS=[
     ids:()=>CATALOG_GROUPS.flatMap(group=>catalogEntries().filter(entry=>entry.group===group.id)).map(entry=>entry.id)},
 ];
 
+const CATALOG_PINNED_WORDS='Chosen, not in this list';   // under the name of the chosen design when the list leaves it out (pinnedEntry)
 const STAR_SVG='<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.5l-5.1 2.8 1.1-5.7-4.3-4 5.8-.7z"/></svg>';
 
 /* What the window is showing. Lives for the visit; Recent and Favorites are the only things kept in the browser. */
@@ -356,16 +359,31 @@ function drawChips(){
   pane.innerHTML=CATALOG_CHIPS.filter(chip=>entries.some(entry=>(entry.tags||[]).includes(chip.id))).map(chip=>
     `<label class="tg" title="${esc(chip.tip)}"><input type="checkbox" data-chip="${chip.id}"${catalogState.chips.has(chip.id)?' checked':''}><span>${esc(chip.label)}</span></label>`).join('');
 }
-function tileHtml(entry,favorites){
-  const picked=entry.id===catalogState.picked,star=favorites.has(entry.id);
+/* The design whose form is in the live pane, as an entry: the chosen one, or, when code has drawn another form
+   since (the self-check does), the entry of that form's preset. */
+function liveEntry(){
+  if(formIsOurs())return catalogEntry(catalogState.picked);
+  return entryForPreset(curPreset);
+}
+/* THE RULE BETWEEN THE LIST AND THE LIVE PANE: the design in the live pane can always be found beside it. When a
+   search, a filter or the group shown leaves it out, it stays at the top of the tiles, marked "not in this list",
+   above the designs that are; the heading and the counts still count only the list itself. Choosing a design of
+   the list takes it away. Searching never changes the form on the right, so what was typed in it stays put. */
+function pinnedEntry(list){
+  const live=liveEntry();
+  return live&&!list.some(entry=>entry.id===live.id)?live:null;
+}
+function tileHtml(entry,favorites,pinned){
+  const picked=pinned||entry.id===catalogState.picked,star=favorites.has(entry.id);
   const index=builderIndex(entry),preset=PRESETS[index];
   // The tile keeps one short line in every view, so it always fits; the tooltip also names the group, which
   // matters in search results, where pieces of every group stand together.
   const group=CATALOG_GROUPS.find(row=>row.id===entry.group);
-  const line=entry.spec;
-  const tip=`${preset?preset.name:entry.name}${group?` (${group.name})`:''}. ${entry.desc||(preset&&preset.desc)||entry.spec}`;
-  return`<div class="ptile">`+
-    `<button class="card${picked?' on':''}" data-entry="${esc(entry.id)}" data-i="${index}" tabindex="-1" title="${esc(tip)}">`+
+  const line=pinned?CATALOG_PINNED_WORDS:entry.spec;
+  const about=`${preset?preset.name:entry.name}${group?` (${group.name})`:''}. ${entry.desc||(preset&&preset.desc)||entry.spec}`;
+  const tip=pinned?`The design on the right. The search, a filter or the group shown leaves it out, so it waits here until you choose another. ${about}`:about;
+  return`<div class="ptile${pinned?' pinned':''}">`+
+    `<button class="card${picked?' on':''}${pinned?' pinned':''}" data-entry="${esc(entry.id)}" data-i="${index}" tabindex="-1" title="${esc(tip)}">`+
       `${icon(entry.icon||'i-presets','l')}<span><b>${esc(entry.name)}</b><small>${esc(line)}</small></span></button>`+
     `<button class="pstar${star?' on':''}" data-star="${esc(entry.id)}" aria-pressed="${star}" tabindex="-1" `+
       `title="${star?'Take it off Favorites':'Add to Favorites'}" aria-label="${star?'Take it off Favorites':'Add to Favorites'}">${STAR_SVG}</button>`+
@@ -380,6 +398,8 @@ function drawTiles(){
   const narrowed=chips.length?` · ${chips.join(', ')}`:'';
   let body;
   const favorites=new Set(catalogStored(CATALOG_FAVORITES_KEY));
+  const pinned=pinnedEntry(list);
+  const pinnedRow=pinned?`<div class="tiles ppinned">${tileHtml(pinned,favorites,true)}</div>`:'';
   if(list.length)body=`<div class="tiles">${list.map(entry=>tileHtml(entry,favorites)).join('')}</div>`;
   else if(catalogState.find||chips.length){
     const what=catalogState.find?`"${esc(catalogState.find)}"${chips.length?' with these filters':''}`:'these filters';
@@ -389,7 +409,7 @@ function drawTiles(){
     const special=CATALOG_VIEWS.find(row=>row.id===catalogState.view);
     body=`<p class="pnone">${esc(special&&special.empty||'Nothing here.')}</p>`;
   }
-  pane.innerHTML=`<div class="pcat-head"><b>${esc(title)}${esc(narrowed)}</b><small>${list.length} design${list.length===1?'':'s'}</small></div>${body}`;
+  pane.innerHTML=`<div class="pcat-head"><b>${esc(title)}${esc(narrowed)}</b><small>${list.length} design${list.length===1?'':'s'}</small></div>${pinnedRow}${body}`;
   markPicked();
 }
 
@@ -445,7 +465,9 @@ function catalogPick(id,options){
   const started=fillFormBoxes(entry.start,true);
   const restored=fillFormBoxes(catalogState.typed[id],false);
   if(started||restored)showPresetSummary();              // the picture and the summary follow those numbers
-  markPicked();
+  // a design chosen from the list takes the pinned tile away; one chosen by code that the list leaves out gets it
+  if($('#presetTiles .card.pinned')||!tilesShown().some(entry=>entry.id===id))drawTiles();
+  else markPicked();
   if(options.focusForm)focusFirstBox();
   return true;
 }
@@ -454,8 +476,8 @@ function catalogPick(id,options){
    are the stars: only the star of that tile is in the Tab order, so Tab does not walk through every star. */
 function markPicked(){
   const cards=[...document.querySelectorAll('#presetTiles .card')];
-  cards.forEach(card=>card.classList.toggle('on',card.dataset.entry===catalogState.picked));
-  const entry=cards.find(card=>card.dataset.entry===catalogState.picked)||cards[0];
+  cards.forEach(card=>card.classList.toggle('on',card.classList.contains('pinned')||card.dataset.entry===catalogState.picked));
+  const entry=cards.find(card=>card.classList.contains('on'))||cards[0];
   cards.forEach(card=>{
     card.tabIndex=card===entry?0:-1;
     const star=card.parentElement.querySelector('.pstar');
@@ -576,14 +598,16 @@ function setupCatalogEvents(){
   cards.addEventListener('click',event=>{
     const star=event.target.closest('.pstar');
     if(star){
-      const place=[...cards.querySelectorAll('.pstar')].indexOf(star);
+      const listStars=()=>[...cards.querySelectorAll('.ptile:not(.pinned) .pstar')];
+      const place=listStars().indexOf(star);
       toggleFavorite(star.dataset.star);
       drawGroups();
       drawTiles();
-      // the keyboard stays on this star, or, when its tile has left the list (Favorites), on the star that took
-      // its place, or on the search box when the list is empty now
-      const stars=[...cards.querySelectorAll('.pstar')];
-      const again=stars.find(other=>other.dataset.star===star.dataset.star)||stars[Math.min(place,stars.length-1)];
+      // the keyboard stays on this star (also when its tile is the chosen design and now waits pinned above the
+      // list), or, when its tile has left the list (Favorites), on the star that took its place, or on the search
+      // box when the list is empty now
+      const stars=listStars();
+      const again=[...cards.querySelectorAll('.pstar')].find(other=>other.dataset.star===star.dataset.star)||stars[Math.min(Math.max(place,0),stars.length-1)];
       if(again)again.focus();else $('#presetFind').focus();
       return;
     }
@@ -595,7 +619,12 @@ function setupCatalogEvents(){
       return;
     }
     const card=event.target.closest('.card');
-    if(card)catalogPick(card.dataset.entry);
+    if(!card)return;
+    const hadKeyboard=document.activeElement===card;
+    catalogPick(card.dataset.entry);
+    // the tiles may have been drawn again (a pinned tile went away): the keyboard stays on the tile clicked
+    const again=$(`#presetTiles .card[data-entry="${CSS.escape(card.dataset.entry)}"]`);
+    if(hadKeyboard&&again&&again!==card)again.focus();
   });
   cards.addEventListener('input',event=>{
     if(event.target.id!=='presetFind')return;
@@ -621,19 +650,28 @@ function setupCatalogEvents(){
       }else if(event.key==='Enter'){
         event.preventDefault();
         event.stopPropagation();
-        const first=tileCards()[0];
+        const first=tileCards().find(card=>!card.classList.contains('pinned'));   // the first design found, not the pinned one
         if(first)catalogPick(first.dataset.entry,{focusForm:true});
       }
       return;
     }
     const card=event.target.closest('.card');
     if(!card)return;
-    const all=tileCards(),at=all.indexOf(card),row=tilesPerRow(all);
+    // the pinned tile (the chosen design the list leaves out) is a row of its own above the list: Down or Right
+    // goes into the list, Up or Left back to the search box
+    const pinned=$('#presetTiles .card.pinned');
+    const all=tileCards().filter(other=>!other.classList.contains('pinned')),at=all.indexOf(card),row=tilesPerRow(all);
+    if(card===pinned&&['ArrowDown','ArrowRight','ArrowUp','ArrowLeft','Home','End'].includes(event.key)){
+      event.preventDefault();
+      if(event.key==='ArrowUp'||event.key==='ArrowLeft')$('#presetFind').focus();
+      else if(all.length)goToTile(event.key==='End'?all[all.length-1]:all[0]);
+      return;
+    }
     const moves={ArrowRight:1,ArrowLeft:-1,ArrowDown:row,ArrowUp:-row,Home:-at,End:all.length-1-at};
     if(event.key in moves){
       event.preventDefault();
       const to=at+moves[event.key];
-      if(event.key==='ArrowUp'&&to<0){$('#presetFind').focus();return;} // above the first row is the search box
+      if(event.key==='ArrowUp'&&to<0){(pinned||$('#presetFind')).focus();return;} // above the first row: the pinned tile, then the search box
       goToTile(all[Math.max(0,Math.min(all.length-1,to))]);
     }else if(event.key==='Enter'){
       event.preventDefault();
@@ -746,7 +784,7 @@ SELFTESTS.push(function catalogCoversEveryPreset(problems){
       $(`#presetGroups .pgrp[data-view="${CSS.escape(view)}"]`).click();   // a click draws the list again
       const button=$(`#presetGroups .pgrp[data-view="${CSS.escape(view)}"]`);
       if(!button.classList.contains('on'))wrong(`clicking ${view} did not choose it`);
-      const count=+button.querySelector('small').textContent,tiles=document.querySelectorAll('#presetTiles .card').length;
+      const count=+button.querySelector('small').textContent,tiles=document.querySelectorAll('#presetTiles .card:not(.pinned)').length;
       const isGroup=CATALOG_GROUPS.some(group=>group.id===button.dataset.view);
       if(isGroup&&!count)wrong(`the group ${button.dataset.view} is shown with no pieces`);
       if(count!==tiles)wrong(`${button.dataset.view} says ${count} but shows ${tiles} tiles`);
@@ -792,6 +830,87 @@ SELFTESTS.push(function catalogChipsTellTheTruth(problems){
   if(oldOutdoors!==newOutdoors)wrong(`the Outdoors group of the window (${newOutdoors}) and of PRESET_GROUPS (${oldOutdoors}) differ`);
 });
 
+/* The skill rating (SKILL in js/style.js) puts the presets in the order a woodworker would: the classic first
+   projects are rated "a good first project", drawers, doors, a fish rack and a building are not, drawers rate
+   harder than doors, the Shed is the hardest of all, and a pocket-hole jig adds nothing. Start here lists only
+   what the rating calls a first project (the chips are held to it by catalogChipsTellTheTruth). */
+const SKILL_FIRST_PROJECTS=['wall-shelf','planter-box','five-board-bench','bookshelf'];
+const SKILL_NOT_FIRST=['drawer-nightstand','base-cabinet','fish-tank-wall','cabinet-stand','aquarium-stand','shed'];
+SELFTESTS.push(function skillRatingFeelsRight(problems){
+  const wrong=text=>problems.push('skill rating: '+text);
+  const rated={};
+  for(const entry of CATALOG){
+    const preset=PRESETS.find(row=>row.name===entry.builder);
+    if(!preset)continue;
+    let parts=[];
+    try{parts=preset.build({...presetDefaults(preset),...(entry.start||{})})||[];}catch(e){}
+    if(!parts.length||parts.length>PREVIEW_JOINTS_MAX)continue;
+    rated[entry.id]=assessParts(parts,preset).rating;
+  }
+  const rank=id=>SKILL_LEVELS.findIndex(row=>row.level===rated[id].level);
+  for(const id of SKILL_FIRST_PROJECTS)if(rated[id]&&rank(id)!==0)wrong(`${id} should be a good first project, it is rated "${rated[id].level}" (${rated[id].why.map(row=>row.what).join(', ')})`);
+  for(const id of SKILL_NOT_FIRST)if(rated[id]&&rank(id)===0)wrong(`${id} is rated a good first project`);
+  for(const id of CATALOG_START)if(rated[id]&&rank(id)!==0)wrong(`Start here lists ${id}, rated "${rated[id].level}"`);
+  if(rated['drawer-nightstand']&&rated['base-cabinet']&&rated['drawer-nightstand'].points<=rated['base-cabinet'].points)wrong('fitting drawers should rate harder than hanging doors');
+  if(rated.shed&&Object.values(rated).some(other=>other.points>rated.shed.points))wrong('the Shed should be the hardest preset');
+  // the same design fastened with pocket screws or with plain screws is equally hard
+  if(SKILL.pocketHoles!==0)wrong('a pocket-hole jig is a beginner\'s tool and must not add to the rating');
+  const facts={pieces:5,casePanels:0,doors:0,lids:0,drawers:0,angled:0,framing:false,tanks:false,dowels:false};
+  const everyday={style:'std',wood:'pine',finish:'clear'};
+  const total=why=>why.reduce((sum,row)=>sum+row.points,0);
+  if(skillLevel(total(skillPoints(facts,everyday)))!==SKILL_LEVELS[0].level)wrong('five plain boards are not rated a good first project');
+  // the pocket screws and plugs that keep screw heads off the show faces (js/showfaces.js) never move the rating:
+  // the same boards held with plain screws, with pocket screws, or with heads sunk under plugs rate the same
+  const plainPoints=total(skillPoints(facts,everyday));
+  if(total(skillPoints({...facts,pocketHoles:true},everyday))!==plainPoints)wrong('pocket holes add to the rating');
+  if(total(skillPoints({...facts,plugs:true},everyday))!==plainPoints)wrong('screw heads sunk under plugs add to the rating');
+});
+
+/* The skill rating of what a preset does not name for it:
+     - anything that carries fish tanks is never "a good first project", not even the smallest fish rack the form
+       allows (a 4 ft rack read "a good first project" when tanks weighed 1/2 point);
+     - a design made by hand is read by its hardware: a board hung on hinges is a door, one named Lid is a lid,
+       and two loose boards on slides are a drawer. Each makes the design harder and longer, never easier. */
+SELFTESTS.push(function skillRatingReadsTanksAndHandMadeDoors(problems){
+  const wrong=text=>problems.push('skill rating: '+text);
+  const total=why=>why.reduce((sum,row)=>sum+row.points,0);
+  const everyday={style:'std',wood:'pine',finish:'clear'};
+  const plain={pieces:5,casePanels:0,doors:0,lids:0,drawers:0,angled:0,framing:false,tanks:false,dowels:false};
+  if(skillLevel(total(skillPoints({...plain,tanks:true},everyday)))===SKILL_LEVELS[0].level)wrong('five boards that carry a fish tank are rated a good first project');
+  const rack=CATALOG.find(entry=>entry.id==='fish-tank-wall'),rackPreset=rack&&PRESETS.find(row=>row.name===rack.builder);
+  if(rackPreset){
+    let parts=[];
+    try{parts=rackPreset.build({...presetDefaults(rackPreset),...(rack.start||{}),W:48,H:48})||[];}catch(e){}
+    const rating=parts.length&&parts.length<=PREVIEW_JOINTS_MAX?assessParts(parts,rackPreset).rating:null;
+    if(!rating)wrong('a 4 ft x 4 ft fish rack could not be rated');
+    else if(rating.level===SKILL_LEVELS[0].level)wrong(`a 4 ft x 4 ft fish rack is rated "${rating.level}"`);
+  }
+  // a small cabinet drawn by hand: two sides, a bottom and two boards in front
+  const keep=S;
+  const board=(id,name,mat,sizes,at)=>({...mk(name,mat,sizes,at),id});
+  const pieces=()=>[
+    board(1,'Side','ply34',[.75,24,16],[0,0,0]),
+    board(2,'Side','ply34',[.75,24,16],[20.75,0,0]),
+    board(3,'Bottom','ply34',[20,.75,16],[.75,0,0]),
+    board(4,'Board','ply34',[10,23,.75],[.75,.75,16]),
+    board(5,'Lid','ply34',[21.5,.75,16],[0,24,0]),
+  ];
+  const hinge=(id,on,to)=>({id,kind:'butt',size:3,on,to,at:[0,0,0],n:[0,0,1],u:[0,1,0]});
+  const slide=(id,on,to)=>({id,kind:'slide',size:14,on,to,at:[0,0,0],n:[1,0,0],u:[0,0,1]});
+  const rate=hardware=>{S={...blank(),parts:pieces(),hardware,look:{...everyday},nextId:6,nextHw:hardware.length+1};return assess(look());};
+  try{
+    const bare=rate([]);
+    const door=rate([hinge(1,4,1),hinge(2,4,1)]);
+    const lid=rate([hinge(1,5,1)]);
+    const drawer=rate([slide(1,4,1),slide(2,3,2)]);
+    if(door.why.filter(row=>row.what==='doors to hang').length!==1||door.points<bare.points+SKILL.doors-1e-9)wrong(`a board hung on two hinges by hand is not rated as a door (${door.why.map(row=>row.what).join(', ')})`);
+    if(door.hours<bare.hours)wrong('hanging a door made the working time shorter');
+    if(lid.why.some(row=>row.what==='doors to hang')||!lid.why.some(row=>row.what==='a lid on hinges'))wrong(`a piece named Lid on a hinge should be rated as a lid, not a door (${lid.why.map(row=>row.what).join(', ')})`);
+    if(!drawer.why.some(row=>row.what==='drawers to fit')||drawer.points<bare.points+SKILL.drawers-1e-9)wrong(`two boards on slides placed by hand are not rated as a drawer (${drawer.why.map(row=>row.what).join(', ')})`);
+  }catch(e){wrong('rating a design made by hand failed: '+e.message);}
+  finally{S=keep;}
+});
+
 /* Search, chips, Esc and the keyboard, through the window itself. */
 SELFTESTS.push(function catalogSearchAndKeys(problems){
   const wrong=text=>problems.push('presets window search: '+text);
@@ -801,7 +920,7 @@ SELFTESTS.push(function catalogSearchAndKeys(problems){
     return event;
   };
   const type=text=>{const find=$('#presetFind');find.value=text;find.dispatchEvent(new Event('input',{bubbles:true}));};
-  const shownIds=()=>[...document.querySelectorAll('#presetTiles .card')].map(card=>card.dataset.entry);
+  const shownIds=()=>[...document.querySelectorAll('#presetTiles .card:not(.pinned)')].map(card=>card.dataset.entry);
   const keepPicked=catalogState.picked;
   if($('#presetDlg').open)$('#presetDlg').close();
   $('#bPreset').click();                                   // opened the way a person opens it
@@ -859,7 +978,7 @@ SELFTESTS.push(function catalogSearchAndKeys(problems){
     const chip=$('#presetChips input[data-chip="beginner"]');
     chip.checked=true;chip.dispatchEvent(new Event('change',{bubbles:true}));
     const narrowed=shownIds();
-    if(narrowed.includes('shed')||narrowed.includes('bird-feeder')||!narrowed.includes('planter-box'))wrong(`Beginner-friendly in Outdoors should leave the planter and the garden bed: ${narrowed.join(', ')}`);
+    if(narrowed.includes('shed')||!narrowed.includes('planter-box')||!narrowed.includes('raised-garden-bed'))wrong(`Beginner-friendly in Outdoors should leave the planter and the garden bed, and not the shed: ${narrowed.join(', ')}`);
     // the count on the left is the count of tiles its row shows, chips included
     const outdoorsCount=+$('#presetGroups .pgrp[data-view="outdoors"] small').textContent;
     if(outdoorsCount!==narrowed.length)wrong(`with Beginner-friendly on, Outdoors says ${outdoorsCount} on the left and shows ${narrowed.length} tiles`);
@@ -942,6 +1061,86 @@ SELFTESTS.push(function catalogSearchAndKeys(problems){
   }
 });
 
+/* The design in the live pane can always be found beside it: whatever is searched, filtered or shown, its tile is
+   in the list, or pinned on top with "not in this list" (and only then). The counts count the list alone, choosing
+   a design of the list takes the pinned tile away, and what was typed in the form is not touched by any of it. */
+SELFTESTS.push(function catalogLiveDesignInList(problems){
+  const wrong=text=>problems.push('presets window list and live pane: '+text);
+  const type=text=>{const find=$('#presetFind');find.value=text;find.dispatchEvent(new Event('input',{bubbles:true}));};
+  const chip=(id,on)=>{const box=$(`#presetChips input[data-chip="${id}"]`);if(!box)return;box.checked=on;box.dispatchEvent(new Event('change',{bubbles:true}));};
+  if($('#presetDlg').open)$('#presetDlg').close();
+  $('#bPreset').click();
+  try{
+    catalogPick('drawer-nightstand',{fresh:true});
+    const height=$('#presetForm [data-k="H"]')||$('#presetForm .pform-b input[data-len]');
+    if(height){height.value='27';height.dispatchEvent(new Event('input',{bubbles:true}));}
+    const typedText=height&&height.value;
+    // the rule, after each change of what the list shows
+    const holds=(what,expectPinned)=>{
+      const live=liveEntry(),pinned=[...document.querySelectorAll('#presetTiles .card.pinned')];
+      const listed=[...document.querySelectorAll('#presetTiles .card:not(.pinned)')].map(card=>card.dataset.entry);
+      const inList=!!live&&listed.includes(live.id);
+      if(!live){wrong(`${what}: the live pane shows no design of the catalog`);return;}
+      if(!inList&&pinned.length!==1)wrong(`${what}: ${live.name} is on the right but not in the list beside it`);
+      if(inList&&pinned.length)wrong(`${what}: ${live.name} is in the list and pinned on top as well`);
+      if(pinned.length&&(pinned[0].dataset.entry!==live.id||!pinned[0].textContent.includes(CATALOG_PINNED_WORDS)||!pinned[0].classList.contains('on')))wrong(`${what}: the pinned tile should be ${live.name}, marked "${CATALOG_PINNED_WORDS}" and chosen`);
+      if(expectPinned!==undefined&&!!pinned.length!==expectPinned)wrong(`${what}: the chosen design should ${expectPinned?'':'not '}be pinned`);
+      const count=+(($('#presetTiles .pcat-head small')||{}).textContent||'').split(' ')[0];
+      if(count!==listed.length)wrong(`${what}: the heading says ${count} designs and the list has ${listed.length}`);
+      if(curPreset&&live.builder!==curPreset.name)wrong(`${what}: the live pane shows ${curPreset.name}, the list chose ${live.name}`);
+    };
+    holds('after choosing it from code');
+    showView('bedroom');
+    holds('its own group',false);
+    type('bench');
+    holds('a search that leaves it out',true);
+    type('zzqq');
+    holds('a search that finds nothing',true);
+    if(!$('#presetTiles .pnone'))wrong('a search that finds nothing should still say so under the pinned tile');
+    type('');
+    showView('start');
+    holds('Start here, which does not list it',true);
+    showView('bedroom');
+    holds('its own group',false);
+    chip('beginner',true);
+    holds('Beginner-friendly on in its group',true);
+    chip('beginner',false);
+    showView('outdoors');
+    type('drawer');
+    holds('a search that finds it',false);
+    type('');
+    // choosing a design of the list takes the pinned tile away; it is the new chosen tile
+    showView('seating');
+    holds('Seating',true);
+    const bench=$('#presetTiles .card[data-entry="five-board-bench"]');
+    bench.click();
+    holds('after choosing the Five-board bench',false);
+    // the keyboard: Up from the top row of the list goes to the pinned tile, Down from it back into the list
+    showView('storage');
+    const pinned=$('#presetTiles .card.pinned');
+    const top=tileCards().find(card=>!card.classList.contains('pinned'));
+    if(pinned&&top){
+      top.focus();
+      top.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
+      if(document.activeElement!==$('#presetTiles .card.pinned'))wrong('Up from the top row of the list should go to the pinned tile');
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));
+      if(!document.activeElement.classList.contains('card')||document.activeElement.classList.contains('pinned'))wrong('Down from the pinned tile should go into the list');
+    }else wrong('Storage and shelving should pin the Five-board bench above its list');
+    // Enter in the search box picks the first design FOUND, not the pinned one
+    type('bookshelf');
+    $('#presetFind').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    if(!curPreset||curPreset.name!=='Bookshelf')wrong(`Enter in the search box chose ${curPreset&&curPreset.name}, not the first design found`);
+    // what was typed for the nightstand is still there when it is chosen again
+    catalogPick('drawer-nightstand');
+    const again=$('#presetForm [data-k="H"]')||$('#presetForm .pform-b input[data-len]');
+    if(height&&(!again||again.value!==typedText))wrong(`the size typed for the Drawer nightstand was lost (${typedText} became ${again&&again.value})`);
+  }finally{
+    // the nightstand stays chosen, with its form in the pane: the window opens on it next time, as it would for a person
+    catalogState.find='';catalogState.chips.clear();
+    if($('#presetDlg').open)$('#presetDlg').close();
+  }
+});
+
 /* Favorites and Recent are kept in this browser under woodshop. keys, survive the window being drawn again, and
    quietly drop a piece that no longer exists. Creating a piece puts it at the top of Recent. */
 SELFTESTS.push(function catalogRecentAndFavorites(problems){
@@ -955,6 +1154,9 @@ SELFTESTS.push(function catalogRecentAndFavorites(problems){
     catalogStore(CATALOG_RECENT_KEY,[]);
     if(catalogStored(CATALOG_FAVORITES_KEY).join()!=='workbench')wrong('a favorite that no longer exists must be dropped quietly');
     if(!$('#presetDlg').open)$('#bPreset').click();
+    // the design on the right is one that is never a favorite here, so it waits pinned above the Favorites list
+    // and the stars below are the list's own
+    catalogPick('planter-box');
     // the star on a tile
     showView('storage');
     const star=$('#presetTiles .pstar[data-star="bookshelf"]');
@@ -962,7 +1164,7 @@ SELFTESTS.push(function catalogRecentAndFavorites(problems){
     if(!isFavorite('bookshelf'))wrong('the star on the Bookshelf tile did not make it a favorite');
     if(!$('#presetTiles .pstar[data-star="bookshelf"]').classList.contains('on'))wrong('the star of a favorite should show as on');
     showView('favorites');
-    const listed=[...document.querySelectorAll('#presetTiles .card')].map(card=>card.dataset.entry);
+    const listed=[...document.querySelectorAll('#presetTiles .card:not(.pinned)')].map(card=>card.dataset.entry);
     if(listed.join()!=='workbench,bookshelf')wrong(`Favorites should list the Workbench and the Bookshelf, it lists ${listed.join(', ')}`);
     const inTabOrder=[...document.querySelectorAll('#presetTiles .pstar')].filter(other=>other.tabIndex>=0).length;
     if(inTabOrder!==1)wrong(`one star (the chosen tile's) should be in the Tab order, ${inTabOrder} are`);
@@ -1033,12 +1235,21 @@ SELFTESTS.push(function catalogStylesStayInWindow(problems){
 
 /* The three panes fit side by side: none overlaps another or the edges of the window, the live pane keeps a width
    at which its form reads well, and each pane scrolls on its own. Measured at the size the page is now, when that
-   is at least CATALOG_SMALLEST, the smallest window the presets window is laid out for. */
+   is at least CATALOG_SMALLEST, the smallest window the presets window is laid out for (a small laptop). In a
+   smaller window the panes keep their smallest widths and scroll sideways together, which works but is not the
+   layout: this check then says in the console that the window is too small to judge, and passes. */
 const LIVE_PANE_MIN=460;   // narrower than this, the labels, boxes and hints of the form start to crowd
-const CATALOG_SMALLEST={width:1100,height:700};
+const CATALOG_SMALLEST={width:1024,height:640};
+/* true when the page is smaller than the presets window is laid out for; says so once per check that skips */
+function catalogTooSmallToJudge(what){
+  if(innerWidth>=CATALOG_SMALLEST.width&&innerHeight>=CATALOG_SMALLEST.height)return false;
+  console.info(`presets window ${what}: not judged. The page is ${innerWidth} x ${innerHeight}, smaller than `+
+    `${CATALOG_SMALLEST.width} x ${CATALOG_SMALLEST.height}, the smallest window it is laid out for; there the panes scroll sideways.`);
+  return true;
+}
 SELFTESTS.push(function catalogPanesFit(problems){
   const wrong=text=>problems.push('presets window layout: '+text);
-  if(innerWidth<CATALOG_SMALLEST.width||innerHeight<CATALOG_SMALLEST.height)return;
+  if(catalogTooSmallToJudge('layout'))return;
   const dialogWasOpen=$('#presetDlg').open;
   if(!dialogWasOpen)$('#bPreset').click();
   try{
@@ -1051,6 +1262,8 @@ SELFTESTS.push(function catalogPanesFit(problems){
       if(i&&rect.left<panes[i-1][2].right-1)wrong(`the ${name} pane overlaps the one to its left`);
       if(rect.width<40)wrong(`the ${name} pane has no room (${Math.round(rect.width)}px)`);
     }
+    const row=$('#presetDlg .preset');
+    if(row.scrollWidth>row.clientWidth+1)wrong(`the three panes need ${row.scrollWidth}px and have ${row.clientWidth}px: they scroll sideways in a window this size`);
     const live=panes[2][2];
     if(live.width<LIVE_PANE_MIN)wrong(`the live pane is ${Math.round(live.width)}px wide, it needs ${LIVE_PANE_MIN}`);
     const scrolls=element=>/auto|scroll/.test(getComputedStyle(element).overflowY);

@@ -115,13 +115,127 @@ function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceS
   if(L.finish==='clear'||f[2]===1)rows.push(['Polyurethane, quarts',qt(L.style==='fine'?3:2)]);
   return rows;}
 const lumberCost=()=>lumberToBuy(S.parts.concat(woodStrips()),S.stock).cost; // lumberToBuy is in plans.js, next to the board and sheet packing
+/* ---------- how hard is it: the skill rating ----------
+   A rule of thumb, the way an experienced hobbyist sizes up a project for a beginner: what makes a build hard is
+   how many different operations it asks for and how unforgiving each one is, not which tool drives the screws.
+   Every design starts at SKILL.base points and each thing below adds its weight once; the total picks a row of
+   SKILL_LEVELS. Pieces are recognised by what they are (a piece named Door, Lid, Drawer front; a tank; a piece set
+   at an angle; framing nails), so a preset gets the same rating in the presets window (pieces not placed yet) as
+   on the Build instructions page (the placed design): see presetWindowRatesAsThePage in js/app.js. A design made
+   by hand is also read by its hardware: a piece that hangs on hinges is a door (or a lid, when it is named so),
+   and the pieces that run on slides or runners make drawers. The presets put their hinges on their Door and Lid
+   pieces and their slides on their drawers, so for them this counts nothing twice. */
+const SKILL={
+  base:1,            // measure, cut square, drill and drive screws: every design asks for that much
+  manyPieces:.5,     // more than SKILL_MANY_PIECES pieces: many cuts that must come out the same length, and more to keep square
+  lotsOfPieces:.5,   // more than SKILL_LOTS_OF_PIECES: on top of that, a long build where small errors add up
+  plywoodCase:.5,    // SKILL_CASE_PANELS or more panels of 1/2" plywood or thicker (a box or a cabinet): big sheets to
+                     // handle and rip straight with a saw guide, and each panel must match its partner exactly. One top
+                     // or a thin back is not counted: the store cuts those, and a back hides small errors
+  lid:.5,            // a lid on hinges: it lines up along one edge only, and a gap around a lid is forgiving
+  doors:1,           // hanging doors so the gaps are even: the hinge holes must be at the same place on every door,
+                     // and the doors adjusted until they sit flat and line up with each other
+  drawers:1.5,       // drawers: each box must be square to within 1/16", its slides or runners level and parallel,
+                     // and the fronts lined up across the cabinet. The least forgiving job in ordinary furniture
+  angled:.5,         // cuts at an angle (a roof board, a brace): a bevel or miter set on the saw and checked
+  manyAngled:.5,     // SKILL_MANY_ANGLED or more angled pieces (rafters): a layout marked once and cut over and over
+                     // until every piece matches
+  framing:1.5,       // framing a building: walls built flat, raised, plumbed and squared, a level floor, a roof
+  tanks:1,           // it carries fish tanks: hundreds of pounds of water, so it must stand level and dead square, and
+                     // a mistake floods the room. Never a first project, however small the rack
+  dowels:1,          // dowel joints: the holes in both pieces must line up exactly, and glue-up is a race against time
+  hardwood:.5,       // hardwood: harder to cut, every screw needs a pilot hole, and mistakes show
+  stain:.5,          // a stain: pine and poplar blotch unless the wood is conditioned, and glue left on shows
+  fine:1,            // Fine furniture: every hole filled, sanded to 220, nothing out of square may show
+  rustic:-.5,        // Rustic / rough: screws from outside and quick sanding; small errors are part of the look
+  pocketHoles:0,     // a pocket-hole jig is a beginner's tool: clamp, drill to the stop, drive the screw. No weight
+  plugs:0,           // a screw head sunk under a glued plug (type 'plug'), or pocket holes filled with plugs: drill
+                     // with a counterbore bit to its stop collar, glue the plug in, saw it flush and sand. Forgiving
+                     // (a bad plug is drilled out and redone, sanding hides the rest), so no weight; it costs time
+                     // (TIME_MINUTES.plug), and Fine furniture's point already pays for filling every hole
+};
+const SKILL_MANY_PIECES=25,SKILL_LOTS_OF_PIECES=60,SKILL_CASE_PANELS=5,SKILL_MANY_ANGLED=6;
+/* the ratings, from the easiest: a design is the first row whose `below` its points stay under */
+const SKILL_LEVELS=[
+  {below:2,       level:'Beginner: a good first project'},
+  {below:3,       level:'Beginner with patience'},
+  {below:4,       level:'Some experience helps'},
+  {below:Infinity,level:'Experienced builder'},
+];
+/* What the rating sees in a design: counts of the things SKILL weighs. ts is the count of joints by fastener type;
+   hardware is the placed hardware of the design (S.hardware, js/hardware.js), empty for pieces not placed yet. */
+const isDoorPiece=p=>/(^|\s)door$/i.test(p.name);        // "Door", "Shed door"; not "Door stile" or "Door header"
+const isLidPiece=p=>/(^|\s)lid$/i.test(p.name);
+function skillFacts(parts,ts,hardware=[]){
+  const wood=parts.filter(p=>!isProp(p));
+  const drawerFronts=wood.filter(p=>/^drawer front$/i.test(p.name)).length;
+  const drawerSubs=new Set(wood.map(p=>p.sub).filter(sub=>/^drawer\b/i.test(sub||''))).size;
+  // the pieces that move on the hardware placed on them: hung on hinges, or running on slides or runners
+  const pieceById=new Map(wood.map(p=>[p.id,p]));
+  const movedBy=motion=>[...new Set(hardware.filter(item=>HARDWARE[item.kind]&&HARDWARE[item.kind].motion===motion).map(item=>item.on))]
+    .map(id=>pieceById.get(id)).filter(Boolean);
+  const hinged=movedBy('swing'),sliding=movedBy('slide');
+  const doors=new Set([...wood.filter(isDoorPiece),...hinged.filter(p=>!isLidPiece(p))]);
+  // a drawer is one subcomponent (sub: "Drawer 2"); loose pieces on slides count a drawer for each two (its two sides)
+  const slidingLoose=sliding.filter(p=>!p.sub).length;
+  const slidDrawers=new Set(sliding.map(p=>p.sub).filter(Boolean)).size+Math.ceil(slidingLoose/2);
+  const opens=p=>doors.has(p)||isLidPiece(p)||/^drawer\b/i.test(p.name);
+  return{
+    pieces:wood.length,
+    casePanels:wood.filter(p=>M[p.mat].kind==='sheet'&&M[p.mat].t>=.5-1e-6&&!opens(p)).length,
+    doors:doors.size,
+    lids:wood.filter(isLidPiece).length,
+    drawers:Math.max(drawerFronts,drawerSubs,slidDrawers),
+    angled:wood.filter(tilted).length,
+    framing:!!(ts.frame||ts.toenail),
+    tanks:parts.some(p=>p.gal),
+    dowels:!!ts.dowel,
+    pocketHoles:!!ts.pocket,
+    plugs:!!ts.plug,
+  };
+}
+/* The points of a design and why: [{what, points}] with the base first. */
+function skillPoints(facts,lk){
+  const why=[{what:'measuring, cutting and screwing',points:SKILL.base}];
+  const add=(on,points,what)=>{if(on&&points)why.push({what,points});};
+  add(facts.pieces>SKILL_MANY_PIECES,SKILL.manyPieces,`more than ${SKILL_MANY_PIECES} pieces`);
+  add(facts.pieces>SKILL_LOTS_OF_PIECES,SKILL.lotsOfPieces,`more than ${SKILL_LOTS_OF_PIECES} pieces`);
+  add(facts.casePanels>=SKILL_CASE_PANELS,SKILL.plywoodCase,'many plywood panels cut to match');
+  add(facts.lids>0,SKILL.lid,'a lid on hinges');
+  add(facts.doors>0,SKILL.doors,'doors to hang');
+  add(facts.drawers>0,SKILL.drawers,'drawers to fit');
+  add(facts.angled>0,SKILL.angled,'cuts at an angle');
+  add(facts.angled>=SKILL_MANY_ANGLED,SKILL.manyAngled,'many matching angled pieces');
+  add(facts.framing,SKILL.framing,'framing a building');
+  add(facts.tanks,SKILL.tanks,'it carries fish tanks');
+  add(facts.dowels,SKILL.dowels,'dowel joints');
+  add(facts.pocketHoles,SKILL.pocketHoles,'pocket holes');            // weighs 0 (see SKILL): listed so the table decides
+  add(facts.plugs,SKILL.plugs,'screw heads sunk under plugs');        // weighs 0 (see SKILL)
+  add(WOODS[lk.wood][3]===1,SKILL.hardwood,'hardwood');
+  add(FINISHES[lk.finish][2]===1,SKILL.stain,'a stain');
+  add(lk.style==='fine',SKILL.fine,'the Fine furniture style');
+  add(lk.style==='rustic',SKILL.rustic,'the Rustic / rough style');
+  return why;
+}
+const skillLevel=points=>SKILL_LEVELS.find(row=>points<row.below-1e-9).level;
+/* ---------- how long: the working time ----------
+   Minutes per piece, per joint by fastener type, per square foot sanded and finished, and for each door, lid and
+   drawer (cutting a drawer box, mounting its slides and lining up its front takes about an hour; drilling and hanging
+   a door and adjusting it about half that). A plugged screw (type 'plug') takes 8: counterbore, drive, glue the
+   plug in, saw it flush and sand. */
+const TIME_MINUTES={piece:4,screw:3,plug:8,pocket:6,dowel:12,nail:2,frame:2,toenail:3,bracket:5,glue:5,door:30,lid:20,drawer:60};
 function assess(lk){ // how hard, how long and how much, for a given style / wood / finish
   const keep=S.look;S.look=lk;
-  try{const js=findJoints(),ts={},ps=S.parts.filter(p=>!isProp(p)),n=ps.length,f=FINISHES[lk.finish],area=surfaceSqFt();
+  try{const js=findJoints(),ts={},f=FINISHES[lk.finish],area=surfaceSqFt();
     js.forEach(j=>{const t=jType(j);ts[t]=(ts[t]||0)+1;});
-    const sc=1+(n>25?.5:0)+(n>60?.5:0)+(ps.some(p=>M[p.mat].kind==='sheet')?.5:0)+(ts.pocket?.5:0)+(ts.dowel?1:0)+(ps.some(tilted)?1:0)+WOODS[lk.wood][3]*.5+(f[2]===1?.5:0)+(lk.style==='fine'?1:lk.style==='rustic'?-.5:0);
-    const mins=n*4+(ts.screw||0)*3+(ts.plug||0)*8+(ts.pocket||0)*6+(ts.dowel||0)*12+(ts.nail||0)*2+(ts.frame||0)*2+(ts.toenail||0)*3+(ts.bracket||0)*5+(ts.glue||0)*5+area*(lk.style==='rustic'?.5:lk.style==='fine'?3:1.5)+area*(lk.finish==='none'?0:f[2]?2.5:1.5);
-    return{level:sc<2?'Beginner: a good first project':sc<3?'Beginner with patience':sc<4?'Some experience helps':'Experienced builder',hours:Math.max(1,Math.round(mins/60)),cost:lumberCost(),tools:toolList(js).length,pocket:!!ts.pocket};
+    const facts=skillFacts(S.parts,ts,S.hardware||[]),why=skillPoints(facts,lk);
+    const points=why.reduce((sum,row)=>sum+row.points,0);
+    const T=TIME_MINUTES;
+    const joints=['screw','plug','pocket','dowel','nail','frame','toenail','bracket','glue'].reduce((sum,type)=>sum+(ts[type]||0)*T[type],0);
+    const opening=facts.doors*T.door+facts.lids*T.lid+facts.drawers*T.drawer;
+    const sanding=area*(lk.style==='rustic'?.5:lk.style==='fine'?3:1.5),finishing=area*(lk.finish==='none'?0:f[2]?2.5:1.5);
+    const mins=facts.pieces*T.piece+joints+opening+sanding+finishing;
+    return{level:skillLevel(points),points,why,hours:Math.max(1,Math.round(mins/60)),cost:lumberCost(),tools:toolList(js).length,pocket:!!ts.pocket};
   }finally{S.look=keep;}}
 /* The Style, finish and difficulty dialog (#styleDlg): one choice per style with what it takes for THIS design
    (skill, time, lumber cost, tools), then the wood and the finish. app.js applies a choice as soon as it is made. */

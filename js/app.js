@@ -491,6 +491,18 @@ function openPresets(){
 }
 $('#presetForm').oninput=e=>{presetEdited=e.target;clearTimeout(presetTimer);presetTimer=setTimeout(showPresetSummary,180);};
 $('#presetForm').onchange=e=>{if(!curPreset)return;presetEdited=e.target;presetFieldChanged(e.target);showPresetSummary();};
+/* Enter in a box of the form presses Create (the shared Enter of every dialog, js/dialogs.js, which listens further
+   out and so comes after this). The summary, which decides whether Create can be pressed, waits a moment after
+   typing (presetTimer), and the change event of the box only comes after Enter: so a box just put right would
+   still have Create waiting from when it was red, and the first Enter would do nothing. The box is read now
+   instead, as its change event would read it, so one Enter creates from what the boxes say at this moment; a box
+   that is still red leaves Create waiting. */
+$('#presetForm').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||!curPreset||e.target.tagName!=='INPUT'||e.target.type==='checkbox')return;
+  presetEdited=e.target;
+  presetFieldChanged(e.target);
+  showPresetSummary();
+});
 $('#bPGo').onclick=()=>makePreset(false);
 $('#bPAdd').onclick=()=>makePreset(true);
 $('#bPreset').onclick=openPresets;
@@ -537,6 +549,45 @@ SELFTESTS.push(function presetRowsComeAndGo(problems){
     // back to the form that was showing (unless that was another check's made-up preset, which is gone by now)
     const was=PRESETS.indexOf(before);
     if(was>=0)choosePreset(was);else showNoPreset();
+  }
+});
+
+/* Self-check: one Enter right after a red size box is put right creates the design, with the size typed; Enter
+   while a box is still red creates nothing. Done through the window, with the keys a person presses. */
+SELFTESTS.push(function presetEnterAfterAFix(problems){
+  const wrong=text=>problems.push('presets window Enter: '+text);
+  const keepSnap=lastSnap,undo0=undoStack.slice(),redo0=redoStack.slice(),confirm0=autoConfirm,picked0=catalogState.picked;
+  const enter=box=>box.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+  const type=(box,text)=>{box.focus();box.value=text;box.dispatchEvent(new Event('input',{bubbles:true}));};
+  autoConfirm=true;                                        // the question "Replace the design on screen?" answers yes
+  try{
+    if($('#presetDlg').open)$('#presetDlg').close();
+    $('#bPreset').click();
+    catalogPick('wall-shelf',{fresh:true});
+    const width=$('#presetForm [data-k="L"]');
+    if(!width){wrong('the Wall shelf form has no Length box');return;}
+    const setsBefore=S.nextSet||0;
+    // a size far outside the limits: the box turns red and Enter creates nothing
+    type(width,'900');
+    enter(width);
+    if(!width.classList.contains('bad'))wrong('a size of 900" did not turn the box red');
+    if((S.nextSet||0)!==setsBefore||!$('#presetDlg').open)wrong('Enter on a red box created the design');
+    // put right, then Enter at once, before the summary has caught up: one Enter creates, with that size
+    const length=20;                                       // inside the limits, and not the length it starts with
+    type(width,String(length));
+    if(!presetTimer)wrong('typing did not leave the summary waiting, so this check proves nothing');
+    enter(width);
+    if((S.nextSet||0)===setsBefore)wrong('one Enter after putting the box right did not create the design');
+    else{
+      const made=S.parts.filter(piece=>piece.set===S.nextSet);
+      const longest=made.map(piece=>Math.max(...size(piece)));
+      if(!longest.some(each=>Math.abs(each-length)<1/32))wrong(`the design was made, but not with the ${fmt(length)} typed (longest pieces: ${longest.map(fmt).join(', ')})`);
+    }
+  }finally{
+    autoConfirm=confirm0;
+    if($('#presetDlg').open)$('#presetDlg').close();
+    load(keepSnap,true);undoStack=undo0;redoStack=redo0;
+    if(picked0&&catalogEntry(picked0))catalogState.picked=picked0;
   }
 });
 

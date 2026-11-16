@@ -3,13 +3,18 @@
    only sizes the window and its three columns and styles the groups list, the search row and the tiles' stars.
    Loaded after style.css, so these rules win over the older two-pane layout there.
 
-   Sizes: the window takes the page up to 1360px wide. The groups get 208px and the live pane a fixed 500px, so
-   its form never gets narrower than it was designed for; the tiles get what is left (one column of tiles from
-   about 1100px wide, two above that). Each pane scrolls on its own: the groups list, the tiles under the search
-   row, and the form of the live pane. */
+   Sizes: the window takes the page up to 1360px wide. The groups get 208px and the live pane 500px, so its form
+   never gets narrower than it was designed for; the tiles get what is left (one column of tiles up to about
+   1100px wide, two above that). Each pane scrolls on its own: the groups list, the tiles under the search row,
+   and the form of the live pane.
+   The smallest page the window is laid out for is 1024 x 640 (CATALOG_SMALLEST in js/catalog.js): there all three
+   panes show side by side. Narrower than that, the live pane gives up to 40px before the tiles go under their own
+   smallest width (236px, room for the longest name on a tile and its star); the groups keep 208px, the room their
+   longest name needs. Below about 940px the three panes keep those widths and scroll sideways together under
+   the title bar, while the buttons stay where they are. */
 
 #presetDlg{width:min(1360px,calc(100vw - 32px))}
-#presetDlg .preset{flex:0 1 760px;grid-template-columns:208px minmax(0,1fr) 500px}
+#presetDlg .preset{flex:0 1 760px;grid-template-columns:208px minmax(236px,1fr) minmax(460px,500px);overflow-x:auto;overflow-y:hidden}
 
 /* ---- the groups ---- */
 .pgroups{min-height:0;overflow:auto;padding:6px 0 12px;border-right:1px solid var(--n300);background:var(--n50)}
@@ -31,8 +36,11 @@
 .pcat-head{display:flex;align-items:baseline;gap:8px;margin:10px 0 6px}
 .pcat-head b{min-width:0;font-size:var(--fs-h);font-weight:600;color:var(--n900);overflow-wrap:break-word} /* wraps when many chips are named */
 .pcat-head small{flex:none;font-size:var(--fs-s);color:var(--n600)}
-#presetDlg .tiles{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+#presetDlg .tiles{grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))}
 .pnone{margin:16px 0;color:var(--n600)}
+/* the chosen design when the list leaves it out: on top, under a line of its own, its short line saying so */
+#presetDlg .ppinned{margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--n200)}
+.ptile.pinned .card small{font-style:italic}
 
 /* Reset sizes, at the right end of the name line of the live pane */
 #presetDlg .pform-h{position:relative}
