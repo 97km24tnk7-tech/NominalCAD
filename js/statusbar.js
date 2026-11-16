@@ -22,11 +22,17 @@ const TOOL_PROMPTS={
   select(){
     const n=sel.size;
     if(!S.parts.length)return['i-select','Select / move','Start with Furniture presets, or pick Draw a board and drag on the floor.'];
+    if(!n&&pickLevel==='comp')return['i-select','Select / move','Click a piece to select the component it belongs to. Click it again for the component around that one.'];
     if(!n)return['i-select','Select / move','Click a piece to select it. Drag empty space to turn the view, right-drag to slide it, scroll to zoom.'];
+    const along=followerCount(); // pieces that are fastened to the selection and move with it (js/connections.js)
+    if(along&&n===1)return['i-select','Select / move',`Fastened: ${along+1} pieces move together. Unfasten (U) frees this one. A blue handle changes only its length.`];
+    if(along)return['i-select','Select / move',`${n} selected, fastened to ${along} more: all ${n+along} move together. Unfasten (U) frees the selection.`];
     if(n===1)return['i-select','Select / move','Drag the piece to slide it. Shift + drag lifts it. Drag a blue handle to change its length. Alt turns snapping off.'];
     return['i-select','Select / move',`${n} pieces selected. Drag one to move them together. Shift + drag lifts them. Alt turns snapping off.`];
   },
   rotate(){
+    const along=followerCount();
+    if(along)return['i-rotate','Rotate',`Fastened: ${sel.size+along} pieces turn together when you drag a ring. Unfasten (U) frees the selection.`];
     return['i-rotate','Rotate',sel.size?'Drag a colored ring to turn it. It snaps every 15°; hold Alt for any angle.'
       :'Click a piece, then drag a colored ring to turn it.'];
   },
@@ -35,8 +41,8 @@ const TOOL_PROMPTS={
     return['i-draw','Draw a board',`Drag on the floor, or on top of a piece, to draw a ${m.kind==='board'?m.short:m.short+' panel'}. Hold Shift to stand a board upright. Press Esc when you are done.`];
   },
   connect(){
-    return['i-connect','Connect',connectFirst?'Now click the piece it should meet. That one stays where it is.'
-      :'Click the piece you want to move or stretch.'];
+    return['i-connect','Connect',connectFirst?'Now click the piece it should meet. That one stays where it is, and the two are fastened.'
+      :'Click the piece you want to move or stretch. Two pieces that already touch are simply fastened.'];
   },
 };
 /* the prompt on the other tabs says what the page is for */

@@ -2,18 +2,20 @@
 
    A plywood cabinet a beginner can build with a saw and a drill: two sides that run to the floor, a bottom
    panel on a recessed toe kick, two rails under the top, a thin back that keeps it square, an optional open
-   shelf, and one to four drawers on side-mount ball-bearing slides with overlay fronts.
+   shelf, and one to four drawers. The drawers are built by js/drawers.js (buildDrawer) and run on real, placed
+   hardware: a pair of side-mount ball-bearing slides each, or wooden runners with nothing to buy. Their fronts
+   lie over the cabinet edges (overlay) or sit inside the opening (inset).
 
-   Every size rule is in NS below. nightstandPlan() turns the form into checked numbers (and says what it had
-   to change and why), buildNightstand() makes the pieces from that plan, nightstandTip() checks that it will
-   not fall on its face with a full drawer open, and the preset registers itself at the bottom of this file,
-   so nothing else has to know about it.
+   The cabinet's size rules are in NS below; every drawer clearance is in DRAWER (js/drawers.js), so there is
+   one copy of each rule. nightstandPlan() turns the form into checked numbers (and says what it had to change
+   and why), buildNightstand() makes the pieces from that plan, nightstandTip() checks that it will not fall on
+   its face with a full drawer open, and the preset registers itself at the bottom of this file.
 
    The preset rule (README.md): the form's numbers have limits (the ones in NS), nightstandCheck() hands the
    tip check to the warning box as a "stop" or a "warn", and the structural check (js/verify.js) is told what
-   the panels are for (nightstandUses) and that the drawers hang on slides (hung: the drawer sides).
-
-   The slides and pulls are bought hardware: they are in the shopping list, not in the 3D model yet. */
+   the panels are for (nightstandUses). Before the design is placed the check takes the drawer sides as hanging
+   on their slides (hung); once it is placed the slides are really there (mountPresetDrawers, js/drawers.js),
+   and the check reads those: take a slide or a cabinet side away and it says the drawer is not held. */
 'use strict';
 
 const NS={
@@ -21,17 +23,10 @@ const NS={
   kickBack:2,             // the toe kick is set back this far from the front, room for your toes
   rail:3,                 // width of the two rails the top is screwed to from below
   topSide:.5,             // the top overhangs each side by this much
-  topFront:.5,            // and overhangs the drawer fronts by this much
-  frontGap:.125,          // gap between drawer fronts and under the top (two nickels, stacked)
-  frontReveal:.125,       // the drawer fronts stop this far short of the outside of each side
-  frontStandoff:.0625,    // drawer fronts sit this far proud of the cabinet (the bumpers), so they never rub
-  slideSide:.5,           // side-mount ball-bearing slides need 1/2 in between the drawer box and each side
-  boxBelow:.5,            // clear space under each drawer box
-  boxAbove:.25,           // clear space between the top drawer box and the rails
-  slides:[10,12,14,16,18,20,22], // slide lengths sold in stores, inches
-  slideBehind:.5,         // room left between the back of a drawer box and the back panel
-  bottomUse:'general',    // what a drawer bottom is sized for: a key of USES in js/verify.js (20 lb per square foot)
-  minFront:5,             // a drawer front shorter than this leaves a box too shallow to be useful
+  topFront:.5,            // and overhangs the drawer fronts (or, with inset fronts, the cabinet) by this much
+  frontReveal:.125,       // overlay drawer fronts stop this far short of the outside of each side
+  minFront:5,             // an overlay front shorter than this leaves a box too shallow to be useful
+  minFrontInset:3.5,      // an inset front covers no cabinet edges, so the same box needs less front
   maxFront:12,            // a taller front makes a heavy drawer that pulls the cabinet over when it is open
   minShelf:6,             // an open shelf lower than this holds nothing
   maxDrawers:4,
@@ -44,8 +39,7 @@ const NS={
   tipStop:1.25,           // holding force must be at least this many times the tipping force, or it is not built
   tipWarn:1.5,            // below this the form says so and tells you to strap it to the wall
 };
-const NIGHTSTAND_DEFAULTS={W:20,D:16,H:26,N:'2',cub:true,fh:7};
-const floor16=v=>Math.floor(v*16+1e-6)/16;
+const NIGHTSTAND_DEFAULTS={W:20,D:16,H:26,N:'2',cub:true,fh:7,slides:'slide',fronts:'overlay'};
 
 /* The plan for the form as it stands: the sizes, where each drawer front starts, the drawer box sizes,
    `tip` (the tip check, see nightstandTip) and `changed`: plain sentences for every value the plan had to
@@ -61,7 +55,7 @@ function nightstandPlan(p){
   const first=plan;
   while(plan.tip.factor<NS.tipStop){
     let lighter=null;
-    if(plan.shelf&&plan.frontHeight>NS.minFront)lighter=nightstandLayout(p,{frontHeight:Math.max(NS.minFront,plan.frontHeight-.5)});
+    if(plan.shelf&&plan.frontHeight>plan.minFront)lighter=nightstandLayout(p,{frontHeight:Math.max(plan.minFront,plan.frontHeight-.5)});
     else if(!plan.shelf&&plan.drawers<NS.maxDrawers)lighter=nightstandLayout(p,{drawers:plan.drawers+1});
     // stop when there is nothing lighter left to try (the layout came back no different)
     if(!lighter||(lighter.frontHeight>=plan.frontHeight&&lighter.drawers<=plan.drawers))break;
@@ -87,54 +81,77 @@ function nightstandLayout(p,force){
   const W=within(p.W,NS.minWidth,NS.maxWidth,'Width');
   const D=within(p.D,NS.minDepth,NS.maxDepth,'Depth');
   const H=within(p.H,NS.minHeight,NS.maxHeight,'Height');
-  const floorOfCabinet=NS.kick+.75;                    // top of the bottom panel
-  const frontsTo=H-NS.frontGap;                        // the top drawer front stops just under the top
-  const stack=(n,frontHeight)=>n*frontHeight+(n-1)*NS.frontGap; // height of n drawer fronts with their gaps
+  const kind=p.slides==='runner'?'runner':'slide',style=p.fronts==='inset'?'inset':'overlay';
+  const gap=DRAWER.frontGap,panel=.75;
+  /* Where the stack of drawer fronts ends, top and bottom.
+     Overlay: the top front stops one gap under the top, and the bottom front covers the edge of the panel below it.
+     Inset:   the fronts sit between the top rails and the panel below, one gap away from each. */
+  const capTop=style==='overlay'?gap:panel+gap;
+  const capBottom=style==='overlay'?0:panel+gap;
+  const minFront=style==='overlay'?NS.minFront:NS.minFrontInset;
+  const floorOfCabinet=NS.kick+panel;                  // top of the bottom panel
+  const frontsTo=H-capTop;                             // the top edge of the top drawer front
+  const stack=(n,frontHeight)=>n*frontHeight+(n-1)*gap; // height of n drawer fronts with their gaps
   const asked=Math.min(NS.maxDrawers,Math.max(1,parseInt(p.N,10)||1));
   let drawers=p.cub?asked:(force.drawers||asked),frontHeight,shelfHeight=0,frontsFrom;
 
   if(p.cub){
     // With an open shelf: the drawers take the front height asked for, counted down from the top, and the open
     // shelf gets what is left. It must keep at least NS.minShelf, so drawers give way first: shorter, then fewer.
-    frontHeight=force.frontHeight||floor16(within(p.fh,NS.minFront,NS.maxFront,'Drawer front height'));
-    const room=frontsTo-floorOfCabinet-NS.minShelf;    // the most the drawer fronts can take
-    while(drawers>1&&stack(drawers,NS.minFront)>room)drawers--;
+    frontHeight=force.frontHeight||floor16(within(p.fh,minFront,NS.maxFront,'Drawer front height'));
+    const room=frontsTo-floorOfCabinet-NS.minShelf-capBottom;    // the most the drawer fronts can take
+    while(drawers>1&&stack(drawers,minFront)>room)drawers--;
     if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} above an open shelf at this height. Make it taller, or leave out the open shelf, for more.`);
     if(stack(drawers,frontHeight)>room){
-      frontHeight=floor16((room-(drawers-1)*NS.frontGap)/drawers);
+      frontHeight=floor16((room-(drawers-1)*gap)/drawers);
       changed.push(`The drawer fronts were cut back to ${fmt(frontHeight)} tall so the open shelf keeps ${fmt(NS.minShelf)}.`);
     }
-    shelfHeight=r16(frontsTo-stack(drawers,frontHeight)-floorOfCabinet);
-    frontsFrom=floorOfCabinet+shelfHeight;             // the bottom drawer front covers the edge of the shelf panel
+    shelfHeight=r16(frontsTo-stack(drawers,frontHeight)-capBottom-floorOfCabinet);
+    frontsFrom=floorOfCabinet+shelfHeight+capBottom;   // shelfHeight is the clear height under the shelf panel
   }else{
-    // With no open shelf the drawers share the whole height. The bottom front covers the edge of the bottom panel.
-    frontsFrom=NS.kick;
-    const share=n=>floor16((frontsTo-frontsFrom-(n-1)*NS.frontGap)/n);
+    // With no open shelf the drawers share the whole height above the bottom panel.
+    frontsFrom=NS.kick+capBottom;
+    const share=n=>floor16((frontsTo-frontsFrom-(n-1)*gap)/n);
     while(drawers<NS.maxDrawers&&share(drawers)>NS.maxFront)drawers++;
     if(drawers>asked)changed.push(`${drawers} drawers were used: with fewer, each drawer front would be over ${fmt(NS.maxFront)} tall, heavy enough to pull the cabinet over when open. Tick the open shelf if you want fewer drawers.`);
-    while(drawers>1&&share(drawers)<NS.minFront)drawers--;
-    if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} at this height: each drawer front has to be at least ${fmt(NS.minFront)} tall.`);
+    while(drawers>1&&share(drawers)<minFront)drawers--;
+    if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} at this height: each drawer front has to be at least ${fmt(minFront)} tall.`);
     frontHeight=share(drawers);
   }
   const fronts=[];
-  for(let i=0;i<drawers;i++)fronts.push(r16(frontsFrom+i*(frontHeight+NS.frontGap)));
+  for(let i=0;i<drawers;i++)fronts.push(r16(frontsFrom+i*(frontHeight+gap)));
 
-  // the slides: the longest length sold that leaves room behind the drawer
-  const slide=NS.slides.filter(length=>length<=D-NS.slideBehind).pop();
-  const boxWidth=W-1.5-2*NS.slideSide;                 // between the sides, less 1/2 in each side for the slides
-  // A drawer box starts 1/2 in above the panel its front covers (the panel is 3/4 in thick). The top box must
-  // end 1/4 in under the rails, whose underside is 3/4 in less the gap below the top edge of the top front.
-  // Every box is made that same height, so all the drawer parts are cut alike.
-  const boxBottom=front=>r16(front+.75+NS.boxBelow);
-  const boxHeight=floor16(frontHeight-(.75+NS.boxBelow)-(.75-NS.frontGap+NS.boxAbove));
-  // The drawer bottom is nailed on under the box, all the way round. 1/4 in plywood does while the box is small
-  // one way; past that it would sag under a full drawer and 1/2 in is used. Same load and the same bending
-  // helper as the structural check, which measures the span between the middles of the box parts.
-  const bottomSpan=Math.min(boxWidth,slide)-.5;
-  const thinBottom=sectionOf(1,.25,true),bottomLoad=USES[NS.bottomUse].psf/144+WOOD_RULES.DENSITY*.25;
-  const bottomThick=bottomSpan>maxSpanFor(thinBottom,bottomLoad,NS.bottomUse)?.5:.25;
-  if(bottomThick>.25)changed.push('The drawer bottoms are 1/2" plywood: in a drawer this size a 1/4" bottom would sag when the drawer is full.');
-  return{W,D,H,shelf:!!p.cub,shelfHeight,floorOfCabinet,frontsFrom,drawers,frontHeight,fronts,slide,boxWidth,boxHeight,boxBottom,bottomThick,changed};
+  /* The space each drawer is built for (the "opening" of js/drawers.js), between the two sides. There are no
+     panels between the drawers, so every drawer gets a space of the same height: the one the top drawer has
+     under the rails. All the boxes then come out alike, and all the drawer parts are cut alike.
+       Overlay: from the top of the panel its front covers (3/4" above the bottom edge of the front) up to the
+                underside of the rails (3/4" less one gap below the top edge of the top front).
+       Inset:   one gap below the front to one gap above it. */
+  const openingOf=front=>style==='overlay'
+    ?{x:panel,y:r16(front+panel),z:0,width:W-2*panel,height:r16(frontHeight-panel-(panel-gap)),depth:D}
+    :{x:panel,y:r16(front-gap),z:0,width:W-2*panel,height:r16(frontHeight+2*gap),depth:D};
+  /* Wooden runners with no rail between two drawers: what keeps a lower drawer from tipping when it is open?
+       Overlay: its space ends 1 1/2" under the space above, so a kicker strip goes on each side there.
+       Inset:   the spaces lie right on top of each other (they share the one gap between two fronts), so the
+                runners of the drawer above are right over the sides of the drawer below and do the job
+                themselves. They hang one gap into the top of the lower space, and the box stays out of that
+                (topTaken). Every box is cut alike, so the top one gets the same height and has that much more
+                air under the rails, which still keep it from tipping (KICKER_REACH, js/drawers.js). */
+  const stackedOnRunners=kind==='runner'&&drawers>1;
+  const kickerPairs=stackedOnRunners&&style==='overlay'?drawers-1:0;
+  const drawerOptions=index=>({name:`Drawer ${index+1}`,slide:kind,front:style,
+    topTaken:stackedOnRunners&&style==='inset'?gap:0,
+    lap:{side:panel-NS.frontReveal,top:panel-gap,bottom:panel}});   // overlay: all but the reveal of each side, the rail less the gap, the whole panel edge
+  const drawer=drawerPlan(openingOf(fronts[0]),drawerOptions(0));   // every clearance comes from DRAWER (js/drawers.js)
+  if(drawer.bottomThick>.25)changed.push('The drawer bottoms are 1/2" plywood: in a drawer this size a 1/4" bottom would sag when the drawer is full.');
+  return{W,D,H,kind,style,minFront,shelf:!!p.cub,shelfHeight,floorOfCabinet,frontsFrom,drawers,frontHeight,fronts,changed,
+    kickerPairs,   // how many drawers get a pair of kicker strips above them (the lower ones, on runners, behind overlay fronts)
+    openingOf,drawerOptions,drawer,
+    // the numbers of every drawer, under the names the rest of this file uses
+    slide:drawer.length,travel:drawer.travel,boxWidth:drawer.boxWidth,boxHeight:drawer.boxHeight,bottomThick:drawer.bottomThick,
+    boxBottom:front=>r16(openingOf(front).y+drawer.boxBottom),
+    // what the heights of the slides are measured from in the steps: the panel right under the drawers
+    underDrawers:openingOf(fronts[0]).y};
 }
 
 /* The pieces for the form as it stands. Returns nothing when the tip check fails (nightstandInfo then says why). */
@@ -155,24 +172,11 @@ function nightstandPieces(plan){
     mk('Top rail','ply34',[inner,.75,NS.rail],[.75,H-.75,D-NS.rail]));
   if(plan.shelf)parts.push(mk('Shelf','ply34',[inner,.75,D],[.75,plan.floorOfCabinet+plan.shelfHeight,0]));
   parts.push(mk('Back panel','ply14',[W,H-NS.kick,.25],[0,NS.kick,-.25]));
-  // the top covers the back panel's edge and reaches past the drawer fronts
-  const topDepth=.25+D+NS.frontStandoff+.75+NS.topFront;
-  parts.push(mk('Top','ply34',[W+2*NS.topSide,.75,topDepth],[-NS.topSide,H,-.25]));
-  // the drawers, bottom one first
-  const boxFace=D+NS.frontStandoff,boxBack=boxFace-plan.slide,boxLeft=.75+NS.slideSide;
-  const bottom=plan.bottomThick,bottomPly=bottom>.25?'ply12':'ply14',sideHeight=plan.boxHeight-bottom;
-  for(const front of plan.fronts){
-    const y=plan.boxBottom(front);
-    parts.push(
-      // the box front and back run the full width and cap the ends of the sides, so every screw is hidden
-      mk('Drawer box front','ply12',[plan.boxWidth,sideHeight,.5],[boxLeft,y+bottom,boxFace-.5]),
-      mk('Drawer box back','ply12',[plan.boxWidth,sideHeight,.5],[boxLeft,y+bottom,boxBack]),
-      mk('Drawer side','ply12',[.5,sideHeight,plan.slide-1],[boxLeft,y+bottom,boxBack+.5]),
-      mk('Drawer side','ply12',[.5,sideHeight,plan.slide-1],[boxLeft+plan.boxWidth-.5,y+bottom,boxBack+.5]),
-      // the bottom is glued and nailed on underneath, cut 1/16 in shy at the front so it never holds the front off
-      mk('Drawer bottom',bottomPly,[plan.boxWidth,bottom,plan.slide-.0625],[boxLeft,y,boxBack]),
-      mk('Drawer front','ply34',[W-2*NS.frontReveal,plan.frontHeight,.75],[NS.frontReveal,front,boxFace]));
-  }
+  // the top covers the back panel's edge and reaches past the drawer fronts (past the cabinet, when they are inset)
+  const pastCabinet=plan.style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0;
+  parts.push(mk('Top','ply34',[W+2*NS.topSide,.75,.25+D+pastCabinet+NS.topFront],[-NS.topSide,H,-.25]));
+  // the drawers, bottom one first: each its own subcomponent, "Drawer 1" at the bottom
+  plan.fronts.forEach((front,index)=>parts.push(...buildDrawer(plan.openingOf(front),plan.drawerOptions(index))));
   return parts;
 }
 
@@ -180,18 +184,19 @@ function nightstandPieces(plan){
    "Full" is NS.loadPerCubicFoot lb for every cubic foot of drawer (clothes packed tight), and never less than
    NS.minLoad lb (a few heavy books). Everything that is not the open drawer holds the cabinet down, turning
    about the front bottom edge of the sides (z = D); the open drawer and its load, out past that edge, try to
-   tip it. Nothing on top (a lamp helps) and nothing in the other drawers is counted, which is the safe side.
-   Returns {factor: holding / tipping, load}. A factor over 1 stays put; NS.tipStop is the least that is built. */
+   tip it. "All the way out" is as far as its hardware lets it: the length of a metal slide, two thirds of that
+   on wooden runners. Nothing on top (a lamp helps) and nothing in the other drawers is counted, which is the
+   safe side. Returns {factor: holding / tipping, load}. A factor over 1 stays put; NS.tipStop is the least
+   that is built. */
 function nightstandTip(plan){
-  const parts=nightstandPieces(plan),edge=plan.D;
-  const topFront=plan.fronts[plan.fronts.length-1],topBox=plan.boxBottom(topFront);
-  const inOpenDrawer=part=>/^Drawer/.test(part.name)&&(part.name==='Drawer front'?Math.abs(part.pos[1]-topFront)<.01:part.pos[1]>=topBox-.01);
+  const parts=nightstandPieces(plan),edge=plan.D,topDrawer=`Drawer ${plan.drawers}`;
   const cubicFeet=(plan.boxWidth-1)*(plan.slide-1)*(plan.boxHeight-plan.bottomThick)/1728;
   const load=Math.max(NS.minLoad,Math.round(cubicFeet*NS.loadPerCubicFoot));
-  let holding=0,tipping=load*(NS.frontStandoff+plan.slide/2);   // the load sits in the middle of the open box
+  // the load sits in the middle of the open box
+  let holding=0,tipping=load*(plan.drawer.boxFace-plan.slide/2+plan.travel-edge);
   for(const part of parts){
     const s=size(part),weight=s[0]*s[1]*s[2]*NS.plyDensity,middle=part.pos[2]+s[2]/2;
-    if(inOpenDrawer(part))tipping+=weight*(middle+plan.slide-edge);
+    if(part.sub===topDrawer)tipping+=weight*(middle+plan.travel-edge);
     else holding+=weight*(edge-middle);
   }
   return{factor:holding/tipping,load};
@@ -216,78 +221,135 @@ function nightstandCheck(p){
 const nightstandUses=p=>{
   const bottom=p.cub?'shelf':'general';
   return{'Top':'tableTop','Top rail':'tableTop','Shelf':'shelf','Bottom':bottom,'Toe kick':bottom,
-    'Drawer bottom':NS.bottomUse,'Drawer box front':NS.bottomUse,'Drawer box back':NS.bottomUse,'Drawer side':NS.bottomUse};
+    'Drawer bottom':DRAWER.bottomUse,'Drawer box front':DRAWER.bottomUse,'Drawer box back':DRAWER.bottomUse,'Drawer side':DRAWER.bottomUse};
 };
+const nightstandRunsOn=plan=>plan.kind==='slide'?`${plan.slide}" side-mount slides`:`wooden runners ${plan.slide}" long`;
 /* the remark under the form: what you get, anything that was changed and why, and the tip check */
 function nightstandInfo(p){
   const plan=nightstandPlan(p),tip=plan.tip;
   if(tip.factor<NS.tipStop)return[...plan.changed,
     `Not built: at this size it would fall forward with the top drawer pulled all the way out and ${tip.load} lb in it, even with the smallest drawers that fit. Make it deeper or wider${plan.shelf?'':', or tick the open shelf'}.`].join(' ');
   const text=[...plan.changed,
-    `${plan.drawers} drawer${plan.drawers>1?'s':''} on ${plan.slide}" side-mount slides, each front ${fmt(plan.frontHeight)} tall${plan.shelf?`, over an open shelf ${fmt(plan.shelfHeight)} tall`:''}. Inside, each drawer is ${fmt(plan.boxWidth-1)} wide and ${fmt(plan.boxHeight-plan.bottomThick)} deep.`];
+    `${plan.drawers} drawer${plan.drawers>1?'s':''} on ${nightstandRunsOn(plan)}, each ${plan.style} front ${fmt(plan.frontHeight)} tall${plan.shelf?`, over an open shelf ${fmt(plan.shelfHeight)} tall`:''}. Inside, each drawer is ${fmt(plan.boxWidth-1)} wide and ${fmt(plan.boxHeight-plan.bottomThick)} deep, and comes out ${fmt(r16(plan.travel))}.`];
   if(!plan.shelf&&p.fh!==undefined)text.push('With no open shelf the drawers share the whole height, so the drawer front height box is not used.');
   // a tip check that passes "but not by much" is said by the warning box above this remark (nightstandCheck)
   if(tip.factor>=NS.tipWarn)text.push(`Tip check: with the top drawer pulled all the way out and ${tip.load} lb in it, it stays put with room to spare.`);
   return text.join(' ');
 }
 function nightstandNotes(p){
-  const plan=nightstandPlan(p),tip=plan.tip;
-  return[
-    `Drawer slides: buy ${plan.drawers} pair${plan.drawers>1?'s':''} of ${plan.slide}" side-mount ball-bearing slides. They need 1/2" between the drawer box and the cabinet on each side, and the drawer boxes here are cut for exactly that. If the package says a different gap, change the width of the drawer box front, back and bottom to match before you cut.`,
-    `Each drawer front is ${fmt(plan.frontHeight)} tall with 1/8" gaps. The fronts go on last, with the drawers in place, so the gaps come out even.`,
+  const plan=nightstandPlan(p),tip=plan.tip,pairs=`${plan.drawers} pair${plan.drawers>1?'s':''}`;
+  const hardwareNote=plan.kind==='slide'
+    ?`Drawer slides: buy ${pairs} of ${plan.slide}" side-mount ball-bearing slides. They need ${fmt(DRAWER.slideSide)} between the drawer box and the cabinet on each side, and the drawer boxes here are cut for exactly that. If the package says a different gap, change the width of the drawer box front, back and bottom to match before you cut.`
+    :`Wooden runners: the drawers ride on strips of wood ${fmt(DRAWER.runnerStrip)} by ${fmt(DRAWER.runnerStrip)}, ${plan.slide}" long, screwed to the cabinet sides. Buy 3/4" square stock, or rip a 1x2 down the middle (the two halves come out a hair under 3/4", which is fine). There is no metal hardware to buy, and the drawers come out ${fmt(r16(plan.travel))}, about two thirds of their depth: past that a drawer on runners would drop out.`;
+  const frontNote=plan.style==='overlay'
+    ?`Each drawer front is ${fmt(plan.frontHeight)} tall with ${fmt(DRAWER.frontGap)} gaps. The fronts go on last, with the drawers in place, so the gaps come out even.`
+    :`Each drawer front is ${fmt(plan.frontHeight)} tall and sits inside the cabinet with a ${fmt(DRAWER.frontGap)} gap all around, ${fmt(DRAWER.insetSetBack)} behind the front edges of the sides. The fronts go on last, with the drawers in place, so the gaps come out even.`;
+  return[hardwareNote,frontNote,
     `Tip check: the cabinet was checked with the top drawer pulled all the way out and ${tip.load} lb in it${tip.factor>=NS.tipWarn?'':'. It passes, but not by much: fasten it to the wall'}. A nightstand is light. If small children may pull on an open drawer, fasten the cabinet to the wall with an anti-tip strap whatever its size (a furniture strap sold with child-proofing things; it is not in the shopping list).`,
     'Sizes and the tip check are rules of thumb for a bedside cabinet holding a lamp, books and clothes. They are not engineering.'];
 }
+/* The heights the steps quote, bottom drawer first, measured up from the panel right under the drawers (the shelf
+   when there is one, else the bottom panel): the middle of each slide, or the top of each runner; and the
+   underside of each kicker strip (runners only: every drawer but the top one, which has the rails above it). */
+function nightstandHeights(plan){
+  const from=plan.underDrawers,drawer=plan.drawer;
+  const hardware=plan.fronts.map(front=>r16(plan.openingOf(front).y+drawer.slideHeight-from));
+  const kickers=plan.kickerPairs
+    ?plan.fronts.slice(0,plan.kickerPairs).map(front=>r16(plan.openingOf(front).y+drawer.boxBottom+drawer.boxHeight+DRAWER.runnerAbove-from)):[];
+  return{hardware,kickers,panel:plan.shelf?'the shelf':'the bottom panel'};
+}
+/* the pieces of the drawer boxes: built on the bench, then slid into the cabinet in the step that mounts the slides or runners */
+const nightstandDrawerBox=piece=>['Drawer box front','Drawer box back','Drawer side','Drawer bottom'].includes(piece.name);
 function nightstandSteps(p){
-  const plan=nightstandPlan(p),many=plan.drawers>1;
-  // where the middle of each slide goes, measured up from the top of the bottom panel, bottom drawer first
-  const slideHeights=plan.fronts.map(front=>fmt(plan.boxBottom(front)+plan.boxHeight/2-plan.floorOfCabinet)).join(', then ');
+  const plan=nightstandPlan(p),many=plan.drawers>1,drawer=plan.drawer,heights=nightstandHeights(plan);
+  const list=values=>values.map(value=>fmt(value)).join(', then ');
+  const firstOnes=many?' (bottom drawer first)':'';
+  const fromEdge=drawer.slideFromEdge,fromBox=drawer.slideFromBoxFront;
+  const whySidesRunThrough=plan.kind==='slide'?'the slides will be screwed along the sides':'the sides are what the cabinet guides, so they run the whole length';
   const steps=[CUT,
     {t:`Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`,add:['Side','Bottom','Top rail']},
     {t:`Fasten the toe kick under the bottom panel, on edge, set back ${fmt(NS.kickBack)} from the front. Screw down through the bottom panel into its top edge, and through the sides into its ends.`,add:['Toe kick']}];
   if(plan.shelf)steps.push({t:`Fasten the shelf between the sides, with its underside ${fmt(plan.shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(plan.shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`,add:['Shelf']});
   steps.push(
     {t:'Lay the cabinet on its front. Measure corner to corner both ways and push it until the two measurements match, then glue and nail the back panel on, flush with the outside of the sides and the top. The back is what keeps the cabinet square, so do not skip the glue.',add:['Back panel']},
-    {t:`Stand the cabinet up. Run a thin line of glue along the top edges of the two sides, then set the top on: flush with the back of the back panel, ${fmt(NS.topSide)} past each side, and ${fmt(NS.frontStandoff+.75+NS.topFront)} past the front of the cabinet. Screw up through the two top rails into the top with 1-1/4" screws, from inside the cabinet, so no screw shows on top.`,add:['Top']},
-    {t:`Build ${many?`the ${plan.drawers} drawer boxes, all the same`:'the drawer box'}. Stand the two drawer sides between the drawer box front and the drawer box back, so the front and back cover the ends of the sides. Glue each corner, then nail through the box front and the box back into the ends of the sides with brads (if you are using a hammer, drill a thin pilot hole first so the plywood does not split). Check the box is square, then glue and nail the bottom on underneath, flush at the back and the sides. It stops 1/16" short at the front on purpose.`,add:['Drawer box front','Drawer box back','Drawer side','Drawer bottom']},
-    {t:`Mount the slides. Each slide pulls apart into a cabinet half and a drawer half. Screw a cabinet half to the inside of each side, level, with its front end 1/16" back from the front edge of the side and its middle ${many?'at these heights':'this high'} above the bottom panel: ${slideHeights}${many?' (bottom drawer first)':''}. Cut a scrap block to rest the slide on, so the left and right slides come out at exactly the same height. Screw a drawer half along the middle of each drawer side, flush with the front of the box. Push each drawer in until the slides click together.`,add:[]},
-    {t:`Put the drawer fronts on last, ${many?'starting with the bottom one':'with the drawer in place'}. Hold the front against the drawer box so it covers the edge of the panel below it, with the same amount of cabinet side showing at each end${many?', and a 1/8" gap between fronts (two stacked nickels make a good spacer)':''}. Clamp it or stick it with double-sided tape, open the drawer, and drive 1" screws from inside the drawer, through the drawer box front into the back of the drawer front. Do not use longer screws here: they would come out through the face. ${many?'Work up, keeping the same gap. ':''}Then drill for the pulls and bolt them on.`,add:['Drawer front']},
-    {t:`Before the finish goes on, pull ${many?'the drawers':'the drawer'} out and take the ${many?'pulls':'pull'} off again, so that no finish gets on the slides or the hardware. Finish the cabinet and the drawer ${many?'fronts':'front'}, let everything dry, then put the ${many?'pulls':'pull'} back and slide ${many?'the drawers':'the drawer'} in.`,add:[]},
+    {t:`Stand the cabinet up. Run a thin line of glue along the top edges of the two sides, then set the top on: flush with the back of the back panel, ${fmt(NS.topSide)} past each side, and ${fmt((plan.style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0)+NS.topFront)} past the front of the cabinet. Screw up through the two top rails into the top with 1-1/4" screws, from inside the cabinet, so no screw shows on top.`,add:['Top']},
+    {t:`Build ${many?`the ${plan.drawers} drawer boxes, all the same`:'the drawer box'}. Stand the drawer box front and the drawer box back between the two drawer sides, so the sides cover their ends: ${whySidesRunThrough}. Glue each corner, then nail through the sides into the ends of the box front and the box back with brads (if you are using a hammer, drill a thin pilot hole first so the plywood does not split). Check the box is square, then glue and nail the bottom on underneath, flush at the back and the sides. It stops ${fmt(DRAWER.bottomShy)} short at the front on purpose.`,add:['Drawer box front','Drawer box back','Drawer side','Drawer bottom']});
+  if(plan.kind==='slide'){
+    steps.push({t:`Mount the slides. Each slide pulls apart into a cabinet half and a drawer half. Screw a cabinet half to the inside of each side, level, with its front end ${fmt(fromEdge)} back from the front edge of the side and its middle ${many?'at these heights':'this high'} above ${heights.panel}: ${list(heights.hardware)}${firstOnes}. `+
+      `Use a spacer block so the left and right slides come out at exactly the same height: ${many?'start with the top pair, ':''}cut a scrap of plywood that holds the slide at its mark when it stands on ${heights.panel}, rest the slide on it against one side and screw it on, then do the same on the other side${many?'. Cut the block shorter for the next pair down':''}. `+
+      `Screw a drawer half along the middle of each drawer side, with its front end ${fromBox>0?`${fmt(fromBox)} back from`:'flush with'} the front of the box. Push each drawer in until the slides click together.`,add:[],hardware:['slide'],bring:[nightstandDrawerBox]});   // hardware: the placed slides are listed under this step (js/buildsteps.js)
+  }else{
+    steps.push({t:`Mount the runners. Each runner is a strip of wood ${fmt(DRAWER.runnerStrip)} by ${fmt(DRAWER.runnerStrip)} and ${plan.slide}" long. Glue and screw one to the inside of each side, level, with its front end ${fmt(fromEdge)} back from the front edge of the side and its top edge ${many?'at these heights':'this high'} above ${heights.panel}: ${list(heights.hardware)}${firstOnes}. The lowest pair lies on ${heights.panel}. `+
+      `Use a spacer block so the left and right runners come out at exactly the same height: ${many?'start with the top pair, ':''}cut a scrap of plywood that holds the runner at its mark when it stands on ${heights.panel}, and use it on both sides${many?'. Cut the block shorter for the next pair down':''}. `+
+      (heights.kickers.length?`Then screw a kicker strip, the same size, to each side above ${heights.kickers.length>1?'every drawer but the top one':'the bottom drawer'}, with its underside ${list(heights.kickers)} above ${heights.panel}: it keeps an open drawer from tipping down. The top drawer needs none, because the top rails do that job. `
+        :many?`No kicker strips are needed: the runners of the drawer above sit ${fmt(DRAWER.runnerAbove)} over the sides of the drawer below and keep it from tipping down when it is open, and the top rails do that for the top drawer. `
+        :'The top rails keep the open drawer from tipping down. ')+
+      `Rub the tops of the runners with candle wax, then slide ${many?'each drawer':'the drawer'} in. The fit is right when it moves freely with about ${fmt(DRAWER.runnerSide)} of play on each side.`,add:[],hardware:['runner','kicker'],bring:[nightstandDrawerBox]});
+  }
+  const lastWords=`Then drill for the ${many?'pulls':'pull'} in the middle of ${many?'each front':'the front'} and bolt ${many?'them':'it'} on.`;
+  if(plan.style==='overlay'){
+    steps.push({t:`Put the drawer fronts on last, ${many?'starting with the bottom one':'with the drawer in place'}. Hold the front against the drawer box so it covers the edge of the panel below it, with the same amount of cabinet side showing at each end${many?`, and a ${fmt(DRAWER.frontGap)} gap between fronts (two stacked nickels make a good spacer)`:''}. Clamp it or stick it with double-sided tape, open the drawer, and drive the short screws listed below from inside the drawer, through the drawer box front into the back of the drawer front. Do not use longer screws here: they would come out through the face. ${many?'Work up, keeping the same gap. ':''}${lastWords}`,add:['Drawer front']});
+  }else{
+    steps.push({t:`Put the drawer fronts on last, ${many?'starting with the bottom one':'with the drawer in place'}. An inset front sits inside the cabinet, ${fmt(DRAWER.insetSetBack)} behind the front edges of the sides, with a ${fmt(DRAWER.frontGap)} gap all around: stand it on two stacked nickels and put two more at each end. Stick it to the drawer box with double-sided tape, open the drawer, and drive the short screws listed below from inside the drawer, through the drawer box front into the back of the drawer front. Do not use longer screws here: they would come out through the face. ${many?'Work up, keeping the same gap between fronts. ':''}${lastWords}`,add:['Drawer front']});
+  }
+  steps.push(
+    {t:`Get ready for sanding and finishing: pull ${many?'the drawers':'the drawer'} out and take the ${many?'pulls':'pull'} off again, so that no dust or finish gets on the ${plan.kind==='slide'?'slides or the hardware':'runners or the hardware'}. Keep them off until the finish is dry; then put the ${many?'pulls':'pull'} back and slide ${many?'the drawers':'the drawer'} in.`,add:[]},
     FIN);
   return steps;
+}
+/* Bought hardware. The slides (or the runner and kicker strips) and the pulls are also placed in the model when the
+   design is created, and what is placed is taken off these lines by number (hardwareRows, js/hardware.js), so
+   nothing is bought twice. */
+function nightstandHardware(p){
+  const plan=nightstandPlan(p),drawers=plan.drawers;
+  if(plan.kind==='slide')return[[`Drawer slides, ${plan.slide}" side-mount ball-bearing (pair)`,drawers],['Drawer pulls',drawers]];
+  // runners and kickers are strips of wood: they are on the cut list, and the shopping list counts their screws
+  // from the strips that are placed (kind.wood, js/hardware.js)
+  return[['Drawer pulls',drawers]];
 }
 
 PRESETS.push({
   name:'Nightstand with drawers',tile:'Drawer nightstand',spec:'Plywood, 1 to 4 drawers',icon:'i-p-cabinet',
-  desc:'A bedside cabinet in plywood with one to four drawers on metal slides, and an open shelf underneath if you want one.',
+  desc:'A bedside cabinet in plywood with one to four drawers that really open, on metal slides or wooden runners, and an open shelf underneath if you want one.',
   params:[num('W','Width',NIGHTSTAND_DEFAULTS.W,NS.minWidth,NS.maxWidth),num('D','Depth',NIGHTSTAND_DEFAULTS.D,NS.minDepth,NS.maxDepth),
     num('H','Height',NIGHTSTAND_DEFAULTS.H,NS.minHeight,NS.maxHeight),
     {k:'N',label:'Drawers',opts:[['1','1'],['2','2'],['3','3'],['4','4']],v:NIGHTSTAND_DEFAULTS.N},
     {k:'cub',label:'Open shelf under the drawers',check:1,v:NIGHTSTAND_DEFAULTS.cub},
-    num('fh','Drawer front height (with an open shelf)',NIGHTSTAND_DEFAULTS.fh,NS.minFront,NS.maxFront)],
+    num('fh','Drawer front height (with an open shelf)',NIGHTSTAND_DEFAULTS.fh,NS.minFront,NS.maxFront),
+    {k:'slides',label:'Drawers run on',opts:[['slide','Metal slides'],['runner','Wooden runners']],v:NIGHTSTAND_DEFAULTS.slides},
+    {k:'fronts',label:'Drawer fronts',opts:[['overlay','Overlay: over the cabinet edges'],['inset','Inset: inside the cabinet']],v:NIGHTSTAND_DEFAULTS.fronts}],
   build:buildNightstand,info:nightstandInfo,notes:nightstandNotes,steps:nightstandSteps,
-  // The preset rule. The drawer boxes hang on bought slides screwed to the cabinet sides: the structural check
-  // takes each drawer side as fastened to the cabinet side 1/2 in beside it, and the rest of the box is held
-  // through the drawer sides. check(p) is the tip check with a full drawer open.
+  // The preset rule. Before the design is placed, the structural check takes each drawer side as hanging on the
+  // slide or runner on the cabinet side beside it, and the rest of the box as held through the drawer sides.
+  // Placing it mounts the real hardware, and the check reads that from then on. check(p) is the tip check with a
+  // full drawer open.
   uses:nightstandUses,hung:['Drawer side'],check:nightstandCheck,
+  // every choice of the two new options, with and without the open shelf, is tried at every limit as well
+  variants:[{slides:'runner'},{fronts:'inset'},{slides:'runner',fronts:'inset'},{cub:false,slides:'runner'},{cub:false,fronts:'inset'}],
   // the top is held by the rail screws from below, with glue on the sides, so nothing shows on top;
-  // drawer boxes in 1/2 in plywood are glued and nailed, since a wood screw splits an edge that thin
-  joints:[['Side','Top','glue'],['Drawer box front','Drawer side','nail'],['Drawer box back','Drawer side','nail'],
-    ['Drawer bottom','Drawer side','nail'],['Drawer bottom','Drawer box front','nail'],['Drawer bottom','Drawer box back','nail']],
-  hw:p=>{const plan=nightstandPlan(p);return[[`Drawer slides, ${plan.slide}" side-mount ball-bearing (pair)`,plan.drawers],['Drawer pulls',plan.drawers]];},
+  // the fasteners inside a drawer are the same for every drawer (DRAWER_JOINTS, js/drawers.js)
+  joints:[['Side','Top','glue'],...DRAWER_JOINTS],
+  hw:nightstandHardware,
 });
 PRESET_GROUPS.find(group=>group[0]==='Bedroom')[1].push('Nightstand with drawers');
 
-/* Checked across the whole range the form allows (and past it): nothing shares space, the drawers keep their
-   clearances for the slides, and every size that gets built passes the tip check. */
+/* Checked across the whole range the form allows (and past it), for both kinds of hardware and both kinds of
+   front: nothing shares space, the drawers keep their clearances, and every size that gets built passes the tip
+   check. */
 SELFTESTS.push(function nightstandWithDrawers(problems){
   let built=0,notBuilt=0,notClean=0,lowest=Infinity;
   const nightstand=PRESETS.find(preset=>preset.name==='Nightstand with drawers');
   const insideLimits=p=>p.W>=NS.minWidth&&p.W<=NS.maxWidth&&p.D>=NS.minDepth&&p.D<=NS.maxDepth&&p.H>=NS.minHeight&&p.H<=NS.maxHeight&&
     p.fh>=NS.minFront&&p.fh<=NS.maxFront;
-  for(const W of[5,14,20,30,36,60])for(const D of[5,12,14,16,20,24])for(const H of[5,16,20,26,30,36])
-  for(const N of['1','2','3','4'])for(const cub of[true,false])for(const fh of[3,5,7,12]){
-    const p={W,D,H,N,cub,fh},label=`nightstand ${JSON.stringify(p)}: `,plan=nightstandPlan(p),parts=buildNightstand(p);
+  // the usual choice is tried at many sizes; the three others at the limits, the usual size and one size past each limit
+  const sizes={
+    many:{W:[5,14,20,30,36,60],D:[5,12,14,16,20,24],H:[5,16,20,26,30,36],fh:[3,5,7,12]},
+    few:{W:[5,14,20,30],D:[12,16,24],H:[16,26,36,40],fh:[3,7,12]}};
+  const choices=[['slide','overlay',sizes.many],['runner','overlay',sizes.few],['slide','inset',sizes.few],['runner','inset',sizes.few]];
+  for(const[slides,fronts,tried]of choices)
+  for(const W of tried.W)for(const D of tried.D)for(const H of tried.H)
+  for(const N of['1','2','3','4'])for(const cub of[true,false])for(const fh of tried.fh){
+    const p={W,D,H,N,cub,fh,slides,fronts},label=`nightstand ${JSON.stringify(p)}: `,plan=nightstandPlan(p),parts=buildNightstand(p);
     if(!parts.length){
       notBuilt++;
       if(!nightstandInfo(p).includes('Not built:'))problems.push(label+'nothing is built and the form does not say why');
@@ -304,19 +366,27 @@ SELFTESTS.push(function nightstandWithDrawers(problems){
     }
     built++;lowest=Math.min(lowest,plan.tip.factor);
     if(plan.tip.factor<NS.tipStop)problems.push(label+`built although it tips (factor ${plan.tip.factor.toFixed(2)})`);
-    if(plan.frontHeight<NS.minFront||plan.frontHeight>NS.maxFront)problems.push(label+`drawer front ${plan.frontHeight} is outside ${NS.minFront} to ${NS.maxFront}`);
+    if(plan.frontHeight<plan.minFront||plan.frontHeight>NS.maxFront)problems.push(label+`drawer front ${plan.frontHeight} is outside ${plan.minFront} to ${NS.maxFront}`);
     if(plan.shelf&&plan.shelfHeight<NS.minShelf)problems.push(label+`open shelf is only ${plan.shelfHeight} tall`);
-    if(!(plan.slide>=NS.slides[0]))problems.push(label+'no slide fits the depth');
+    if(!(plan.slide>=DRAWER.slideLengths[0]))problems.push(label+'no slide fits the depth');
+    if(parts.filter(part=>part.name==='Drawer front').length!==plan.drawers||new Set(parts.map(part=>part.sub).filter(Boolean)).size!==plan.drawers)problems.push(label+'the drawers are not one subcomponent each');
     const boxes=parts.map(part=>{const s=size(part);return{part,lo:part.pos,hi:part.pos.map((v,i)=>v+s[i])};});
     for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){
       const a=boxes[i],b=boxes[j];
       if([0,1,2].every(k=>Math.min(a.hi[k],b.hi[k])-Math.max(a.lo[k],b.lo[k])>.01)){problems.push(label+`${a.part.name} and ${b.part.name} share space`);i=boxes.length;break;}
     }
+    const sideGap=plan.drawer.sideGap,above=plan.kind==='slide'?DRAWER.boxAbove:DRAWER.runnerAbove;
     for(const b of boxes){
       if(!/^Drawer (box|side|bottom)/.test(b.part.name))continue;
-      if(b.lo[0]<.75+NS.slideSide-.001||b.hi[0]>plan.W-.75-NS.slideSide+.001){problems.push(label+`${b.part.name} is inside the 1/2 in the slides need`);break;}
-      if(b.lo[2]<NS.slideBehind-.07){problems.push(label+`${b.part.name} reaches the back panel`);break;}
-      if(b.hi[1]>plan.H-.75-NS.boxAbove+.001){problems.push(label+`${b.part.name} would hit the top rails`);break;}
+      if(b.lo[0]<.75+sideGap-.001||b.hi[0]>plan.W-.75-sideGap+.001){problems.push(label+`${b.part.name} is inside the ${fmt(sideGap)} its ${plan.kind==='slide'?'slides need':'runners leave'}`);break;}
+      if(b.lo[2]<DRAWER.behind-.07){problems.push(label+`${b.part.name} reaches the back panel`);break;}
+      if(b.hi[1]>plan.H-.75-above+.001){problems.push(label+`${b.part.name} would hit the top rails`);break;}
+    }
+    // an inset front stays inside the cabinet; an overlay front stays under the top
+    for(const b of boxes){
+      if(b.part.name!=='Drawer front')continue;
+      if(plan.style==='inset'&&(b.lo[0]<.75+DRAWER.frontGap-.001||b.hi[0]>plan.W-.75-DRAWER.frontGap+.001||b.hi[2]>plan.D-DRAWER.insetSetBack+.001)){problems.push(label+'an inset drawer front does not sit inside the cabinet with its gaps');break;}
+      if(b.hi[1]>plan.H-DRAWER.frontGap+.001){problems.push(label+'a drawer front reaches the top');break;}
     }
   }
   if(!built)problems.push('nightstand: no size at all could be built');

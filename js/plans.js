@@ -114,38 +114,56 @@ function flatViewPicture(view,b,W,H,snap){
 }
 
 /* Every picture for the plans, taken in one go from a clean copy of the scene (nothing selected, hidden, see-through or exploded):
-   an overview, flat front / side / top views with sizes, a pulled-apart view, and one picture per step. */
-function takePictures(full){
-  const keep={cam:{...cam,target:cam.target.clone()},sel,hidden:hiddenIds,xray,explode,dim:VIEW_COL.dim,dimText:VIEW_COL.dimText},W=880,H=560,out={steps:[],views:[]};
+   an overview, flat front / side / top views with sizes, a pulled-apart view, and the pictures of every step
+   (out.steps, one entry per step of buildPlan(): js/steppictures.js).
+   The pictures show solid wood with every door and drawer closed, unless the caller asks otherwise:
+     opts.view   'solid' (the usual), 'through' or 'fast': how the wood is drawn (js/viewmodes.js). Fasteners are
+                 drawn in the two see-through modes only.
+     opts.open   true to show doors and drawers as far open as they are in the design (js/motion.js) */
+function takePictures(full,opts){
+  // A design that was turned as one is drawn standing square, as it is built and measured (squaredUp,
+  // js/neighbors.js): the flat views with sizes, the steps and their close-ups mean nothing at 30 degrees.
+  const turned=!squaredNow&&turnedSets(S.parts).list.length>0;
+  const out=squaredUp(()=>takePicturesNow(full,opts));
+  if(turned){rebuildScene();renderer.render(scene,camera);}   // the view shows the design where it really stands again
+  return out;
+}
+function takePicturesNow(full,opts){
+  opts=opts||{};
+  const keep={cam:{...cam,target:cam.target.clone()},sel,hidden:hiddenIds,wood:woodMode,picked,explode,dim:VIEW_COL.dim,dimText:VIEW_COL.dimText},W=880,H=560,out={steps:[],views:[]};
   VIEW_COL.dim=VIEW_COL.printDim;VIEW_COL.dimText=VIEW_COL.printDimText; // size lines in drawing gray while the pictures are taken
-  sel=new Set();hiddenIds=new Set();xray=false;explode=0;forceDims=true;rebuildScene();
+  sel=new Set();hiddenIds=new Set();woodMode=WOOD_MODES[opts.view]?opts.view:'solid';picked=null;showClosed=!opts.open;explode=0;forceDims=true;rebuildScene();
   scene.background=new THREE.Color(VIEW_COL.printBg); // plain paper behind the printed pictures, not the screen backdrop
   const snap=c=>{renderer.render(scene,c||camera);return renderer.domElement.toDataURL('image/jpeg',.88);};
   renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();
-  fastGroup.visible=handleGroup.visible=gizmoGroup.visible=false;
+  fastGroup.visible=woodMode!=='solid';handleGroup.visible=gizmoGroup.visible=false;
   fit('fit');cam.r*=.85;updateCam();out.overview=snap();
   if(full){
     const b=bbox(S.parts);
     grid.visible=floor.visible=false;
     for(const view of FLAT_VIEWS)out.views.push(flatViewPicture(view,b,W,H,snap)); // flat views, like a drawing
     grid.visible=floor.visible=true;dimGroup.visible=false;
-    explode=.55;for(const p of S.parts)setMeshPos(p);cam.r*=1.45;updateCam();out.exploded=snap(); // pulled apart
+    // pulled apart: the eye is set so that every piece is in the picture where it now floats, and each piece
+    // carries its cut-list letter (aimAtShown, drawPieceLetters: js/steppictures.js)
+    const camWas={target:cam.target.clone(),r:cam.r,th:cam.th,ph:cam.ph};
+    explode=.55;for(const p of S.parts)setMeshPos(p);
+    aimAtShown(()=>true,false);
+    const letterOf=cutRows().letterOf;
+    out.exploded=annotatedPicture(camera,pen=>drawPieceLetters(pen,S.parts.filter(p=>!isProp(p)),letterOf));
+    cam.target.copy(camWas.target);cam.r=camWas.r*1.45;cam.th=camWas.th;cam.ph=camWas.ph;
     explode=0;for(const p of S.parts)setMeshPos(p);cam.r/=1.45;updateCam();
-    const seen=new Set();
-    for(const st of S.steps||[]){const nw=new Set(st.add);st.add.forEach(n=>seen.add(n));let any=false; // pieces so far, new ones in orange
-      for(const p of S.parts){const g=meshes.get(p.id),v=seen.has(p.name);g.visible=v;
-        if(v){if(nw.has(p.name))any=true;g.children[0].material.color.setHex(isProp(p)?M[p.mat].color:nw.has(p.name)?0xf2a03d:0xe6c592);}}
-      out.steps.push(any?snap():'');}
+    // one picture per step, with that step's fasteners and numbered balloons, and its close-ups (js/steppictures.js)
+    out.steps=stepPictures(buildPlan());
   }
   scene.background=VIEW_BG;VIEW_COL.dim=keep.dim;VIEW_COL.dimText=keep.dimText;
-  sel=keep.sel;hiddenIds=keep.hidden;xray=keep.xray;explode=keep.explode;forceDims=false;Object.assign(cam,keep.cam);
+  sel=keep.sel;hiddenIds=keep.hidden;woodMode=keep.wood;picked=keep.picked;showClosed=false;explode=keep.explode;forceDims=false;Object.assign(cam,keep.cam);
   resize();rebuildScene();updateCam();renderer.render(scene,camera);
   return out;
 }
 /* The tools a design needs. Only what its steps really use: clamps where something is glued or screwed (they hold
    the pieces while you drill), sandpaper where a step sands (hasFinishStep in js/style.js), a staple gun where
    the hardware list has something to staple. */
-function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.mat].kind==='sheet');
+function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.mat].kind==='sheet');
   const clamped=['screw','pocket','dowel','nail','glue','bracket'].some(type=>t.has(type));
   const L=['Tape measure, pencil and a square','Saw (a circular saw or miter saw)','Drill/driver with bits'];
   if(clamped)L.push('Clamps');
@@ -158,10 +176,20 @@ function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.m
   if(t.has('nail'))L.push('Brad nailer, or a hammer and a nail set (a small steel punch that sinks the head of a nail just below the surface)');
   if(t.has('frame')||t.has('toenail'))L.push('Framing hammer (20 oz or so). A framing nailer is much faster if you can borrow or rent one');
   if(sheet)L.push('Straight-edge guide for cutting plywood (or have the store cut it)');
-  if(S.notes&&S.notes.length)L.push('Level and shims');
+  // what single steps ask for beyond the usual: every tool a step names is in this list (stepTools, js/buildsteps.js)
+  // (plan: the build steps, when the caller has them; the count of tools in the Style dialog does without)
+  const named=plan?plan.steps.flatMap(step=>step.need?step.need.tools:[]).join('; '):'';
+  const words=plan?plan.steps.map(step=>step.words).join(' '):'';
+  if(/\blevel\b/i.test(named))L.push(/\bshims?\b/i.test(words)?'Level, and shims (thin wedges of wood or plastic) to stop it rocking':'Level');
+  if(/stud finder/i.test(named))L.push('Stud finder, for finding the wall studs');
+  if(/Forstner/i.test(named))L.push('1 3/8" Forstner bit, for the cup holes of the hinges');
+  if(/3\/16" drill bit/.test(named))L.push('3/16" drill bit, for the screws of pulls and knobs');
+  if(/spacer block/i.test(named))L.push('A scrap of wood for a spacer block');
+  if(/ladder/i.test(named))L.push('Stepladder');
+  if(/foam mat/i.test(named))L.push('A foam mat to go under a rimless tank');
   return L;}
 
-/* ---------- what the three document pages share (Joints & hardware, Cut list & shopping, Build instructions) ----------
+/* ---------- what the three document pages share (Fasteners, Cut list & shopping, Build instructions) ----------
    A page is  <div class="doc"> docHead(sheet name) + sections </div> . The same markup is printed.
    The commands of a page are in the ribbon (the "doc-only" groups in index.html): a button there carries
    data-doc="print" or data-doc="style". */
@@ -180,7 +208,7 @@ document.addEventListener('click',e=>{
    shop drawing (the style sheet shows one or the other). */
 function docHead(sheetName){
   // the size of what is built; a mattress or a tank that stands higher is said apart (builtSize in js/statusbar.js)
-  const built=builtSize(S.parts),b=built.box,date=docDate(),toCut=S.parts.filter(p=>!isProp(p)).length;
+  const built=builtSize(S.parts),b=built.box,date=docDate(),toCut=S.parts.filter(p=>!isProp(p)).length+woodStrips().length;
   const size=b?overallSize(b)+(built.with?` (${built.with})`:''):'',style=toCut?STYLES[look().style][0]+' style':'';
   const facts=[size,toCut?plural(toCut,'piece')+' to cut':'',style,date].filter(Boolean).join(' · ');
   setPrintFooter();
@@ -215,12 +243,13 @@ const keyBox=letter=>letter?`<span class="key">${letter}</span>`:'';
 /* The cut list: one row for every different piece (same material and size), each with a letter that is reused in
    the cutting diagrams and the steps. Also returns how to look a piece's letter up, and what the wood weighs. */
 function cutRows(){
-  const groups=new Map(),keyOf=p=>[p.mat,p.l,p.w,p.t,angleOf(p)].join('|');
+  // (a strip of wood that is placed as hardware, a drawer runner or kicker, is cut like any piece: woodStrips, js/hardware.js)
+  const groups=new Map(),keyOf=p=>[p.mat,p.l,p.w,p.t,p.strip?0:angleOf(p)].join('|');
   let pounds=0;
-  for(const p of S.parts){
+  for(const p of S.parts.concat(woodStrips())){
     if(isProp(p))continue;
     const k=keyOf(p);
-    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:angleOf(p),qty:0,names:new Set()});
+    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:p.strip?0:angleOf(p),qty:0,names:new Set(),strip:!!p.strip});
     const g=groups.get(k);
     g.qty++;g.names.add(p.name);
     pounds+=p.l*p.w*p.t*WOOD_RULES.DENSITY;   // the same weight for wood as the structural check uses (js/verify.js)
@@ -230,7 +259,9 @@ function cutRows(){
   rows.forEach((g,i)=>g.id=(i>=26?String.fromCharCode(64+Math.floor(i/26)):'')+String.fromCharCode(65+i%26)); // A, B ... Z, AA, AB ...
   const byLength=new Map(); // material + length -> letter, for labelling the cuts on a board
   for(const g of rows)if(!byLength.has(g.mat+'|'+g.l))byLength.set(g.mat+'|'+g.l,g.id);
-  return{rows,pounds,byLength,letterOf:p=>isProp(p)?'':groups.get(keyOf(p)).id};
+  const stripKey=item=>{const wood=HARDWARE[item.kind]&&HARDWARE[item.kind].wood;return wood?[wood.mat,item.size,wood.w,wood.t,0].join('|'):'';};
+  return{rows,pounds,byLength,letterOf:p=>isProp(p)?'':groups.get(keyOf(p)).id,
+    letterOfStrip:item=>groups.has(stripKey(item))?groups.get(stripKey(item)).id:''};
 }
 function cutListSection(list){
   const rows=list.rows.map(g=>{
@@ -240,7 +271,7 @@ function cutListSection(list){
     // A sheet that lies on a slope (a roof deck) is cut square: it gets no note.
     const ownSteps=S.steps&&S.steps.length;
     const angled=!g.deg||m.kind==='sheet'?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
-    const note=[ripped?'Rip to '+fmt(g.w)+' wide':'',angled].filter(Boolean).join('. ');
+    const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled].filter(Boolean).join('. ');
     return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
       `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td><td>${note}</td></tr>`;
   });
@@ -254,7 +285,7 @@ function diagramSection(list){
   const buy=[];
   let h=`<h2>Cutting diagrams</h2><p class="hint">Diagrams allow 1/8" for each saw cut. Striped areas are leftover.</p>`;
   for(const m of MATS){
-    const pieces=S.parts.filter(p=>p.mat===m.id);
+    const pieces=S.parts.concat(woodStrips()).filter(p=>p.mat===m.id);
     if(!pieces.length||m.kind==='prop')continue;
     if(m.kind==='board'){
       const lengths=pieces.map(p=>p.l),longest=Math.max(...lengths);
@@ -300,59 +331,82 @@ function diagramSection(list){
   return{html:h,buy};
 }
 /* (The shopping list, shoppingSection, is in js/prices.js with everything else about prices.) */
-/* the numbered steps: what to do, the pieces to grab, the fasteners that join them to what is already built, and a
-   picture with the new pieces in orange */
-function stepsSection(list,joints,shots){
-  const own=S.steps&&S.steps.length;
-  let steps=own?S.steps:[CUT,{t:'Join the pieces as shown in the picture at the top, using the fastener table below. Start with the frame or the largest pieces, check for square as you go, and add tops and shelves last.',add:[]},FIN];
-  // A preset that starts as bare wood (a shed, a garden bed) has no finishing step. Once the person picks a
-  // finish for it in Style & finish, the shopping list buys that finish, so the steps say how to put it on.
-  if(own&&look().finish!=='none'&&!steps.some(isFinishStep))steps=steps.concat([FIN]);
-  const seen=new Set();
-  let h=`<h2>Steps</h2><p class="hint">${own?'In each picture, the pieces added in that step are orange.':'This is a custom design, so the steps are general. Presets come with detailed steps and a picture for each one.'}</p>`;
-  steps.forEach((step,i)=>{
-    const added=new Set(step.add);
-    step.add.forEach(name=>seen.add(name));
-    // the pieces this step adds, counted by letter, name and length
-    const need=new Map();
-    for(const p of S.parts)if(added.has(p.name)){
-      const k=list.letterOf(p)+'|'+p.name+'|'+(isProp(p)?'':fmt(p.l));
-      need.set(k,(need.get(k)||0)+1);
-    }
-    const pieces=[...need.entries()].map(([k,qty])=>{
-      const[letter,name,length]=k.split('|');
-      // three cells: how many, the letter (an empty cell for a tank or a mattress, which has none), the name
-      return`<li><span class="qty">${qty} ×</span>${keyBox(letter)||'<span></span>'}<span>${esc(name)}${length?', '+length:''}</span></li>`;
-    }).join('');
-    // The joints between a new piece and anything built so far. Two pieces can meet face to face in one place
-    // and end to face in another: lines that read the same are shown once. A step may add lines of its own
-    // (step.fasten) for joints the program cannot see, because rotated pieces (rafters, a roof deck) have none.
-    // When several pieces take the very same fastener to one other piece (every board of a wall frame to the
-    // plywood nailed over it), they share one line: "Stud, Top plate and Header to Wall sheathing: ...".
-    const byWords=new Map();
-    for(const g of jointGroups(joints.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(added.has(j.a.name)||added.has(j.b.name))&&jType(j)!=='none'))){
-      const types=new Set(g.js.map(jType)),spec=jSpec(g.js[0],[...types][0]);
-      // a fastener given by its spacing (nails through plywood) is not "at each joint"
-      const words=types.size===1?spec.text+(spec.bySpacing?'':' at each joint'):'mixed, see the table below';
-      if(!byWords.has(words))byWords.set(words,[]);
-      byWords.get(words).push([g.A[0],g.B[0]]);
-    }
-    const lines=new Set();
-    for(const[words,pairs]of byWords){
-      const shared=[pairs[0][0],pairs[0][1]].find(name=>pairs.every(pair=>pair.includes(name)));
-      const others=shared?[...new Set(pairs.map(pair=>pair[0]===shared?pair[1]:pair[0]))]:[];
-      if(others.length>2)lines.add(`${others.slice(0,-1).join(', ')} and ${others[others.length-1]} to ${shared}: ${words}`);
-      else for(const pair of pairs)lines.add(`${pair[0]} to ${pair[1]}: ${words}`);
-    }
-    for(const line of step.fasten||[])lines.add(line);
-    const fasteners=[...lines].map(line=>`<li>${esc(line)}</li>`).join('');
-    h+=`<div class="step${shots[i]?'':' nopic'}"><div class="no">${i+1}</div><div><p>${esc(stepText(step))}</p>`+
-      (pieces?`<div class="need pieces"><h4>Pieces</h4><ul>${pieces}</ul></div>`:'')+
-      (fasteners?`<div class="need"><h4>Fasten with</h4><ul>${fasteners}</ul></div>`:'')+
-      `</div>${shots[i]?`<img src="${shots[i]}" alt="Step ${i+1}">`:''}</div>`;
+/* The numbered steps, from buildPlan() (js/buildsteps.js), which works them out from the design as it is now.
+   Each step: what to do; "You need" (the pieces by letter, the fasteners with counts, the tools); "Fasten with"
+   (one numbered line for each kind of connection, saying which piece the fastener goes through and which it
+   goes into, and where); the hardware mounted in the step; a picture with this step's pieces in orange and its
+   fasteners in dark blue, numbered like the lines; and a close-up for each kind of connection.
+   shots: the pictures, one entry per step (stepPictures, js/steppictures.js). */
+const balloonMark=no=>`<span class="bal">${no}</span>`;
+/* the words of one step and the lists under them; Build step by step on screen shows the same (js/stepmode.js) */
+function stepTextHtml(step){
+  const need=step.need;
+  // You need: three short rows
+  const pieces=need.pieces.map(row=>`<span class="pc">${row.qty} × ${keyBox(row.letter)}${esc(row.name)}${row.length?', '+row.length:''}</span>`).join('');
+  const rows=[];
+  if(pieces)rows.push(`<dt>Pieces</dt><dd class="pcs">${pieces}</dd>`);
+  if(need.fasteners.length)rows.push(`<dt>${step.kind==='cut'?'Wood':step.kind==='finish'?'Supplies':'Fasteners'}</dt><dd>${esc(need.fasteners.join('; '))}</dd>`);
+  if((need.hardware||[]).length)rows.push(`<dt>Hardware</dt><dd>${esc(need.hardware.join('; '))}</dd>`);
+  if(need.tools.length)rows.push(`<dt>Tools</dt><dd>${esc(need.tools.join('; '))}</dd>`);
+  const youNeed=`<div class="need you"><h4>You need</h4>${rows.length?`<dl>${rows.join('')}</dl>`:'<div>Nothing new for this step.</div>'}</div>`;
+  // Fasten with: numbered lines; the preset's own lines for joints the program cannot see come after them
+  const lines=step.groups.map(group=>`<li data-line="${group.no}">${balloonMark(group.no)}<span>${esc(group.line)}${group.where?' '+esc(group.where):''}</span></li>`)
+    .concat(step.extra.map(line=>`<li><span class="bal none"></span><span>${esc(line)}</span></li>`));
+  const fasten=lines.length?`<div class="need fasten"><h4>Fasten with</h4><ul>${lines.join('')}</ul></div>`:'';
+  const hardware=step.hardware.length?`<div class="need hw"><h4>Hardware in this step</h4><ul>${step.hardware.map(row=>`<li>${balloonMark(row.no)}<span>${esc(row.line)}</span></li>`).join('')}</ul></div>`:'';
+  const was=step.was?`<p class="was">You changed the pieces of this step, or a piece it gave a measurement for, so the words above were written from the pieces as they are now. Before your change the step read: “${esc(step.was)}” Sizes and counts in that older sentence may no longer be right.</p>`
+    // a step that adds no piece cannot be written again from its pieces; it says that its numbers may be old
+    :step.stale?'<p class="was">You changed a piece that this step gives a measurement for. The numbers in the sentence above were written before your change: check them against the lines and the pictures of this step.</p>':'';
+  return`<p>${esc(step.words)}</p>${was}${youNeed}${fasten}${hardware}`;
+}
+function stepsSection(plan,shots){
+  let intro='In each picture the pieces added in that step are orange and the pieces that are already built are pale. '+
+    'The fasteners of the step are drawn in dark blue, right through the wood, so you can see where each one ends. '+
+    'A number in a circle points at one place where the line with the same number under "Fasten with" is used. A letter in a small box is the cut-list letter of that piece. Click a picture to see it large.';
+  if(plan.suggested)intro=SUGGESTED_NOTE+' '+intro;
+  else if(plan.rewritten||plan.added){
+    // every step that is not the preset's own any more is counted: the ones written again, and the ones added
+    const again=plan.rewritten?`${plan.rewritten===1?'one step was':plan.rewritten+' steps were'} written again from the pieces as they are now (${plan.rewritten===1?'it says':'they say'} so)`:'';
+    const fresh=plan.added?`${plan.added===1?'one step was':plan.added+' steps were'} added for the pieces you added`:'';
+    intro+=` You changed the design after the preset made it, so ${[again,fresh].filter(Boolean).join(' and ')}.`;
+  }
+  let h=`<h2>Steps</h2><p class="hint">${esc(intro)}</p>`;
+  plan.steps.forEach((step,index)=>{
+    const shot=shots[index]||{src:'',closeups:[]};
+    const under=(shot.notes||[]).slice();   // what the picture shows when that is not simply "the design so far" (stepScene, js/steppictures.js)
+    if(shot.total>shot.drawn)under.push(`This picture shows ${shot.drawn} of the ${shot.total.toLocaleString()} fasteners of this step.`);
+    const picture=shot.src?`<figure class="step-pic"><img src="${shot.src}" alt="Step ${step.no}">${under.length?`<figcaption>${esc(under.join(' '))}</figcaption>`:''}</figure>`:'';
+    const closeups=shot.closeups.length?`<div class="closeups">${shot.closeups.map(close=>
+      `<figure><img src="${close.src}" alt="Close-up of line ${close.no} of step ${step.no}"><figcaption>${balloonMark(close.no)}${esc(close.caption)}</figcaption></figure>`).join('')}</div>`:'';
+    h+=`<div class="step${shot.src?'':' nopic'}" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>`+
+      `<div class="step-text">${stepTextHtml(step)}</div>${picture}${closeups}</div>`;
   });
   return h;
 }
+/* A click on a picture of a document page shows it at its full size (the pictures are taken 880 pixels wide and
+   shown much smaller beside the words); a click anywhere, or Esc, puts it away. */
+function showPictureLarge(source,caption){
+  let holder=$('#picZoom');
+  if(!holder){
+    holder=document.createElement('div');
+    holder.id='picZoom';
+    holder.title='Click anywhere, or press Esc, to close';
+    document.body.appendChild(holder);
+    holder.onclick=()=>{holder.hidden=true;};
+  }
+  holder.innerHTML=`<figure><img src="${source}" alt=""><figcaption>${esc(caption||'')}</figcaption></figure>`;
+  holder.hidden=false;
+}
+document.addEventListener('click',event=>{
+  const picture=event.target.closest&&event.target.closest('.doc .step img, .doc .views img, .doc img.wide, .doc #shot');
+  if(!picture)return;
+  const figure=picture.closest('figure'),caption=figure&&figure.querySelector('figcaption');
+  showPictureLarge(picture.src,caption?caption.textContent:picture.alt);
+});
+document.addEventListener('keydown',event=>{
+  const holder=$('#picZoom');
+  if(event.key==='Escape'&&holder&&!holder.hidden){holder.hidden=true;event.stopPropagation();}
+},true);
 function fastenerSection(joints){
   const groups=jointGroups(joints).filter(g=>g.js.some(j=>jType(j)!=='none'));
   if(!groups.length)return'';
@@ -361,13 +415,34 @@ function fastenerSection(joints){
   const merged=new Map();
   for(const g of groups){
     const types=new Set(g.js.map(jType));
-    const how=types.size===1?jSpec(g.js[0],[...types][0]).text:'Mixed: see the Fasteners tab (switch to Expert, top right)';
-    const key=g.A[0]+'|'+g.B[0]+'|'+how;
-    if(!merged.has(key))merged.set(key,{pair:`${g.A[0]} to ${g.B[0]}`,count:0,how});
+    let how='More than one kind: the steps say which goes where';
+    if(types.size===1){
+      // joints of different lengths take different counts: then the row gives the total, not the count of the first joint
+      const specs=g.js.map(j=>jSpec(j,[...types][0])),counts=new Set(specs.map(spec=>spec.n));
+      how=specs[0].text;
+      if(counts.size>1&&/^\d+ × /.test(how))how=how.replace(/^\d+ × /,'')+` (${specs.reduce((sum,spec)=>sum+spec.n,0)} in all: more in a longer joint)`;
+    }
+    // the piece the fastener goes through is named first, as in the lines of the steps ("Top to Leg": through the
+    // Top into the Leg), read from the same layout the 3D view draws
+    const firstFastened=g.js.find(j=>jType(j)!=='none'),laid=firstFastened?fastenerLayout(firstFastened,jType(firstFastened))[0]:null;
+    const pair=laid?[laid.through.name,laid.into.name]:[g.A[0],g.B[0]];
+    const key=pair[0]+'|'+pair[1]+'|'+how;
+    if(!merged.has(key))merged.set(key,{pair:`${pair[0]} to ${pair[1]}`,count:0,how});
     merged.get(key).count+=g.js.length;
   }
   const rows=[...merged.values()].map(row=>`<tr><td>${esc(row.pair)}</td><td class="num">${row.count}</td><td>${esc(row.how)}</td></tr>`);
-  return`<h2>Which fastener goes where</h2>`+docTable([['Join',''],['Joints','num'],['With, per joint','']],rows);
+  return`<h2>Which fastener goes where</h2><p class="hint">The piece named first is the one the fastener goes through (for pocket holes: the piece the holes are drilled in); it ends in the piece named second.</p>`+
+    docTable([['Join',''],['Joints','num'],['With, per joint','']],rows);
+}
+/* The pictures of a page are taken once for a design and kept until it changes: going to another tab and back,
+   or a click that only draws the page again, costs nothing. The plan (buildPlan) is made new at every change of
+   the design or of its style, so a new plan means new pictures. */
+let picturesMemo=null;   // {plan, key, full: the pictures of Build instructions, top: the one picture of Cut list & shopping}
+function picturesFor(instr){
+  const plan=buildPlan(),key=[viewMode,S.parts.length].join('|'),slot=instr?'full':'top';
+  if(!picturesMemo||picturesMemo.plan!==plan||picturesMemo.key!==key)picturesMemo={plan,key,full:null,top:null};
+  if(!picturesMemo[slot])picturesMemo[slot]=takePictures(instr);
+  return picturesMemo[slot];
 }
 function renderCut(instr){
   const page=$(instr?'#instrPage':'#cutPage'),sheetName=instr?'Build instructions':'Cut list and shopping';
@@ -375,7 +450,7 @@ function renderCut(instr){
     page.innerHTML=`<div class="doc">${docHead(sheetName)}<p>Add some pieces in the Design tab first, or pick a furniture preset.</p></div>`;
     return;
   }
-  const pics=takePictures(instr),list=cutRows(),joints=findJoints(),L=look();
+  const pics=picturesFor(instr),list=cutRows(),joints=findJoints(),L=look();
 
   // the top of the sheet: a picture of the whole design beside a few facts
   const facts=[['Wood',WOODS[L.wood][0]],['Finish',FINISHES[L.finish][0]],['Weight of the wood',`about ${Math.round(list.pounds).toLocaleString()} lb`]];
@@ -392,13 +467,13 @@ function renderCut(instr){
     const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');
     h+=`<h2>Views with sizes</h2><div class="views">${figures}`+
       `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(isProp)?', counting a fish tank or a mattress that is drawn':''}. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
-      `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</p>`;
+      `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one, each with its letter from the cut list. The steps below show the order.</p>`;
   }
-  if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
+  if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   const diagrams=diagramSection(list),hardware=hardwareTotals(joints);
   h+=cutListSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js
   h+=`<h2>Hardware</h2>`+hwTable(hardware);
-  if(instr)h+=stepsSection(list,joints,pics.steps);
+  if(instr)h+=stepsSection(buildPlan(),pics.steps);
   h+=fastenerSection(joints);
 
   page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)

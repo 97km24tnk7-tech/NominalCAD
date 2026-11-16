@@ -6,6 +6,7 @@ let tab='design';
 document.body.dataset.tab=tab; // the style sheet shows and hides things by tab (the hosted page has no <body> tag of its own to say this)
 const TAB_PAGES={design:'#designPage',joints:'#jointsPage',cut:'#cutPage',instr:'#instrPage'};
 function setTab(t){
+  if(t!=='design'&&stepMode)endStepMode();   // Build step by step belongs to the 3D view (js/stepmode.js)
   tab=t;
   if(t!=='design'){spotlightIds=null;spotlightWord='';}   // "Show me" (js/visibility.js) belongs to the 3D view
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
@@ -155,6 +156,23 @@ function syncRibbonEdge(){
 }
 $('#ribbon').addEventListener('scroll',syncRibbonEdge);
 window.addEventListener('resize',syncRibbonEdge);
+/* No command of the ribbon is ever cut off. In a window RIBBON_FITS_FROM wide or wider the whole ribbon of every
+   tab fits (the widths at which the style sheet makes it more compact are measured for that: css/style.css,
+   section 13). In a narrower window it scrolls inside its strip, and the fade says that there is more. */
+const RIBBON_FITS_FROM=1115;
+SELFTESTS.push(function ribbonIsNeverCutOff(problems){
+  const ribbon=$('#ribbon'),tabKept=tab;
+  try{
+    for(const name of['design','cut','instr']){
+      setTab(name);
+      const over=ribbon.scrollWidth-ribbon.clientWidth;
+      if(!/auto|scroll/.test(getComputedStyle(ribbon).overflowX))problems.push(`ribbon: on the ${name} tab what does not fit is cut off, and the strip cannot be scrolled`);
+      if(over>1&&innerWidth>=RIBBON_FITS_FROM)problems.push(`ribbon: in a window ${innerWidth} px wide the ribbon of the ${name} tab is ${over} px too wide. Move the widths in section 13 of css/style.css to where it stops fitting`);
+      syncRibbonEdge();
+      if(over>1&&!ribbon.classList.contains('more'))problems.push(`ribbon: commands of the ${name} tab are off screen to the right and nothing shows it`);
+    }
+  }finally{setTab(tabKept);}
+});
 window.addEventListener('keydown',e=>{
   if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)||document.querySelector('dialog[open]'))return; // typing, or a dialog has the keyboard
   const c=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
@@ -300,11 +318,21 @@ function readVals(focusBad){
   if(focusBad){firstBad.focus();firstBad.select();}
   return null;
 }
-/* Skill, time and cost for pieces that are not the design yet: look at them as if they were a new project. */
-function assessParts(parts){
+/* Skill, time and cost for pieces that are not the design yet: look at them as if they were a new project, the
+   way Create will make it: with the finish the preset starts with, the fasteners it names and its rule for glue.
+   The Build instructions of the placed design then give the same skill and the same working time. */
+function assessParts(parts,preset){
   const keep=S;
-  S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear'}};
+  S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear',...((preset&&preset.look)||{})}};
   try{
+    // A joint is known by the ids of its two pieces, so every piece needs an id of its own. Pieces fresh from a
+    // builder all carry id 0 (mk in js/core.js): with one key for every joint, the first "Not joined" the preset
+    // names counted for all of them, and the window rated a design with no fasteners at all.
+    if(new Set(parts.map(piece=>piece.id)).size<parts.length||parts.some(piece=>!piece.id))parts.forEach((piece,index)=>{piece.id=index+1;});
+    if(preset){
+      if(preset.glue===false)S.glue=false;
+      storeNamedJoints(preset,parts);
+    }
     const buy=lumberToBuy(parts);
     return{buy,rating:parts.length<=PREVIEW_JOINTS_MAX?assess(look()):null};
   }finally{S=keep;}
@@ -352,7 +380,7 @@ function showPresetSummary(){
   }
 
   info.textContent=remark;
-  const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts);   // the size of what is built, not of a tank or a mattress drawn on it
+  const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts,curPreset);   // the size of what is built, not of a tank or a mattress drawn on it
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
   sum.innerHTML=cell('Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
@@ -391,15 +419,16 @@ function placePreset(preset,vals,parts,add){
     const b=bbox(S.parts),dx=b?b.hi[0]+8:0;
     parts.forEach(p=>p.pos[0]=r16(p.pos[0]+dx));
     S.notes=(S.notes||[]).concat(notes);
-    S.steps=[]; // two designs side by side have no single order of steps; the instructions fall back to general ones
+    S.steps=[]; // two designs side by side have no single order of steps: the steps are then worked out from the pieces, as a suggested order (js/buildsteps.js)
   }else{
-    S.parts=[];S.joints={};S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
+    S.parts=[];S.joints={};S.named={};S.comps=[];S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
     // every design starts in the everyday style, in pine, with a clear coat, unless its preset says otherwise
     // (look:{finish:'none'} on the outdoor presets, so nobody is told to buy polyurethane for a shed)
     S.look={style:'std',wood:'pine',finish:'clear',...(preset.look||{})};
     // nothing is declared for the project as a whole any more (projects saved by older versions still have
     // these lists, and they are still read for pieces without a set)
     S.uses={};S.wall=[];S.hung=[];S.wallFixed=false;S.sets={};
+    delete S.assumeHardware;   // hardware is drawn from here on, so nothing about it is assumed (js/holds.js)
     delete S.glue;
   }
   // A preset whose steps never glue (2x4 garage shelving, a garden bed that stands in the wet) says glue:false,
@@ -411,18 +440,23 @@ function placePreset(preset,vals,parts,add){
   S.sets=S.sets||{};
   S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings};
   parts.forEach(p=>{p.set=setNumber;});
-  if(preset.hw)S.hw=(S.hw||[]).concat(preset.hw(vals));
+  const hwBefore=S.hw||[],hwOwn=preset.hw?preset.hw(vals):[];
+  S.hw=hwBefore.concat(hwOwn);   // while the doors are hung: whether the preset lists a catch decides whether they get one
   sel=new Set();
-  addParts(parts);
+  const ids=addParts(parts);
+  // Each step keeps the ids of its pieces and what they looked like, so the build instructions follow later
+  // edits: a renamed piece stays in its step, and a step whose pieces were changed is written again (js/buildsteps.js).
+  if(!add)S.steps=stampSteps(steps,parts);
   // A preset can name the fastener between two kinds of piece itself, joints:[['Side','Top','glue']], where the
   // suggestion worked out from the shapes alone would be wrong. It is kept like a fastener chosen by hand.
-  if(preset.joints){
-    const own=new Set(parts);  // only this preset's pieces, so "Add beside" leaves the design already there alone
-    for(const j of findJoints())if(own.has(j.a)&&own.has(j.b)){
-      const type=namedJointType(j,preset.joints);   // js/joints.js: the first row of the list that fits
-      if(type)S.joints[j.key]=type;
-    }
-  }
+  storeNamedJoints(preset,parts);   // js/joints.js
+  // After the fasteners are named (pieces that only touch, 'none', must not count as fastened to each other):
+  componentFromPreset(preset.name,ids); // the preset arrives as one component (js/components.js)
+  hangPresetDoors(ids);                 // every door and lid gets its hinges, a pull and a catch (js/hanging.js)
+  mountPresetDrawers(ids);              // every drawer gets its pair of slides or runners, and a pull (js/drawers.js)
+  // What was just placed is listed as what it is from now on; the preset's own lines for it are settled for good,
+  // so a hinge or a pull that is deleted later does not come back on the shopping list (js/hardware.js).
+  S.sets[setNumber].hw=settlePlainLines(hwBefore,hwOwn,ids);
   try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
   $('#presetDlg').close();
   setTab('design');
@@ -496,6 +530,23 @@ SELFTESTS.push(function presetRowsComeAndGo(problems){
     // back to the form that was showing (unless that was another check's made-up preset, which is gone by now)
     const was=PRESETS.indexOf(before);
     if(was>=0)choosePreset(was);else showNoPreset();
+  }
+});
+
+/* Self-check: the preset window and the Build instructions page give one skill and one working time for a preset
+   as Create makes it (the first-time builder read "about 12 hours" in the window and "about 8 hours" on the page). */
+SELFTESTS.push(function presetWindowRatesAsThePage(problems){
+  for(const preset of PRESETS){
+    const vals=presetDefaults(preset);
+    let parts=[];
+    try{parts=preset.build(vals)||[];}catch(e){}
+    if(!parts.length||parts.length>PREVIEW_JOINTS_MAX)continue;
+    const window_=assessParts(parts,preset).rating;
+    placePreset(preset,vals,preset.build(vals),false);
+    const page=assess(look());
+    if(!window_||window_.level!==page.level||window_.hours!==page.hours){
+      problems.push(`${preset.name}: the preset window says "${window_&&window_.level}, about ${window_&&window_.hours} hours" and the instructions "${page.level}, about ${page.hours} hours"`);
+    }
   }
 });
 

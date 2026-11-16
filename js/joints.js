@@ -15,24 +15,24 @@ const SCREWS=[[1,'1"'],[1.25,'1-1/4"'],[1.625,'1-5/8"'],[2,'2"'],[2.5,'2-1/2"'],
 const BRADS=[[.625,'5/8"'],[.75,'3/4"'],[1,'1"'],[1.25,'1-1/4"'],[1.5,'1-1/2"'],[2,'2"']];
 const pickLE=(arr,x)=>{let r=arr[0];for(const a of arr)if(a[0]<=x+.13)r=a;return r;};
 function faceType(p,k){const m=M[p.mat];if(p.ax[2]===k)return'face';if(p.ax[1]===k)return isSquare(m)?'face':'edge';return m.kind==='sheet'?'edge':'end';}
-/* The joint where the faces of two square-set pieces touch, or null when they do not.
-   a and b are {p, lo, hi, s}: the piece, its min and max corners, and its size (jointBox makes one).
-   The piece that comes first in the design must be a, so that the joint's key is always the same. */
+/* Every joint in the design, or in the list of pieces given (a builder's own pieces, before they are in the
+   design). The quick search is in js/neighbors.js; it is checked against the plain one below. */
+function findJoints(list){return findJointsFast(list||S.parts);}
+/* a piece as jointOfPair (js/neighbors.js) needs it: {p, lo, hi, s}. The joint between two given boxes is
+   jointOfPair(a, b), with the piece that comes first in the design as a; between two pieces of the design it
+   is jointBetween(pieceA, pieceB). */
 const jointBox=p=>{const s=size(p);return{p,lo:p.pos,hi:p.pos.map((v,i)=>v+s[i]),s};};
-function jointBetween(a,b){
-  for(let k=0;k<3;k++){let plane=null;
-    if(Math.abs(a.hi[k]-b.lo[k])<.02)plane=a.hi[k];else if(Math.abs(b.hi[k]-a.lo[k])<.02)plane=a.lo[k];
-    if(plane===null)continue;
-    const[u,v]=[0,1,2].filter(x=>x!==k);
-    const ru=[Math.max(a.lo[u],b.lo[u]),Math.min(a.hi[u],b.hi[u])],rv=[Math.max(a.lo[v],b.lo[v]),Math.min(a.hi[v],b.hi[v])];
-    if(ru[1]-ru[0]<.1||rv[1]-rv[0]<.1)continue;
-    return{key:a.p.id+'-'+b.p.id,a:a.p,b:b.p,k,u,v,ru,rv,plane,fa:faceType(a.p,k),fb:faceType(b.p,k),da:a.s[k],db:b.s[k]};}
-  return null;
-}
-/* every joint in the design, or in the list of pieces given (js/verify.js finds the same joints with a faster sweep) */
-function findJoints(list){
-  const out=[],B=(list||S.parts).filter(p=>!isProp(p)&&!tilted(p)).map(jointBox);
-  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++){const joint=jointBetween(B[i],B[j]);if(joint)out.push(joint);}
+function findJointsAllPairs(){
+  const out=[],ps=S.parts.filter(p=>!isProp(p)&&!tilted(p)),B=ps.map(p=>{const s=size(p);return{p,lo:p.pos,hi:p.pos.map((v,i)=>v+s[i]),s};});
+  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++){const a=B[i],b=B[j];
+    for(let k=0;k<3;k++){let plane=null;
+      if(Math.abs(a.hi[k]-b.lo[k])<.02)plane=a.hi[k];else if(Math.abs(b.hi[k]-a.lo[k])<.02)plane=a.lo[k];
+      if(plane===null)continue;
+      const[u,v]=[0,1,2].filter(x=>x!==k);
+      const ru=[Math.max(a.lo[u],b.lo[u]),Math.min(a.hi[u],b.hi[u])],rv=[Math.max(a.lo[v],b.lo[v]),Math.min(a.hi[v],b.hi[v])];
+      if(ru[1]-ru[0]<.1||rv[1]-rv[0]<.1)continue;
+      out.push({key:a.p.id+'-'+b.p.id,a:a.p,b:b.p,k,u,v,ru,rv,plane,fa:faceType(a.p,k),fb:faceType(b.p,k),da:a.s[k],db:b.s[k]});
+      break;}}
   return out;
 }
 /* The fastener a preset names for this joint in its `joints` list, or '' when it names none.
@@ -49,6 +49,26 @@ function namedJointType(j,list){
     if((straight&&how===j.fa+'-'+j.fb)||(swapped&&how===j.fb+'-'+j.fa))return type;
   }
   return'';
+}
+/* Stores the fasteners a preset names for its own pieces like fasteners chosen by hand (S.joints). parts: the
+   pieces of this placement, already in the design. Only joints between two of them are touched, so "Add beside
+   the current design" leaves the design that was there alone. placePreset (js/app.js) calls it, and so do the
+   self-checks that place a preset without the dialog (placeForCheck, js/fasteners.js). */
+function storeNamedJoints(preset,parts){
+  if(!preset.joints)return;
+  const own=new Set(parts);
+  for(const j of findJoints()){
+    if(!own.has(j.a)||!own.has(j.b))continue;
+    const type=namedJointType(j,preset.joints);   // the first row of the list that fits
+    if(!type)continue;
+    S.joints[j.key]=type;
+    // What the preset named is also kept apart from what the person chooses later (S.named). Unfasten stores
+    // "Not joined", and that is forgotten when the two pieces part (rule 2 in js/connections.js); the preset's
+    // own word for the joint comes back then, so a countertop that was lifted off and set down again is
+    // fastened the way the preset fastens it, and not screwed to the sides it only rests on.
+    if(!S.named||typeof S.named!=='object')S.named={};
+    S.named[j.key]=type;
+  }
 }
 function thruPart(j){ // the piece a fastener passes through first
   if(j.fa==='face'&&j.fb==='face')return j.da<=j.db?'a':'b';

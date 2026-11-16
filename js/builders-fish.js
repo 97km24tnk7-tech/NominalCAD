@@ -370,9 +370,13 @@ function doorStepText(pl,doorHeight){
   const stiles=pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).stiles.length,0),paired=pl.B>DOOR_SINGLE_MAX;
   const three=hingesFor(doorHeight)===3;
   return(stiles?`A bay this wide has more than one pair of doors, so first stand ${stiles===1?'a door stile':'the door stiles'} on the bottom deck under the front rail where two pairs meet, and screw ${stiles===1?'it':'each one'} top and bottom. `:'')+
-    `Hang the doors across the front. Each door swings on ${three?'three overlay hinges (top, middle and bottom)':'two overlay hinges'}, screwed to the front edge of the post or upright${stiles?' or door stile':''} at its outer side. `+
-    `Lay a door face down and screw the hinges to its back along that side, ${three?'the top one 3" below the top edge, the bottom one 3" above the bottom edge and the third halfway between':'one 3" below the top edge and one 3" above the bottom edge'}. `+
-    `Stand the door in place on a scrap 1/2" thick, so it clears the floor, with its hinged side even with the outside of the post, and screw the hinges to the post. `+
+    // The hinges are the concealed cup hinges the program places and lists (hangDoor, js/hanging.js); the sentence
+    // names that kind, so the words agree with the lines under them.
+    `Hang the doors across the front. Each door swings on ${three?'three concealed cup hinges (top, middle and bottom)':'two concealed cup hinges'}, the full overlay kind, fixed to the post or upright${stiles?' or door stile':''} at its outer side. `+
+    CUP_HINGE_HOLE+
+    // (how far each hinge is from the ends of its door is read from the model: the hardware line under the step, js/buildsteps.js)
+    `Lay a door face down, drill the cup holes along that side, ${three?'one near the top, one near the bottom and the third halfway between':'one near the top and one near the bottom'}, at the distances from the ends of the door that the hardware line under this step gives, and screw a hinge into each. `+
+    `Stand the door in place on a scrap 1/2" thick, so it clears the floor, with its hinged side even with the outside of the post, and screw the plates of the hinges to the post. Turn the adjusting screws until the gaps are even. `+
     (paired?'Hang the second door of each pair the same way: the two meet in the middle of the opening with a gap of about 1/8". ':'Leave a gap of about 1/8" between doors. ')+
     `Screw a magnetic catch inside, under the frame above, where the free side of each door closes, and its metal plate to the back of the door. Then drill for the pulls and screw them on.`;
 }
@@ -438,6 +442,15 @@ const DRIP_LOOP_WORDS='with a drip loop on every cord (let the cord hang down be
    a beginner guessing which frame was which. The frames, the brace and the panels are the rack's own steps; the
    rest is written for the one stand. Shapes the short version does not cover (frames of two depths, doubled
    rails) fall back to the rack's steps. */
+/* The top frame of the single stand: its rails, cross pieces and deck. It is built on the floor with the bottom
+   frame and lowered onto the uprights later, so its step "brings" it (stampSteps, js/buildsteps.js): the screws
+   through the posts into it are then listed in the step that drives them. */
+function standTopFrame(piece,parts){
+  if(!['Rail','Cross piece','Shelf deck','Filler block'].includes(piece.name))return false;
+  const railHeights=parts.filter(p=>p.name==='Rail').map(p=>p.pos[1]);
+  const lowest=Math.min(...railHeights),highest=Math.max(...railHeights);
+  return highest>lowest+6&&piece.pos[1]>=highest-.01;   // the top rails and everything level with or above them
+}
 function standSteps(p){
   const a=standArgs(p);
   if(!a)return[];
@@ -454,8 +467,8 @@ function standSteps(p){
           :'Glue and screw the plywood decks onto the two frames. The shorter set is flush with its frame all round: that is the bottom frame. The longer set hangs over 1 1/2" at each end of the other frame, the top frame, and will rest on the top ends of the posts. Where two pieces of a deck meet, the seam goes over the middle of a cross piece.')+
           ' Drive a 1 1/4" screw about every 8" into the rails and two into each cross piece. The grain of the plywood face runs the long way. The deck spreads the weight of the tank and keeps the frame square.',add:['Shelf deck']},
       {t:(feet?`Glue a ${pl.up} foot (${fmt(pl.y0)} long) under each corner of the bottom frame, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). Stand the frame on its feet, deck up. `:'Set the bottom frame on the floor, deck up. ')+
-          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws into the cross piece at that end of the frame. Check with a level that each post is plumb (straight up and down). The list under this step also counts the screws of the next step, where the top frame goes on.`,add:['Foot','Post']},
-      {t:`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws into the end cross piece, then drive two 1 1/4" screws down through the deck into the top of each post. The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.`,add:['Upright']});
+          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws into the cross piece at that end of the frame. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`,add:['Foot','Post']},
+      {t:`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws into the end cross piece, then drive two 1 1/4" screws down through the deck into the top of each post. The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.`,add:['Upright'],bring:[standTopFrame]});
   }else{
     steps.push(...rack.slice(1).filter(step=>['Rail','Shelf deck','Post','Upright'].some(name=>step.add.includes(name))));
   }

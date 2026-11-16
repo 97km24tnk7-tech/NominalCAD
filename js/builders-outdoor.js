@@ -136,7 +136,8 @@ function soilBoxSteps(kind,p){
   if(planter)steps.push({t:'Turn each long wall over so its posts face up. Screw a slat cleat along the inside of the lowest board, between the posts, flush with the lower edge of the board. Do it now, while the wall lies flat: once the box is closed there is no room inside for a drill. Use exterior glue and a 1 1/4" screw about every 8" (a longer screw would come through the outside): the cleats carry all the soil.',add:['Slat cleat']});
   steps.push({t:'Stand the two long walls up and screw the end boards between them: two screws through each end board into each corner post, and two through the long side into the end of each end board.',add:['End']});
   if(planter){
-    steps.push({t:'Lay the bottom slats across on the cleats with gaps of about 3/8" so water can drain. Drill pilot holes and drive two screws down through each end of every slat into the cleat under it. The slats also hold the two long walls together.',add:['Bottom slat']},
+    steps.push({t:`Lay the bottom slats across on the cleats with gaps of about 3/8" so water can drain. Drill pilot holes and drive two screws down through each end of every slat into the cleat under it`+
+      (s.slats.flat().some(slat=>slat.w<TWO_SCREWS_FROM)?` (one at each end of a slat narrower than ${fmt(TWO_SCREWS_FROM)}: two would split it)`:'')+`. The slats also hold the two long walls together.`,add:['Bottom slat']},
       {t:'Line the inside with landscape fabric, stapled along the top edge. It keeps the soil in and covers the narrow gap beside the posts at each end. Set the planter where it will stay, check it does not rock, then fill it.',add:[]});
   }else{
     if(n)steps.push({t:`Screw a cross tie across the bed beside each pair of middle posts, on edge, with its top level with the top of the bed: two 3" screws through the tie into the edge of each post and two through each long side into the end of the tie. Drill pilot holes first, because these screws are close to the ends of the tie. Wet soil pushes the long sides outward, and the tie is what stops them from bowing.`,add:['Cross tie']});
@@ -158,6 +159,9 @@ const FEEDER_USES={Tray:'general','Roof board':'roof','Long rim':'none','End rim
 /* Fasteners the feeder names itself: the rim strips are glued and screwed to the tray from below, and only touch
    each other at the corners. */
 const FEEDER_JOINTS=[['End rim','Long rim','none']];
+/* The roof boards lie at the slope, where the program finds no joint: their screws are counted here, one where
+   each board lies on each post, and bought through the preset's own hardware list. */
+const FEEDER_ROOF_SCREW='#8 × 1-5/8" exterior screws',FEEDER_ROOF_SCREWS=4;
 
 function feederPlan(p){
   const L=sizeWithin(p.L,FEEDER_LIMITS.L),angle=FEEDER.SLOPE*Math.PI/180;
@@ -194,8 +198,11 @@ function feederSteps(p){
     {t:'Glue the four rim strips around the top of the tray, flush with its edges, and drive two screws up through the tray into each strip. Drill pilot holes first: the strips are thin and split easily. Then drill four 1/4" drain holes through the tray.',add:['Tray','Long rim','End rim']},
     {t:`Cut the top of each roof post to a point. Mark the middle of the top end, then saw down and away from the mark at ${FEEDER.SLOPE} degrees on each side, so the two corners end up ${fmt(s.shoulderDrop)} lower than the tip. The roof boards will lie flat on these two cuts.`,add:[]},
     {t:'Stand a roof post at each end of the tray, centered, tight against the inside of the end rim. Glue it, drive two screws up through the tray into its end and two through the end rim into its face.',add:['Roof post']},
-    {t:`Saw or plane a ${FEEDER.SLOPE} degree bevel along one long edge of each roof board, so the two boards meet tightly at the ridge. Glue and screw them onto the sloped tops of the posts with the beveled edges together, hanging over 1" at each end. Drill pilot holes first so the post tops do not split, and drive two screws through each board into each post. Run a thin line of exterior glue along the ridge.`,add:['Roof board'],
-      fasten:['Roof board to Roof post: 2 × #8 × 1-5/8" exterior screws at each joint, down through the board into the sloped top of the post']},
+    {t:`Saw or plane a ${FEEDER.SLOPE} degree bevel along one long edge of each roof board, so the two boards meet tightly at the ridge. Glue and screw them onto the sloped tops of the posts with the beveled edges together, hanging over 1" at each end. Drill pilot holes first so the post tops do not split, and drive one screw through each board into each post: the glue does most of the holding. Run a thin line of exterior glue along the ridge.`,add:['Roof board'],
+      // the roof boards are set at the slope, so the program sees no joint there: the screws are counted here and
+      // are on the shopping list through the preset's own hardware lines (FEEDER_ROOF_SCREWS)
+      fasten:[{line:`${fastenerPhrase(FEEDER_ROOF_SCREWS,FEEDER_ROOF_SCREW)}, down through the Roof board into the sloped top of the Roof post, one at each of the 4 places where a board lies on a post (the sloped cut is under 2 1/4" wide, too narrow for two). Mark it on the Roof board, 2 1/8" in from its end (over the middle of the post) and 1" down from its beveled edge`,
+        uses:[[FEEDER_ROOF_SCREW,FEEDER_ROOF_SCREWS]]}]},
     {t:'Leave the wood bare or use a water-based exterior finish on the outside only. Drill a pilot hole down through the ridge into the tip of each post and twist a screw eye into it, so the chain pulls on the posts and not on the roof. Hang it where squirrels cannot jump to it.',add:[]}];
 }
 

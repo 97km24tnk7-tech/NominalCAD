@@ -257,7 +257,7 @@ function tableNotes(name,p){
     notes.push(`A cross rail under the middle of the ${surface} ${plan.planks?'keeps the boards flat and carries their middle':'carries the plywood and gives you something to screw it to'}.`);
   }
   if(plan.railCount>1){
-    notes.push(`There are ${plan.railCount} cross rails under the ${surface}, one every ${fmt(plan.railStep)}. They ${plan.planks?'keep the boards flat and carry their middle':'carry the plywood and give you something to screw it to'}.`);
+    notes.push(`There are ${plan.railCount} cross rails under the ${surface}, about one every ${fmt(Math.round(plan.railStep*8)/8)}, measured from the middle of one to the middle of the next. They ${plan.planks?'keep the boards flat and carry their middle':'carry the plywood and give you something to screw it to'}.`);
   }
   if(!plan.planks||(plan.shelf&&plan.shelf.sheet))notes.push('Cut the plywood with its face grain running the long way. It is much stiffer that way.');
   notes.push(`Sized by rule of thumb for ${use.label}: about ${use.psf} lb on every square foot of the ${surface}.`);

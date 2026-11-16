@@ -106,13 +106,21 @@ const HARDWARE_PRICES=[
   {id:'brackets',name:'L-brackets, 1-1/2" (small corner braces)',match:/l-brackets/i,pack:4,sold:'pack of 4',price:4.5},
   {id:'cabinet-hinges',name:'Cabinet hinges',match:/cabinet hinges/i,pack:2,sold:'pack of 2',price:7},
   {id:'t-hinges',name:'Heavy T-hinges',match:/t-hinges/i,pack:1,sold:'each',price:9},
-  {id:'hinges',name:'Other hinges',match:/hinge/i,pack:1,sold:'each',price:4},
+  // hardware that is placed in the 3D view names itself through HARDWARE[kind].buy(size) in js/hardware.js; every such
+  // name needs a row here (the self-check hardwareWordsAndPrices in js/hardwaretool.js tries each kind and size)
+  {id:'piano-hinges',name:'Piano hinges (lid hinges)',match:/piano hinge/i,pack:1,sold:'each',price:14,search:'piano hinge 30 in.'},
+  {id:'hinges',name:'Butt hinges and other hinges',match:/hinge/i,pack:1,sold:'each',price:4},
   {id:'slides',name:'Drawer slides',match:/drawer slide/i,pack:1,sold:'pair',price:15},
-  {id:'pulls',name:'Door and drawer pulls',match:/pulls|knobs/i,pack:1,sold:'each',price:3.5},
+  {id:'drawer-runners',name:'Wooden drawer runners',match:/drawer runners?/i,pack:1,sold:'each (cut from a 1x2)',price:1,search:'1x2 hardwood board'},
+  {id:'drawer-kickers',name:'Wooden drawer kickers',match:/drawer kickers?/i,pack:1,sold:'each (cut from a 1x2)',price:1,search:'1x2 hardwood board'},
+  {id:'pulls',name:'Door and drawer pulls',match:/pulls?\b|knobs?\b/i,pack:1,sold:'each',price:3.5},
   {id:'catches',name:'Magnetic door catches',match:/catch/i,pack:1,sold:'each',price:2.5},
   {id:'latch',name:'Gate latch or hasp',match:/latch|hasp/i,pack:1,sold:'each',price:9},
   {id:'barrel-bolts',name:'Barrel bolts',match:/barrel bolts?/i,pack:1,sold:'each',price:6,search:'barrel bolt 4 in.'},
   {id:'lid-support',name:'Soft-close lid support',match:/lid support/i,pack:1,sold:'each',price:12,search:'toy box lid support soft close'},
+  {id:'casters',name:'Casters',match:/casters?\b/i,pack:1,sold:'each',price:8,search:'swivel caster 3 in. with brake'},
+  {id:'leveling-feet',name:'Leveling feet',match:/leveling feet/i,pack:4,sold:'pack of 4',price:10,search:'furniture leveling feet with t-nuts 4-pack'},
+  {id:'shelf-pins',name:'Shelf pins, 1/4"',match:/shelf pins?\b/i,pack:20,sold:'pack of 20',price:4,search:'shelf pins 1/4 in. 20-pack'},
   {id:'toggle-bolts',name:'Heavy-duty toggle bolts',match:/toggle bolts/i,pack:2,sold:'pack of 2',price:5,search:'heavy duty toggle bolt 1/4 in.'},
   // framing hardware for sheds and other outdoor buildings
   {id:'rafter-ties',name:'Metal hurricane ties',match:/rafter ties|hurricane/i,pack:1,sold:'each',price:1,search:'hurricane tie rafter to plate'},

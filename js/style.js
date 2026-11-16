@@ -59,7 +59,7 @@ function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceS
   if(f[2]===2)rows.push(['Primer, quarts',qt(1)],['Paint, quarts',qt(2)]);
   if(L.finish==='clear'||f[2]===1)rows.push(['Polyurethane, quarts',qt(L.style==='fine'?3:2)]);
   return rows;}
-const lumberCost=()=>lumberToBuy(S.parts,S.stock).cost; // lumberToBuy is in plans.js, next to the board and sheet packing
+const lumberCost=()=>lumberToBuy(S.parts.concat(woodStrips()),S.stock).cost; // lumberToBuy is in plans.js, next to the board and sheet packing
 function assess(lk){ // how hard, how long and how much, for a given style / wood / finish
   const keep=S.look;S.look=lk;
   try{const js=findJoints(),ts={},ps=S.parts.filter(p=>!isProp(p)),n=ps.length,f=FINISHES[lk.finish],area=surfaceSqFt();
@@ -88,8 +88,12 @@ function renderStyle(){
   $('#finSel').innerHTML=Object.entries(FINISHES).map(([k,v])=>`<option value="${k}"${k===L.finish?' selected':''}>${v[0]}</option>`).join('');
 }
 const jType=j=>S.joints[j.key]||styleType(defaultType(j),j);
+const TWO_SCREWS_FROM=2.25;   // inches of contact: 3/4 in at each end and 3/4 in between two screws
 function jSpec(j,type){
-  if(type==='frame'||type==='toenail')return framingSpec(j,type);   // nails for framing: js/framing.js
+  if(type==='frame'||type==='toenail'){   // nails for framing: js/framing.js
+    // (framing looks at where the two pieces stand; inside a turned set that is read with the set standing square, js/neighbors.js)
+    return j.frame&&!squaredNow?squaredUp(()=>framingSpec(j,type)):framingSpec(j,type);
+  }
   const long=Math.max(j.ru[1]-j.ru[0],j.rv[1]-j.rv[0]),th=thruPart(j);
   const dT=th?(th==='a'?j.da:j.db):null,dO=th?(th==='a'?j.db:j.da):null;
   const hw=[];let text='',n=0,glue=false;
@@ -97,7 +101,10 @@ function jSpec(j,type){
   // length up to .13 over what it is given (so a 1-5/8 screw can stand in for 1.5), so that slack is taken off
   // the limit here: the length picked can never reach the far face.
   const stopShort=th?dT+dO-.125-.13:0;
-  if(type==='screw'){n=Math.max(2,Math.ceil(long/8));
+  // Two screws need 3/4 in from each end of the joint and 3/4 in between them (TWO_SCREWS_FROM): a shorter
+  // contact (the top of a 2x2 leg, the strip of an outer board that lies over a cross rail) takes one screw in
+  // its middle. Two crammed in would sit 1/2 in apart and split the wood.
+  if(type==='screw'){n=long<TWO_SCREWS_FROM?1:Math.max(2,Math.ceil(long/8));
     const len=th?pickLE(SCREWS,Math.min(dT+Math.min(1.5,Math.max(.75,dT*1.2)),stopShort)):SCREWS[4];
     const screws=`#8 × ${len[1]} ${screwKind()}`;   // exterior screws in cedar and pressure-treated lumber
     text=`${n} × ${screws}`+(th?'':' driven at an angle');hw.push([screws,n]);glue=true;}
@@ -124,7 +131,7 @@ function hardwareTotals(js){const m=new Map();let glue=false;
   for(const j of js){const type=jType(j),sp=jSpec(j,type);
     if(sp.glue&&(type!=='screw'||S.glue!==false))glue=true;
     for(const[k,q]of sp.hw)m.set(k,(m.get(k)||0)+q);}
-  for(const[k,q]of S.hw||[])m.set(k,(m.get(k)||0)+q);
+  for(const[k,q]of hardwareRows(S.hw))m.set(k,(m.get(k)||0)+q); // hardware placed in the model, and the plain lines of a preset that are not placed (js/hardware.js)
   for(const[k,q]of finishSupplies())m.set(k,q);
   return{rows:[...m.entries()].sort(),glue};}
 function jointGroups(js){

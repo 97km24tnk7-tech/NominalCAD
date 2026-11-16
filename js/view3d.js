@@ -9,6 +9,7 @@ renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
 const VIEW_COL={
   sel:0x0063a3,        // outline of a selected piece, stretch handles, the board being drawn
   selFill:0x7fb1d1,    // faces of a selected piece
+  follow:0x4a9bd9,     // outline of a piece that is fastened to the selection and will move with it (js/connections.js)
   dim:0x0063a3,        // size lines
   dimText:'#004f83',   // size labels
   nameText:'#262c33',  // the label over the selected piece
@@ -36,6 +37,12 @@ const floor=new THREE.Mesh(new THREE.PlaneGeometry(6000,6000),new THREE.ShadowMa
 const grid=new THREE.GridHelper(240,20,VIEW_COL.gridMid,VIEW_COL.grid);scene.add(grid);
 const partsGroup=new THREE.Group(),fastGroup=new THREE.Group(),dimGroup=new THREE.Group();scene.add(partsGroup,fastGroup,dimGroup);
 const meshes=new Map();
+/* A feature file that draws its own things in the 3D view, or changes how pieces look, adds a function here:
+     SCENE_EXTRAS.push(function nameOfIt(){ ... });
+   rebuildScene() runs them all, in order, after the pieces are in the scene (meshes holds them: id -> Group[mesh, edges])
+   and before the frame is drawn. Put anything you add to the scene in a THREE.Group of your own and empty it first
+   (emptyGroup). Keep them quick: rebuildScene() runs after every change and every selection. */
+const SCENE_EXTRAS=[];
 const cam={target:new THREE.Vector3(0,15,0),r:120,th:1.05,ph:1.15};
 function updateCam(){const{target:t,r,th,ph}=cam;camera.position.set(t.x+r*Math.sin(ph)*Math.cos(th),t.y+r*Math.cos(ph),t.z+r*Math.sin(ph)*Math.sin(th));camera.lookAt(t);drawAxisSymbol();draw();}
 /* The little X / Y / Z symbol in the corner of the view (#axisSym) turns with the camera.
@@ -65,7 +72,8 @@ function fit(dir){const b=bbox(S.parts);
   updateCam();}
 function setMeshPos(p){const g=meshes.get(p.id);if(!g)return;const s=size(p);g.position.set(p.pos[0]+s[0]/2,p.pos[1]+s[1]/2,p.pos[2]+s[2]/2);
   const q=quatOf(p);if(q)g.quaternion.copy(q);else g.quaternion.set(0,0,0,1);
-  if(explode){const c=explodeCenter,o=g.position;o.set(o.x+(o.x-c[0])*explode,o.y+(o.y-c[1])*explode*.8,o.z+(o.z-c[2])*explode);}} // exploded view pushes every piece away from the middle
+  if(explode){const c=explodeCenter,o=g.position;o.set(o.x+(o.x-c[0])*explode,o.y+(o.y-c[1])*explode*.8,o.z+(o.z-c[2])*explode);} // exploded view pushes every piece away from the middle
+  else poseIfOpen(p,g);} // a door that is swung open, a drawer that is pulled out: js/motion.js
 /* two ways to look at a design: realistic wood, or bright color blocks that are easy to tell apart */
 let viewMode='real';try{viewMode=localStorage.getItem('woodshop.view')||'real';}catch(e){}
 const grainTex=(()=>{const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.fillStyle='#f6f1e8';x.fillRect(0,0,512,512);
@@ -104,7 +112,7 @@ function emptyGroup(g){
   while(g.children.length){const c=g.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();if(o.material){o.material.map&&o.material.map!==grainTex&&o.material.map.dispose();o.material.dispose();}});}
 }
 function rebuildScene(){
-  for(const g of[partsGroup,fastGroup,dimGroup])emptyGroup(g);
+  for(const g of[partsGroup,dimGroup])emptyGroup(g); // fastGroup is kept by drawFasteners(), which only redraws it when something changed
   meshes.clear();fastGroup.visible=true;
   const real=viewMode==='real',shadows=real&&S.parts.length<=1500,blk=blockColors(),painted=FINISHES[look().finish][2]===2;
   renderLegend(real?null:blk);
@@ -123,20 +131,20 @@ function rebuildScene(){
     if(isProp(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color,transparent:true,opacity:.35,depthWrite:false});
     else if(real){grainUV(geo,s,p.ax[0],p.id);mat=new THREE.MeshStandardMaterial({color:on?VIEW_COL.selFill:partColor(p),map:painted?null:grainTex,roughness:.82,metalness:0});}
     else mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.selFill:blk.get(p.name)});
-    if(!isProp(p)){if(clash.has(p.id)&&!on)mat.color.setHex(VIEW_COL.clash);if(xray){mat.transparent=true;mat.opacity=.35;mat.depthWrite=false;}}
-    if(ghost){mat.transparent=true;mat.opacity=.07;mat.depthWrite=false;}
+    if(!isProp(p)&&clash.has(p.id)&&!on)mat.color.setHex(VIEW_COL.clash);
     const mesh=new THREE.Mesh(geo,mat);
     mesh.userData.id=p.id;if(!isProp(p)){mesh.castShadow=mesh.receiveShadow=shadows&&!ghost;}   // a see-through piece throws no shadow
     const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial(real?{color:on?VIEW_COL.sel:0x3a2a18,transparent:true,opacity:on?1:.3}:{color:on?VIEW_COL.sel:0x222222}));
     if(clash.has(p.id)&&!on){edges.material.color.setHex(VIEW_COL.clashEdge);edges.material.opacity=1;}
-    if(ghost){edges.material.transparent=true;edges.material.opacity=.14;}
+    // solid, see-through or outlines only (js/viewmodes.js); "Show me" draws its own picture whatever the view mode is
+    if(!spotlightIds)dressForWoodMode(p,mesh,edges,on);
+    if(ghost){
+      mat.transparent=true;mat.opacity=.07;mat.depthWrite=false;
+      edges.material.transparent=true;edges.material.opacity=.14;
+    }
     const g=new THREE.Group();g.add(mesh,edges);partsGroup.add(g);meshes.set(p.id,g);setMeshPos(p);}
-  if($('#showFast').checked&&S.parts.length<=600&&!lite&&!spotlightIds)for(const j of findJoints()){const type=jType(j);if(type==='none'||type==='glue')continue;
-    const n=jSpec(j,type).n,lu=j.ru[1]-j.ru[0]>=j.rv[1]-j.rv[0];
-    for(let i=0;i<n;i++){const t=(i+.5)/n,pos=[0,0,0];pos[j.k]=j.plane;
-      pos[j.u]=lu?j.ru[0]+(j.ru[1]-j.ru[0])*t:(j.ru[0]+j.ru[1])/2;pos[j.v]=lu?(j.rv[0]+j.rv[1])/2:j.rv[0]+(j.rv[1]-j.rv[0])*t;
-      const m=new THREE.Mesh(new THREE.SphereGeometry(.32,10,8),new THREE.MeshBasicMaterial({color:JTYPES[type][1],depthTest:false,transparent:true,opacity:.85}));
-      m.renderOrder=5;m.position.set(pos[0],pos[1],pos[2]);fastGroup.add(m);}}
+  drawFasteners(); // screws, pocket holes, dowels, brads, brackets and glue at their real size, into fastGroup: js/fastenerview.js
+  for(const extra of SCENE_EXTRAS)extra();
   buildDims();buildHandles();buildGizmo();
   draw();
 }

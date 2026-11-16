@@ -1,37 +1,6 @@
-/* NominalCAD: what the floating panels show (the piece list and the properties of the selection)
-   and the Joints tab. The status bar is in statusbar.js; dragging and hiding the panels is in layout.js. */
+/* NominalCAD: what the Properties panel shows (the properties of the selection) and the Fasteners tab (Expert).
+   The Pieces panel is in piecetree.js, the status bar in statusbar.js; dragging and hiding the panels is in layout.js. */
 'use strict';
-/* ---------- Pieces panel: one row per piece (name, what it is cut from, length) ---------- */
-const MAX_ROWS=400; // a whole fish room is thousands of pieces; the list shows the first few hundred
-function renderParts(){
-  const count=S.parts.length,list=$('#partList');
-  $('#partCount').textContent=count||'';
-  if(!count){
-    list.innerHTML='<li class="note">Nothing here yet. Pick a furniture preset, or draw a board.</li>';
-    return;
-  }
-  const rows=S.parts.slice(0,MAX_ROWS).map(p=>
-    `<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><span title="${esc(M[p.mat].name)}">${esc(M[p.mat].brief||M[p.mat].short)}</span><span class="num">${fmt(p.l)}</span></li>`).join('');
-  list.innerHTML=rows+(count>MAX_ROWS?`<li class="note">Showing the first ${MAX_ROWS} of ${count.toLocaleString()} pieces. Click any piece in the 3D view to select it.</li>`:'');
-  // bring the selected row into view, so picking a piece in 3D also finds it in the list. The body of the panel
-  // is what scrolls; the column headings stay at its top and cover that much of it.
-  const row=list.querySelector('li.on');
-  if(row){
-    const scroller=list.parentElement,frame=scroller.getBoundingClientRect(),r=row.getBoundingClientRect();
-    const top=frame.top+scroller.querySelector('.phead').offsetHeight;
-    if(r.top<top)scroller.scrollTop-=top-r.top;
-    else if(r.bottom>frame.bottom)scroller.scrollTop+=r.bottom-frame.bottom;
-  }
-}
-$('#partList').addEventListener('click',e=>{
-  const li=e.target.closest('li[data-id]');
-  if(!li)return;
-  const id=+li.dataset.id;
-  if(e.ctrlKey||e.metaKey){sel.has(id)?sel.delete(id):sel.add(id);}
-  else sel=new Set([id]);
-  renderAll();
-});
-
 /* ---------- Properties panel ---------- */
 /* small builders for the panel's markup */
 const propsSection=(title,extra)=>`<div class="sec">${title}${extra||''}</div>`;
@@ -48,12 +17,18 @@ const positionFields=p=>propsSection('Position',DROP_BUTTON)+
 
 function renderProps(){
   const ps=selParts(),el=$('#props'),who=$('#propsName');
+  if(renderPickedProps())return; // a fastener or a piece of hardware was clicked: js/viewpick.js
   if(!ps.length){who.textContent='';el.innerHTML=propsNote('Nothing selected. Click a piece to edit it.');return;}
-  if(ps.length>1){who.textContent=ps.length+' pieces';el.innerHTML=propsOfSeveral(ps);return;}
+  // a whole component (js/components.js). After that: how far a door or drawer is open (propsMotion, js/motion.js),
+  // the hardware on the pieces (propsHardware, js/hardwaretool.js), what the selection is fastened to (propsConnections, js/unfasten.js)
+  const more=propsMotion(ps)+propsHardware(ps)+propsConnections(ps);
+  const comp=selectedComponent();
+  if(comp){who.textContent=comp.name;el.innerHTML=propsOfComponent(comp,ps)+more;return;}
+  if(ps.length>1){who.textContent=ps.length+' pieces';el.innerHTML=propsOfSeveral(ps)+more;return;}
   const p=ps[0];
   who.textContent=p.name;
   // in Beginner, one line first that says what this kind of piece is (js/glossary.js; not loaded yet at start-up)
-  el.innerHTML=(window.termLine?termLine(p):"")+(isProp(p)?propsOfProp(p):propsOfPiece(p));
+  el.innerHTML=(window.termLine?termLine(p):"")+(isProp(p)?propsOfProp(p):propsOfPiece(p))+more;
 }
 /* one wooden piece: name, material, size, position, quarter turns, angle */
 function propsOfPiece(p){
@@ -63,6 +38,7 @@ function propsOfPiece(p){
   const directions=[[2,'Lean left / right'],[0,'Lean front / back'],[1,'Swing flat (like a clock hand)']]
     .map(([k,label])=>`<option value="${k}"${(p.rot?p.rot.k:2)===k?' selected':''}>${label}</option>`).join('');
   return propsRow('Name',`<input class="fld" type="text" data-f="name" value="${esc(p.name)}">`)+
+    componentLine(p)+
     propsRow('Material',`<select class="fld" data-f="mat">${materials}</select>`)+
     propsSection('Size')+
     propsGroup([['Length',sizeField('l',p.l)],['Width',sizeField('w',p.w,realSize)],
@@ -73,7 +49,9 @@ function propsOfPiece(p){
     `<div class="sec" title="For braces and splayed legs">Angle</div>`+
     propsGroup([['Tilt, degrees',`<input class="fld" type="text" data-f="deg" value="${p.rot?p.rot.deg:p.q?angleOf(p):0}">`],
       ['Direction',`<select class="fld" data-f="rax">${directions}</select>`]],'two')+
-    (tilted(p)?propsNote('Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.'):'');
+    // a piece that was turned together with what it is fastened to keeps its joints (a turned set, js/neighbors.js)
+    (!tilted(p)?'':turnedSets(S.parts).of.get(p)?propsNote('This piece was turned together with the pieces it is fastened to. Its joints and fasteners are the same as before the turn.')
+      :propsNote('Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.'));
 }
 /* a fish tank, light, mattress or window: shown for reference, so only its position can change */
 function propsOfProp(p){
@@ -84,6 +62,7 @@ function propsOfProp(p){
 function propsOfSeveral(ps){
   const b=bbox(ps);
   let h=propsNote(`Together: <b>${fmtFt(b.hi[0]-b.lo[0])} wide × ${fmtFt(b.hi[2]-b.lo[2])} deep × ${fmtFt(b.hi[1]-b.lo[1])} tall</b>`);
+  h+=propsSection('Component')+componentButtons();
   if(ps.length!==2)return h+propsNote('Select exactly two pieces to measure the gap between them.');
 
   const[ia,ib]=[...sel],joint=findJoints().find(j=>(j.a.id===ia&&j.b.id===ib)||(j.a.id===ib&&j.b.id===ia));
@@ -97,7 +76,7 @@ function propsOfSeveral(ps){
   }else{
     h+=propsNote('These two are not touching yet.')+
       `<button class="btn" data-act="connect">${icon('i-connect')}Connect them</button>`+
-      propsNote(`Moves, stretches or trims <b>${esc((byId(ia)||{}).name||'')}</b> (the one you picked first) so it meets <b>${esc((byId(ib)||{}).name||'')}</b>, then suggests the fastener.`);
+      propsNote(`Moves, stretches or trims <b>${esc((byId(ia)||{}).name||'')}</b> (the one you picked first) so it meets <b>${esc((byId(ib)||{}).name||'')}</b>, then fastens the two.`);
   }
 
   const A=box(ps[0]),B=box(ps[1]),labels=['Left to right','Up and down','Front to back'];
@@ -111,31 +90,70 @@ function propsOfSeveral(ps){
 /* typing in a field: every field carries data-f, the name of what it changes */
 $('#props').addEventListener('change',e=>{
   const f=e.target.dataset.f,p=selParts()[0];if(!f||!p)return;const m=M[p.mat];
+  if(f==='compName'){if(!renameComponent(+e.target.dataset.comp,e.target.value))renderProps();return;}
   if(f==='jt'){S.joints[e.target.dataset.key]=e.target.value;commit();return;}
   if(f==='name'){p.name=e.target.value.trim()||'Piece';}
   else if(f==='mat'){const nm=M[e.target.value];p.mat=nm.id;p.t=nm.t;if(nm.kind==='board')p.w=nm.w;}
-  else if(f==='deg'){const v=parseFloat(e.target.value);if(isNaN(v)){renderProps();return;}
-    const d=Math.max(-90,Math.min(90,Math.round(v*2)/2));delete p.q;if(d)p.rot={k:p.rot?p.rot.k:2,deg:d};else delete p.rot;}
-  else if(f==='rax'){delete p.q;p.rot={k:+e.target.value,deg:p.rot?p.rot.deg:0};}
-  if(f==='deg'||f==='rax'){const b=box(p);if(b.lo[1]<0)p.pos[1]=r16(p.pos[1]-b.lo[1]);} // keep a tilted piece above the floor
+  else if(f==='deg'||f==='rax'){tiltPiece(p,f,e.target.value);return;} // asks first when the piece is fastened
   else if(f!=='name'&&f!=='mat'){const v=parseLen(e.target.value);if(isNaN(v)){renderProps();return;}
     if(f==='l'){if(v<=0){renderProps();return;}p.l=r16(v);}
-    else if(f==='w'){if(v<=0){renderProps();return;}p.w=r16(m.kind==='board'?Math.min(v,m.w):v);}
-    else p.pos['xyz'.indexOf(f)]=r16(f==='y'?Math.max(0,v):v);}
+    else if(f==='w'){if(v<=0){renderProps();return;}
+      // a board cannot be wider than the store sells it: say so, with the way out, instead of putting the old number back without a word
+      if(m.kind==='board'&&v>m.w+.01)toast(`A ${m.short} board is ${fmt(m.w)} wide and cannot be made wider. For a wider piece choose a wider board, or plywood, under Material in Properties.`);
+      p.w=r16(m.kind==='board'?Math.min(v,m.w):v);}
+    else moveSetTo(p,'xyz'.indexOf(f),r16(f==='y'?Math.max(0,v):v));} // a Position box: what is fastened to the piece moves with it
   commit();
 });
+/* The Angle boxes (Tilt, degrees and Direction) set ONE piece at an angle: a brace, a splayed leg. A piece that
+   is fastened to others would be pulled off its fasteners by that, so the Unfasten question is asked first, with
+   the connections that would go (askAboutLinks, js/unfasten.js). "Keep them" changes nothing. To turn a piece
+   together with everything it is fastened to there is Rotate (R), which never asks because nothing comes apart.
+   field: 'deg' or 'rax'; text: what was typed or chosen. */
+function tiltPiece(p,field,text){
+  const now=p.rot?{k:p.rot.k,deg:p.rot.deg}:{k:2,deg:0},next={k:now.k,deg:now.deg};
+  if(field==='deg'){
+    const typed=parseFloat(text);
+    if(isNaN(typed)){renderProps();return;}
+    next.deg=Math.max(-90,Math.min(90,Math.round(typed*2)/2));
+  }else next.k=+text;
+  if(!p.q&&next.k===now.k&&next.deg===now.deg){renderProps();return;} // nothing would change
+  const tilt=()=>{
+    delete p.q;
+    delete p.turned;   // set at an angle by itself now: no longer turned with its set (js/neighbors.js)
+    if(next.deg||field==='rax')p.rot=next;else delete p.rot;
+    const bounds=box(p);
+    if(bounds.lo[1]<0)p.pos[1]=r16(p.pos[1]-bounds.lo[1]); // keep a tilted piece above the floor
+  };
+  const staysPut=!p.q&&!now.deg&&!next.deg;           // a direction picked for a piece that is not tilted: it does not move
+  const links=staysPut?[]:linksToOutside(new Set([p.id]));
+  if(!links.length){tilt();commit();return;}
+  const one=links.length===1;
+  askAboutLinks(links,
+    {title:'Tilt this piece by itself?',action:'Tilt it alone',freed:new Set([p.id]),
+      text:`${p.name} is fastened to other pieces. Tilting it by itself takes it off ${one?'this connection':'these connections'}, which will be deleted. `+
+        `Undo (Ctrl+Z) brings ${one?'it':'them'} back. To turn everything that is fastened together instead, use Rotate (R).`},
+    ()=>{
+      // Hardware that held it (hinges, slides) is taken off. Its wood joints end with the tilt: no screws are worked
+      // out for a piece set at an angle, and where it still touches a piece it stays tied to it (js/connections.js).
+      deleteLinks(links.filter(link=>link.hold));
+      tilt();
+      commit();
+      toast(`${p.name} is tilted by itself. Where it still touches another piece the two stay tied, but no screws are worked out for an angled joint: add your own.`);
+    });
+  renderProps(); // while the question is open, and after "Keep them", the boxes show the piece as it really is
+}
 /* buttons in the panel carry data-act (the click may land on the icon inside the button) */
 $('#props').addEventListener('click',e=>{
   const button=e.target.closest('[data-act]');if(!button)return;
   const a=button.dataset.act,p=selParts()[0];
   if(a==='row'){openRow();return;}if(a==='mirror'){openMirror();return;}
-  if(a==='connect'){const[ia,ib]=[...sel],msg=connectParts(byId(ia),byId(ib));commit();toast(msg);return;}
+  if(a==='connect'){const[ia,ib]=[...sel],msg=connectAndFasten(byId(ia),byId(ib));commit();toast(msg);return;}
   if(a==='del')delSel();else if(a==='dup')dupSel();
-  else if(a==='drop'){p.pos[1]=dropPart(p);commit();}
-  else if(a.startsWith('rot')){rotatePart(p,'XYZ'.indexOf(a[3]));commit();}
+  else if(a==='drop'){dropSet(p);commit();}                              // these three take along what is fastened to the piece
+  else if(a.startsWith('rot')){turnQuarter(p,'XYZ'.indexOf(a[3]));commit();} // (js/connections.js)
 });
 
-/* ---------- Joints & hardware page ----------
+/* ---------- the Fasteners page (Expert) ----------
    One row for every kind of joint (the same two pieces meeting the same way), with the fastener to use. Picking
    another fastener in a row changes all the joints of that kind. (docHead and docTable are in plans.js.) */
 function renderJoints(){
@@ -166,7 +184,7 @@ function renderJoints(){
   h+=`<h2>Hardware to buy</h2>`+hwTable(hardwareTotals(joints));
   const dots=Object.entries(JTYPES).filter(([key])=>key!=='none'&&key!=='glue')
     .map(([,type])=>`<span><i class="dot" style="background:#${type[1].toString(16).padStart(6,'0')}"></i>${type[0]}</span>`).join('');
-  h+=`<h2 class="noprint">Dots in the 3D view</h2><div class="dots noprint">${dots}</div>`;
+  h+=`<h2 class="noprint">Colors in the Fasteners only view</h2><p class="hint noprint">On the Design tab, Display, then Fasteners only (Shift+F), draws the wood as an outline and every fastener in the color of its kind.</p><div class="dots noprint">${dots}</div>`;
   page.innerHTML=`<div class="doc">${h}</div>`;
   page.querySelectorAll('select[data-g]').forEach(choice=>choice.onchange=()=>{
     if(!choice.value)return;
@@ -174,7 +192,7 @@ function renderJoints(){
     commit();
   });
   const reset=$('#bJReset');
-  if(reset)reset.onclick=()=>{S.joints={};commit();};
+  if(reset)reset.onclick=()=>{S.joints=Object.assign({},S.named||{});commit();}; // back to the suggestions, and to what the preset itself names (js/joints.js)
 }
 /* the hardware list, used on all three document pages. hw = {rows:[[item, quantity]], glue:true/false} from hardwareTotals() */
 function hwTable(hw){

@@ -18,6 +18,14 @@
            namedJoints [['Side','Top','glue'], ...]      fasteners a preset names by piece name (its `joints`); used for
                                                          pieces that are not in a project yet, where joints has no keys
            style      'std'                              the build style (S.look.style); it nudges default fasteners
+           hardware   [ {on: idA, to: idB}, ... ]        the hardware that is really placed in the design and holds one
+                                                         piece to another (hinges, drawer slides), and the pieces a
+                                                         preset declares as hung, each with the piece it hangs from.
+                                                         Given (a project on screen: holdPairs in js/holds.js makes
+                                                         it from HOLD_SOURCES), nothing else is assumed: a door with
+                                                         no hinge in this list is not held. Left out (pieces that are
+                                                         not in a project, or a project from before hardware was
+                                                         drawn), the hardware is assumed: see WHAT IS ASSUMED
            wallFixed  false                              true: the whole design is tied back to the wall so it cannot tip
            sets       { 3: { uses, wall, hung, wallFixed } }  what each preset placed in the project declared, under the
                                                          number its pieces carry (piece.set). A piece with a set is read
@@ -108,7 +116,7 @@
        overlap         two square pieces run into each other           a note, not a problem
 
    WHAT IS ASSUMED
-     - Square-set pieces: findJoints() / jointBetween() say where faces touch and the Fasteners tab's fastener for
+     - Square-set pieces: findJoints() / jointOfPair() say where faces touch and the Fasteners tab's fastener for
        each pair. "Not joined" still carries weight straight down when one piece sits on top of the other.
      - Rotated pieces: the Fasteners tab cannot pick a fastener for a piece that is not square to the others, so a
        rotated piece that touches (or runs into) another wooden piece is taken as screwed to it. Put
@@ -126,6 +134,15 @@
      - Square pieces that run into each other (a shelf drawn 1/8" into its sides, two rails crossing) are taken
        as notched together, glued and screwed, and listed in the notes. findClashes() is what reports overlaps.
      - Fish tanks, mattresses, lights and windows are loads, never structure.
+     - HARDWARE, ONE TRUTH. A design on screen draws its hardware (js/hardware.js) and keeps one list of what
+       holds without being a wood joint (HOLD_SOURCES, js/connections.js): the hinges and slides that are placed,
+       and the pieces a preset declared as hung, each with the piece it hangs from. Check my design hands that
+       list over as options.hardware (holdPairs, js/holds.js), and then exactly those pairs hold: a door hangs
+       on the piece its hinges are screwed to, and a door whose hinges were taken off, or a drawer that was
+       unfastened, is not held and is reported. The same list decides what moves together in the 3D view.
+       The next two points describe what is assumed when options.hardware is left out: pieces that are not in a
+       project yet (a preset being checked before it is placed, where placing it is what hangs the doors:
+       hangPresetDoors in js/hanging.js) and projects saved before hardware was drawn.
      - A piece whose use is 'door' hangs on hinges from whatever supported piece is within 3/4"; a 'lid' may
        simply rest in place. Guessed from the name only when the name ends in "door" or is "Lid".
      - Bought hardware that carries wood (drawer slides today, hinges and shelf standards later) is not a piece
@@ -553,7 +570,7 @@ function verifyContacts(model,opt){
       if(B.lo[0]>A.hi[0]+.02)break;
       if(B.lo[1]>A.hi[1]+.02||A.lo[1]>B.hi[1]+.02||B.lo[2]>A.hi[2]+.02||A.lo[2]>B.hi[2]+.02)continue;
       const first=A.n.i<B.n.i?A:B,second=first===A?B:A; // same order as findJoints, so the joint keys match
-      const j=jointBetween(first,second);
+      const j=jointOfPair(first,second);   // js/neighbors.js
       if(!j){
         // No faces touch. Do they run into each other (a shelf drawn 1/8" into its sides, two rails crossing)?
         // That is a notch or a housing, which holds at least as well as a butt joint, so it counts as fastened;
@@ -574,14 +591,30 @@ function verifyContacts(model,opt){
       verifyLink(first.n,second.n,j.k===1?'bear':'side',type,j);
     }
   }
-  // pieces that hang on bought hardware: fastened, by that hardware, to the wooden piece right beside them
-  for(const H of model.wood){
-    if(!H.onHardware)continue;
-    const mount=hardwareMount(H,model.wood);
-    if(!mount)continue;                                  // verifyLoadPath says so if nothing else holds it up
+  // Pieces that hang on bought hardware are fastened, by that hardware, to another piece. With the hardware of
+  // the design given (opt.hardware), exactly those pairs hold. Without it the hardware is not drawn, and a piece
+  // on a hung list hangs from the wooden piece right beside it.
+  const placed=Array.isArray(opt.hardware);
+  const hold=(H,mount)=>{
     let link=H.links.find(l=>l.a===mount||l.b===mount);  // they may touch as well (a hinge on a flush edge)
     if(!link)link=verifyLink(H,mount,'side','hardware',null);
     link.fastened=link.hardware=true;
+  };
+  if(placed){
+    const byId=new Map(model.wood.map(n=>[n.id,n]));
+    for(const pair of opt.hardware){
+      const H=pair&&byId.get(pair.on),mount=pair&&byId.get(pair.to);
+      if(!H||!mount||H===mount)continue;
+      H.onHardware=true;
+      hold(H,mount);
+    }
+    // a door is meant to hang on hinges: with none placed it is not held, and the load path says so
+    for(const H of model.wood)if(USES[H.use||'none'].hinged)H.onHardware=true;
+  }
+  for(const H of model.wood){
+    if(placed||!H.onHardware)continue;
+    const mount=hardwareMount(H,model.wood);
+    if(mount)hold(H,mount);                              // verifyLoadPath says so if nothing else holds it up
   }
   // rotated pieces: taken as screwed to whatever they touch
   const tilted=model.wood.filter(n=>n.tilt);
@@ -714,15 +747,21 @@ function verifyLoadPath(model,opt,found){
   }
   for(const n of wood)n.supported=n.cost<Infinity;
   if(wood.some(n=>n.links.some(link=>link.hardware)))verifyHardwareLoads(wood);
+  // In a project on screen the hardware is drawn (opt.hardware), so what is missing is the hardware itself;
+  // without it the hardware is assumed, and what can be missing is a piece to screw it to.
+  const placed=Array.isArray(opt.hardware);
+  const hangIt='Select it and choose Hang this door or lid, or Put this drawer on slides (right-click it, or use the Hardware pulldown in the Add group)';
   for(const n of wood){
     if(!n.noMount)continue;
     found.push({level:'stop',code:'unsupported',ids:[n.id],group:'m'+n.name,rank:n.weight,
-      text:`The ${n.name} is meant to hang on bought hardware (a drawer slide or hinges), but there is no wooden piece within ${fmt(HARDWARE_GAP)} beside it for that hardware to be screwed to. It is held only through the pieces it is joined to, which hang on the hardware of another piece.`,
-      fix:`Put the piece that carries it back, within ${fmt(HARDWARE_GAP)} of it and facing it over at least ${fmt(HARDWARE_LAP)}, or hold it up another way.`});
+      text:placed?`The ${n.name} is meant to hang on bought hardware (hinges or a drawer slide), but none holds it now. It is held only through the pieces it is joined to, which hang on the hardware of another piece.`
+        :`The ${n.name} is meant to hang on bought hardware (a drawer slide or hinges), but there is no wooden piece within ${fmt(HARDWARE_GAP)} beside it for that hardware to be screwed to. It is held only through the pieces it is joined to, which hang on the hardware of another piece.`,
+      fix:placed?`${hangIt}. The piece that carries it must be within ${fmt(HARDWARE_GAP)} of it.`
+        :`Put the piece that carries it back, within ${fmt(HARDWARE_GAP)} of it and facing it over at least ${fmt(HARDWARE_LAP)}, or hold it up another way.`});
   }
-  // doors hang on hinges from the nearest supported piece
+  // hardware that is not drawn: doors hang on hinges from the nearest supported piece
   for(const n of wood){
-    if(n.supported||!USES[n.use||'none'].hinged)continue;
+    if(placed||n.supported||!USES[n.use||'none'].hinged)continue;
     const frame=wood.find(y=>y.supported&&!y.hung&&y!==n&&[0,1,2].every(k=>overlapOf(n,y,k)>=-.75));
     if(frame){n.supported=n.hung=true;n.cost=frame.cost+1;}
   }
@@ -764,8 +803,10 @@ function verifyLoadPath(model,opt,found){
     if(adrift.length){
       const several=adrift.length>1;
       found.push({level:'stop',code:'unsupported',ids,group:'h'+first.name,rank:group.length,
-        text:`Nothing holds up ${piecesLabel(group)}. The hardware that ${piecesLabel(adrift)} ${several?'hang':'hangs'} on (drawer slides or hinges) has to be screwed to a wooden piece right beside ${several?'them':'it'}, and there is none within ${fmt(HARDWARE_GAP)}.`,
-        fix:`Move ${several?'them':'it'} to within ${fmt(HARDWARE_GAP)} of the piece that carries ${several?'them':'it'}, facing it over at least ${fmt(HARDWARE_LAP)}, or hold ${several?'them':'it'} up another way.`});
+        text:placed?`Nothing holds up ${piecesLabel(group)}. ${several?'They are':'It is'} meant to hang on hinges or drawer slides, and no such hardware holds ${several?'them':'it'} now.`
+          :`Nothing holds up ${piecesLabel(group)}. The hardware that ${piecesLabel(adrift)} ${several?'hang':'hangs'} on (drawer slides or hinges) has to be screwed to a wooden piece right beside ${several?'them':'it'}, and there is none within ${fmt(HARDWARE_GAP)}.`,
+        fix:placed?`${hangIt}, or fasten ${several?'them':'it'} another way.`
+          :`Move ${several?'them':'it'} to within ${fmt(HARDWARE_GAP)} of the piece that carries ${several?'them':'it'}, facing it over at least ${fmt(HARDWARE_LAP)}, or hold ${several?'them':'it'} up another way.`});
     }else if(!many&&!first.links.length){
       found.push({level:'stop',code:'floating',ids,group:'f'+first.id,rank:first.lo[1],
         text:`The ${first.name} touches nothing. It is floating ${fmt(first.lo[1])} above the floor.`,
@@ -780,7 +821,7 @@ function verifyLoadPath(model,opt,found){
     }else if(touched.length){
       found.push({level:'stop',code:'unsupported',ids,group:'u'+first.id,rank:group.length,
         text:`Nothing holds up ${piecesLabel(group)}. ${many?'They touch':'It touches'} ${piecesLabel(touched)}, but with no fastener there and without sitting on top.`,
-        fix:'Pick a fastener for that joint on the Fasteners tab (switch to Expert, top right), or put a support underneath.'});
+        fix:'Fasten them: click Connect (C), then the two pieces. Or put a support underneath.'});
     }else{
       // a near miss is worth saying: a leg that was rotated lifts a little off the floor
       const lowest=Math.min(...group.map(n=>n.lo[1]));
@@ -798,7 +839,7 @@ function verifyLoadPath(model,opt,found){
     const many=group.length>1;
     found.push({level:'warn',code:'loose',ids:group.map(n=>n.id),group:group[0].name+'|'+(under[0]?under[0].name:''),rank:group.length,
       text:`${many?'These pieces only rest':'This piece only rests'} in place: ${piecesLabel(group)} on ${piecesLabel(under)}. Nothing fixes ${many?'them':'it'}, so a bump can knock ${many?'them':'it'} off.`,
-      fix:'Fasten it down with screws, glue or brackets: pick one for that joint on the Fasteners tab (switch to Expert, top right).'});
+      fix:'Fasten it down: click Connect (C), then this piece and the piece under it.'});
   }
   // who carries whom, and where along each piece its supports are
   for(const X of wood){
@@ -1495,7 +1536,7 @@ function verifyJoints(model,found,notes){
       if(link.type==='none'&&link.kind==='side'&&a.supported&&b.supported&&!passive(a)&&!passive(b)&&!sheetEdge){
         notes.push({level:'note',code:'unjoined',ids:[a.id,b.id],group:[a.name,b.name].sort().join('|'),rank:1,
           text:`The ${a.name} and the ${b.name} touch side by side with no fastener between them. Both are held by other joints.`,
-          fix:'Nothing has to change. To join them as well, pick a fastener for that joint on the Fasteners tab (switch to Expert, top right).'});
+          fix:'Nothing has to change. To join them as well, click Connect (C), then the two pieces.'});
       }
     }
     for(const s of X.sup){
@@ -1503,7 +1544,7 @@ function verifyJoints(model,found,notes){
       if(s.link.type!=='glue'||s.how==='bear'||!j||(j.fa!=='end'&&j.fb!=='end'))continue;
       found.push({level:'warn',code:'glue-end-grain',ids:[X.id,s.node.id],group:[X.name,s.node.name].sort().join('|'),rank:1,
         text:`The ${X.name} is held to the ${s.node.name} by glue alone on end grain, and that joint carries weight. End grain soaks up glue and lets go.`,
-        fix:'Add screws, pocket screws or dowels to that joint on the Fasteners tab (switch to Expert, top right).'});
+        fix:'Add screws, pocket screws or dowels to that joint: hold Ctrl and click the two pieces, then pick another fastener under Connection in the Properties panel.'});
     }
   }
 }

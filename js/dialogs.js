@@ -25,6 +25,7 @@
          options.title   the words in the title bar                            (default 'Please confirm')
          options.cancel  the label of the button that declines, e.g. 'Go back' (default 'Cancel')
          options.wide    true for a long message: the dialog is made wider
+         options.list    lines shown under the message as a list (what would be deleted, for example)
      showMessage(title, text, options)     a notice with one OK button. A line break in text starts a new line.
          options.steps   a list of sentences shown under the text as numbered steps (the dialog is wider for them)
          options.extra   one more button, left of OK, that does the first thing for the person:
@@ -76,7 +77,8 @@ function openQuick(q){
   const more=dlg.querySelector('#quickMore');
   dlg.querySelector('#quickTitle').textContent=q.title;
   dlg.querySelector('#quickBody').innerHTML=`<p class="dlg-msg">${esc(q.text)}</p>`+
-    (q.steps?`<ol class="dlg-steps">${q.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol>`:'');
+    (q.steps?`<ol class="dlg-steps">${q.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol>`:'')+
+    (q.list?`<ul class="dlg-list">${q.list.map(line=>`<li>${esc(line)}</li>`).join('')}</ul>`:'');
   dlg.classList.toggle('narrow',!q.steps&&!q.wide); // numbered steps and long messages get the standard width
   more.hidden=!q.extra;
   more.innerHTML=q.extra?(q.extra.icon?icon(q.extra.icon):'')+esc(q.extra.label):'';
@@ -87,7 +89,13 @@ function openQuick(q){
   quickYes=null;
   quickExtra=q.extra?q.extra.run:null;
   if(!dlg.open)dlg.showModal();
-  (q.danger?no:ok).focus(); // Enter agrees, except when agreeing destroys something: then Enter cancels
+  const first=q.danger?no:ok;
+  first.focus(); // Enter agrees, except when agreeing destroys something: then Enter cancels
+  // A question that opens while a mouse button goes down (a click in the 3D view) loses the keyboard again when
+  // the browser finishes that click, so the button is given the keyboard once more right after it.
+  setTimeout(()=>{
+    if(dlg.open&&dlg.querySelector('#quickTitle').textContent===q.title&&!dlg.contains(document.activeElement))first.focus();
+  },0);
 }
 
 function askConfirm(message,options,onYes){
@@ -95,7 +103,7 @@ function askConfirm(message,options,onYes){
   options=options||{};
   if(autoConfirm){onYes();return;}
   openQuick({title:options.title||'Please confirm',text:message,okLabel:options.action||'OK',danger:!!options.danger,withCancel:true,
-    cancelLabel:options.cancel,wide:options.wide});
+    cancelLabel:options.cancel,list:options.list,wide:options.wide});
   quickYes=onYes;
 }
 

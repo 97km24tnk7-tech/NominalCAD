@@ -87,7 +87,7 @@ const PRESETS=[
    // options, off to start with (the owner: a plywood slab for a door "seems silly", they "should just be openings").
    {head:'Door opening'},
    {k:'dwall',label:'Door is on the',opts:[['front','Front wall'],['back','Back wall'],['left','Left wall'],['right','Right wall']],v:'front'},
-   num('dw','Door width',36,24,72),num('dh','Door height',72,60,80),num('doff','Door from the left corner, seen from outside (0 = centered)',0,0,180),
+   num('dw','Door width',36,24,72),num('dh','Door height',72,60,80),num('doff','Door from the left corner (seen from outside; 0 = centered)',0,0,180),
    {k:'door',label:'Add a plywood door (off: the opening is left open)',check:1,v:false},
    {head:'Window openings'},
    {k:'wn',label:'How many windows',v:1,int:1,min:0,max:8},
@@ -108,7 +108,7 @@ const PRESETS=[
  {name:'Bird feeder',spec:'Tray with a pitched roof',desc:'Platform feeder with a pitched roof. A good first project from fence pickets or 1x boards.',
   params:[num('L','Length',12,...FEEDER_LIMITS.L)],
   build:buildFeeder,steps:feederSteps,notes:feederNotes,uses:FEEDER_USES,
-  hw:()=>[['Screw eyes',2],['Chain or rope, feet',4]],look:OUTDOOR_CEDAR,joints:FEEDER_JOINTS},
+  hw:()=>[['Screw eyes',2],['Chain or rope, feet',4],[FEEDER_ROOF_SCREW,FEEDER_ROOF_SCREWS]],look:OUTDOOR_CEDAR,joints:FEEDER_JOINTS},
  {name:'Bookshelf',spec:'Fixed shelves, thin back',desc:'Sides, fixed shelves, toe kick and a thin plywood back. Wide ones get upright dividers so the shelves cannot sag.',
   params:[num('W','Width',32,...BOOKSHELF_LIMITS.W),num('H','Height',48,...BOOKSHELF_LIMITS.H),
    {k:'board',label:'Shelf depth',opts:[['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x10'},
@@ -192,7 +192,7 @@ function tableSteps(plan){
       ' Glue each joint and drive two pocket screws through each end of the apron into the leg. Drill the pocket holes on the inside face, where they will not show. Then check each corner with a square.',
     add:['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[])});
   steps.push({
-    t:'Stand the end frames up and join them with the two long aprons, flush with the top of the legs.'+
+    t:'Stand the end frames up and join them with the two long aprons, flush with the top of the legs and with their outside faces.'+
       (shelf?` Add the long stretchers with their undersides ${low} up from the floor.`:'')+
       ' Glue these joints and fasten them with two pocket screws at each end, the same way. Measure corner to corner both ways: the frame is square when the two measurements match.',
     add:['Long apron'].concat(shelf?['Long stretcher']:[])});
@@ -208,8 +208,13 @@ function tableSteps(plan){
       add:['Cross rail']});
   }
   if(shelf&&shelf.rails.length){
+    // where the middle of each rail between the two end ones goes, measured along a stretcher from the outside
+    // face of one end frame, so the builder has numbers to mark and not only "spaced evenly"
+    const inner=shelf.rails.slice(1,-1).map(x=>fmt(r16(x-plan.over+plan.railT/2)));
+    const middleWords=!inner.length?'':inner.length===1?`, and the one between them with its middle ${inner[0]} from the outside face of either end frame`
+      :`, and the ${inner.length} between them with their middles ${inner.slice(0,-1).join(', ')} and ${inner[inner.length-1]} from the outside face of one end frame (mark those places on both stretchers first)`;
     steps.push({
-      t:`Fasten the ${shelf.rails.length} shelf rails between the long stretchers, on edge and flush with their top edges: one tight against the legs at each end and the rest spaced evenly between them. Drive two screws through each stretcher into each end of a rail, and two through each of the two end rails into each leg it lies against.`,
+      t:`Fasten the ${shelf.rails.length} shelf rails between the long stretchers, on edge and flush with their top edges: one tight against the legs at each end${middleWords}. Drive two screws through each stretcher into each end of a rail, and two through each of the two end rails into each leg it lies against.`,
       add:['Shelf rail']});
   }
   if(shelf&&shelf.slats){
@@ -221,11 +226,11 @@ function tableSteps(plan){
   const rails=plan.railCount?(plan.railCount===1?' and the cross rail':' and each cross rail'):'';
   if(plan.planks){
     steps.push({
-      t:`Lay the ${seat?'seat':'top'} boards on the frame, best face up and tight together, overhanging ${fmt(plan.over)} past the legs on every side. Screw down through each board with the screws listed below: two into each short apron${rails} it crosses, two into the top of a leg where the board lies over one, and one about every 8" along the long apron under each of the two outer boards. Drill pilot holes, and set the screw heads just below the surface.`,
+      t:`Lay the ${seat?'seat':'top'} boards on the frame, best face up and tight together, overhanging ${fmt(plan.over)} past the legs on every side. Screw down through each board with the screws listed below: into each short apron${rails} it crosses and into the top of a leg where the board lies over one (two screws where the board covers ${fmt(TWO_SCREWS_FROM)} or more of the piece under it, one where it covers less, so the wood does not split), and one about every 8" along the long apron under each of the two outer boards. Drill pilot holes, and set the screw heads just below the surface.`,
       add:[plan.topName]});
   }else{
     steps.push({
-      t:`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${plan.railCount?' and the cross rails':''}, and two into the top of each leg. Set the screw heads just below the surface.`,
+      t:`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${plan.railCount?' and the cross rails':''}, and ${plan.leg>=TWO_SCREWS_FROM?'two':'one'} into the top of each leg. Set the screw heads just below the surface.`,
       add:['Top']});
   }
   steps.push(FIN);
@@ -283,6 +288,8 @@ const STEPS={
         starts with, so build(p) and check(p) must also pass such a field over when it does not apply.
       - build(p) returns the pieces, each made with mk(name, material, [width, height, depth], [x, y, z]).
       - steps(p) returns [{t:'what to do', add:['names of the pieces this step adds']}]. Older presets keep their steps in STEPS, keyed by name.
+        A step may also carry fasten:[...] (lines for joints the program cannot see) and hardware:['slide'] (the kinds of placed
+        hardware it mounts). The pieces, fasteners and tools under a step are worked out from the model: js/buildsteps.js.
       - THE PRESET RULE (README.md): a preset must pass the structural check in js/verify.js. Tell the check what the
         load-carrying pieces are for with uses:{'Shelf':'books'} (piece name: a key of USES in js/verify.js), which
         pieces are screwed to the wall with wall:['Wall cleat'], give every number a smallest and largest size, and

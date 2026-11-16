@@ -49,7 +49,7 @@ const countOf=(count,word)=>count+' '+word+(count===1?'':'s');
 /* the step-by-step list without the names of pieces this build does not have (a bookshelf with no shelves) */
 function stepsForPieces(steps,parts){
   const built=new Set(parts.map(piece=>piece.name));
-  return steps.map(step=>({t:step.t,add:step.add.filter(name=>built.has(name))}));
+  return steps.map(step=>({...step,add:step.add.filter(name=>built.has(name))}));   // (pick, bring, hardware and fasten stay on the step)
 }
 const STORAGE_CUT_STEP={t:'Cut every piece on the cut list and pencil its letter on it. Measure twice, cut once, and cut the longest pieces first.',add:[]};
 /* Boards that meet an upright from both sides at the same height: the first board covers the spot where a straight
@@ -259,11 +259,16 @@ function bookshelfSteps(p){
   const steps=[STORAGE_CUT_STEP,
     {t:`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: bottom board 3 1/2"${heights.length?', shelves '+heights.join(', '):''}.`+openings+
       (div?` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the top sits on ${div>1?'them':'it'}.`:''),add:['Side','Divider']},
-    {t:`Fasten the ${div?'bottom boards':'bottom board'}${heights.length?' and the shelves':''} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the marks, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
-      (div?' '+secondSideOfUpright('divider'):''),add:['Bottom','Shelf']},
-    {t:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`,add:['Top']},
+    // The order is the order a drill can follow: the bottom board, then the toe kick and base rail under it (their
+    // screws go down through the bottom board, and with the first shelf in place the drill no longer fits above
+    // it), then the shelves, then the top.
+    {t:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
+      (div?' '+secondSideOfUpright('divider'):''),add:['Bottom']},
     {t:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Glue them, drive two screws through each ${div?'upright':'side'} into each of their ends, and screw down through the bottom board into them about every 8".`+
-      (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`,add:['Toe kick','Base rail']}];
+      (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':''),add:['Toe kick','Base rail']},
+    ...(heights.length?[{t:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pilot holes, glue, and two screws through the ${div?'upright':'side'} into each end of a shelf.`+
+      (div?' '+secondSideOfUpright('divider'):''),add:['Shelf']}]:[]),
+    {t:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`,add:['Top']}];
   if(s.backRail){
     steps.push({t:`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, drive two screws through each ${div?'upright':'side'} into each of its ends, and screw down through the top into it about every 8".`+
       (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+
@@ -376,6 +381,11 @@ function garageWallHow(s){
   return`Find the wall studs with a stud finder. Set ${s.wallBraces} corner braces (4" L-brackets) on top of the top shelf against the wall, each at a stud${s.W<34?' (slide the unit sideways until it crosses two studs; they are usually 16" apart)':', spread along the unit'}. `+
     'Screw the half of each brace that lies on the shelf down through the plywood into the back rail with 1 5/8" screws. The rail starts 1 1/2" from the wall, so use the holes that are over it. Screw the half that stands against the wall into the stud with 3" screws.';
 }
+/* the posts along the back of the unit (z runs from the back, 0, to the front): they go on first, with the unit lying on its front */
+function garageBackPost(piece,parts){
+  const depths=parts.filter(p=>p.name==='Post').map(p=>p.pos[2]);
+  return piece.pos[2]<(Math.min(...depths)+Math.max(...depths))/2;
+}
 function garageSteps(p){
   const s=garagePlan(p),heights=s.levels.map(fmt),middle=s.postX.length-2;
   const steps=[STORAGE_CUT_STEP,
@@ -384,8 +394,8 @@ function garageSteps(p){
       (s.crossX.length?'. Drive two 3" screws through each rail into each end of a cross piece':'')+
       `. Then lay an end rail across each end of the frame and drive two 3" screws through it into the end of each rail. The end rail is 3" longer than the frame is deep: let it stick out 1 1/2" past the rail at the front and at the back. Those two notches are where the posts go.`,add:['Rail','Cross piece','End rail']},
     {t:`Screw a plywood deck onto ${s.shelves>2?'every frame except one':'one of the two frames'}, with a 1 1/4" screw about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}. Its long edges sit flush with the outside faces of the rails and its ends flush with the end rails, so the notches for the posts stay open. The frame left bare is the top one: its deck is bigger and goes on last.`,add:['Shelf deck']},
-    {t:`Lay all ${countOf(2*s.postX.length,'post')} side by side with their bottom ends lined up and mark the underside of each shelf frame across them, measured from the bottom end: ${heights.join(', ')}. The bare top frame goes at the last mark, which puts its top flush with the top ends of the posts. Get a helper, or cut scrap blocks to hold the spacing. Stand the shelf frames on their front edges on the floor, lay the ${countOf(s.postX.length,'back post')} on top of them at the marks, each corner post tight in its notch${middle?', the middle post'+(middle>1?'s spaced evenly':' centered')+' on the rail':''}, and drive two 2 1/2" screws down through each post into the back rail of every frame. (A 3" screw would come out the far side.)${middle?' Where a middle post covers the screws that hold a cross piece, keep its screws clear of them.':''} Then, at every frame, drive two 3" screws through the end rail into the edge of the corner post. These screws are what holds every shelf up, so do not leave any out.`,add:['Post']},
-    {t:'Turn the unit over so it lies on the posts you just fastened, and fasten the front posts the same way. Stand it up. The end rails are what stop it from leaning front to back, so do not leave out their screws into the posts.',add:[]},
+    {t:`Lay all ${countOf(2*s.postX.length,'post')} side by side with their bottom ends lined up and mark the underside of each shelf frame across them, measured from the bottom end: ${heights.join(', ')}. The bare top frame goes at the last mark, which puts its top flush with the top ends of the posts. Get a helper, or cut scrap blocks to hold the spacing. Stand the shelf frames on their front edges on the floor, lay the ${countOf(s.postX.length,'back post')} on top of them at the marks, each corner post tight in its notch${middle?', the middle post'+(middle>1?'s spaced evenly':' centered')+' on the rail':''}, and drive two 2 1/2" screws down through each post into the back rail of every frame. (A 3" screw would come out the far side.)${middle?' Where a middle post covers the screws that hold a cross piece, keep its screws clear of them.':''} Then, at every frame, drive two 3" screws through the end rail into the edge of the corner post. These screws are what holds every shelf up, so do not leave any out.`,add:['Post'],pick:garageBackPost},
+    {t:`Turn the unit over so it lies on the posts you just fastened. Lay the ${countOf(s.postX.length,'front post')} on at the marks and fasten ${s.postX.length>1?'them':'it'} the same way: two 2 1/2" screws down through each post into the front rail of every frame, then two 3" screws through each end rail into the edge of the corner post. Stand the unit up. The end rails are what stop it from leaning front to back, so do not leave out their screws into the posts.`,add:['Post']},
     {t:`Lay the top deck on. It is the full size of the unit, so it covers the top ends of the posts and sits flush with the outside of the unit all the way round. Screw it down with 1 1/4" screws, about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}, and two into the top end of each post.`,add:['Top deck']},
     STORAGE_FINISH_STEP,
     {t:s.anchored?'Stand it against the wall. This unit is tall for its depth, so it must be held to the wall before it is loaded. '+garageWallHow(s)+' Keep the heaviest things on the bottom shelf.'
@@ -465,10 +475,12 @@ function cabinetSteps(p){
     {t:'Lay the cabinet face down. Measure corner to corner both ways and nudge the cabinet until the two measurements match, then glue and nail the back panel on, with a nail about every 6" into every edge it lies against. The back keeps the cabinet square.',add:['Back panel']},
     {t:'Set the countertop on so it overhangs 1/2" on each side and 1" at the front. Screw up through the two top rails into it with 1 1/4" screws, about every 8": they hold without coming through the top.',add:['Countertop']},
     STORAGE_FINISH_STEP,   // before the doors: a door is finished lying flat, and no hinge or pull gets finish on it
-    {t:(s.doors===1?'Hang the door, on whichever side suits the room, on two full overlay hinges. ':'Hang the two doors, one hinged on each side of the cabinet, on two full overlay hinges each. ')+
-      'Buy the kind that simply screws on; the kind with a round cup needs a large hole drilled in the door, which its own instruction sheet explains. '+
-      'Lay a door face down and screw the hinges to its back along the hinged side, one 3" below the top edge and one 3" above the bottom edge. '+
-      'Hold the door against the front of the cabinet with its top edge 1/4" below the countertop and its hinged side 1/8" in from the outside of the cabinet side, and screw the hinges to the inside of that side. '+
+    // The hinges are the concealed cup hinges the program places and lists (hangDoor, js/hanging.js): the sentence
+    // names that kind, and puts them where hingeInset puts them, so the words agree with the lines under them.
+    {t:(s.doors===1?'Hang the door, on whichever side suits the room, on two concealed cup hinges (full overlay). ':'Hang the two doors, one hinged on each side of the cabinet, on two concealed cup hinges (full overlay) each. ')+
+      CUP_HINGE_HOLE+
+      `Lay a door face down, drill the two cup holes along the hinged side, one ${fmt(hingeInset(s.H-4))} below the top edge and one ${fmt(hingeInset(s.H-4))} above the bottom edge, and screw a hinge into each. `+
+      'Hold the door against the front of the cabinet with its top edge 1/4" below the countertop and its hinged side 1/8" in from the outside of the cabinet side, and screw the plates of the hinges to the inside of that side. Turn the adjusting screws until the gaps are even. '+
       (s.doors===1?'':'Hang the second door the same way: the two meet in the middle with a gap of 1/8". ')+
       `Screw a magnetic catch under the front top rail where the free side of ${s.doors===1?'the door':'each door'} closes, and its metal plate to the back of the door. Then drill for the ${s.doors===1?'pull':'pulls'} and screw ${s.doors===1?'it':'them'} on.`,add:['Door']},
     {t:`Set the cabinet against the wall, find the wall studs with a stud finder, and drive two 3" screws through the back rail into every stud it crosses (at least one)${s.W<32?'. Studs are usually 16" apart, so slide a narrow cabinet sideways until its rail crosses one':''}. If a baseboard holds the cabinet off the wall, put a scrap of wood that thick behind the rail at each screw. Do this before you load it: with the doors open an empty cabinet is front-heavy.`,add:[]}];

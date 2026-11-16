@@ -40,9 +40,16 @@ const FRAMING={
 /* how plywood is nailed, in words (the Shed's steps use the same sentence) */
 const framingSheetWords=()=>`${FRAMING.SHEET_WORDS} through the plywood, every ${FRAMING.SHEET_EDGE}" along the edges of each sheet and every ${FRAMING.SHEET_FIELD}" in between`;
 
-/* The fastener for one joint of type 'frame' or 'toenail': { text, hw:[[item, count]], n, glue, bySpacing }.
+/* The fastener for one joint of type 'frame' or 'toenail': { text, hw:[[item, count]], n, glue, bySpacing, drive }.
    j is a joint from findJoints (js/joints.js). bySpacing is true when the text gives a spacing, not a count
-   for the joint (the steps then leave out "at each joint"). */
+   for the joint (the steps then leave out "at each joint").
+   drive says how the fasteners go in, for the drawing (fastenerLayout in js/fasteners.js) and for any text that
+   names the two pieces: { how, through, into }. through is the piece the nail enters first, into the piece that
+   receives its point, and how is one of
+     'straight'  a nail straight through the first piece into the second
+     'sheet'     a nail through the plywood into the framing behind it
+     'plate'     a long screw down through a board and the plywood under it, into the framing under the plywood
+     'toe'       a nail at an angle through the side of the first piece into the second */
 function framingSpec(j,type){
   const isSheet=p=>M[p.mat].kind==='sheet',lower=p=>p.name.toLowerCase();
   // the two pieces in words: "the stud" and "the top plate", or "one stud" and "the other" when both have the same name
@@ -59,11 +66,11 @@ function framingSpec(j,type){
     const boardOnSheet=sheetA!==sheetB&&j.k===1&&sheetFace==='face'&&boardFace==='face'&&Math.abs(sheetTop-j.plane)<.03&&board.t<=FRAMING.THROUGH_MAX;
     if(boardOnSheet){
       const n=count(FRAMING.PLATE_SCREW_EVERY);
-      return{n,glue:false,hw:[[FRAMING.LONG_SCREW,n]],bySpacing:true,
+      return{n,glue:false,hw:[[FRAMING.LONG_SCREW,n]],bySpacing:true,drive:{how:'plate',through:board,into:sheet},
         text:`${FRAMING.LONG_SCREW} about every ${FRAMING.PLATE_SCREW_EVERY}", down through the ${lower(board)} and the ${lower(sheet)} into the framing under it`};
     }
     const n=count(FRAMING.SHEET_COUNT_EVERY);
-    return{n,glue:false,hw:[[FRAMING.SHEET_NAIL,n]],text:framingSheetWords(),bySpacing:true};
+    return{n,glue:false,hw:[[FRAMING.SHEET_NAIL,n]],text:framingSheetWords(),bySpacing:true,drive:{how:'sheet',through:sheet,into:board}};
   }
 
   // Two boards: through the one that shows its face, unless the joint is to be toenailed. Of two boards lying
@@ -84,21 +91,21 @@ function framingSpec(j,type){
     if(secondFace==='end'){
       // into the end of a stud or a joist: three nails for a 2x4 or a 2x6, more for a deeper board
       const n=Math.max(3,Math.round(long/1.85));
-      return{n,glue:false,hw:[[FRAMING.NAIL,n]],text:`${n} × ${FRAMING.NAIL_WORDS} through ${one} into the end of ${two}`};
+      return{n,glue:false,drive:{how:'straight',through:first,into:second},hw:[[FRAMING.NAIL,n]],text:`${n} × ${FRAMING.NAIL_WORDS} through ${one} into the end of ${two}`};
     }
     const n=count(FRAMING.FACE_EVERY);
-    return{n,glue:false,hw:[[FRAMING.NAIL,n]],...spaced(n,`through ${one} into ${two}`,FRAMING.FACE_EVERY)};
+    return{n,glue:false,drive:{how:'straight',through:first,into:second},hw:[[FRAMING.NAIL,n]],...spaced(n,`through ${one} into ${two}`,FRAMING.FACE_EVERY)};
   }
   // Toenailed: the piece that meets the other with its end, or else the one on top, is nailed at an angle
   // through its side into the other.
   const toed=j.fa==='end'&&j.fb!=='end'?j.a:j.fb==='end'&&j.fa!=='end'?j.b:j.k===1?(aOnTop?j.a:j.b):j.a;
   const other=toed===j.a?j.b:j.a,n=count(FRAMING.TOE_EVERY),[one,two]=both(toed,other);
-  return{n,glue:false,hw:[[FRAMING.NAIL,n]],...spaced(n,`driven at an angle through the side of ${one} into ${two}`,FRAMING.TOE_EVERY,', from both sides in turn')};
+  return{n,glue:false,drive:{how:'toe',through:toed,into:other},hw:[[FRAMING.NAIL,n]],...spaced(n,`driven at an angle through the side of ${one} into ${two}`,FRAMING.TOE_EVERY,', from both sides in turn')};
 }
 
 /* ---------- self-check (selfTest runs every function in SELFTESTS, see js/core.js) ---------- */
 SELFTESTS.push(function framingNails(problems){
-  const joint=(a,b)=>jointBetween(jointBox(Object.assign(a,{id:1})),jointBox(Object.assign(b,{id:2})));
+  const joint=(a,b)=>jointOfPair(jointBox(Object.assign(a,{id:1})),jointBox(Object.assign(b,{id:2})));
   const spec=(a,b,type)=>jSpec(joint(a,b),type||'frame');
   // a wall plate on a floor deck: never a fastener that ends in the plywood or is driven up from under the floor
   const plate=spec(mk('Bottom plate','2x4',[48,1.5,3.5],[0,.75,0]),mk('Floor deck','ply34',[48,.75,48],[0,0,0]));

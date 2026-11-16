@@ -96,3 +96,15 @@ function toast(msg){
    and selfTest() (js/selftest.js) runs them all after its own checks, with a design on screen, no dialogs shown
    (autoConfirm is on) and the person's design put back afterwards. Keep each one quick and leave no mess. */
 const SELFTESTS=[];
+
+/* Places where a feature file joins in without the core files having to know about it.
+     ON_LOAD.push(fn)     fn() runs right after a project has been read (open, paste, undo, redo), before anything
+                          is drawn. Bring old projects up to date here (missing fields, old field names).
+     ON_COMMIT.push(fn)   fn() runs at the start of commit(), before the undo snapshot is taken. Bookkeeping that
+                          belongs to the same undo step as the change goes here (js/connections.js keeps the list
+                          of what is fastened to what this way).
+     ON_LEVEL.push(fn)    fn(level) runs when the page is set to 'beginner' or 'expert' (js/level.js), and once at
+                          start-up. A feature whose switch is hidden in Beginner puts that switch in its safe
+                          position here (Auto-fasten on, Pick: Piece).
+   The lists run in the order the files were loaded. Keep every function fast: commit() runs after every edit. */
+const ON_LOAD=[],ON_COMMIT=[],ON_LEVEL=[];

@@ -160,7 +160,13 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 .projname input{width:150px;font-weight:600;color:var(--n900)}
 
 /* ---------- 6. Ribbon ---------- */
-.ribbon{grid-row:2;display:flex;align-items:stretch;background:var(--n50);border-bottom:1px solid var(--n300);padding-left:2px;white-space:nowrap;overflow:hidden}
+/* The ribbon never cuts a command off. Section 13 makes it more compact in two steps as the window gets narrower;
+   in a window narrower than its most compact form it scrolls sideways inside its own strip (no scrollbar: the
+   mouse wheel turns it, js/app.js) and its right edge fades out while more is off screen (class "more"). The
+   fade is a strip of its own that stays at the edge; it takes no room and lets clicks through. */
+.ribbon{grid-row:2;display:flex;align-items:stretch;background:var(--n50);border-bottom:1px solid var(--n300);padding-left:2px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.ribbon::-webkit-scrollbar{display:none}
+.ribbon.more::after{content:"";flex:none;position:sticky;right:0;width:40px;margin-left:-40px;background:linear-gradient(90deg,rgba(246,247,249,0),var(--n50) 80%);pointer-events:none}
 .grp{display:flex;flex-direction:column;padding:2px 6px 0;position:relative;flex:none}
 .grp + .grp{border-left:1px solid var(--n200)}
 .grp-b{height:66px;display:flex;gap:2px;align-items:stretch}
@@ -191,6 +197,10 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 .stack.add{grid-template-columns:136px auto;grid-auto-flow:row}
 .stack.add .btn{justify-content:flex-start}
 .stack.add .span{grid-column:1/3;justify-self:start}
+.stack.add .sb{justify-self:start}
+.sb .short{display:none}              /* a shorter label for a narrow window (section 13) */
+.sb.pd-btn svg.xs{margin-left:-2px;color:var(--n600)}
+.pd.open>.sb{background:var(--n200);border-color:var(--n300)}
 
 /* ---------- 7. Pulldowns and menus ---------- */
 /* A pulldown is  <div class="pd"><button class="pd-btn">…</button><div class="menu">…</div></div>  anywhere on the page.
@@ -206,6 +216,7 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 .mi:disabled{color:var(--n400);background:none}
 .mi:disabled svg,.mi:disabled kbd{color:var(--n400)}
 .msep{height:1px;background:var(--n200);margin:4px 0}
+.mhead{padding:2px 12px 2px 32px;font-size:var(--fs-s);font-weight:600;color:var(--n600)} /* a heading inside a long menu (the Hardware pulldown) */
 .pop{min-width:252px;padding:8px 0 4px}
 .pop-row{display:grid;grid-template-columns:44px 1fr;align-items:center;height:var(--h);margin:0 12px 6px 10px}
 .pop-row label{color:var(--n600)}
@@ -224,6 +235,9 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 #viewLabels{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .vlabel{position:absolute;left:0;top:0;height:18px;padding:0 5px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;font-size:var(--fs-s);line-height:16px;font-weight:600;color:var(--blue-d);white-space:nowrap;font-variant-numeric:tabular-nums}
 .vlabel.name{font-weight:400;color:var(--n800)}
+/* the small tip beside the pointer when it is on a fastener, a piece of hardware or a handle (js/viewpick.js) */
+.vtip{position:absolute;left:0;top:0;z-index:var(--z-panel);max-width:300px;padding:3px 7px;border:1px solid var(--n500);border-radius:var(--r);background:#fff;color:var(--n900);font-size:var(--fs-s);line-height:15px;pointer-events:none}
+.vtip[hidden]{display:none}
 #legend{position:absolute;left:8px;bottom:84px;display:grid;grid-template-columns:10px auto;gap:3px 6px;align-items:center;max-width:220px;padding:6px 8px;background:rgba(255,255,255,.94);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:var(--lh-s);pointer-events:none}
 #legend i{width:10px;height:10px;border:1px solid rgba(0,0,0,.35)}
 #legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -243,7 +257,7 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 
 /* ---------- 9. Floating panels (Pieces, Properties) ---------- */
 aside.float{position:absolute;z-index:var(--z-panel);display:flex;flex-direction:column;max-height:calc(100% - 16px);background:var(--n50);border:1px solid var(--n400);border-radius:var(--r-float);box-shadow:var(--shadow-panel)}
-#left{left:8px;top:8px;width:264px;max-height:calc(100% - 92px)} /* leaves the axis symbol in the corner clear */
+#left{left:8px;top:8px;width:288px;max-height:calc(100% - 92px)} /* leaves the axis symbol in the corner clear */
 #right{right:8px;top:8px;width:272px}
 aside.float.off{display:none}
 aside.float.min .fb{display:none}
@@ -256,21 +270,42 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 /* caption: list headers and the headings of field groups, in panels, dialogs and Help. One style everywhere:
    small, semibold, sentence case (never capitals or spaced-out letters). */
 .phead,.sec{font-size:var(--fs-s);font-weight:600;color:var(--n600)}
-/* Pieces: a tight three-column list (name, cut from, length). The body of the panel scrolls and the column
-   headings stick to its top, so headings and rows are one width and line up, with or without a scroll bar. */
+/* Pieces: a tree (js/piecetree.js). Components are rows that open and close; pieces are the leaves, in four tight
+   columns (name, cut from, length, eye). 20px rows with a 1px line between them. A row is pushed in by its depth
+   (--d, set on the row): a piece lines up under the name of the component it is in. The body of the panel scrolls
+   and the column headings stick to its top, so headings and rows are one width, with or without a scroll bar. */
 #left .fb{background:#fff;border-radius:0 0 2px 2px}
-.phead,.plist li{display:grid;grid-template-columns:minmax(0,1fr) 84px 54px;column-gap:6px;align-items:center;padding:0 8px 0 10px}
+.phead,.plist li{display:grid;grid-template-columns:minmax(0,1fr) 84px 50px 18px;column-gap:6px;align-items:center;padding:0 4px 0 10px}
 .phead{position:sticky;top:0;z-index:1;height:20px;background:var(--n50);border-bottom:1px solid var(--n200)}
 .plist{list-style:none;margin:0;padding:0}
-.plist li{height:var(--row-h)}
+.plist li{height:var(--h-s);padding-left:calc(10px + var(--d,0)*14px);border-bottom:1px solid var(--n100)}
 .plist li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plist li span + span{color:var(--n600)}
 .plist li:hover{background:var(--n100)}
 .plist li.on{background:var(--blue-50);box-shadow:inset 2px 0 0 var(--blue)}
 .plist li.on span{color:var(--n900)}
 .plist li.hid span{color:var(--n400)}
-.plist li.note{display:block;height:auto;padding:8px 10px;margin:0}
+.plist li.note{display:block;height:auto;padding:8px 10px;margin:0;border:0}
 .plist li.note:hover{background:none}
+/* a component row: chevron, name, piece count, eye */
+.plist li.comp{grid-template-columns:14px minmax(0,1fr) auto 18px;column-gap:4px;padding-left:calc(6px + var(--d,0)*14px);background:var(--n50);border-bottom-color:var(--n200)}
+.plist li.comp:hover{background:var(--n100)}
+.plist li.comp .nm{font-weight:600;color:var(--n800)}
+.plist li.comp.on{background:var(--blue-50)}
+.plist li.comp.part{box-shadow:inset 2px 0 0 var(--blue-300)} /* some of its pieces are selected */
+.plist li.comp .num{padding-right:2px}
+.plist li .fld{height:18px;padding:0 4px}
+/* a piece of hardware, listed under the piece it is mounted on (js/hardwaretool.js) */
+.plist li.hw{grid-template-columns:minmax(0,1fr) auto 0 0;cursor:default}
+.plist li.hw span:first-child{display:flex;align-items:center;gap:4px;color:var(--n600)}
+.plist li.hw.on span{color:var(--n900)}
+.plist .tw,.plist .eye{display:inline-flex;align-items:center;justify-content:center;width:14px;height:18px;padding:0;border:0;border-radius:var(--r);background:none;color:var(--n600)}
+.plist .eye{width:18px;visibility:hidden}
+.plist li:hover .eye,.plist li.hid .eye,.plist .eye:focus-visible{visibility:visible}
+.plist .tw:hover,.plist .eye:hover{background:var(--n200);color:var(--n900)}
+.plist .tw:focus-visible,.plist .eye:focus-visible{outline:2px solid var(--blue-300);outline-offset:-1px}
+.plist .tw svg{transition:transform .08s}
+.plist li.open>.tw svg{transform:rotate(90deg)}
 /* Properties: label-left rows, then groups of three fields with the label above */
 #props{padding:8px 8px 10px}
 .frow{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;min-height:var(--h);margin-bottom:4px}
@@ -281,6 +316,11 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .sec .btn{order:1;font-size:var(--fs);font-weight:400;color:var(--n800)}
 .f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px 6px}
 .f3.two{grid-template-columns:1fr 2fr}
+.f3.even{grid-template-columns:1fr 1fr}
+/* a slider with its value written beside it (how far a door is open, js/motion.js) */
+.rng{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;gap:6px}
+.rng input{width:100%;margin:0;accent-color:var(--blue)}
+.rng b{text-align:right;font-variant-numeric:tabular-nums}
 .f3 label{font-size:var(--fs-s);line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .note{font-size:var(--fs-s);line-height:15px;color:var(--n600);margin:4px 0}
 .note b{color:var(--n800)}
@@ -328,6 +368,8 @@ dialog.dlg:focus{outline:0}
 .dlg-steps{margin:0;padding-left:22px}   /* numbered steps in a notice: a real list, so a long step wraps under its own words */
 .dlg-steps li{padding-left:2px}
 .dlg-steps li + li{margin-top:6px}
+.dlg-list{margin:0;padding:6px 8px 6px 24px;max-height:176px;overflow:auto;border:1px solid var(--n200);border-radius:var(--r);background:var(--n50)} /* what a question is about, line by line (askConfirm, options.list) */
+.dlg-list li + li{margin-top:2px}
 .dlg .frow{grid-template-columns:120px minmax(0,1fr)}
 .err,.dlg-f .grow.err{color:var(--danger)}
 textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font:12px/18px ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre}
@@ -477,19 +519,64 @@ svg.sheet{display:block;width:100%;max-width:440px;border:1px solid var(--n800)}
 svg.sheet rect{fill:#fff;stroke:var(--n800);stroke-width:.25}
 svg.sheet text{fill:var(--n900);font-family:var(--font)}
 
-/* a step: boxed number, what to do and what it takes, and its picture on the right */
-.step{display:grid;grid-template-columns:30px minmax(0,1fr) 250px;gap:0 14px;padding:14px 0;border-top:1px solid var(--n300)}
+/* a step: boxed number, what to do and what it takes, its picture on the right, and its close-ups under both */
+.step{display:grid;grid-template-columns:30px minmax(0,1fr) 310px;gap:0 14px;padding:14px 0;border-top:1px solid var(--n300)}
 .step.nopic{grid-template-columns:30px minmax(0,1fr)}
 .step .no{width:30px;height:30px;display:grid;place-items:center;border:1.5px solid var(--n900);font-size:15px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums}
 .step p{margin:5px 0 8px}
-.need{margin:0 0 6px;font-size:var(--fs);line-height:18px}
+.step figure{margin:0}
+.step .step-pic{margin-top:4px}
+.step figcaption{margin-top:3px;font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+/* a picture of a document page opens at full size on a click (showPictureLarge, js/plans.js) */
+.doc .step img,.doc .views img,.doc img.wide,.doc #shot{cursor:zoom-in}
+#picZoom{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(20,24,29,.82);cursor:zoom-out}
+#picZoom[hidden]{display:none}
+#picZoom figure{margin:0;max-width:94vw}
+#picZoom img{display:block;max-width:94vw;max-height:86vh;background:#fff;border:1px solid var(--n400)}
+#picZoom figcaption{margin-top:6px;color:#fff;font-size:var(--fs);line-height:17px}
+/* the preset's own words for a step that was written again after an edit */
+.step .was{padding-left:8px;border-left:2px solid var(--n300);font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+.need{margin:0 0 8px;font-size:var(--fs);line-height:18px}
 .need h4{margin:0;font-size:var(--fs-s);line-height:16px;font-weight:600;color:var(--n600)}
 .need ul{margin:0;padding:0;list-style:none}
 .need li{margin:0}
-/* the pieces of a step in three columns: how many, the letter, the name. The same space on both sides of the letter. */
-.need.pieces ul{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);column-gap:6px;align-items:baseline}
-.need.pieces li{display:contents}
-.need .qty{text-align:right;font-variant-numeric:tabular-nums}
+/* You need: Pieces, Fasteners and Tools, each on a row of its own */
+.need.you dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:1px 8px;margin:0}
+.need.you dt{color:var(--n600)}
+.need.you dd{margin:0}
+.need .pc{display:inline-block;margin-right:12px;white-space:nowrap}
+.need .pc .key{margin:0 4px 0 1px}
+/* a numbered line: the number in a circle is the balloon of the same number in the picture */
+.bal{display:inline-grid;place-items:center;width:18px;height:18px;border:1.5px solid var(--n900);border-radius:50%;background:#fff;font-size:11px;line-height:1;font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+.bal.none{visibility:hidden}
+.need.fasten li,.closeups figcaption{display:grid;grid-template-columns:18px minmax(0,1fr);gap:0 7px;align-items:start}
+.need.fasten li,.need.hw li{margin-bottom:5px}
+.closeups{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-top:6px}
+
+/* ---------- 12a. Build step by step (js/stepmode.js) ----------
+   the words of one step, down the right side of the 3D view. Properties, which is at home in that corner, moves
+   over beside it while the mode is on (unless the person has dragged it somewhere). */
+#stepPanel{position:absolute;right:8px;top:8px;z-index:var(--z-panel);width:340px;max-height:calc(100% - 16px);display:flex;flex-direction:column;background:var(--n50);border:1px solid var(--n400);border-radius:var(--r-float);box-shadow:var(--shadow-panel)}
+body[data-stepmode] #right{right:356px}
+#stepPanel[hidden]{display:none}
+#stepPanel .fh{cursor:default}
+#stepPanel .fh .sub{color:var(--n600);font-variant-numeric:tabular-nums}
+#stepPanel .fh-btns{margin-left:auto}
+.stp-b{min-height:0;overflow:auto;padding:6px 10px 2px;background:#fff;font-size:var(--fs);line-height:17px;color:var(--n900)}
+.stp-b p{margin:0 0 6px}
+.stp-b .was,.stp-b .hint{font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+.stp-b .was{padding-left:8px;border-left:2px solid var(--n300)}
+.stp-b .need{margin-bottom:6px;line-height:17px}
+/* Back and Next sit right under the title, above the words, so they stay under the pointer whatever the length of a step */
+.stp-f{flex:none;order:1;display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--n300)}
+.stp-b{order:2}
+.stp-pick{margin:0 0 8px;padding:6px 8px;border:1px solid var(--blue);background:var(--n50);line-height:17px}
+.stp-b li.on{outline:1px solid var(--blue);outline-offset:2px}
+.need.hw li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:0 7px;align-items:start}
+.stp-f span{flex:1;font-size:var(--fs-s);color:var(--n600)}
+.stp-f .btn{min-width:64px;justify-content:center}
+/* while the mode is on, the count of hidden pieces says nothing useful: later steps are hidden on purpose */
+body[data-stepmode] #stHidden{display:none}
 
 /* ---------- 12b. Prices (js/prices.js) ---------- */
 /* the quiet line about where the prices stand: top of the 3D view, in the gap between the two floating panels,
@@ -527,8 +614,12 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .tbl tr.sub td{color:#000;border-bottom-color:#999}
 }
 
-/* ---------- 13. Narrow windows ---------- */
-@media (max-width:1280px){
+/* ---------- 13. Narrow windows ----------
+   The two widths below are where the ribbon stops fitting, measured on the page (the Design tab is the widest):
+   in full it is 1402 px wide, compact 1189 px, and with the three view buttons gone 1111 px. Each form takes over
+   a few pixels before the one above it would be cut. When a group gains a button, measure again and move these
+   (the self-check ribbonIsNeverCutOff in js/app.js fails when the ribbon is cut at the width it runs at). */
+@media (max-width:1410px){
   .grp{padding:2px 3px 0}
   .rb{min-width:44px;padding:6px 2px 0}
   .rb.pri{padding:6px 5px 0}
@@ -537,6 +628,8 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .rb .lbl svg{width:10px;height:10px}
   .stack{column-gap:2px}
   .sb{padding:0 4px 0 2px;gap:4px}
+  .sb .long{display:none}
+  .sb .short{display:inline}
   .stack.add{grid-template-columns:104px auto}
   .projname input{width:120px}
   .tab{padding:0 9px}
@@ -546,18 +639,14 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .st .short{display:inline}
 }
 /* smaller still: Front / Side / Top leave the ribbon (they stay in the View group's More menu and on keys 1, 3, 7)
-   and the groups sit a little closer, which fits the whole ribbon in a window 1000 wide (a tablet, or a laptop
-   with the browser beside something else). Below that, as a last resort, the ribbon scrolls sideways inside its
-   own strip rather than cutting commands off; the mouse wheel turns it (js/app.js). */
-@media (max-width:1100px){
+   and the groups sit a little closer, which fits the whole ribbon in a window down to about 1115 wide. Below
+   that the ribbon scrolls sideways inside its own strip (see the .ribbon rule further up). */
+@media (max-width:1196px){
   .stack.dirs{display:none}
   .grp{padding:2px 2px 0}
   .stack.add{grid-template-columns:96px auto}
-  .ribbon{overflow-x:auto;scrollbar-width:none}
-  .ribbon::-webkit-scrollbar{display:none}
-  /* more commands are off screen to the right (js/app.js sets the class): the right edge of the strip fades out.
-     The fade is a strip of its own that stays at the edge; it takes no room and lets clicks through. */
-  .ribbon.more::after{content:"";flex:none;position:sticky;right:0;width:40px;margin-left:-40px;background:linear-gradient(90deg,rgba(246,247,249,0),var(--n50) 80%);pointer-events:none}
+}
+@media (max-width:1100px){
   .st i{display:none}
 }
 /* a short window (a laptop): the remark under the presets form shows three lines instead of five, which leaves
@@ -572,7 +661,7 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .pform .frow{grid-template-columns:140px 96px minmax(0,1fr)}
   .opt3{grid-template-columns:minmax(0,1fr)}
   .doc{padding:24px 20px}
-  .step{grid-template-columns:30px minmax(0,1fr) 200px}
+  .step{grid-template-columns:30px minmax(0,1fr) 240px}
 }
 
 /* ---------- 14. Print ----------
@@ -623,7 +712,11 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .key{border-color:#000;color:#000}
 
   /* things that must stay in one piece: a step with its picture, a cutting bar, a picture with its caption */
-  .step,.cut,.lead,.views figure,.buy + .cut,.need{break-inside:avoid}
+  .step,.cut,.lead,.views figure,.buy + .cut,.need,.step figure{break-inside:avoid}
+  .step .was,.step figcaption,.need.you dt{color:#444}
+  .step .was{border-left-color:#999}
+  .bal{border-color:#000;color:#000}
+  .step{grid-template-columns:30px minmax(0,1fr) 250px}
   .buy{break-after:avoid}
   .step{border-top-color:#999}
   .lead img,.views img,.doc img.wide,.step img{border-color:#999}

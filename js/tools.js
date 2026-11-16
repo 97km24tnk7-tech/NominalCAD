@@ -27,6 +27,9 @@ cv.addEventListener('pointerdown',e=>{
   if(modal){modalEnd(e.button===0);return;} // while M / R / S is running, a click places it and a right-click cancels
   if(e.button!==0){const h=pick(e);drag={...base,mode:'pan',hitId:h?h.object.userData.id:null};return;} // right button: drag to slide the view, click for the menu
   if(tool==='draw'){startDraw(e,base);return;}
+  if(placeDrawerClick(e))return;                            // Add, Drawer is waiting for a click inside a space (js/drawertool.js)
+  if(placeHardwareClick(e))return;                          // the Hardware tool is waiting for a click on a piece (js/hardwaretool.js)
+  if(viewPickDown(e,base,true))return;                      // the handle that opens a door or a drawer (js/viewpick.js)
   // What the pointer grabs on a selected piece, in this order: a blue stretch handle, then a move arrow or a ring,
   // then the piece itself. The handle goes first because it sits on the end of the piece, where a move arrow
   // often reaches too; if the arrow went first the handle could not be grabbed there.
@@ -34,27 +37,52 @@ cv.addEventListener('pointerdown',e=>{
   if(hh){const q=selParts()[0],b=box(q),{k,side}=hh.object.userData; // grab a blue handle to stretch or shorten the piece
     drag={...base,mode:'resize',id:q.id,k,side,lo:b.lo.slice(),hi:b.hi.slice(),P:hh.object.position.clone(),off:hh.object.position.getComponent(k)-(side?b.hi[k]:b.lo[k])};lite=true;return;}
   const gz=gizmoHit(e);if(gz){drag={...base,...gz};return;} // an arrow or a ring of the transform gizmo
+  if(viewPickDown(e,base,false))return;                     // a fastener or a piece of hardware
   const hit=pick(e);if(explode&&hit){setExplode(0);drag=null;return;} // clicking a piece puts an exploded view back together
   if(tool==='connect'){if(hit)connectClick(hit.object.userData.id);else drag={...base,mode:'orbit'};return;}
   if(!hit){drag={...base,mode:e.shiftKey?'box':'orbit',add:e.ctrlKey||e.metaKey};return;} // Shift + drag on empty space draws a selection box
-  const id=hit.object.userData.id;
-  const gi=groupIds(id); // clicking one piece of a group picks the whole group
-  if(e.ctrlKey||e.metaKey){const on=sel.has(id);gi.forEach(i=>on?sel.delete(i):sel.add(i));}else if(!sel.has(id))sel=new Set(gi);
+  const id=hit.object.userData.id,ctrl=e.ctrlKey||e.metaKey;
+  const picked=pickIds(id),again=sel.has(id)&&!ctrl; // one piece or its component, by the Pick switch (js/components.js)
+  if(ctrl){const on=sel.has(id);picked.forEach(i=>on?sel.delete(i):sel.add(i));}else if(!sel.has(id))sel=new Set(picked);
   renderAll();
+  if(tool==='rotate'&&again)pickAgain(id);
   if(!sel.has(id)||tool==='rotate'){drag=null;return;}
   const vertical=e.shiftKey,n=new THREE.Vector3();
   if(vertical){camera.getWorldDirection(n);n.y=0;if(n.lengthSq()<1e-6)n.set(0,0,1);n.normalize();}else n.set(0,1,0);
-  drag={...base,mode:'move',vertical,pt:hit.point.clone(),plane:new THREE.Plane().setFromNormalAndCoplanarPoint(n,hit.point),...moveState(id)};
+  drag={...base,mode:'move',again,vertical,pt:hit.point.clone(),plane:new THREE.Plane().setFromNormalAndCoplanarPoint(n,hit.point),...moveState(id)};
 });
-/* everything a move needs to remember about the selection when it starts */
-function moveState(primary){return{primary,start:new Map([...sel].map(i=>[i,byId(i).pos.slice()])),
-  bx:new Map([...sel].map(i=>{const q=byId(i),b=box(q);return[i,{off:b.lo.map((v,n)=>v-q.pos[n]),ext:b.hi.map((v,n)=>v-b.lo[n])}];}))};}
+/* Everything a move needs to remember when it starts. What moves is the selection AND every piece fastened to it
+   (movingParts, js/connections.js): a board that is screwed to another never slides away from its screws.
+     items      one entry per moving piece: {p, start (its position now), off and ext (its outer bounds: where they
+                begin relative to the position, and how big they are)}
+     first      the entry of the piece that was picked; the grid snaps to it and the readout is about it
+     snappers   the entries whose faces and middles snap to other pieces. Every piece of a small set; for a big
+                set (a whole wall) only the picked piece and the set as one box, or each mouse move would compare
+                thousands of pieces with thousands of others.
+     others     the outer bounds of everything that stays where it is: what the move snaps to */
+const SNAP_PIECES_MAX=40;
+function moveState(primary){
+  const moving=movingParts(),ids=movingIds();
+  const items=moving.map(p=>{
+    const b=box(p);
+    return{p,start:p.pos.slice(),off:b.lo.map((v,k)=>v-p.pos[k]),ext:b.hi.map((v,k)=>v-b.lo[k])};
+  });
+  const first=items.find(item=>item.p.id===primary)||items[0];
+  let snappers=items;
+  if(items.length>SNAP_PIECES_MAX){
+    const all=bbox(moving);
+    snappers=[first,{p:null,start:all.lo.slice(),off:[0,0,0],ext:all.hi.map((v,k)=>v-all.lo[k])}];
+  }
+  const others=S.parts.filter(p=>!ids.has(p.id)).map(box);
+  return{primary,first,items,snappers,others};
+}
 cv.addEventListener('pointermove',e=>{
   lastMouse=e;if(modal&&!drag){modalMove(e);return;}
   if(!drag)return;const dx=e.clientX-drag.lx,dy=e.clientY-drag.ly;drag.lx=e.clientX;drag.ly=e.clientY;
   if(!drag.moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<4)return;drag.moved=true;
   if(drag.mode==='move')fastGroup.visible=dimGroup.visible=false;
-  if(drag.mode==='resize')resizeDrag(e);else if(drag.mode==='draw')drawDrag(e);
+  if(drag.mode==='custom')drag.move(e); // a drag that belongs to a feature file: see VIEW_PICKERS in js/viewpick.js
+  else if(drag.mode==='resize')resizeDrag(e);else if(drag.mode==='draw')drawDrag(e);
   else if(drag.mode==='axis')axisDrag(e);else if(drag.mode==='ring')ringDrag(e);else if(drag.mode==='box')boxDrag(e);
   else if(drag.mode==='orbit'){cam.th+=dx*.008;cam.ph=Math.min(Math.PI/2+.25,Math.max(.001,cam.ph-dy*.008));updateCam();}
   else if(drag.mode==='pan'){const rt=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrix,1);
@@ -68,35 +96,56 @@ function moveDrag(e){
 }
 /* the live readout while pieces are dragged: how far they have gone, and where the one under the pointer is now */
 function moveReadout(st,delta){
-  const p=byId(st.primary),count=st.start.size;
+  const p=st.first.p,count=st.items.length;
   const ways=[['left','right'],['down','up'],['toward the back','toward the front']];
   const moved=[0,2,1].filter(k=>Math.abs(delta[k])>1e-6).map(k=>`${fmt(Math.abs(delta[k]))} ${ways[k][delta[k]>0?1:0]}`).join(', ');
-  return`<b>Moving ${count>1?count+' pieces':esc(p.name)}</b>${moved||'0"'}. `+
+  const what=count===1?esc(p.name):count>sel.size?`${count} pieces that are fastened together`:`${count} pieces`;
+  return`<b>Moving ${what}</b>${moved||'0"'}. `+
     `Now X ${fmt(p.pos[0])}, Y ${fmt(p.pos[2])}, Z ${fmt(p.pos[1])}. Alt turns snapping off.`;
 }
-/* move the selection by d along the given axes from where it started (st = moveState), snapping to other pieces or the grid */
+/* Move everything in st (from moveState) by d along the given axes from where it started, snapping to other
+   pieces or the grid. Every piece moves by exactly the same amount, so a fastened set stays in one piece. */
 function applyMove(st,d,axes,noSnap){
-  const delta=[0,0,0],g=parseFloat($('#gridSel').value),others=S.parts.filter(p=>!sel.has(p.id)).map(box);
-  for(const k of axes){delta[k]=d[k];let best=null;if(noSnap)continue;
-    for(const[id,s0]of st.start){const q=st.bx.get(id),a0=s0[k]+q.off[k]+delta[k];
-      {const ac=a0+q.ext[k]/2;for(const o of others){const df=(o.lo[k]+o.hi[k])/2-ac;if(Math.abs(df)<.5&&(best===null||Math.abs(df)<Math.abs(best)))best=df;}} // middles line up too
-      for(const a of[a0,a0+q.ext[k]]){
-        for(const o of others)for(const ed of[o.lo[k],o.hi[k]]){const df=ed-a;if(Math.abs(df)<.75&&(best===null||Math.abs(df)<Math.abs(best)))best=df;}
-        if(k===1&&a===a0&&Math.abs(a0)<.75&&(best===null||Math.abs(a0)<Math.abs(best)))best=-a0;}}
-    if(best!==null)delta[k]+=best;else{const p0=st.start.get(st.primary)[k]+delta[k];delta[k]+=Math.round(p0/g)*g-p0;}
+  const delta=[0,0,0],grid=parseFloat($('#gridSel').value);
+  for(const k of axes){
+    delta[k]=d[k];
+    if(noSnap)continue;
+    let best=null;
+    const closer=(gap,reach)=>{if(Math.abs(gap)<reach&&(best===null||Math.abs(gap)<Math.abs(best)))best=gap;};
+    for(const item of st.snappers){
+      const low=item.start[k]+item.off[k]+delta[k],high=low+item.ext[k],middle=(low+high)/2;
+      for(const o of st.others){
+        closer((o.lo[k]+o.hi[k])/2-middle,.5); // middles line up
+        closer(o.lo[k]-low,.75);closer(o.hi[k]-low,.75);closer(o.lo[k]-high,.75);closer(o.hi[k]-high,.75); // faces meet
+      }
+      if(k===1)closer(-low,.75); // the floor
+    }
+    if(best!==null)delta[k]+=best;
+    else{const at=st.first.start[k]+delta[k];delta[k]+=Math.round(at/grid)*grid-at;}
   }
-  if(axes.includes(1)){let minY=1e9;for(const[id,s0]of st.start)minY=Math.min(minY,s0[1]+st.bx.get(id).off[1]+delta[1]);if(minY<0)delta[1]-=minY;} // never below the floor
-  for(const[id,s0]of st.start){const p=byId(id);p.pos=s0.map((v,i)=>r16(v+delta[i]));setMeshPos(p);}
+  if(axes.includes(1)){ // never below the floor
+    let lowest=1e9;
+    for(const item of st.items)lowest=Math.min(lowest,item.start[1]+item.off[1]+delta[1]);
+    if(lowest<0)delta[1]-=lowest;
+  }
+  // land the picked piece on a sixteenth, and take the rest along by exactly the same amount
+  for(let k=0;k<3;k++)delta[k]=r16(st.first.start[k]+delta[k])-st.first.start[k];
+  for(const item of st.items){
+    item.p.pos=item.start.map((v,k)=>placeRound(item.p,v+delta[k]));
+    setMeshPos(item.p);
+  }
   draw();renderFacts();return delta; // the overall size and the overlap warning follow the move; the caller writes the prompt
 }
 cv.addEventListener('pointerup',()=>{
   if(!drag)return;const d=drag;drag=null;
-  if(d.mode==='resize'){lite=false;if(d.moved)commit();else rebuildScene();}
+  if(d.mode==='custom')d.up(d);
+  else if(d.mode==='resize'){lite=false;if(d.moved)commit();else rebuildScene();}
   else if(d.mode==='axis'){if(d.moved)commit();}
-  else if(d.mode==='ring'){if(d.moved){finishRot();commit();}}
+  else if(d.mode==='ring'){if(d.moved){finishRot(d.floor);commit();}}
   else if(d.mode==='box')boxEnd(d);
   else if(d.mode==='draw')endDraw(d);
   else if(d.mode==='move'&&d.moved)commit();
+  else if(d.mode==='move'&&d.again)pickAgain(d.primary); // a second click on a picked piece steps up to its parent component
   else if(d.mode==='pan'&&!d.moved)openContext(d.sx,d.sy,d.hitId);
   else if(d.mode==='orbit'&&!d.moved&&sel.size){sel=new Set();renderAll();}
 });
@@ -112,6 +161,7 @@ function snapCoord(v,k,skip){let best=null; // snap to the face of a nearby piec
 function buildHandles(){
   while(handleGroup.children.length){const c=handleGroup.children.pop();c.geometry.dispose();c.material.dispose();}
   handleGroup.visible=true;if(tool!=='select'||sel.size!==1||modal||explode)return;const p=selParts()[0];if(!p||isProp(p)||tilted(p))return;
+  if(isPosedOpen(p.id))return; // drawn swung open or pulled out (js/motion.js): the handles would hang in the air where the closed piece is
   const b=box(p),c=b.lo.map((v,i)=>(v+b.hi[i])/2),hs=Math.max(.8,cam.r*.016),axes=M[p.mat].kind==='sheet'?[p.ax[0],p.ax[1]]:[p.ax[0]];
   for(const k of axes)for(const side of[0,1]){const h=new THREE.Mesh(new THREE.BoxGeometry(hs,hs,hs),new THREE.MeshBasicMaterial({color:VIEW_COL.sel,depthTest:false}));
     const q=c.slice();q[k]=side?b.hi[k]+hs*.7:b.lo[k]-hs*.7;h.position.set(q[0],q[1],q[2]);h.userData={k,side};h.renderOrder=8;handleGroup.add(h);}
@@ -173,23 +223,29 @@ function connectParts(A,B){ // make A meet B: line it up, then stretch, trim or 
 }
 function connectClick(id){
   if(!connectFirst){connectFirst=id;sel=new Set([id]);renderAll();return;}
-  if(id===connectFirst)return;const first=connectFirst,msg=connectParts(byId(first),byId(id));
+  if(id===connectFirst)return;const first=connectFirst,msg=connectAndFasten(byId(first),byId(id)); // js/connections.js
   setTool('select');sel=new Set([first,id]);commit();toast(msg);
 }
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(2500,Math.max(8,cam.r*Math.exp(e.deltaY*.001)));updateCam();buildHandles();buildGizmo();},{passive:false});
 
 /* ---------- editing ops ---------- */
 function rotatePart(p,k){const s0=size(p),c=p.pos.map((v,i)=>v+s0[i]/2),[u,v]=[0,1,2].filter(i=>i!==k);
+  hardwareTurned(p,new THREE.Quaternion().setFromAxisAngle(AXV[k],Math.PI/2)); // what is mounted on it turns with it (js/hardware.js)
   p.ax=p.ax.map(a=>a===u?v:a===v?u:a);const s=size(p);p.pos=c.map((ci,i)=>r16(ci-s[i]/2));if(p.pos[1]<0)p.pos[1]=0;}
-function dropPart(p){const b=box(p);let y=0;
-  for(const o of S.parts){if(o===p||sel.has(o.id))continue;const ob=box(o);
+function dropPart(p,skip){const b=box(p);let y=0; // skip: ids of the pieces that go down with it (the selection, when left out)
+  for(const o of S.parts){if(o===p||(skip||sel).has(o.id))continue;const ob=box(o);
     if(b.lo[0]<ob.hi[0]-.01&&b.hi[0]>ob.lo[0]+.01&&b.lo[2]<ob.hi[2]-.01&&b.hi[2]>ob.lo[2]+.01){
       const top=ob.hi[1];if(top<=b.lo[1]+.01&&top>y)y=top;}}
   return r16(y-(b.lo[1]-p.pos[1]));}
 function selParts(){return S.parts.filter(p=>sel.has(p.id));}
 function delSel(){if(!sel.size)return;S.parts=S.parts.filter(p=>!sel.has(p.id));sel=new Set();commit();}
 function dupSel(){const ps=selParts();if(!ps.length)return;const b=bbox(ps),dx=b.hi[0]-b.lo[0]+2;
-  const ids=addParts(regroup(ps.map(p=>({...p,rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),ax:p.ax.slice(),pos:[p.pos[0]+dx,p.pos[1],p.pos[2]]}))));sel=new Set(ids);commit();}
-function nudge(k,dir){const ps=selParts();if(!ps.length)return;const g=parseFloat($('#gridSel').value)*dir;
-  if(k===1&&dir<0&&Math.min(...ps.map(p=>p.pos[1]))+g<0)return;ps.forEach(p=>p.pos[k]=r16(p.pos[k]+g));commit();}
+  const ids=addCopies(ps,ps.map(p=>({...p,rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),ax:p.ax.slice(),pos:[p.pos[0]+dx,p.pos[1],p.pos[2]]})));sel=new Set(ids); // addCopies: js/copies.js
+  bornLoose(ids);commit(); // a copy is free of what it lands against (rule 4, js/connections.js), and says so
+  if(copiesLeftLoose())toast((ids.length>1?'Copies added.':'Copy added.')+LOOSE_COPY_WORDS);}
+function nudge(k,dir){ // the arrow keys: one snap step. The pieces fastened to the selection go along.
+  const ps=movingParts();if(!ps.length)return;
+  const step=[0,0,0];step[k]=parseFloat($('#gridSel').value)*dir;
+  if(k===1&&dir<0&&bbox(ps).lo[1]+step[1]<0)return; // never below the floor
+  shiftPieces(ps,step);commit();}
 

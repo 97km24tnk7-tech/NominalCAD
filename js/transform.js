@@ -50,7 +50,7 @@ function gizmoHit(e){
   const endOn=o=>o.userData.gz==='axis'&&Math.abs(eye.dot(AXV[o.userData.k]))>.96;
   const h=ray.intersectObjects(gizmoGroup.children,true).find(h=>h.object.userData.gz&&!endOn(h.object));if(!h)return null;
   const{gz,k}=h.object.userData,c=selCenter();fastGroup.visible=dimGroup.visible=handleGroup.visible=false;
-  return gz==='axis'?{mode:'axis',k,c,s0:axisCoord(k,c),...moveState([...sel][0])}:{mode:'ring',k,c,a0:ringAngle(k,c),snap:snapshot()};
+  return gz==='axis'?{mode:'axis',k,c,s0:axisCoord(k,c),...moveState([...sel][0])}:{mode:'ring',k,c,a0:ringAngle(k,c),snap:snapshot(),floor:stoodOnFloor()};
 }
 function axisDrag(e){setRay(e);const d=[0,0,0];d[drag.k]=axisCoord(drag.k,drag.c)-drag.s0;
   const dl=applyMove(drag,d,[drag.k],e.altKey);gizmoGroup.position.set(dl[0],dl[1],dl[2]);
@@ -60,32 +60,56 @@ function ringDrag(e){setRay(e);const a=ringAngle(drag.k,drag.c);if(a===null||dra
   setPrompt(`<b>Turning about ${GNAME[drag.k]}</b>${Math.round(ang*1800/Math.PI)/10}°. It snaps every 15°; hold Alt for any angle.`);draw();}
 const snapAngle=(a,free)=>free?Math.round(a*180/Math.PI)*Math.PI/180:Math.round(a/(Math.PI/12))*Math.PI/12;
 
-/* remember the selection exactly as it is, so a turn can be previewed, redone from scratch, or cancelled */
-function snapshot(){return new Map(selParts().map(p=>{const s=size(p);return[p.id,{pos:p.pos.slice(),ax:p.ax.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),l:p.l,c:p.pos.map((v,i)=>v+s[i]/2)}];}));}
-function restore(snap){for(const[id,s]of snap){const p=byId(id);if(!p)continue;p.pos=s.pos.slice();p.ax=s.ax.slice();p.l=s.l;delete p.rot;delete p.q;if(s.rot)p.rot={...s.rot};if(s.q)p.q=s.q.slice();}}
-function applyRot(snap,k,ang,pivot){ // turn the remembered selection by ang about axis k through pivot
-  const R=new THREE.Quaternion().setFromAxisAngle(AXV[k],ang),P=new THREE.Vector3(pivot[0],pivot[1],pivot[2]);
+/* Remember what is about to move or turn exactly as it is, so a turn can be previewed, redone from scratch, or
+   cancelled. That is the selection and every piece fastened to it (movingParts, js/connections.js). Each entry
+   keeps its piece (p), so nothing has to be looked up again on every mouse move. */
+function snapshot(){return new Map(movingParts().map(p=>{const s=size(p);return[p.id,{p,pos:p.pos.slice(),ax:p.ax.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),turned:!!p.turned,l:p.l,c:p.pos.map((v,i)=>v+s[i]/2)}];}));}
+function restore(snap){for(const s of snap.values()){const p=s.p;p.pos=s.pos.slice();p.ax=s.ax.slice();p.l=s.l;delete p.rot;delete p.q;delete p.turned;if(s.rot)p.rot={...s.rot};if(s.q)p.q=s.q.slice();if(s.turned)p.turned=true;}}
+function applyRot(snap,k,ang,pivot){ // turn the remembered pieces by ang about axis k through pivot, all as one
+  // The pivot sits on a sixteenth, so that after a quarter turn every face is on a sixteenth again and the
+  // pieces of a fastened set still meet exactly.
+  const R=new THREE.Quaternion().setFromAxisAngle(AXV[k],ang),P=new THREE.Vector3(r16(pivot[0]),r16(pivot[1]),r16(pivot[2]));
   restore(snap);
-  for(const[id,s]of snap){const p=byId(id);if(!p)continue;
+  for(const s of snap.values()){const p=s.p;
     const c=new THREE.Vector3(s.c[0],s.c[1],s.c[2]).sub(P).applyQuaternion(R).add(P),q=R.clone().multiply(quatOf(p)||new THREE.Quaternion()),sz=size(p);
-    delete p.rot;p.q=[q.x,q.y,q.z,q.w];p.pos=[c.x-sz[0]/2,c.y-sz[1]/2,c.z-sz[2]/2];setMeshPos(p);}
+    delete p.rot;p.q=[q.x,q.y,q.z,q.w];p.pos=[c.x-sz[0]/2,c.y-sz[1]/2,c.z-sz[2]/2];
+    // A piece that stood square before this turn (or was turned from square earlier) is marked: the pieces that
+    // are turned together keep their joints, worked out in the frame they share (turned sets, js/neighbors.js).
+    // A piece that was set at an angle within the design (a rafter, a brace) is not.
+    if(s.turned||(!s.rot&&!s.q))p.turned=true;
+    setMeshPos(p);}
 }
-function finishRot(){ // tidy up after a turn: fold quarter turns back to square, round positions, keep everything above the floor
-  for(const p of selParts()){setQuat(p,quatOf(p)||new THREE.Quaternion());p.pos=p.pos.map(r16);const b=box(p);if(b.lo[1]<0)p.pos[1]=r16(p.pos[1]-b.lo[1]);}
+/* did what a snapshot holds stand on the floor when the snapshot was taken? (asked before the turn is applied) */
+function stoodOnFloor(){
+  const moving=movingParts();
+  return moving.length>0&&bbox(moving).lo[1]<.02;
+}
+/* Tidy up after a turn: fold quarter turns back to square, round positions, keep everything above the floor.
+   wasOnFloor: what was turned stood on the floor before; then it stands on the floor afterwards too (a bench
+   tipped on its side rests on the floor, it does not hang in the air about its old middle). */
+function finishRot(wasOnFloor){
+  const turned=movingParts();
+  for(const p of turned){setQuat(p,quatOf(p)||new THREE.Quaternion());p.pos=p.pos.map(v=>placeRound(p,v));}
+  liftToFloor(turned); // lifted together, never one by one, so that the set stays whole
+  if(wasOnFloor&&turned.length){
+    const low=bbox(turned).lo[1];
+    if(low>1e-6)shiftPieces(turned,[0,-Math.floor((low+1e-6)*16)/16,0]); // down in sixteenths, as one, never below the floor
+  }
 }
 
 /* ---------- M / R / S: start with a key, steer with the mouse or type a number ---------- */
 function startModal(type){
   if(tab!=='design'||!sel.size||modal||drag)return false;
   if(type==='s'&&(sel.size!==1||isProp(selParts()[0]))){toast('Select one board to stretch with S.');return true;}
-  modal={type,axis:type==='r'?1:null,num:'',c:selCenter(),snap:snapshot(),st:moveState([...sel][0]),ref:null};
+  modal={type,axis:type==='r'?1:null,num:'',c:selCenter(),snap:snapshot(),floor:stoodOnFloor(),st:moveState([...sel][0]),ref:null};
   fastGroup.visible=dimGroup.visible=false;buildHandles();buildGizmo();modalStatus();draw();return true;
 }
 /* the status bar prompt while M / R / S is running: what is happening, the live amount (extra) or the number typed so far, then what to do */
 function modalStatus(extra){
   const m=modal;
   const what=m.type==='g'?(m.axis===null?'Move':`Move along ${GNAME[m.axis]}`):m.type==='r'?`Rotate about ${GNAME[m.axis]}`:'Stretch';
-  const amount=m.num?`typed ${esc(m.num)}. `:extra?extra+'. ':'';
+  const together=m.type!=='s'&&m.snap.size>sel.size?`${m.snap.size} fastened pieces together. `:''; // stretching changes one piece only
+  const amount=together+(m.num?`typed ${esc(m.num)}. `:extra?extra+'. ':'');
   const how=`Move the mouse${m.type==='s'?'':', press X, Y or Z to lock a direction'}, or type an exact ${m.type==='r'?'angle':'size'}. Click or Enter keeps it, Esc cancels.`;
   setPrompt(`<b>${what}</b>${amount}${how}`,m.type==='g'?'i-move':m.type==='r'?'i-rotate':'i-dim');
 }
@@ -112,8 +136,8 @@ function modalTyped(){ // apply the number typed so far
 }
 function modalEnd(keep){
   const m=modal;if(!m)return;modal=null;lite=false;
-  if(keep){if(m.type==='r')finishRot();commit();}
-  else{if(m.isNew){S.parts=S.parts.filter(p=>!sel.has(p.id));sel=new Set();}else restore(m.snap);renderAll();} // cancelling a duplicate-and-drag removes the copy
+  if(keep){if(m.type==='r')finishRot(m.floor);commit();}
+  else{if(m.isNew){S.parts=S.parts.filter(p=>!sel.has(p.id));sel=new Set();tidyComps();}else restore(m.snap);renderAll();} // cancelling a duplicate-and-drag removes the copy (and the component that was made for it)
 }
 /* returns true when the key belonged to M / R / S, so nothing else should react to it */
 function modalKey(e){
@@ -121,7 +145,7 @@ function modalKey(e){
   if(!modal)return!c&&!e.shiftKey&&tab==='design'&&k in HOTKEY?startModal(HOTKEY[k]):false;
   const m=modal;
   if(k==='enter')modalEnd(true);else if(k==='escape')modalEnd(false);
-  else if(k in KEYAXIS&&m.type!=='s'){const a=KEYAXIS[k];m.axis=m.type==='g'&&m.axis===a?null:a;m.ref=null;restore(m.snap);for(const p of selParts())setMeshPos(p);
+  else if(k in KEYAXIS&&m.type!=='s'){const a=KEYAXIS[k];m.axis=m.type==='g'&&m.axis===a?null:a;m.ref=null;restore(m.snap);for(const s of m.snap.values())setMeshPos(s.p);
     if(m.num)modalTyped();else{modalStatus();draw();if(lastMouse)modalMove(lastMouse);}}
   else if(k==='backspace'){m.num=m.num.slice(0,-1);modalTyped();}
   else if(/^[0-9.\-\/' ]$/.test(e.key)){m.num+=e.key;modalTyped();}
@@ -135,7 +159,7 @@ function boxEnd(d){
   $('#boxSel').style.display='none';if(!d.moved)return;
   const r=cv.getBoundingClientRect(),x0=Math.min(d.sx,d.x1),x1=Math.max(d.sx,d.x1),y0=Math.min(d.sy,d.y1),y1=Math.max(d.sy,d.y1),hit=d.add?new Set(sel):new Set();
   for(const p of S.parts){if(hiddenIds.has(p.id))continue;const b=box(p),v=new THREE.Vector3((b.lo[0]+b.hi[0])/2,(b.lo[1]+b.hi[1])/2,(b.lo[2]+b.hi[2])/2).project(camera);
-    const x=(v.x+1)/2*r.width+r.left,y=(1-v.y)/2*r.height+r.top;if(v.z<1&&x>=x0&&x<=x1&&y>=y0&&y<=y1)hit.add(p.id);}
+    const x=(v.x+1)/2*r.width+r.left,y=(1-v.y)/2*r.height+r.top;if(v.z<1&&x>=x0&&x<=x1&&y>=y0&&y<=y1)pickIds(p.id).forEach(id=>hit.add(id));} // whole components when the Pick switch says so
   sel=hit;renderAll();
 }
 
@@ -143,17 +167,25 @@ function boxEnd(d){
 const clonePart=p=>({...p,ax:p.ax.slice(),pos:p.pos.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice()});
 function dupGrab(){ // make a copy on top of the selection and start moving it straight away (Shift+D)
   const ps=selParts();if(!ps.length||modal||tab!=='design')return;
-  sel=new Set(addParts(regroup(ps.map(clonePart))));rebuildScene();if(startModal('g')&&modal)modal.isNew=true;}
+  sel=new Set(addCopies(ps,ps.map(clonePart)));rebuildScene();if(startModal('g')&&modal)modal.isNew=true;} // addCopies: js/copies.js
 function copyRow(n,k,step){ // n more copies, each one "step" further along axis k
   const ps=selParts();if(!ps.length||!(n>0)||!step)return;const ids=[];
-  for(let i=1;i<=n;i++)ids.push(...addParts(regroup(ps.map(p=>{const c=clonePart(p);c.pos[k]=r16(c.pos[k]+i*step);return c;}))));
-  sel=new Set([...sel,...ids]);commit();toast(`Added ${n} cop${n>1?'ies':'y'}, ${fmt(Math.abs(step))} apart`);}
+  for(let i=1;i<=n;i++)ids.push(...addCopies(ps,ps.map(p=>{const c=clonePart(p);c.pos[k]=placeRound(c,c.pos[k]+i*step);return c;})));
+  sel=new Set([...sel,...ids]);bornLoose(ids);commit(); // copies are free of what they land against (rule 4, js/connections.js)
+  toast(`Added ${n} cop${n>1?'ies':'y'}, ${fmt(Math.abs(step))} apart.`+(copiesLeftLoose()?LOOSE_COPY_WORDS:''));}
 function mirrorSel(k,about,keep){ // flip the selection across a plane square to axis k
-  const ps=selParts();if(!ps.length)return;const b=bbox(about==='design'?S.parts:ps),m=about==='lo'?b.lo[k]:about==='hi'?b.hi[k]:(b.lo[k]+b.hi[k])/2,out=keep?regroup(ps.map(clonePart)):ps;
-  for(const p of out){const s=size(p);p.pos[k]=r16(2*m-p.pos[k]-s[k]);
-    if(p.q)p.q=p.q.map((v,i)=>i<3&&i!==k?-v:v);else if(p.rot&&p.rot.k!==k)p.rot.deg=-p.rot.deg;
-    const pb=box(p);if(pb.lo[1]<0)p.pos[1]=r16(p.pos[1]-pb.lo[1]);}
-  if(keep)sel=new Set(addParts(out));commit();toast(keep?'Mirrored copy added':'Mirrored');}
+  const ps=selParts();if(!ps.length)return;
+  // A mirrored copy is made of the selection. Flipping pieces in place takes everything fastened to them along:
+  // a piece is never pulled away from its fasteners without Unfasten.
+  // Flipped in place, what flips is the selection with everything fastened to it, so the plane goes through the
+  // middle (or along the edge) of all of that: one door of a cabinet flips the cabinet where it stands.
+  const b=bbox(about==='design'?S.parts:keep?ps:movingParts()),m=about==='lo'?b.lo[k]:about==='hi'?b.hi[k]:(b.lo[k]+b.hi[k])/2,out=keep?ps.map(clonePart):movingParts();
+  for(const p of out){const s=size(p);p.pos[k]=placeRound(p,2*m-p.pos[k]-s[k]);
+    if(p.q)p.q=p.q.map((v,i)=>i<3&&i!==k?-v:v);else if(p.rot&&p.rot.k!==k)p.rot.deg=-p.rot.deg;}
+  liftToFloor(out); // kept above the floor, as one
+  if(keep){sel=new Set(addCopies(ps,out));bornLoose([...sel]);} // a copy is free of what it lands against (rule 4, js/connections.js)
+  hardwareMirrored(keep?[...sel]:out.map(p=>p.id),k); // hinges, pulls and the rest flip with their pieces (js/hardware.js)
+  commit();toast(keep?'Mirrored copy added.'+(copiesLeftLoose()?LOOSE_COPY_WORDS:''):'Mirrored');}
 const needSel=()=>{if(tab!=='design')setTab('design');if(sel.size)return true;toast('Select one or more pieces first.');return false;};
 
 /* ---------- the Copy in a row and Mirror dialogs (their markup is in index.html) ---------- */

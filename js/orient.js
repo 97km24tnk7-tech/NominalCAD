@@ -20,5 +20,8 @@ function setQuat(p,q){ // store a rotation on a piece, folding quarter turns int
   delete p.rot;delete p.q;q.normalize();
   const m=new THREE.Matrix4().makeRotationFromQuaternion(q).elements,perm=[];
   for(let j=0;j<3;j++){const i=[0,1,2].find(i=>Math.abs(Math.abs(m[j*4+i])-1)<1e-3);if(i===undefined)break;perm.push(i);}
-  if(perm.length===3){const s0=size(p),c=p.pos.map((v,i)=>v+s0[i]/2);p.ax=p.ax.map(a=>perm[a]);const s=size(p);p.pos=c.map((v,i)=>r16(v-s[i]/2));return;}
+  if(perm.length===3){const s0=size(p),c=p.pos.map((v,i)=>v+s0[i]/2);
+    hardwareTurned(p,q); // what is mounted on the piece turns with it (js/hardware.js)
+    delete p.turned;     // it stands square again: no longer a piece of a turned set (js/neighbors.js)
+    p.ax=p.ax.map(a=>perm[a]);const s=size(p);p.pos=c.map((v,i)=>r16(v-s[i]/2));return;}
   p.q=[q.x,q.y,q.z,q.w].map(v=>Math.round(v*1e6)/1e6);}

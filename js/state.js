@@ -2,15 +2,17 @@
 'use strict';
 /* ---------- state ---------- */
 let S,sel=new Set(),undoStack=[],redoStack=[],lastSnap='';
-const blank=()=>({name:'My project',parts:[],joints:{},stock:{},notes:[],steps:[],nextId:1});
+const blank=()=>({name:'My project',parts:[],joints:{},comps:[],stock:{},notes:[],steps:[],nextId:1});
 const byId=id=>S.parts.find(p=>p.id===id);
 function addParts(list){const ids=[];for(const p of list){p.id=S.nextId++;S.parts.push(p);ids.push(p.id);}return ids;}
-function commit(){undoStack.push(lastSnap);if(undoStack.length>200)undoStack.shift();redoStack=[];lastSnap=JSON.stringify(S);save();renderAll();}
+function commit(){for(const hook of ON_COMMIT)hook(); // see ON_COMMIT in core.js
+  undoStack.push(lastSnap);if(undoStack.length>200)undoStack.shift();redoStack=[];lastSnap=JSON.stringify(S);save();renderAll();}
 let saveWarned=false;
 function save(){ // autosave to this browser; tell the user once if the browser refuses, so work is not lost silently
   try{localStorage.setItem('woodshop.autosave',lastSnap);saveWarned=false;}
   catch(e){if(!saveWarned){saveWarned=true;toast('This browser could not autosave (its storage is full or turned off). '+KEEP_ADVICE);}}}
-function load(json,keepHistory){S=Object.assign(blank(),JSON.parse(json));sel=new Set();if(!keepHistory){undoStack=[];redoStack=[];hiddenIds=new Set();}lastSnap=JSON.stringify(S);save();renderAll();}
+function load(json,keepHistory){S=Object.assign(blank(),JSON.parse(json));for(const hook of ON_LOAD)hook(); // see ON_LOAD in core.js
+  sel=new Set();if(!keepHistory){undoStack=[];redoStack=[];hiddenIds=new Set();}lastSnap=JSON.stringify(S);save();renderAll();}
 function undo(){if(!undoStack.length)return;redoStack.push(lastSnap);const j=undoStack.pop();const u=undoStack,r=redoStack;load(j,true);undoStack=u;redoStack=r;renderAll();}
 function redo(){if(!redoStack.length)return;undoStack.push(lastSnap);const j=redoStack.pop();load(j,true);renderAll();}
 function bbox(parts){if(!parts.length)return null;const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
