@@ -1,0 +1,261 @@
+<!doctype html>
+<!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NominalCAD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <span class="brand">NominalCAD</span>
+  <nav id="menubar">
+    <div class="menu"><button class="mbtn">File</button><div class="mlist">
+      <button id="bNew">New design</button>
+      <button id="bOpen">My projects&hellip;</button>
+      <button id="bSave">Save <kbd>Ctrl+S</kbd></button>
+      <hr>
+      <button data-click="#bExport">Download as a file</button>
+      <button data-click="#bImport">Load from a file&hellip;</button>
+      <hr>
+      <button id="bPrint">Print instructions <kbd>Ctrl+P</kbd></button>
+    </div></div>
+    <div class="menu"><button class="mbtn">Edit</button><div class="mlist">
+      <button data-click="#bUndo">Undo <kbd>Ctrl+Z</kbd></button>
+      <button data-click="#bRedo">Redo <kbd>Ctrl+Y</kbd></button>
+      <hr>
+      <button data-cmd="duplicate" data-design="1">Duplicate selected <kbd>Ctrl+D</kbd></button>
+      <button data-cmd="dupGrab" data-design="1">Duplicate and drag <kbd>Shift+D</kbd></button>
+      <button data-cmd="row" data-design="1">Copy in a row&hellip;</button>
+      <button data-cmd="mirror" data-design="1">Mirror&hellip; <kbd>Ctrl+M</kbd></button>
+      <button data-cmd="remove" data-design="1">Delete selected <kbd>Del</kbd></button>
+      <button data-cmd="selectAll" data-design="1">Select everything <kbd>Ctrl+A</kbd></button>
+      <button data-cmd="similar" data-design="1">Select all pieces like this <kbd>Shift+G</kbd></button>
+      <hr>
+      <button data-cmd="group" data-design="1">Group <kbd>Ctrl+G</kbd></button>
+      <button data-cmd="ungroup" data-design="1">Ungroup <kbd>Ctrl+Shift+G</kbd></button>
+    </div></div>
+    <div class="menu"><button class="mbtn">Add</button><div class="mlist">
+      <button data-click="#bPreset">Furniture preset&hellip;</button>
+      <hr>
+      <button data-click="#bAdd">Board or panel (material picked on the left)</button>
+      <button data-click="#bAddTank">Fish tank (size picked on the left)</button>
+      <button data-click="#bImportCut">Cut list from another plan&hellip;</button>
+    </div></div>
+    <div class="menu"><button class="mbtn">View</button><div class="mlist">
+      <button data-view="fit">Fit everything on screen <kbd>Home</kbd></button>
+      <button data-cmd="focus" data-design="1">Zoom to the selection <kbd>F</kbd></button>
+      <button data-view="front">From the front <kbd>1</kbd></button>
+      <button data-view="side">From the side <kbd>3</kbd></button>
+      <button data-view="top">From above <kbd>7</kbd></button>
+      <hr>
+      <button data-cmd="viewReal">Realistic wood</button>
+      <button data-cmd="viewBlock">Color blocks</button>
+      <button data-cmd="xray" data-design="1">See-through view <kbd>Alt+Z</kbd></button>
+      <button data-cmd="explode" data-design="1">Exploded view</button>
+      <hr>
+      <button data-cmd="hide" data-design="1">Hide selected <kbd>H</kbd></button>
+      <button data-cmd="isolate" data-design="1">Show only selected <kbd>Shift+H</kbd></button>
+      <button data-cmd="showAll" data-design="1">Show everything <kbd>Alt+H</kbd></button>
+      <hr>
+      <button data-cmd="toggleFasteners">Show or hide fasteners</button>
+      <button data-cmd="toggleSizes">Show or hide sizes</button>
+      <hr>
+      <button data-cmd="togglePieces">Show or hide the Pieces panel</button>
+      <button data-cmd="toggleProps">Show or hide the Properties panel</button>
+      <button data-cmd="resetPanels">Put the panels back where they started</button>
+    </div></div>
+    <div class="menu"><button class="mbtn">Tools</button><div class="mlist">
+      <button data-tool="select">Select and move</button>
+      <button data-tool="rotate">Rotate (rings)</button>
+      <button data-tool="draw">Draw a board <kbd>D</kbd></button>
+      <button data-tool="connect">Connect two pieces <kbd>C</kbd></button>
+      <hr>
+      <button data-click="#bStyle">Style, finish and difficulty&hellip;</button>
+    </div></div>
+    <div class="menu"><button class="mbtn">Help</button><div class="mlist">
+      <button data-cmd="help">How to use NominalCAD</button>
+    </div></div>
+  </nav>
+  <span class="sep"></span>
+  <input id="projName" title="Project name. Click to rename.">
+  <div class="tabs">
+    <button data-tab="design" class="on">Design</button>
+    <button data-tab="joints">Joints &amp; hardware</button>
+    <button data-tab="cut">Cut list &amp; shopping</button>
+    <button data-tab="instr">Build instructions</button>
+  </div>
+  <input type="file" id="fileIn" accept=".json" hidden>
+</header>
+
+<main id="designPage">
+  <section id="view">
+    <div id="viewBtns">
+      <button id="bPreset" class="primary">Furniture presets</button>
+      <span class="sep"></span>
+      <button data-tool="select" class="on" title="Click to select, drag to move, drag a blue handle to change the length">Select / move</button>
+      <button data-tool="rotate" title="Click a piece, then drag a colored ring to turn it to any angle">Rotate</button>
+      <button data-tool="draw" title="Drag on the floor to draw a board of the material chosen on the left">Draw a board</button>
+      <button data-tool="connect" title="Click one piece, then the piece it should meet">Connect</button>
+      <span class="sep"></span>
+      <button id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
+      <span class="sep"></span>
+      <button data-view="fit" title="Fit everything on screen (Home). Front, side and top views are in the View menu, or press 1, 3, 7.">Fit</button>
+      <span class="sep"></span>
+      <label>Snap <select id="gridSel"><option value="0.125">1/8"</option><option value="0.25" selected>1/4"</option><option value="0.5">1/2"</option><option value="1">1"</option></select></label>
+      <label>View <select id="viewMode"><option value="real">Realistic wood</option><option value="block">Color blocks</option></select></label>
+      <label><input type="checkbox" id="showFast" checked> Fasteners</label>
+      <label><input type="checkbox" id="showDims" checked> Sizes</label>
+      <button id="tPieces" data-cmd="togglePieces" class="on" title="Show or hide the floating Pieces panel">Pieces</button>
+      <button id="tProps" data-cmd="toggleProps" class="on" title="Show or hide the floating Properties panel">Properties</button>
+      <span class="tbsp"></span>
+      <button id="bStyle">Style, finish &amp; difficulty</button>
+      <button id="bInstr" class="primary">Instructions to print &rsaquo;</button>
+    </div>
+    <div id="cvWrap">
+      <canvas id="cv"></canvas>
+      <div id="legend" style="display:none"></div>
+      <div id="boxSel"></div>
+      <div id="status"></div>
+      <aside id="left" class="float"><div class="fh"><span>Pieces</span><span><button data-min title="Roll up or down">&minus;</button><button data-hide title="Hide. Bring it back with the Pieces button or the View menu.">&times;</button></span></div><div class="fb">
+        <h3>Add a piece</h3>
+        <div class="addrow"><select id="addMat"></select><button id="bAdd" class="primary">Add</button></div>
+        <div class="addrow"><select id="addTank"></select><button id="bAddTank">Add tank</button></div>
+        <div class="btnrow" style="margin-top:-4px"><button id="bImportCut" title="Bring in the pieces from a plan you found online">Import a cut list</button></div>
+        <h3>Pieces <span id="partCount"></span></h3>
+        <ul id="partList"></ul>
+      </div></aside>
+      <aside id="right" class="float"><div class="fh"><span>Selected</span><span><button data-min title="Roll up or down">&minus;</button><button data-hide title="Hide. Bring it back with the Properties button or the View menu.">&times;</button></span></div><div class="fb"><div id="props"></div></div></aside>
+    </div>
+  </section>
+</main>
+
+<section class="page" id="jointsPage"></section>
+<section class="page" id="cutPage"></section>
+<section class="page" id="instrPage"></section>
+
+<dialog id="styleDlg">
+  <div class="dh"><span>Style, finish and difficulty</span><button id="bStyleClose">Done</button></div>
+  <div class="db">
+    <div class="hint" style="font-size:13px;color:var(--ink)">Click a style to see what it takes for this design. If it looks like too much, step down; if it looks easy, step up. The 3D view, fasteners, steps and shopping list all follow.</div>
+    <div class="cards" id="styleCards" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));margin:10px 0 14px"></div>
+    <div class="f"><label>Wood</label><select id="woodSel"></select></div>
+    <div class="f"><label>Finish</label><select id="finSel"></select></div>
+    <div class="hint">Time is hands-on working time for one person and does not include glue or finish drying. Skill, time and price are rough guides, not promises. Any fastener you picked by hand in the Joints tab is kept.</div>
+    <div class="hint">Sizes stay the same for every wood: store boards are smaller than their names (a 2x4 is 1 1/2" × 3 1/2"). True rough-sawn boards from a sawmill are a full 2" × 4", so measure yours and adjust if you use them.</div>
+  </div>
+</dialog>
+<dialog id="cutDlg">
+  <div class="dh"><span>Import a cut list</span><button id="bCutClose">Close</button></div>
+  <div class="db">
+    <div class="hint" style="font-size:13px;color:var(--ink)">Found a free plan online (a bird house, a chair, anything)? Type or paste its cut list here, one piece per line, and the pieces are laid out on the floor next to your design, ready to drag into place. You also get the shopping list, cutting diagrams and price for them straight away.</div>
+    <div class="hint">Each line: <b>quantity, name, material, length</b> and, for plywood, <b>width</b>. Materials: 1x2 to 1x12, 2x2 to 2x12, 4x4, or plywood 3/4, 1/2, 1/4.</div>
+    <textarea id="cutText" rows="9" style="width:100%;font:13px/1.5 ui-monospace,Consolas,monospace;padding:8px;border:1px solid var(--line);border-radius:6px" placeholder="4, Leg, 2x4, 28 1/2&#10;2, Long rail, 2x4, 4'&#10;1, Top, plywood 3/4, 48, 24"></textarea>
+    <div class="warn" id="cutErr"></div>
+    <div class="btnrow"><button class="primary" id="bCutGo">Add these pieces</button></div>
+    <div class="hint">Plans in PDF or SketchUp files cannot be read directly; the cut list is the part that carries over.</div>
+  </div>
+</dialog>
+<dialog id="projDlg">
+  <div class="dh"><span>My projects</span><button id="bProjClose">Close</button></div>
+  <div class="db">
+    <div id="projList"></div>
+    <div class="btnrow" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <button id="bExport">Download current design as a file</button><button id="bImport">Load a design from a file</button></div>
+    <div class="hint">Saved projects live in this browser on this computer. Download a file if you want a backup or to move a design to another computer.</div>
+  </div>
+</dialog>
+<dialog id="presetDlg">
+  <div class="dh"><span>Start from a furniture preset</span><button id="bPresetClose">Close</button></div>
+  <div class="db">
+    <div class="cards" id="presetCards"></div>
+    <div id="presetForm"></div>
+  </div>
+</dialog>
+
+<dialog id="rowDlg">
+  <div class="dh"><span>Copy in a row</span><button data-close>Close</button></div>
+  <div class="db">
+    <div class="hint" style="font-size:13px;color:var(--ink)">Makes evenly spaced copies of the selected pieces, like shelf slats or a row of studs.</div>
+    <div class="f"><label>How many copies</label><input type="text" id="rowN" value="3"></div>
+    <div class="f"><label>Direction</label><select id="rowDir"><option value="0">Left to right</option><option value="2">Back to front</option><option value="1">Upward</option></select></div>
+    <div class="f"><label>Distance apart</label><input type="text" id="rowStep" value='12"'></div>
+    <div class="hint">Distance is from the start of one copy to the start of the next. It starts as the size of the selection, which puts the copies edge to edge. Type a minus sign to go the other way.</div>
+    <div class="btnrow"><button class="primary" id="bRowGo">Make the copies</button></div>
+  </div>
+</dialog>
+<dialog id="mirrorDlg">
+  <div class="dh"><span>Mirror</span><button data-close>Close</button></div>
+  <div class="db">
+    <div class="f"><label>Flip</label><select id="mirDir"><option value="0">Left to right</option><option value="2">Front to back</option><option value="1">Top to bottom</option></select></div>
+    <div class="f"><label>Across</label><select id="mirAbout"><option value="design">The middle of the whole design</option><option value="hi">The far edge of the selection (copy lands beside it)</option><option value="lo">The near edge of the selection</option><option value="sel">The middle of the selection (flip in place)</option></select></div>
+    <div class="f"><label>Keep the original</label><input type="checkbox" id="mirKeep" checked></div>
+    <div class="hint">Build one side of something, select it, and mirror it across the middle of the design to get the matching other side.</div>
+    <div class="btnrow"><button class="primary" id="bMirrorGo">Mirror</button></div>
+  </div>
+</dialog>
+<div id="ctxMenu" class="mlist"></div>
+<dialog id="helpDlg">
+  <div class="dh"><span>How to use NominalCAD</span><button id="bHelpClose">Close</button></div>
+  <div class="db">
+    <h3>The quick way</h3>
+    <div class="hint" style="font-size:13px;color:var(--ink)">Click <b>Furniture presets</b>, pick something, set your size, and press Create. Then open <b>Build instructions</b> for the shopping list, cut list and steps, and print them.</div>
+    <h3 style="margin-top:12px">Building your own</h3>
+    <table>
+      <tr><td><b>Draw a board</b></td><td>Pick a material on the left, click Draw a board, and drag on the floor. Hold Shift to stand it upright.</td></tr>
+      <tr><td><b>Move</b></td><td>Click a piece, then drag it. It snaps to other pieces. Shift + drag raises or lowers it. Alt turns snapping off.</td></tr>
+      <tr><td><b>Arrows and rings</b></td><td>A selected piece shows red, green and blue arrows: drag one to slide it in just that direction. Click Rotate to get rings instead, and drag a ring to turn the piece to any angle.</td></tr>
+      <tr><td><b>Box select</b></td><td>Hold Shift and drag across empty space to select everything inside the box.</td></tr>
+      <tr><td><b>Copy and mirror</b></td><td>Edit menu, or the buttons in the right panel: Duplicate, Duplicate and drag, Copy in a row (evenly spaced copies) and Mirror (the matching other side).</td></tr>
+      <tr><td><b>Right-click</b></td><td>Right-click a piece for a menu of everything you can do to it. Right-click empty space for view options.</td></tr>
+      <tr><td><b>Hide and see through</b></td><td>H hides the selected pieces, Shift+H shows only them, Alt+H brings everything back. Alt+Z makes the wood see-through. View &gt; Exploded view pulls the pieces apart.</td></tr>
+      <tr><td><b>Groups</b></td><td>Select several pieces and press Ctrl+G. After that, clicking one selects them all. Ctrl+Shift+G ungroups.</td></tr>
+      <tr><td><b>Overlaps</b></td><td>Pieces that occupy the same space turn red, with a warning at the bottom of the screen.</td></tr>
+      <tr><td><b>Change length</b></td><td>Click a piece and drag one of the blue handles on its ends, or type a size in the panel on the right.</td></tr>
+      <tr><td><b>Connect</b></td><td>Click Connect, then the piece to move, then the piece it should meet. The fastener is suggested for you.</td></tr>
+      <tr><td><b>Measure</b></td><td>Ctrl + click two pieces. The panel on the right shows the gap between them.</td></tr>
+      <tr><td><b>Look around</b></td><td>Drag empty space to turn the view, right-drag to slide it, scroll to zoom.</td></tr>
+    </table>
+    <h3 style="margin-top:12px">Keyboard</h3>
+    <table>
+      <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd></td><td>Undo / redo</td></tr>
+      <tr><td><kbd>Ctrl+S</kbd> / <kbd>Ctrl+P</kbd></td><td>Save / print instructions</td></tr>
+      <tr><td><kbd>Ctrl+D</kbd> / <kbd>Delete</kbd></td><td>Duplicate / delete the selected pieces</td></tr>
+      <tr><td><kbd>Shift+D</kbd> / <kbd>Ctrl+M</kbd></td><td>Duplicate and drag the copy / mirror</td></tr>
+      <tr><td><kbd>Arrow keys</kbd></td><td>Nudge the selected piece; <kbd>PgUp</kbd> / <kbd>PgDn</kbd> raise and lower it</td></tr>
+      <tr><td><kbd>M</kbd> / <kbd>R</kbd> / <kbd>S</kbd></td><td>Move / Rotate / Stretch with the mouse. Then <kbd>X</kbd>, <kbd>Y</kbd> or <kbd>Z</kbd> locks a direction (Z is up), typing a number gives an exact amount, click or <kbd>Enter</kbd> keeps it, <kbd>Esc</kbd> cancels.</td></tr>
+      <tr><td><kbd>F</kbd> / <kbd>1</kbd> <kbd>3</kbd> <kbd>7</kbd> / <kbd>Home</kbd></td><td>Zoom to the selection / front, side, top view / fit everything</td></tr>
+      <tr><td><kbd>D</kbd> / <kbd>C</kbd></td><td>Draw a board / Connect two pieces</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Leave a tool, or clear the selection</td></tr>
+    </table>
+    <div class="hint" style="margin-top:10px">Sizes are in inches. Type them like 36, 3 1/2 or 4' 6. Store lumber is smaller than its name: a 2x4 is really 1 1/2" × 3 1/2".</div>
+  </div>
+</dialog>
+
+<script src="three.min.js"></script>
+<script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
+<!-- Load order matters: each file may use what the files above it define. -->
+<script src="js/core.js"></script>
+<script src="js/orient.js"></script>
+<script src="js/builders-furniture.js"></script>
+<script src="js/builders-fish.js"></script>
+<script src="js/builders-shed.js"></script>
+<script src="js/presets.js"></script>
+<script src="js/state.js"></script>
+<script src="js/joints.js"></script>
+<script src="js/style.js"></script>
+<script src="js/visibility.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/groups.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/transform.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/plans.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/app.js"></script>
+<script src="js/menus.js"></script>
+<script src="js/selftest.js"></script>
+</body>
+</html>
