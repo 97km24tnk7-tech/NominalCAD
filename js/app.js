@@ -18,6 +18,7 @@ function setTab(t){
   if(t==='design'){resize();syncPanels();} // the 3D view had no size while it was hidden
   renderStatus();
   if(window.syncRibbonEdge)syncRibbonEdge(); // the ribbon shows other groups on this tab (defined further down; missing during start-up)
+  if(window.countVisitTab)countVisitTab(t); // the public site counts the first opening of a document tab (js/visits.js)
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 $('#bBack').onclick=()=>setTab('design'); // "Back to design" in the ribbon of the document tabs
@@ -464,6 +465,7 @@ function placePreset(preset,vals,parts,add){
   // so a hinge or a pull that is deleted later does not come back on the shopping list (js/hardware.js).
   S.sets[setNumber].hw=settlePlainLines(hwBefore,hwOwn,ids);
   try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
+  if(window.countVisitEvent&&$('#presetDlg').open)countVisitEvent('preset',preset.name); // made by the person in the presets window: the public site counts its catalog name (js/visits.js)
   $('#presetDlg').close();
   setTab('design');
   commit();

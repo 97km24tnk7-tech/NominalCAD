@@ -62,6 +62,7 @@ $('#bExport').onclick=()=>{
   link.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));
   link.download=(S.name.replace(/[^\w\- ]+/g,'').trim()||'project')+'.woodshop.json';
   link.click();
+  if(window.countVisitEvent)countVisitEvent('save file'); // the public site counts the first save to a file of a visit (js/visits.js)
   setTimeout(()=>URL.revokeObjectURL(link.href),1000);
 };
 $('#bImport').onclick=()=>$('#fileIn').click();

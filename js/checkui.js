@@ -78,6 +78,7 @@ function checkDesign(){
     toast('There is nothing to check yet. Add some pieces or pick a preset first.');
     return;
   }
+  if(window.countVisitEvent)countVisitEvent('check'); // the public site counts the first check of a visit (js/visits.js)
   runCheck();
   renderCheckChip();
   renderCheckDialog();
