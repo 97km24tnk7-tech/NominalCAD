@@ -4,7 +4,23 @@
 const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let drag=null;
 function setRay(e){const r=cv.getBoundingClientRect();mouse.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(mouse,camera);}
 function pick(e){setRay(e);const hits=ray.intersectObjects(partsGroup.children.map(g=>g.children[0]));return hits[0]||null;}
-cv.addEventListener('contextmenu',e=>e.preventDefault());
+/* Right-click belongs to the program everywhere except where the browser's own menu is useful: in a box you type
+   in (copy and paste) and on the document pages (copy text, save a picture). The program's menu opens under the
+   pointer a moment BEFORE the browser asks about its own menu, so the question arrives on our menu, not on the
+   3D view: this has to cover the whole page or the browser's menu lands on top of ours. */
+document.addEventListener('contextmenu',e=>{
+  if(e.target.closest&&e.target.closest('input,textarea,.page'))return;
+  e.preventDefault();
+});
+SELFTESTS.push(function rightClickMenu(problems){
+  // true when the browser would have shown its own menu for a right-click on this element
+  const browserMenuOn=el=>el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));
+  const typing=document.createElement('input');document.body.appendChild(typing);
+  if(browserMenuOn(cv))problems.push('right-click: the browser menu would open over the 3D view');
+  if(browserMenuOn($('#ctxMenu')))problems.push('right-click: the browser menu would open on top of the program\'s own right-click menu');
+  if(!browserMenuOn(typing))problems.push('right-click: a box you type in lost the browser\'s copy and paste menu');
+  typing.remove();
+});
 cv.addEventListener('pointerdown',e=>{
   try{cv.setPointerCapture(e.pointerId);}catch(err){} // keeps the drag when the pointer leaves the view; a pointer that cannot be captured still drags
   const base={sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false};

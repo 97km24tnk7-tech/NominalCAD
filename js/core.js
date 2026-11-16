@@ -76,3 +76,9 @@ function toast(msg){
   clearTimeout(toast.timer);
   toast.timer=setTimeout(()=>t.classList.remove('on'),msg.length>80?7000:4000);
 }
+
+/* Self-checks that live beside the feature they check. A feature file adds one with
+     SELFTESTS.push(function nameOfTheCheck(problems){ ... problems.push('what is wrong') ... });
+   and selfTest() (js/selftest.js) runs them all after its own checks, with a design on screen, no dialogs shown
+   (autoConfirm is on) and the person's design put back afterwards. Keep each one quick and leave no mess. */
+const SELFTESTS=[];

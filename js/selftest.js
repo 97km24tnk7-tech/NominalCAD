@@ -176,6 +176,11 @@ function selfTest(opt){
     if($('#presetDlg').open)$('#presetDlg').close();
     if(S.parts.length)selfTestPanels(problems);
     selfTestGrab(problems);
+    // checks that live beside their feature (see SELFTESTS in js/core.js); one that throws does not stop the rest
+    for(const check of SELFTESTS){
+      try{check(problems);}
+      catch(e){problems.push(`error in ${check.name||'a feature check'}: ${e.message}`);}
+    }
   }catch(e){
     problems.push('error: '+e.message+' @ '+String(e.stack||'').split('\n').slice(1,3).join(' | ').trim());
   }finally{
