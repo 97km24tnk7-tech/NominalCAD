@@ -6,8 +6,8 @@ let hiddenIds=new Set(),xray=false,explode=0,forceDims=false,explodeCenter=[0,0,
 function hideSel(){if(!sel.size)return toast('Select the pieces to hide first.');const n=sel.size;sel.forEach(i=>hiddenIds.add(i));sel=new Set();renderAll();toast(`${n} hidden. Alt+H shows everything again.`);}
 function isolateSel(){if(!sel.size)return toast('Select the pieces you want to keep on screen first.');for(const p of S.parts)if(!sel.has(p.id))hiddenIds.add(p.id);renderAll();toast('Showing only the selection. Alt+H shows everything again.');}
 function showAll(){hiddenIds=new Set();renderAll();}
-function toggleXray(){xray=!xray;rebuildScene();toast(xray?'See-through view on':'See-through view off');}
-function setExplode(v){explode=v;rebuildScene();renderStatus();if(v)toast('Exploded view. Click any piece to put it back together.');} // renderStatus: the status bar prompt says how to leave the exploded view
+function toggleXray(){xray=!xray;rebuildScene();syncChecks();toast(xray?'See-through view on':'See-through view off');}
+function setExplode(v){explode=v;rebuildScene();renderStatus();syncChecks();} // renderStatus: the status bar prompt says how to leave the exploded view; syncChecks: the Display button lights up
 function focusSel(){ // zoom to the selection, or to everything when nothing is selected
   const b=bbox(sel.size?selParts():S.parts);if(!b)return;
   cam.target.set((b.lo[0]+b.hi[0])/2,(b.lo[1]+b.hi[1])/2,(b.lo[2]+b.hi[2])/2);cam.r=Math.max(20,Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2])*1.6);

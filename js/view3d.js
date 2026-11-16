@@ -54,8 +54,8 @@ function drawAxisSymbol(){
   }).join('');
 }
 let drawQueued=false;
-function draw(){if(drawQueued)return;drawQueued=true;requestAnimationFrame(()=>{drawQueued=false;renderer.render(scene,camera);});}
-function resize(){const w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera);}
+function draw(){if(drawQueued)return;drawQueued=true;requestAnimationFrame(()=>{drawQueued=false;placeViewLabels();renderer.render(scene,camera);});} // the labels follow every drawn frame
+function resize(){const w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();placeViewLabels();renderer.render(scene,camera);}
 new ResizeObserver(resize).observe($('#cvWrap'));
 function fit(dir){const b=bbox(S.parts);
   if(b){cam.target.set((b.lo[0]+b.hi[0])/2,(b.lo[1]+b.hi[1])/2,(b.lo[2]+b.hi[2])/2);cam.r=Math.max(30,Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2])*1.7);}
@@ -99,8 +99,12 @@ function renderLegend(m){
   el.innerHTML=rows.slice(0,16).map(([name,color])=>`<i style="background:#${color.toString(16).padStart(6,'0')}"></i><span>${esc(name)}</span>`).join('')
     +(rows.length>16?`<span class="rest">and ${rows.length-16} more</span>`:'');
 }
+/* takes everything out of a group of the scene and frees what it held */
+function emptyGroup(g){
+  while(g.children.length){const c=g.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();if(o.material){o.material.map&&o.material.map!==grainTex&&o.material.map.dispose();o.material.dispose();}});}
+}
 function rebuildScene(){
-  for(const g of[partsGroup,fastGroup,dimGroup])while(g.children.length){const c=g.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();if(o.material){o.material.map&&o.material.map!==grainTex&&o.material.map.dispose();o.material.dispose();}});}
+  for(const g of[partsGroup,fastGroup,dimGroup])emptyGroup(g);
   meshes.clear();fastGroup.visible=true;
   const real=viewMode==='real',shadows=real&&S.parts.length<=1500,blk=blockColors(),painted=FINISHES[look().finish][2]===2;
   renderLegend(real?null:blk);
@@ -131,31 +135,114 @@ function rebuildScene(){
   buildDims();buildHandles();buildGizmo();
   draw();
 }
-/* overall size lines and a label on the selected piece, drawn in the 3D view */
-function textSprite(text,pos,sc,color){ // a white label box with a thin gray border, like the labels in the interface
+/* ---------- labels inside the 3D scene: only for the pictures of the printed plans (see "labels on screen" below) ---------- */
+/* A white label box with a thin gray border that always faces the eye.
+   sc is its height: in the scene's own inches, or, when sameSize is true, as a share of the picture's height
+   (so that near and far labels of a picture in perspective come out the same size). */
+const PICTURE_LABEL=.06; // height of a size label in the overview picture of the plans, as a share of the picture's height
+function textSprite(text,pos,sc,color,sameSize){
   const c=document.createElement('canvas'),x=c.getContext('2d'),f='600 38px "Segoe UI",system-ui,Arial';x.font=f;
   c.width=Math.ceil(x.measureText(text).width)+28;c.height=56;x.font=f;
   x.fillStyle='#fff';x.fillRect(0,0,c.width,56);
   x.strokeStyle=VIEW_COL.labelEdge;x.lineWidth=3;x.strokeRect(1.5,1.5,c.width-3,53);
   x.fillStyle=color;x.textBaseline='middle';x.fillText(text,14,30);
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,sizeAttenuation:!sameSize}));
+  if(sameSize)sc*=2/camera.projectionMatrix.elements[5]; // from a share of the picture's height to the units three.js wants for a sprite that does not shrink with distance
   sp.scale.set(sc*c.width/56,sc,1);sp.position.set(pos[0],pos[1],pos[2]);sp.renderOrder=7;return sp;
 }
-function buildDims(only){ // only = which directions to label (used for the flat drawings); leave empty for all three
-  if(only)while(dimGroup.children.length){const c=dimGroup.children.pop();c.geometry&&c.geometry.dispose();if(c.material){c.material.map&&c.material.map.dispose();c.material.dispose();}}
-  dimGroup.visible=true;const b=bbox(S.parts);if(!b||(!$('#showDims').checked&&!forceDims))return;
-  const d=Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2]),sc=Math.max(2.2,d*.035),off=sc*1.6,tk=sc*.45;
-  const mat=()=>new THREE.LineBasicMaterial({color:VIEW_COL.dim,depthTest:false});
-  const dim=(k,a,z)=>{ // a = start corner, k = axis measured, z = axis the tick marks run along
-    const e=a.slice();e[k]=b.hi[k];const pts=[];
-    for(const p of[a,e]){const t0=p.slice(),t1=p.slice();t0[z]-=tk;t1[z]+=tk;pts.push(t0,t1);}
-    pts.push(a,e);
-    const ln=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(p[0],p[1],p[2]))),mat());ln.renderOrder=6;
-    const mid=a.map((v,i)=>(v+e[i])/2);dimGroup.add(ln,textSprite(fmtFt(b.hi[k]-b.lo[k]),mid,sc,VIEW_COL.dimText));};
-  if(!only||only.includes(0))dim(0,[b.lo[0],b.lo[1],b.hi[2]+off],2);          // width, along the front at floor level
-  if(!only||only.includes(2))dim(2,[b.hi[0]+off,b.lo[1],b.lo[2]],0);          // depth, along the right side
-  if(!only||only.includes(1))dim(1,[b.hi[0]+off,b.lo[1],b.hi[2]+off],0);      // height, at the front right corner
-  if(sel.size===1){const p=selParts()[0],pb=box(p),m=M[p.mat];
-    dimGroup.add(textSprite(isProp(p)?p.name:`${p.name}: ${m.short}, ${fmt(p.l)} long`,[(pb.lo[0]+pb.hi[0])/2,pb.hi[1]+sc*.9,(pb.lo[2]+pb.hi[2])/2],sc*.8,VIEW_COL.nameText));}
+/* ---------- labels on screen ----------
+   In the 3D view on screen a label is a small HTML box laid over the canvas (in #viewLabels), not part of the 3D
+   scene. That keeps it as sharp as the rest of the interface and one size however far the view is zoomed, and it
+   lets two labels step apart when they would cover each other. (The pictures for the printed plans cannot
+   include HTML, so there the labels are drawn into the scene with textSprite.)
+     addViewLabel(text, at, kind, lift)   at = a function that returns the [x, y, z] the label belongs to;
+                                          kind = '' for a size, 'name' for the selected piece;
+                                          lift = how many pixels above that point the label sits
+     placeViewLabels()                    puts every label where its point is on screen now; draw() calls it */
+const LABEL_HEIGHT=18,LABEL_PAD=12,LABEL_GAP=3,LABEL_EDGE=4; // pixels: box height, side padding and border, space between two labels, space to the edge of the view
+let viewLabels=[];
+let labelRuler=null; // measures text without asking the page to lay itself out again
+function labelWidth(text,bold){
+  if(!labelRuler)labelRuler=document.createElement('canvas').getContext('2d');
+  labelRuler.font=`${bold?600:400} 11px ${getComputedStyle(document.body).fontFamily}`;
+  return Math.ceil(labelRuler.measureText(text).width)+LABEL_PAD;
+}
+function clearViewLabels(){
+  viewLabels=[];
+  $('#viewLabels').textContent='';
+}
+function addViewLabel(text,at,kind,lift){
+  const el=document.createElement('span');
+  el.className='vlabel'+(kind?' '+kind:'');
+  el.textContent=text;
+  el.style.display='none'; // until placeViewLabels knows where it goes
+  $('#viewLabels').appendChild(el);
+  viewLabels.push({el,at,lift:lift||0,w:labelWidth(text,kind!=='name'),h:LABEL_HEIGHT});
+}
+function placeViewLabels(){
+  const holder=$('#viewLabels'),show=dimGroup.visible&&viewLabels.length>0; // the size lines are hidden while a piece is dragged, and so are the labels
+  holder.hidden=!show;
+  if(!show)return;
+  const W=cv.clientWidth,H=cv.clientHeight,placed=[],point=new THREE.Vector3();
+  const within=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  for(const label of viewLabels){
+    const p=label.at();
+    point.set(p[0],p[1],p[2]).project(camera);
+    if(point.z<-1||point.z>1){label.el.style.display='none';continue;} // behind the eye
+    // centred on its point (raised by its lift), but never outside the view
+    let x=within((point.x+1)/2*W-label.w/2,LABEL_EDGE,W-label.w-LABEL_EDGE);
+    let y=within((1-point.y)/2*H-label.h/2-label.lift,LABEL_EDGE,H-label.h-LABEL_EDGE);
+    // step below or above a label that is already there, whichever is the shorter move
+    for(let tries=0;tries<viewLabels.length;tries++){
+      const other=placed.find(o=>x<o.x+o.w+LABEL_GAP&&x+label.w+LABEL_GAP>o.x&&y<o.y+o.h+LABEL_GAP&&y+label.h+LABEL_GAP>o.y);
+      if(!other)break;
+      const down=other.y+other.h+LABEL_GAP-y,up=y+label.h+LABEL_GAP-other.y;
+      y=down<=up&&other.y+other.h+LABEL_GAP+label.h<=H-LABEL_EDGE?y+down:y-up;
+    }
+    placed.push({x,y,w:label.w,h:label.h});
+    label.el.style.display='';
+    label.el.style.transform=`translate(${Math.round(x)}px,${Math.round(y)}px)`;
+  }
+}
+
+/* The overall size lines (width, depth, height) and the label of the selected piece.
+   On screen the lines are in the 3D scene and their labels are HTML (see above). While takePictures() draws the
+   plans (forceDims is true) the labels are sprites in the scene, and there is no selection to label. */
+function buildDims(){
+  clearViewLabels();
+  dimGroup.visible=true;
+  const b=bbox(S.parts),forPicture=forceDims;
+  if(!b||explode||(!$('#showDims').checked&&!forPicture))return; // nothing to measure; or pulled apart, when the overall size means nothing
+  const d=Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2]);
+  const sc=Math.max(2.2,d*.035)*(forPicture?1.5:1); // the unit the lines are laid out in: larger in a picture, where the labels are larger too
+  const off=sc*1.6,tk=sc*.45;
+  const dim=(k,a,z,along)=>{ // a = start corner, k = axis measured, z = axis the tick marks run along, along = where on the line the label sits (0 to 1)
+    const e=a.slice();e[k]=b.hi[k];
+    dimGroup.add(dimLine(a,e,z,tk));
+    const spot=a.map((v,i)=>v+(e[i]-v)*along),text=fmtFt(b.hi[k]-b.lo[k]);
+    if(forPicture)dimGroup.add(textSprite(text,spot,PICTURE_LABEL,VIEW_COL.dimText,true));
+    else addViewLabel(text,()=>spot,'',0);
+  };
+  dim(0,[b.lo[0],b.lo[1],b.hi[2]+off],2,.5);       // width, along the front at floor level
+  dim(2,[b.hi[0]+off,b.lo[1],b.lo[2]],0,.5);       // depth, along the right side
+  dim(1,[b.hi[0]+off,b.lo[1],b.hi[2]+off],0,.62);  // height, at the front right corner; its label sits above the middle, clear of the depth label that ends at the same corner
+  if(sel.size===1&&!forPicture){
+    const p=selParts()[0],pb=box(p),m=M[p.mat],middle=selCenter();
+    // The label sits above the piece. A selected piece also carries the move arrows, and the blue one points up
+    // from its middle by ARROW_REACH times the arrow length (transform.js): the label goes above whichever is higher.
+    const above=()=>[(pb.lo[0]+pb.hi[0])/2,Math.max(pb.hi[1],tool==='select'&&!modal?middle[1]+cam.r*GIZMO_SIZE*ARROW_REACH:0),(pb.lo[2]+pb.hi[2])/2];
+    addViewLabel(isProp(p)?p.name:`${p.name}: ${m.short}, ${fmt(p.l)} long`,above,'name',LABEL_HEIGHT/2+8);
+  }
+  placeViewLabels();
+}
+/* one size line from a to e with a short tick across each end; the ticks run along axis z and are tk long each way */
+function dimLine(a,e,z,tk){
+  const pts=[];
+  for(const p of[a,e]){const t0=p.slice(),t1=p.slice();t0[z]-=tk;t1[z]+=tk;pts.push(t0,t1);}
+  pts.push(a,e);
+  const line=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(p[0],p[1],p[2]))),
+    new THREE.LineBasicMaterial({color:VIEW_COL.dim,depthTest:false}));
+  line.renderOrder=6;
+  return line;
 }
 

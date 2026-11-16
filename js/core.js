@@ -20,9 +20,22 @@ const isSquare=m=>m.kind==='board'&&m.t===m.w;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const r16=v=>Math.round(v*16)/16,fa=v=>esc(fmt(v));
+/* How a size is written.
+     fmt(v)     inches, with fractions to 1/16:  33 1/4"   Used for every piece, cut, field and distance.
+     fmtFt(v)   the size of a whole design (its overall width, depth and height, the length of a wall). The same
+                inches up to 8 ft, so that a 60" bench reads 60" everywhere; feet and inches from 8 ft up
+                (119" reads 9' 11"), because few people can picture 119 inches.
+   Every place that shows an overall size calls fmtFt (the status bar, the size lines in the 3D view, the presets
+   dialog, the document pages), so one size never reads two ways on the same screen. */
+const FEET_FROM=96; // inches
 function fmt(v){const neg=v<-1e-9;v=Math.abs(v);let n=Math.round(v*16),w=Math.floor(n/16),f=n%16,s;
   if(f){let d=16;while(f%2===0){f/=2;d/=2;}s=(w?w+' ':'')+f+'/'+d;}else s=''+w;return(neg?'-':'')+s+'"';}
-function fmtFt(v){const ft=Math.floor(v/12+1e-6),inch=v-ft*12;return v>=24?`${ft}' ${fmt(inch)}`:fmt(v);}
+function fmtFt(v){
+  v=r16(v);
+  if(v<FEET_FROM)return fmt(v);
+  const feet=Math.floor(v/12+1e-6);
+  return`${feet}' ${fmt(v-feet*12)}`;
+}
 function parseLen(str){
   str=String(str).trim().replace(/["”″]/g,'').replace(/\s*in(ch(es)?)?\.?$/i,'').trim();if(!str)return NaN;
   let ft=0;const m=str.match(/^([\d.]+)\s*(?:'|′|ft\.?|feet)\s*(.*)$/i);

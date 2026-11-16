@@ -39,6 +39,8 @@
   <symbol id="i-save" viewBox="0 0 24 24"><path d="M4.5 4.5h12l3 3v12h-15z"/><path d="M8 4.5v5h7.5v-5M7.5 19.5v-6h9v6"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v10.5M8 10l4 4 4-4"/><path d="M4.5 15.5v4h15v-4"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 14V3.5M8 7.5l4-4 4 4"/><path d="M4.5 15.5v4h15v-4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 5H5.5v15.5h13V5H15"/><path d="M9 3.5h6v3H9z"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 5H5.5v15.5h13V5H15"/><path d="M9 3.5h6v3H9z"/><path d="M12 9.5v7.5M9 14l3 3 3-3"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 5h2v2H4zM4 11h2v2H4zM4 17h2v2H4z"/></symbol>
@@ -54,6 +56,7 @@
   <symbol id="i-dim" viewBox="0 0 24 24"><path d="M4 6v12M20 6v12M4 12h16"/><path d="M7 9.5L4.5 12 7 14.5M17 9.5l2.5 2.5-2.5 2.5"/></symbol>
   <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4 19.5h16"/></symbol>
   <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9.5 5.5L12 3l2.5 2.5M9.5 18.5L12 21l2.5-2.5M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M3.5 9.5l6-3.5 6 3.5v7l-6 3.5-6-3.5zM3.5 9.5l6 3.5 6-3.5M9.5 13v7"/><path class="ia" d="M21 12h-5.5M18 9.5L15.5 12l2.5 2.5"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><path d="M4.5 19.5l15-15"/></symbol>
   <!-- pictures for the tiles in the Furniture presets dialog (PRESET_ICONS in js/presets.js says which preset gets which) -->
   <symbol id="i-p-rack" viewBox="0 0 24 24"><path d="M4 3v18M20 3v18M4 10.5h16M4 18h16"/><path class="ia" d="M7 5.5h10v5H7zM7 13h10v5H7z"/></symbol>
@@ -74,23 +77,28 @@
   <!-- ===== tab row: File, the four workflow tabs, project name, Help ===== -->
   <div class="tabrow" id="tabrow">
     <div class="pd">
-      <button class="file pd-btn" title="New, My projects, Save, Download, Load, Print">File <svg class="i xs"><use href="#i-caret"/></svg></button>
+      <button class="file pd-btn" title="New, My projects, Save, Copy and Paste as text, Load, Print">File <svg class="i xs"><use href="#i-caret"/></svg></button>
       <div class="menu">
         <button class="mi" id="bNew"><svg class="i"><use href="#i-new"/></svg><span>New design</span><kbd></kbd></button>
         <button class="mi" id="bOpen"><svg class="i"><use href="#i-folder"/></svg><span>My projects&hellip;</span><kbd></kbd></button>
         <button class="mi" id="bSave"><svg class="i"><use href="#i-save"/></svg><span>Save</span><kbd>Ctrl+S</kbd></button>
         <div class="msep"></div>
-        <button class="mi" data-click="#bExport"><svg class="i"><use href="#i-download"/></svg><span>Download as a file</span><kbd></kbd></button>
+        <!-- the design as text: the way to move it to another device without a file (js/transfer.js) -->
+        <button class="mi" id="bCopyText" title="Puts the whole design on the clipboard as text. Paste it into an email or a note, or into Paste design from text on another device."><svg class="i"><use href="#i-copy"/></svg><span>Copy design as text</span><kbd></kbd></button>
+        <button class="mi" id="bPasteText" title="Opens a design that was copied as text, here or on another device"><svg class="i"><use href="#i-paste"/></svg><span>Paste design from text&hellip;</span><kbd></kbd></button>
+        <div class="msep"></div>
+        <!-- data-hosted="hide": not in the copy that runs from a link, where downloads do not work (js/hosted.js) -->
+        <button class="mi" data-click="#bExport" data-hosted="hide"><svg class="i"><use href="#i-download"/></svg><span>Download as a file</span><kbd></kbd></button>
         <button class="mi" data-click="#bImport"><svg class="i"><use href="#i-upload"/></svg><span>Load from a file&hellip;</span><kbd></kbd></button>
         <div class="msep"></div>
-        <button class="mi" id="bPrint"><svg class="i"><use href="#i-print"/></svg><span>Print instructions</span><kbd>Ctrl+P</kbd></button>
+        <button class="mi" id="bPrint"><svg class="i"><use href="#i-print"/></svg><span data-hosted="hide">Print instructions</span><span data-hosted="only">How to print&hellip;</span><kbd>Ctrl+P</kbd></button>
       </div>
     </div>
     <nav class="tabs" aria-label="Steps">
-      <button class="tab on" data-tab="design"><i>1</i>Design</button>
-      <button class="tab" data-tab="joints"><i>2</i>Joints &amp; hardware</button>
-      <button class="tab" data-tab="cut"><i>3</i>Cut list &amp; shopping</button>
-      <button class="tab" data-tab="instr"><i>4</i>Build instructions</button>
+      <button class="tab on" data-tab="design" title="Step 1: build the design in 3D"><i>1</i>Design</button>
+      <button class="tab" data-tab="joints" title="Step 2: how the pieces join, and the screws and other hardware to buy"><i>2</i>Joints &amp; hardware</button>
+      <button class="tab" data-tab="cut" title="Step 3: the cut list, the lumber to buy and what it costs"><i>3</i>Cut list &amp; shopping</button>
+      <button class="tab" data-tab="instr" title="Step 4: everything on one set of pages, with the steps in order, ready to print"><i>4</i>Build instructions</button>
     </nav>
     <div class="tr-right">
       <label class="projname" title="Project name. Click to rename."><svg class="i"><use href="#i-doc"/></svg><input class="fld s" id="projName" aria-label="Project name"></label>
@@ -100,11 +108,39 @@
     <input type="file" id="fileIn" accept=".json" hidden>
   </div>
 
-  <!-- ===== ribbon: the commands, in captioned groups. A group marked data-design only makes sense on the Design tab,
-       so using it from another tab switches to Design first. "More" opens the group's full menu. ===== -->
+  <!-- ===== ribbon: the commands, in captioned groups. The ribbon shows the commands of the open tab and nothing
+       else: a group with class "design-only" is shown on the Design tab, a group with class "doc-only" on the three
+       document tabs (the style sheet does it from body[data-tab]). "More" opens the group's full menu. ===== -->
   <div class="ribbon" id="ribbon">
 
-    <div class="grp">
+    <!-- document tabs: the way back, the commands of the page, and keeping the design -->
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <button class="rb" id="bBack" title="Go back to the 3D view to change the design"><svg class="i l"><use href="#i-back"/></svg><span>Back to<br>design</span></button>
+      </div>
+      <div class="cap">Design</div>
+    </div>
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <!-- data-doc buttons are wired in js/plans.js. The hosted copy cannot print, so there the button explains how to. -->
+        <button class="rb" data-doc="print" data-hosted="hide" title="Print the page you are looking at (Ctrl+P prints the build instructions)"><svg class="i l"><use href="#i-print"/></svg><span>Print</span></button>
+        <button class="rb" data-doc="print" data-hosted="only" title="This online copy cannot print. See how to print the design from your computer."><svg class="i l"><use href="#i-print"/></svg><span>How to<br>print</span></button>
+        <button class="rb" data-doc="style" title="Pick the wood, the finish and how fancy the joints are. The pages follow."><svg class="i l"><use href="#i-style"/></svg><span>Style &amp;<br>finish</span></button>
+      </div>
+      <div class="cap">This page</div>
+    </div>
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <div class="stack">
+          <button class="sb" data-click="#bSave" title="Save the design to My projects in this browser (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg>Save</button>
+          <button class="sb" data-click="#bCopyText" title="Puts the whole design on the clipboard as text, to paste into an email, a note, or Paste design from text on another device"><svg class="i"><use href="#i-copy"/></svg>Copy design as text</button>
+          <button class="sb" data-click="#bExport" data-hosted="hide" title="Saves the design as a file on this computer"><svg class="i"><use href="#i-download"/></svg>Download as a file</button>
+        </div>
+      </div>
+      <div class="cap">Keep</div>
+    </div>
+
+    <div class="grp design-only">
       <div class="grp-b">
         <button class="rb pri" id="bPreset" title="Start from a ready-made design and set your own size"><svg class="i l"><use href="#i-presets"/></svg><span>Furniture<br>presets</span></button>
         <button class="rb" id="bStyle" title="Style, finish and difficulty"><svg class="i l"><use href="#i-style"/></svg><span>Style &amp;<br>finish</span></button>
@@ -112,7 +148,7 @@
       <div class="cap">Start</div>
     </div>
 
-    <div class="grp" data-design="1">
+    <div class="grp design-only">
       <div class="grp-b">
         <div class="stack add">
           <select class="fld s" id="addMat" title="The board or plywood that Add and Draw a board use" aria-label="Material to add"></select>
@@ -124,10 +160,10 @@
         <div class="pd">
           <button class="rb more pd-btn" title="More ways to add pieces"><svg class="i l"><use href="#i-more"/></svg><span class="lbl">More<svg class="i xs"><use href="#i-caret"/></svg></span></button>
           <div class="menu">
-            <button class="mi" data-click="#bPreset"><i></i><span>Furniture preset&hellip;</span><kbd></kbd></button>
-            <div class="msep"></div>
-            <button class="mi" data-click="#bAdd"><svg class="i"><use href="#i-plus"/></svg><span>Board or panel (material picked in the ribbon)</span><kbd></kbd></button>
-            <button class="mi" data-click="#bAddTank"><svg class="i"><use href="#i-plus"/></svg><span>Fish tank (size picked in the ribbon)</span><kbd></kbd></button>
+            <button class="mi" data-click="#bPreset"><svg class="i"><use href="#i-presets"/></svg><span>Furniture preset&hellip;</span><kbd></kbd></button>            <div class="msep"></div>
+            <button class="mi" data-click="#bAdd" title="Adds one piece of the material picked in the ribbon"><svg class="i"><use href="#i-plus"/></svg><span>Board or panel</span><kbd></kbd></button>
+            <button class="mi" data-tool="draw" title="Drag on the floor to draw a board of the material picked in the ribbon"><svg class="i"><use href="#i-draw"/></svg><span>Draw a board</span><kbd>D</kbd></button>
+            <button class="mi" data-click="#bAddTank" title="Adds a fish tank of the size picked in the ribbon"><svg class="i"><use href="#i-plus"/></svg><span>Fish tank</span><kbd></kbd></button>
             <button class="mi" data-click="#bImportCut"><svg class="i"><use href="#i-import"/></svg><span>Cut list from another plan&hellip;</span><kbd></kbd></button>
           </div>
         </div>
@@ -135,7 +171,7 @@
       <div class="cap">Add</div>
     </div>
 
-    <div class="grp" data-design="1">
+    <div class="grp design-only">
       <div class="grp-b">
         <button class="rb on" data-tool="select" title="Select / move (Esc). Click to select, drag to move, drag a blue handle to change the length."><svg class="i l"><use href="#i-select"/></svg><span>Select /<br>move</span></button>
         <button class="rb" data-tool="rotate" title="Rotate. Click a piece, then drag a colored ring to turn it to any angle."><svg class="i l"><use href="#i-rotate"/></svg><span>Rotate</span></button>
@@ -156,7 +192,7 @@
       <div class="cap">Tools</div>
     </div>
 
-    <div class="grp" data-design="1">
+    <div class="grp design-only">
       <div class="grp-b">
         <div class="stack">
           <button class="sb" id="bUndo" title="Undo (Ctrl+Z)"><svg class="i"><use href="#i-undo"/></svg>Undo</button>
@@ -189,11 +225,11 @@
       <div class="cap">Edit</div>
     </div>
 
-    <div class="grp" data-design="1">
+    <div class="grp design-only">
       <div class="grp-b">
         <button class="rb" data-view="fit" title="Fit everything on screen (Home)"><svg class="i l"><use href="#i-fit"/></svg><span>Fit<br>view</span></button>
         <div class="pd">
-          <button class="rb pd-btn" title="How the design is shown: realistic wood or color blocks, see-through, exploded"><svg class="i l"><use href="#i-display"/></svg><span class="lbl">Display<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <button class="rb pd-btn" id="bDisplay" title="How the design is shown: realistic wood or color blocks, see-through, exploded"><svg class="i l"><use href="#i-display"/></svg><span class="lbl">Display<svg class="i xs"><use href="#i-caret"/></svg></span></button>
           <div class="pop" id="displayPop">
             <div class="pop-row"><label>Look</label><span class="seg"><button data-cmd="viewReal" data-keep>Realistic wood</button><button data-cmd="viewBlock" data-keep>Color blocks</button></span></div>
             <!-- A later feature adds a "Wood" row here (Solid / See-through / Fasteners only), built like the Look row. -->
@@ -239,9 +275,9 @@
       <div class="cap">View</div>
     </div>
 
-    <div class="grp">
+    <div class="grp design-only">
       <div class="grp-b">
-        <button class="rb" id="bInstr" title="Shopping list, cut list and step-by-step instructions, ready to print"><svg class="i l"><use href="#i-print"/></svg><span>Instructions<br>to print</span></button>
+        <button class="rb" id="bInstr" title="Opens tab 4: the shopping list, the cut list and the steps in order"><svg class="i l"><use href="#i-print"/></svg><span data-hosted="hide">Instructions<br>to print</span><span data-hosted="only">Build<br>instructions</span></button>
       </div>
       <div class="cap">Finish</div>
     </div>
@@ -251,6 +287,7 @@
   <main id="designPage">
     <div id="cvWrap">
       <canvas id="cv"></canvas>
+      <div id="viewLabels" aria-hidden="true"></div><!-- size labels and the name of the selected piece, placed by js/view3d.js -->
       <svg id="axisSym" width="76" height="76" aria-hidden="true"></svg>
       <div id="legend" style="display:none"></div>
       <div id="boxSel"></div>
@@ -269,8 +306,9 @@
       </aside>
     </div>
     <nav class="strip" aria-label="Panels">
-      <button class="sp-b on" id="tPieces" data-cmd="togglePieces" title="Pieces: the list of every piece in the design"><svg class="i m"><use href="#i-list"/></svg></button>
-      <button class="sp-b on" id="tProps" data-cmd="toggleProps" title="Properties: sizes and position of the selected piece. It appears when a piece is selected."><svg class="i m"><use href="#i-props"/></svg></button>
+      <!-- js/layout.js wires these two and gives them their look: "on" while the panel is showing, "armed" while it is waiting for a selection -->
+      <button class="sp-b on" id="tPieces" title="Pieces: the list of every piece in the design"><svg class="i m"><use href="#i-list"/></svg></button>
+      <button class="sp-b" id="tProps" title="Properties: sizes and position of the selected piece. It appears when a piece is selected."><svg class="i m"><use href="#i-props"/></svg></button>
     </nav>
   </main>
 
@@ -291,11 +329,11 @@
       <label class="tg" title="Show or hide the fastener dots"><input type="checkbox" id="showFast" checked><span><svg class="i xs"><use href="#i-screw"/></svg>Fasteners</span></label>
       <label class="tg" title="Show or hide the size lines"><input type="checkbox" id="showDims" checked><span><svg class="i xs"><use href="#i-dim"/></svg>Sizes</span></label>
     </div>
-    <div class="st design-only" title="Pieces you move, draw or stretch jump to steps of this size"><i>Snap</i>
-      <span class="seg" id="snapSeg"><button data-snap="0.125">1/8"</button><button data-snap="0.25" class="on">1/4"</button><button data-snap="0.5">1/2"</button><button data-snap="1">1"</button></span>
+    <div class="st design-only" title="Snap: pieces you move, draw or stretch jump to steps of this size"><i>Snap</i>
+      <span class="seg" id="snapSeg"><button data-snap="0.125" title="Snap: pieces move and stretch in steps of 1/8 inch. Hold Alt while dragging to turn snapping off.">1/8"</button><button data-snap="0.25" class="on" title="Snap: pieces move and stretch in steps of 1/4 inch. Hold Alt while dragging to turn snapping off.">1/4"</button><button data-snap="0.5" title="Snap: pieces move and stretch in steps of 1/2 inch. Hold Alt while dragging to turn snapping off.">1/2"</button><button data-snap="1" title="Snap: pieces move and stretch in steps of 1 inch. Hold Alt while dragging to turn snapping off.">1"</button></span>
       <select id="gridSel" hidden><option value="0.125">1/8"</option><option value="0.25" selected>1/4"</option><option value="0.5">1/2"</option><option value="1">1"</option></select>
     </div>
-    <div class="st opt design-only"><i>Grid squares 12"</i></div>
+    <div class="st wide-only design-only" title="Each square of the floor grid is 12 inches (one foot) across"><i>Grid squares 12"</i></div>
   </div>
 </div>
 
@@ -340,13 +378,37 @@
   <div class="dlg-h"><span>My projects</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b">
     <div id="projList"></div>
-    <p class="note">Saved projects are kept in this browser on this computer. Download a file for a backup, or to move a design to another computer.</p>
+    <p class="note"><span data-hosted="hide">Saved projects are kept in this browser on this computer. Download a file for a backup, or to move a design to another computer.</span><span data-hosted="only">Saved projects are kept in this browser on this device only. To keep a design somewhere else, or to move it to your computer, copy it as text.</span></p>
   </div>
   <div class="dlg-f">
-    <button class="btn" id="bExport" title="Saves the design on screen as a file on this computer"><svg class="i"><use href="#i-download"/></svg>Download as a file</button>
+    <button class="btn" id="bExport" data-hosted="hide" title="Saves the design on screen as a file on this computer"><svg class="i"><use href="#i-download"/></svg>Download as a file</button>
+    <button class="btn" data-click="#bCopyText" data-hosted="only" title="Puts the design on screen on the clipboard as text. Paste it into an email or a note, or into Paste design from text on another device."><svg class="i"><use href="#i-copy"/></svg>Copy design as text</button>
     <button class="btn" id="bImport" title="Opens a design that was downloaded earlier"><svg class="i"><use href="#i-upload"/></svg>Load from a file&hellip;</button>
     <span class="grow"></span>
     <button class="btn" data-close autofocus>Close</button></div>
+</dialog>
+
+<!-- shown only when the browser will not copy to the clipboard by itself: the text, selected, to copy by hand -->
+<dialog class="dlg" id="copyDlg">
+  <div class="dlg-h"><span>Copy design as text</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg">The browser did not copy the text by itself. It is selected below: press <b>Copy</b> or <b>Ctrl+C</b>, then paste it into an email or a note, or into Paste design from text on the other device.</p>
+    <textarea class="fld area wrap" id="copyText" rows="9" readonly aria-label="The design as text"></textarea>
+  </div>
+  <div class="dlg-f"><span class="grow" id="copyNote"></span>
+    <button class="btn" id="bCopyAgain"><svg class="i"><use href="#i-copy"/></svg>Copy</button>
+    <button class="btn pri" data-close>Done</button></div>
+</dialog>
+
+<dialog class="dlg" id="pasteDlg">
+  <div class="dlg-h"><span>Paste design from text</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" title="On the device that has the design, click File, then Copy design as text. Send the text to this device if it is a different one (an email or a note works), then paste all of it here.">Paste the text from <b>File, then Copy design as text</b> into the box (Ctrl+V).</p>
+    <textarea class="fld area wrap" id="pasteText" rows="9" autofocus aria-label="The design as text" placeholder="Paste the text here"></textarea>
+  </div>
+  <div class="dlg-f"><span class="grow err" id="pasteErr"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bPasteGo">Open this design</button></div>
 </dialog>
 
 <dialog class="dlg narrow" id="rowDlg">
@@ -383,12 +445,13 @@
     <p>Click <b>Furniture presets</b> (the blue button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Then open <b>4 Build instructions</b> for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
     <div class="sec">Where things are</div>
     <dl>
-      <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: 1 Design, 2 Joints &amp; hardware, 3 Cut list &amp; shopping, 4 Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Download, Load and Print.</dd>
-      <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, and turns on see-through, exploded view and the color key.</dd>
+      <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: 1 Design, 2 Joints &amp; hardware, 3 Cut list &amp; shopping, 4 Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
+      <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, and turns on see-through, exploded view and the color key. A command that is gray needs something first, usually a selected piece.</dd>
       <dt>Panels</dt><dd>The <b>Pieces</b> list and the <b>Properties</b> of the selected piece float over the 3D view. Drag one by its title bar, roll it up with the dash, or hide it. The two buttons at the right edge of the view bring them back. Properties appears when a piece is selected.</dd>
       <dt>Status bar</dt><dd>The bar along the bottom says what to do next with the current tool and shows live sizes while you drag. It also has the overall size, the piece count, a warning when pieces overlap, the Fasteners and Sizes switches, and the Snap size.</dd>
       <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The blue button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
-      <dt>Pages to print</dt><dd>Tabs 2, 3 and 4 are pages to read on screen or print. On the Cut list tab, type the prices from your store and the total follows. <b>Change style or finish</b> at the top of a page picks the wood, the finish and how fancy the joints are.</dd>
+      <dt>Pages to print</dt><dd>Tabs 2, 3 and 4 are pages to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list tab, type the prices from your store and the total follows.</dd>
+      <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
     <dl>
@@ -408,7 +471,7 @@
       <dt>Look around</dt><dd>Drag empty space to turn the view, right-drag to slide it, scroll to zoom. Fit view, Front, Side and Top are in the View group.</dd>
     </dl>
     <div class="sec">Keyboard</div>
-    <dl class="keys">
+    <dl>
       <dt><kbd>Ctrl+Z</kbd> <kbd>Ctrl+Y</kbd></dt><dd>Undo, redo</dd>
       <dt><kbd>Ctrl+S</kbd> <kbd>Ctrl+P</kbd></dt><dd>Save, print the instructions</dd>
       <dt><kbd>Ctrl+D</kbd> <kbd>Delete</kbd></dt><dd>Duplicate, delete the selected pieces</dd>
@@ -429,6 +492,7 @@
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
 <script src="js/core.js"></script>
+<script src="js/hosted.js"></script>
 <script src="js/dialogs.js"></script>
 <script src="js/orient.js"></script>
 <script src="js/builders-furniture.js"></script>
@@ -447,7 +511,9 @@
 <script src="js/statusbar.js"></script>
 <script src="js/plans.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/preview.js"></script>
 <script src="js/app.js"></script>
+<script src="js/transfer.js"></script>
 <script src="js/menus.js"></script>
 <script src="js/selftest.js"></script>
 </body>

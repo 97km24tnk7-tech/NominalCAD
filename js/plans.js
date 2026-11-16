@@ -49,6 +49,57 @@ function lumberToBuy(parts,stock){
   }
   return{boards,sheets,cost};
 }
+/* ---------- the flat views of the plans: Front, Side and Top, drawn like a shop drawing ----------
+   Each looks square at the design with no perspective and carries the two sizes of that view on lines below
+   and to the right of it.
+     across, upward   the direction that runs across the picture, and the one that runs up it
+                      (0 = left to right, 1 = up, 2 = back to front)
+     from, up         where the eye is, seen from the design, and which way is up in the picture
+     flipAcross       true when "across" runs from right to left in the picture (the Side view shows the front on the left)
+     flipUpward       true when "upward" runs from top to bottom (the Top view shows the front at the bottom)
+     sizes            what the two sizes are called in the caption */
+const FLAT_VIEWS=[
+  {name:'Front',across:0,upward:1,from:[0,0,1],up:[0,1,0],sizes:['wide','tall']},
+  {name:'Side',across:2,upward:1,from:[1,0,0],up:[0,1,0],flipAcross:true,sizes:['deep','tall']},
+  {name:'Top',across:0,upward:2,from:[0,1,0],up:[0,0,-1],flipUpward:true,sizes:['wide','deep']},
+];
+const FLAT_LABEL=.045; // height of a size label as a share of the picture's width: about 11px type when the picture is shown 360px wide
+/* Takes the picture of one flat view. b = the bounds of the design, W x H = the picture in pixels, snap = takes the
+   picture through a camera. Returns {name, src, caption}. Everything is laid out in label heights ("unit"), so
+   the labels read the same on every design, large or small. */
+function flatViewPicture(view,b,W,H,snap){
+  const A=view.across,U=view.upward,depth=3-A-U;
+  const sizeAcross=b.hi[A]-b.lo[A],sizeUp=b.hi[U]-b.lo[U];
+  const acrossLabel=textSprite(fmtFt(sizeAcross),[0,0,0],1,VIEW_COL.dimText),upLabel=textSprite(fmtFt(sizeUp),[0,0,0],1,VIEW_COL.dimText);
+  upLabel.material.rotation=Math.PI/2; // the upright size is written along its line, reading upward, as on a drawing
+  // Room around the design, in units: half a unit on the left and on top; below and to the right a gap, the
+  // size line, and the half of its label that sticks out past the line (ROOM in all).
+  const GAP=.8,PAD=.5,ROOM=GAP+.5+.3;
+  const frameWide=Math.max(sizeAcross/(1-(PAD+ROOM)*FLAT_LABEL),sizeUp/(H/W-(PAD+ROOM)*FLAT_LABEL)); // the picture's width in inches: whichever of the two directions needs more
+  const frameHigh=frameWide*H/W,unit=FLAT_LABEL*frameWide;
+  const spareAcross=frameWide-sizeAcross-(PAD+ROOM)*unit,spareUp=frameHigh-sizeUp-(PAD+ROOM)*unit; // shared out evenly on both sides
+
+  // the camera looks at the middle of the design; its frame is measured from there
+  const middle=b.lo.map((v,i)=>(v+b.hi[i])/2),far=Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2])+50;
+  const left=-sizeAcross/2-PAD*unit-spareAcross/2,bottom=-sizeUp/2-ROOM*unit-spareUp/2;
+  const eye=new THREE.OrthographicCamera(left,left+frameWide,bottom+frameHigh,bottom,.1,far*4);
+  eye.position.set(middle[0]+view.from[0]*far,middle[1]+view.from[1]*far,middle[2]+view.from[2]*far);
+  eye.up.set(view.up[0],view.up[1],view.up[2]);
+  eye.lookAt(middle[0],middle[1],middle[2]);
+
+  // the two size lines, placed in the scene so that they land below and to the right of the design in the picture
+  const towardRight=view.flipAcross?-1:1,towardTop=view.flipUpward?-1:1;
+  const point=(across,upward)=>{const p=[0,0,0];p[A]=across;p[U]=upward;p[depth]=view.from[depth]>0?b.hi[depth]:b.lo[depth];return p;};
+  const below=(towardTop>0?b.lo[U]:b.hi[U])-towardTop*GAP*unit,beside=(towardRight>0?b.hi[A]:b.lo[A])+towardRight*GAP*unit;
+  emptyGroup(dimGroup);
+  dimGroup.visible=true;
+  dimGroup.add(dimLine(point(b.lo[A],below),point(b.hi[A],below),U,unit*.35),dimLine(point(beside,b.lo[U]),point(beside,b.hi[U]),A,unit*.35));
+  const put=(label,at)=>{label.scale.multiplyScalar(unit);label.position.set(at[0],at[1],at[2]);dimGroup.add(label);};
+  put(acrossLabel,point(middle[A],below));
+  put(upLabel,point(beside,middle[U]));
+  return{name:view.name,src:snap(eye),caption:`${view.name}: ${fmtFt(sizeAcross)} ${view.sizes[0]} × ${fmtFt(sizeUp)} ${view.sizes[1]}`};
+}
+
 /* Every picture for the plans, taken in one go from a clean copy of the scene (nothing selected, hidden, see-through or exploded):
    an overview, flat front / side / top views with sizes, a pulled-apart view, and one picture per step. */
 function takePictures(full){
@@ -61,11 +112,9 @@ function takePictures(full){
   fastGroup.visible=handleGroup.visible=gizmoGroup.visible=false;
   fit('fit');cam.r*=.85;updateCam();out.overview=snap();
   if(full){
-    const b=bbox(S.parts),c=b.lo.map((v,i)=>(v+b.hi[i])/2),e=b.hi.map((v,i)=>v-b.lo[i]),R=Math.hypot(e[0],e[1],e[2])+50;grid.visible=floor.visible=false;
-    for(const[name,dir,u,v,up]of[['Front',[0,0,1],0,1,[0,1,0]],['Side',[1,0,0],2,1,[0,1,0]],['Top',[0,1,0],0,2,[0,0,-1]]]){ // flat views, like a drawing
-      const half=Math.max(e[u]*.5*1.28+6,(e[v]*.5*1.28+6)*W/H),oc=new THREE.OrthographicCamera(-half,half,half*H/W,-half*H/W,.1,R*4);
-      oc.position.set(c[0]+dir[0]*R,c[1]+dir[1]*R,c[2]+dir[2]*R);oc.up.set(up[0],up[1],up[2]);oc.lookAt(c[0],c[1],c[2]);
-      buildDims([u,v]);out.views.push([name,snap(oc)]);}
+    const b=bbox(S.parts);
+    grid.visible=floor.visible=false;
+    for(const view of FLAT_VIEWS)out.views.push(flatViewPicture(view,b,W,H,snap)); // flat views, like a drawing
     grid.visible=floor.visible=true;dimGroup.visible=false;
     explode=.55;for(const p of S.parts)setMeshPos(p);cam.r*=1.45;updateCam();out.exploded=snap(); // pulled apart
     explode=0;for(const p of S.parts)setMeshPos(p);cam.r/=1.45;updateCam();
@@ -91,23 +140,18 @@ function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.m
   return L;}
 
 /* ---------- what the three document pages share (Joints & hardware, Cut list & shopping, Build instructions) ----------
-   A page is  docBar() + <div class="doc"> docHead(sheet name) + sections </div> . The same markup is printed. */
+   A page is  <div class="doc"> docHead(sheet name) + sections </div> . The same markup is printed.
+   The commands of a page are in the ribbon (the "doc-only" groups in index.html): a button there carries
+   data-doc="print" or data-doc="style". */
 const docDate=()=>new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
-const overallSize=b=>`${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall`;
+const overallSize=b=>`${fmtFt(b.hi[0]-b.lo[0])} wide × ${fmtFt(b.hi[2]-b.lo[2])} deep × ${fmtFt(b.hi[1]-b.lo[1])} tall`;
 const plural=(n,word)=>`${n.toLocaleString()} ${word}${n===1?'':'s'}`;
 
-/* the strip of commands above the sheet (never printed): the style in words, Change style or finish, Print */
-function docBar(){
-  const L=look();
-  return`<div class="docbar noprint"><span class="grow"><b>${STYLES[L.style][0]}</b> style · ${esc(WOODS[L.wood][0])} · ${esc(FINISHES[L.finish][0])}</span>`+
-    `<button class="btn" data-doc="style" title="Pick the wood, the finish and how fancy the joints are">${icon('i-style')}Change style or finish</button>`+
-    `<button class="btn pri" data-doc="print" title="Print this page">${icon('i-print')}Print</button></div>`;
-}
 document.addEventListener('click',e=>{
   const button=e.target.closest('[data-doc]');
   if(!button)return;
   if(button.dataset.doc==='style')openStyle();
-  if(button.dataset.doc==='print')window.print();
+  if(button.dataset.doc==='print')printPage(); // hosted.js: the print window, or why there is none in the hosted copy
 });
 
 /* the top of a sheet. On screen: the title and one line of facts. On paper: a title block like the one on a
@@ -123,7 +167,8 @@ function docHead(sheetName){
       `<div><small>Sheet</small><b>${sheetName}</b></div>`+
       `<div><small>Date</small><b>${date}</b></div>`+
       `<div><small>Overall size</small><b>${size||'No pieces yet'}</b></div>`+
-      `<div><small>Pieces to cut, style</small><b>${toCut?toCut.toLocaleString()+', '+style:'None'}</b></div>`+
+      `<div><small>Pieces to cut</small><b>${toCut?toCut.toLocaleString():'None'}</b></div>`+
+      `<div><small>Style</small><b>${toCut?STYLES[look().style][0]:'None'}</b></div>`+
       `<div class="tb-made">made with NominalCAD</div>`+
     `</div>`;
 }
@@ -190,7 +235,8 @@ function diagramSection(list){
       const boards=packBoards(lengths.filter(l=>l<=stock),stock),tooLong=lengths.filter(l=>l>stock);
       buy.push({m,qty:boards.length,stock});
       const lengthChoices=STOCKS.map(s=>`<option value="${s}"${s===stock?' selected':''}>${s/12} ft</option>`).join('');
-      h+=`<div class="buy">${boards.length} × ${esc(m.short)}, <select class="fld" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select> long</div>`;
+      // the board length is a choice on screen and plain words on paper (class "printonly")
+      h+=`<div class="buy">${boards.length} × ${esc(m.short)}, <select class="fld noprint" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select><span class="printonly">${stock/12} ft</span> long</div>`;
       if(tooLong.length)h+=`<p class="warn">${plural(tooLong.length,'piece')} ${tooLong.length>1?'are':'is'} longer than 16 ft and cannot be cut from one board.</p>`;
       boards.forEach((board,i)=>{
         const left=stock-board.used;
@@ -230,7 +276,8 @@ function shoppingSection(buy){
     const each=priceOf(b.m.id,b.stock),what=b.stock?`${b.m.short} ${b.stock/12} ft lumber`:`${{ply34:'3/4',ply12:'1/2',ply14:'1/4'}[b.m.id]} in plywood 4x8 sheet`;
     total+=each*b.qty;
     return`<tr><td>${esc(b.m.short)}${b.stock?`, ${b.stock/12} ft long`:', 4 ft × 8 ft sheet'}</td><td class="num">${b.qty}</td>`+
-      `<td class="num">$ <input class="fld price" data-price="${b.m.id}" data-len="${b.stock}" value="${each.toFixed(2)}" aria-label="Price of one ${esc(b.m.short)}"></td>`+
+      // the price is a box to type in on screen and one plain number on paper (class "printonly")
+      `<td class="num"><span class="noprint">$ <input class="fld price" data-price="${b.m.id}" data-len="${b.stock}" value="${each.toFixed(2)}" aria-label="Price of one ${esc(b.m.short)}"></span><span class="printonly">$${each.toFixed(2)}</span></td>`+
       `<td class="num">$${(each*b.qty).toFixed(2)}</td>`+
       `<td class="noprint"><a target="_blank" rel="noopener" href="https://www.homedepot.com/s/${encodeURIComponent(what)}" title="Opens this item on homedepot.com, which shows the price at your store once you pick your store there">Check Home Depot</a></td></tr>`;
   });
@@ -257,7 +304,8 @@ function stepsSection(list,joints,shots){
     }
     const pieces=[...need.entries()].map(([k,qty])=>{
       const[letter,name,length]=k.split('|');
-      return`<li><span class="qty">${qty} ×</span>${keyBox(letter)} ${esc(name)}${length?', '+length:''}</li>`;
+      // three cells: how many, the letter (an empty cell for a tank or a mattress, which has none), the name
+      return`<li><span class="qty">${qty} ×</span>${keyBox(letter)||'<span></span>'}<span>${esc(name)}${length?', '+length:''}</span></li>`;
     }).join('');
     // the joints between a new piece and anything built so far
     const fasteners=jointGroups(joints.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(added.has(j.a.name)||added.has(j.b.name))&&jType(j)!=='none'))
@@ -266,7 +314,7 @@ function stepsSection(list,joints,shots){
         return`<li>${esc(g.A[0])} to ${esc(g.B[0])}: ${types.size===1?esc(jSpec(g.js[0],[...types][0]).text)+' at each joint':'mixed, see the table below'}</li>`;
       }).join('');
     h+=`<div class="step${shots[i]?'':' nopic'}"><div class="no">${i+1}</div><div><p>${esc(stepText(step))}</p>`+
-      (pieces?`<div class="need"><h4>Pieces</h4><ul>${pieces}</ul></div>`:'')+
+      (pieces?`<div class="need pieces"><h4>Pieces</h4><ul>${pieces}</ul></div>`:'')+
       (fasteners?`<div class="need"><h4>Fasten with</h4><ul>${fasteners}</ul></div>`:'')+
       `</div>${shots[i]?`<img src="${shots[i]}" alt="Step ${i+1}">`:''}</div>`;
   });
@@ -299,7 +347,10 @@ function renderCut(instr){
     `<div class="lead"><img id="shot" src="${pics.overview||''}" alt="The finished design"><dl class="facts">${facts.map(([name,value])=>`<dt>${name}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`;
   if(S.notes&&S.notes.length)h+=`<h2>Notes</h2><ul>${S.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
   if(instr&&pics.views.length){
-    h+=`<h2>Views with sizes</h2><div class="views">${pics.views.map(([name,src])=>`<figure><img src="${src}" alt="${name} view"><figcaption>${name}</figcaption></figure>`).join('')}</div>`+
+    // three drawings, two to a row; the fourth place says what the sizes measure
+    const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');
+    h+=`<h2>Views with sizes</h2><div class="views">${figures}`+
+      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</p>`;
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
@@ -309,7 +360,7 @@ function renderCut(instr){
   if(instr)h+=stepsSection(list,joints,pics.steps);
   h+=fastenerSection(joints);
 
-  page.innerHTML=docBar()+`<div class="doc">${h}</div>`;
+  page.innerHTML=`<div class="doc">${h}</div>`;
   page.querySelectorAll('input.price').forEach(box=>box.onchange=()=>{
     const price=parseFloat(box.value);
     if(price>=0){

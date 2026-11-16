@@ -93,7 +93,7 @@ function rackNotes(p){
   if(p.base==='shelf')N.push('The bottom level is an open storage shelf for filters, food and buckets. It is not counted as holding water.');
   if(p.base==='cabinet')N.push('The bottom level is a closed cabinet with doors for filters, food and buckets. It is not counted as holding water.');
   if(pl.need>p.H+.01)N.push(`Your rows need ${fmtFt(pl.need)} of height, which is more than the ${fmtFt(p.H)} available. Remove a row or reduce the room above the tanks.`);
-  N.push(`Rack is ${fmtFt(pl.W)} wide × ${fmt(pl.D)} deep`+(M0>1?`, built as ${M0} separate sections side by side so no rail is longer than a ${pl.board/12} ft board`:'')+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`,
+  N.push(`Rack is ${fmtFt(pl.W)} wide × ${fmtFt(pl.D)} deep`+(M0>1?`, built as ${M0} separate sections side by side so no rail is longer than a ${pl.board/12} ft board`:'')+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`,
    `Filled weight: about ${Math.round(pl.total).toLocaleString()} lb of tanks plus lumber, roughly ${psf} lb per square foot of floor.`,
    `Above every tank there is ${fmt(p.light)} for the light plus ${fmt(p.clr)} of open hand room for feeding, netting and cleaning.`+(pl.top>66?' The top row is above eye level, so plan on a step stool to service it.':''));
   if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${fmt(pl.span)} apart. The weight goes straight down through wood, not through screws.`);
@@ -148,7 +148,7 @@ function standArgs(p){
   return rackPlan(a)?a:null;
 }
 function standNotes(p){const a=standArgs(p);if(!a)return['That combination does not work. Make the stand taller (it needs at least 6" of storage space under the top frame) or pick a smaller rail size.'];
-  const pl=rackPlan(a),N=[`Stand is ${fmt(pl.W)} wide × ${fmt(pl.D)} deep × ${fmt(p.under==='tank'?pl.top:p.standH)} tall, with ${pl.rail} rails and ${pl.up} uprights.`,
+  const pl=rackPlan(a),N=[`Stand is ${fmtFt(pl.W)} wide × ${fmtFt(pl.D)} deep × ${fmtFt(p.under==='tank'?pl.top:p.standH)} tall, with ${pl.rail} rails and ${pl.up} uprights.`,
    `The filled tank is about ${Math.round(pl.total).toLocaleString()} lb (water, glass, gravel). The weight goes straight down through the uprights, not through screws.`];
   N.push(pl.over?`OVERLOADED. With the sizes you forced, the rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger size or set them back to Auto.`
     :`Load check: rails at ${pct(pl.util.rail)} and uprights at ${pct(pl.util.up)} of the rule-of-thumb limit.`);

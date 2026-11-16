@@ -3,6 +3,7 @@
 'use strict';
 /* ---------- tabs ---------- */
 let tab='design';
+document.body.dataset.tab=tab; // the style sheet shows and hides things by tab (the hosted page has no <body> tag of its own to say this)
 const TAB_PAGES={design:'#designPage',joints:'#jointsPage',cut:'#cutPage',instr:'#instrPage'};
 function setTab(t){
   tab=t;
@@ -14,16 +15,21 @@ function setTab(t){
   if(t==='joints')renderJoints();
   if(t==='design'){resize();syncPanels();} // the 3D view had no size while it was hidden
   renderStatus();
+  if(window.syncRibbonEdge)syncRibbonEdge(); // the ribbon shows other groups on this tab (defined further down; missing during start-up)
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$('#bBack').onclick=()=>setTab('design'); // "Back to design" in the ribbon of the document tabs
 function renderAll(){
+  const empty=!S.parts.length;
   $('#projName').value=S.name;
   document.title=S.name+' - NominalCAD';
   $('#bUndo').disabled=!undoStack.length;
   $('#bRedo').disabled=!redoStack.length;
-  $('#bInstr').disabled=$('#bStyle').disabled=!S.parts.length; // nothing to style or print until there is a piece
+  $('#bInstr').disabled=$('#bStyle').disabled=empty; // nothing to style or print until there is a piece
+  document.querySelectorAll('[data-doc]').forEach(button=>button.disabled=empty); // the same for Print and Style & finish on the document tabs
   rebuildScene();renderParts();renderProps();renderStatus();syncPanels();
   if(tab==='joints')renderJoints();if(tab==='cut')renderCut();if(tab==='instr')renderCut(true);
+  if(window.syncChecks)syncChecks(); // menus.js: greys out what cannot be used now (it loads after this file, so it is missing during start-up)
 }
 $('#projName').onchange=e=>{S.name=e.target.value.trim()||'My project';commit();};
 $('#addMat').innerHTML=MATS.filter(m=>m.kind!=='prop').map(m=>`<option value="${m.id}"${m.id==='2x4'?' selected':''}>${esc(m.name)}</option>`).join('');
@@ -60,12 +66,12 @@ $('#bNew').onclick=()=>{
     {title:'New design',action:'Start a new design',danger:true},newDesign);
 };
 
-/* ---------- My projects: named designs kept in this browser, plus a file to download as a backup ---------- */
+/* ---------- My projects: named designs kept in this browser ---------- */
 const getProjects=()=>{try{return JSON.parse(localStorage.getItem('woodshop.projects'))||{};}catch(e){return{};}};
 function putProjects(projects){
   try{localStorage.setItem('woodshop.projects',JSON.stringify(projects));return true;}
   catch(e){
-    showMessage('Could not save','This browser is out of storage space for saved projects. Use File, then Download as a file, instead.');
+    showMessage('Could not save','This browser would not store the project (its storage is full or turned off). '+KEEP_ADVICE);
     return false;
   }
 }
@@ -106,22 +112,13 @@ $('#projList').onclick=e=>{
     });
   }
 };
-$('#bImport').onclick=()=>$('#fileIn').click();
-$('#bExport').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));
-  a.download=(S.name.replace(/[^\w\- ]+/g,'').trim()||'project')+'.woodshop.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
-/* a project file is this program's JSON with a list of parts in it; anything else is turned away with a notice */
-function openProjectText(text){
-  try{
-    const project=JSON.parse(text);
-    if(!Array.isArray(project.parts))throw new Error('no parts');
-    load(text);fit('fit');
-    $('#projDlg').close();
-  }catch(err){
-    showMessage('Not a NominalCAD project','That file is not a NominalCAD project. Pick a file that was saved with File, then Download as a file.');
-  }
-}
-$('#fileIn').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(openProjectText);e.target.value='';};
-$('#bPrint').onclick=()=>{setTab('instr');setTimeout(()=>window.print(),300);};
+/* (Download as a file, Load from a file, Copy design as text and Paste design from text are in transfer.js.) */
+
+/* ---------- File: Print instructions. printPage (hosted.js) opens the print window, or explains why it cannot. ---------- */
+$('#bPrint').onclick=()=>{
+  setTab('instr');
+  setTimeout(printPage,300); // a moment for the pictures of the design to be drawn
+};
 $('#bInstr').onclick=()=>setTab('instr');
 
 /* ---------- Style, finish and difficulty (the dialog is drawn by renderStyle in style.js) ---------- */
@@ -139,6 +136,24 @@ $('#showFast').onchange=rebuildScene;$('#showDims').onchange=rebuildScene;
 $('#viewMode').value=viewMode;$('#viewMode').onchange=e=>{viewMode=e.target.value;try{localStorage.setItem('woodshop.view',viewMode);}catch(err){}rebuildScene();};
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>fit(b.dataset.view));
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+/* In a window too narrow for the whole ribbon, the ribbon scrolls sideways inside its own strip (style.css,
+   section 13). The strip shows no scroll bar, so the mouse wheel turns it. */
+$('#ribbon').addEventListener('wheel',e=>{
+  const ribbon=e.currentTarget;
+  if(e.target.closest('.menu,.pop'))return;                   // the wheel is over an open pulldown, which scrolls by itself
+  if(ribbon.scrollWidth<=ribbon.clientWidth||e.deltaX)return; // everything fits, or the wheel already goes sideways
+  closeMenus(); // an open pulldown would be left behind by its button
+  ribbon.scrollLeft+=e.deltaY;
+  e.preventDefault();
+},{passive:false});
+/* While part of the ribbon is off screen to the right, its right edge fades out (class "more" in the style sheet)
+   to say that there are more commands that way. */
+function syncRibbonEdge(){
+  const ribbon=$('#ribbon');
+  ribbon.classList.toggle('more',ribbon.scrollLeft+ribbon.clientWidth<ribbon.scrollWidth-1);
+}
+$('#ribbon').addEventListener('scroll',syncRibbonEdge);
+window.addEventListener('resize',syncRibbonEdge);
 window.addEventListener('keydown',e=>{
   if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)||document.querySelector('dialog[open]'))return; // typing, or a dialog has the keyboard
   const c=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
@@ -158,11 +173,14 @@ window.addEventListener('keydown',e=>{
 });
 
 /* ---------- Furniture presets dialog ----------
-   Left: the catalog as tiles (drawn by renderPresetCards in presets.js). Right: the form of the chosen preset,
-   made from its params, with a live summary underneath. The footer has Create and, when there is already
-   a design, Add beside the current design. */
+   Left: the catalog as tiles (drawn by renderPresetCards in presets.js). Right: the chosen preset: its name and
+   description, a live picture of what the sizes typed so far will build (preview.js), the form made from its
+   params, and a live summary underneath. The footer has Create and, when there is already a design, Add beside
+   the current design. A preset is always chosen when the dialog opens, so the right side is never empty. */
 let curPreset=null;          // the preset whose form is showing
 let presetTimer=0;           // delays the live summary a moment while someone is typing
+let presetEdited=null;       // the box of the form that was changed last; it is the one marked when nothing fits
+const LAST_PRESET_KEY='woodshop.preset'; // browser storage: the name of the preset that was created last
 const PREVIEW_JOINTS_MAX=1500; // above this many pieces the skill and time estimate is left out of the preview (it would make typing sluggish)
 renderPresetCards();
 
@@ -192,11 +210,13 @@ function presetField(q){
 function choosePreset(index){
   curPreset=PRESETS[index];
   document.querySelectorAll('#presetCards .card').forEach(c=>c.classList.toggle('on',+c.dataset.i===index));
+  presetEdited=null;
   const firstHeading=curPreset.params[0].head?'':'<div class="sec">Size</div>'; // a short form without sections still gets one heading
   $('#presetForm').innerHTML=
-    `<div class="pform-b"><h4>${esc(curPreset.name)}</h4><p>${esc(curPreset.desc)}</p>${firstHeading}${curPreset.params.map(presetField).join('')}</div>
+    `<div class="pform-h"><h4>${esc(curPreset.name)}</h4><p>${esc(curPreset.desc)}</p></div>
+     <div class="pview" id="presetPic" title="What these sizes build. It follows the numbers as you type."></div>
+     <div class="pform-b">${firstHeading}${curPreset.params.map(presetField).join('')}</div>
      <div class="pform-s"><div class="sum" id="presetSum"></div><p class="note" id="presetInfo"></p></div>`;
-  $('#bPGo').disabled=false;
   $('#bPAdd').hidden=!S.parts.length;
   showPresetSummary();
 }
@@ -249,20 +269,31 @@ function assessParts(parts){
     return{buy,rating:parts.length<=PREVIEW_JOINTS_MAX?assess(look()):null};
   }finally{S=keep;}
 }
-/* the live summary under the form: overall size, pieces, lumber to buy and cost, with the sizes typed so far */
+/* The live picture and summary of the chosen preset with the sizes typed so far: what it looks like, overall
+   size, pieces, lumber to buy and cost. When the sizes cannot be built, one message says why instead, the box
+   that was changed last turns red, and Create waits until something fits. */
 function showPresetSummary(){
   clearTimeout(presetTimer);
   if(!curPreset)return;
-  const sum=$('#presetSum'),info=$('#presetInfo'),foot=$('#presetFoot'),vals=readVals(false);
-  foot.textContent='';
-  if(!vals){
-    sum.innerHTML='<span class="err">A size in red cannot be read. Type it like 36, 3 1/2 or 4\' 6.</span>';
+  const sum=$('#presetSum'),info=$('#presetInfo'),foot=$('#presetFoot'),picture=$('#presetPic'),vals=readVals(false);
+  const cannotBuild=message=>{
+    sum.innerHTML=`<span class="err">${esc(message)}</span>`;
     info.textContent='';
+    showPreview(picture,[]);
+    $('#bPGo').disabled=$('#bPAdd').disabled=true;
+  };
+  foot.textContent='';
+  if(!vals){cannotBuild('A size in red cannot be read. Type it like 36, 3 1/2 or 4\' 6.');return;}
+  const remark=curPreset.info?curPreset.info(vals):'',parts=curPreset.build(vals);
+  if(!parts.length){
+    // the preset's own remark says what is wrong and what to change; presets without one get the general sentence
+    cannotBuild(remark||'Nothing fits with these sizes. Try a wider or taller space.');
+    if(presetEdited&&presetEdited.isConnected&&presetEdited.type==='text')presetEdited.classList.add('bad');
     return;
   }
-  info.textContent=curPreset.info?curPreset.info(vals):'';
-  const parts=curPreset.build(vals);
-  if(!parts.length){sum.innerHTML='<span class="err">Nothing fits with these sizes. Try a wider or taller space.</span>';return;}
+  $('#bPGo').disabled=$('#bPAdd').disabled=false;
+  info.textContent=remark;
+  showPreview(picture,parts);
   const b=bbox(parts),wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts);
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
@@ -297,24 +328,33 @@ function placePreset(preset,vals,parts,add){
   if(preset.hw)S.hw=(S.hw||[]).concat(preset.hw(vals));
   sel=new Set();
   addParts(parts);
+  try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
   $('#presetDlg').close();
   setTab('design');
   commit();
   fit('fit');
 }
+/* the preset the dialog shows when none has been chosen yet in this visit: the one created last time, or else
+   the first tile of the list */
+function startingPreset(){
+  let lastName='';
+  try{lastName=localStorage.getItem(LAST_PRESET_KEY)||'';}catch(e){}
+  const last=PRESETS.findIndex(p=>p.name===lastName),firstTile=$('#presetCards .card');
+  return last>=0?last:firstTile?+firstTile.dataset.i:0;
+}
 function openPresets(){
   if(curPreset){$('#bPAdd').hidden=!S.parts.length;showPresetSummary();} // back where it was left, sizes and all
-  else showNoPreset();
+  else choosePreset(startingPreset());
   $('#presetDlg').showModal();
-  const tile=$('#presetCards .card.on')||$('#presetCards .card'); // the keyboard starts on the chosen design, or the first one
-  if(tile)tile.focus();
+  const tile=$('#presetCards .card.on')||$('#presetCards .card'); // the keyboard starts on the chosen design
+  if(tile){tile.focus();tile.scrollIntoView({block:'nearest'});}
 }
 $('#presetCards').onclick=e=>{
   const card=e.target.closest('.card');
   if(card)choosePreset(+card.dataset.i);
 };
-$('#presetForm').oninput=()=>{clearTimeout(presetTimer);presetTimer=setTimeout(showPresetSummary,180);};
-$('#presetForm').onchange=e=>{if(!curPreset)return;presetFieldChanged(e.target);showPresetSummary();};
+$('#presetForm').oninput=e=>{presetEdited=e.target;clearTimeout(presetTimer);presetTimer=setTimeout(showPresetSummary,180);};
+$('#presetForm').onchange=e=>{if(!curPreset)return;presetEdited=e.target;presetFieldChanged(e.target);showPresetSummary();};
 $('#bPGo').onclick=()=>makePreset(false);
 $('#bPAdd').onclick=()=>makePreset(true);
 $('#bPreset').onclick=openPresets;
@@ -323,4 +363,5 @@ $('#bPreset').onclick=openPresets;
 let saved=null;try{saved=localStorage.getItem('woodshop.autosave');}catch(e){}
 try{load(saved||JSON.stringify(blank()));}catch(e){load(JSON.stringify(blank()));}
 resize();fit('fit');
+syncRibbonEdge();
 if(!S.parts.length)openPresets();

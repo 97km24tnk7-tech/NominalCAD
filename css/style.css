@@ -9,7 +9,9 @@
    The look: cool light-gray chrome, one blue for the primary action, focus and "on" states,
    1px separators, 2px radii, two control heights (20 and 24px), line icons with short labels.
    State classes set by the JavaScript: .on (active tab, current tool, switch that is on, selected row),
-   .open (a pulldown that is showing), .checked (a ticked menu row), .min / .off (a floating panel rolled up / hidden). */
+   .open (a pulldown that is showing), .checked (a ticked menu row), .min / .off (a floating panel rolled up / hidden),
+   .armed (a panel switch that is on while its panel has nothing to show), .bad (a value that cannot be used).
+   What is shown on which tab: .design-only and .doc-only (from body[data-tab]); on paper: .noprint and .printonly. */
 
 /* ---------- 1. Design tokens ---------- */
 :root{
@@ -36,7 +38,6 @@
   --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --fs:12px;     --lh:16px;    /* base */
   --fs-s:11px;   --lh-s:13px;  /* ribbon labels, captions, hints, switches */
-  --fs-caps:10px;              /* small caps captions inside panels */
   --fs-doc:13px; --fs-h:14px; --fs-title:20px;
 
   /* spacing scale */
@@ -75,6 +76,8 @@ b,strong,th{font-weight:600}
 kbd{font:var(--fs-s) var(--font);color:var(--n600)}
 [hidden]{display:none!important}
 .num{text-align:right;font-variant-numeric:tabular-nums}
+/* every list, dialog and page that scrolls gets the same slim, quiet scroll bar */
+*{scrollbar-width:thin;scrollbar-color:var(--n400) transparent}
 
 /* ---------- 3. Icons ---------- */
 svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;--ia:currentColor}
@@ -131,8 +134,10 @@ select.fld{appearance:none;-webkit-appearance:none;padding-right:20px;background
 .tg>input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 .tg>span{border-radius:var(--r);padding:0 7px 0 4px}
 
-/* ---------- the window: four bands, top to bottom ---------- */
-.app{height:100vh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--tabrow-h) var(--ribbon-h) minmax(0,1fr) var(--status-h);background:var(--n0);overflow:hidden}
+/* ---------- the window: four bands, top to bottom ----------
+   The height is 100% of the page (html and body are 100% too), not 100vh: the hosted copy runs inside a frame
+   whose page is padded to stay clear of a phone's notch, and 100vh would be taller than the space left. */
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--tabrow-h) var(--ribbon-h) minmax(0,1fr) var(--status-h);background:var(--n0);overflow:hidden}
 #designPage,.page{grid-row:3;grid-column:1;min-width:0;min-height:0}
 
 /* ---------- 5. Tab row ---------- */
@@ -212,6 +217,11 @@ select.fld{appearance:none;-webkit-appearance:none;padding-right:20px;background
 #cvWrap{flex:1 1 0;min-width:0;position:relative;overflow:hidden;background:var(--view-bg)}
 #cvWrap canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none}
 #axisSym{position:absolute;left:0;bottom:0;pointer-events:none;font:600 var(--fs-s) var(--font)}
+/* labels over the 3D view: the overall sizes and the name of the selected piece. js/view3d.js moves them with the
+   view; they keep this one size at any zoom. (LABEL_HEIGHT and LABEL_PAD in view3d.js match the numbers here.) */
+#viewLabels{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.vlabel{position:absolute;left:0;top:0;height:18px;padding:0 5px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;font-size:var(--fs-s);line-height:16px;font-weight:600;color:var(--blue-d);white-space:nowrap;font-variant-numeric:tabular-nums}
+.vlabel.name{font-weight:400;color:var(--n800)}
 #legend{position:absolute;left:8px;bottom:84px;display:grid;grid-template-columns:10px auto;gap:3px 6px;align-items:center;max-width:220px;padding:6px 8px;background:rgba(255,255,255,.94);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:var(--lh-s);pointer-events:none}
 #legend i{width:10px;height:10px;border:1px solid rgba(0,0,0,.35)}
 #legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -223,6 +233,7 @@ select.fld{appearance:none;-webkit-appearance:none;padding-right:20px;background
 .sp-b:hover{background:var(--n200);color:var(--n900)}
 .sp-b.on{background:var(--n50);color:var(--blue-d)}
 .sp-b.on::before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:2px;background:var(--blue)}
+.sp-b.armed{color:var(--blue-d)} /* switched on, but its panel has nothing to show yet (Properties with nothing selected) */
 .sp-b:focus-visible{outline:2px solid var(--blue-300);outline-offset:-3px}
 /* toast: one short message at the bottom centre of the view */
 #toast{position:fixed;left:50%;bottom:calc(var(--status-h) + 12px);transform:translateX(-50%);max-width:min(620px,calc(100vw - 32px));min-height:28px;display:flex;align-items:center;padding:6px 12px;background:var(--n800);color:#fff;border-radius:var(--r-float);box-shadow:var(--shadow-float);opacity:0;pointer-events:none;transition:opacity .15s;z-index:var(--z-toast)}
@@ -240,13 +251,15 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .fh .sub{color:var(--n500);overflow:hidden;text-overflow:ellipsis;min-width:0}
 .fh-btns{margin-left:auto;display:flex;flex:none}
 .fb{min-height:0;overflow:auto}
-/* small caps caption: list headers and field groups inside panels */
-.phead,.sec{font-size:var(--fs-caps);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--n600)}
-/* Pieces: a tight three-column list (name, cut from, length) */
-#left .fb{display:flex;flex-direction:column;overflow:hidden}
+/* caption: list headers and the headings of field groups, in panels, dialogs and Help. One style everywhere:
+   small, semibold, sentence case (never capitals or spaced-out letters). */
+.phead,.sec{font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+/* Pieces: a tight three-column list (name, cut from, length). The body of the panel scrolls and the column
+   headings stick to its top, so headings and rows are one width and line up, with or without a scroll bar. */
+#left .fb{background:#fff;border-radius:0 0 2px 2px}
 .phead,.plist li{display:grid;grid-template-columns:minmax(0,1fr) 84px 54px;column-gap:6px;align-items:center;padding:0 8px 0 10px}
-.phead{flex:none;height:20px;border-bottom:1px solid var(--n200)}
-.plist{list-style:none;margin:0;padding:0;overflow:auto;flex:1 1 auto;min-height:0;background:#fff;border-radius:0 0 2px 2px}
+.phead{position:sticky;top:0;z-index:1;height:20px;background:var(--n50);border-bottom:1px solid var(--n200)}
+.plist{list-style:none;margin:0;padding:0}
 .plist li{height:var(--row-h)}
 .plist li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plist li span + span{color:var(--n600)}
@@ -263,7 +276,7 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .frow label,.f3 label{color:var(--n600)}
 .sec{display:flex;align-items:center;gap:8px;height:22px;margin-top:8px}
 .sec::after{content:"";flex:1;height:1px;background:var(--n200)}
-.sec .btn{order:1;text-transform:none;letter-spacing:0;font-size:var(--fs);font-weight:400;color:var(--n800)}
+.sec .btn{order:1;font-size:var(--fs);font-weight:400;color:var(--n800)}
 .f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px 6px}
 .f3.two{grid-template-columns:1fr 2fr}
 .f3 label{font-size:var(--fs-s);line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -287,8 +300,10 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .st.warn:hover{background:#ffe9a8}
 .st:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
 .status .seg button,.status .tg>span{height:var(--h-st)}
-/* Show, Snap and the grid note only matter on the Design tab */
+/* What belongs to one kind of tab only. design-only: the ribbon groups for building, and Show, Snap and the grid
+   note in the status bar. doc-only: the ribbon groups of the three document tabs (Back to design, Print ...). */
 body:not([data-tab=design]) .design-only{display:none}
+body[data-tab=design] .doc-only{display:none}
 
 
 /* ---------- 11. Dialogs ----------
@@ -307,9 +322,13 @@ dialog.dlg:focus{outline:0}
 .dlg-f{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--n300);background:var(--n50)}
 .dlg-f .grow{flex:1 1 0;min-width:0;color:var(--n600)}
 .dlg-msg{margin:0 0 8px;white-space:pre-line;overflow-wrap:anywhere}
+.dlg-steps{margin:0;padding-left:22px}   /* numbered steps in a notice: a real list, so a long step wraps under its own words */
+.dlg-steps li{padding-left:2px}
+.dlg-steps li + li{margin-top:6px}
 .dlg .frow{grid-template-columns:120px minmax(0,1fr)}
 .err,.dlg-f .grow.err{color:var(--danger)}
 textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font:12px/18px ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre}
+textarea.fld.area.wrap{white-space:pre-wrap;word-break:break-all} /* one very long line of text (a design copied as text) */
 
 /* check box and radio button: <label class="ck"><input type="checkbox">Words</label> */
 .ck{display:inline-flex;align-items:center;gap:6px;min-height:var(--h)}
@@ -323,7 +342,7 @@ textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font
 /* Furniture presets: pick a design on the left, set its size on the right */
 #presetDlg{width:880px}
 .preset{flex:0 1 672px;min-height:0;display:grid;grid-template-columns:400px minmax(0,1fr)}
-.pick{min-height:0;overflow:auto;padding:0 12px 12px;border-right:1px solid var(--n300)}
+.pick{min-height:0;overflow:auto;scrollbar-gutter:stable;padding:0 8px 12px 12px;border-right:1px solid var(--n300)} /* the gutter keeps the tiles one width whether or not the list scrolls */
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
 .card{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:8px;align-items:center;height:40px;padding:0 8px;border:1px solid var(--n300);border-radius:var(--r);background:#fff;text-align:left}
 .card b,.card small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -331,49 +350,50 @@ textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font
 .card:hover{background:var(--n100);border-color:var(--n400)}
 .card.on{background:var(--blue-50);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
 .card:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+/* the right side, top to bottom: name and description, the live picture, the form, the summary. The picture takes
+   whatever height the form leaves (a short form gets a large picture); a long form scrolls under a small one. */
 .pform{display:flex;flex-direction:column;min-width:0;min-height:0}
-.pform-b{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 16px}
-.pform-b h4{margin:0 0 2px;font-size:var(--fs-h);line-height:20px;font-weight:600;color:var(--n900)}
-.pform-b>p{margin:0 0 4px;color:var(--n600)}
+.pform-h{flex:none;padding:12px 16px 8px}
+.pform-h h4{margin:0 0 2px;font-size:var(--fs-h);line-height:20px;font-weight:600;color:var(--n900)}
+.pform-h p{margin:0;color:var(--n600)}
+.pview{flex:1 1 0;min-height:min(150px,22vh);margin:0 16px;position:relative;overflow:hidden;border:1px solid var(--n300);border-radius:var(--r);background:var(--view-bg)}
+.pview canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
+.pform-b{flex:0 1 auto;min-height:0;overflow:auto;padding:4px 16px 12px}
 .pform-empty{margin:auto;padding:24px;max-width:260px;color:var(--n500);text-align:center}
 .pform .frow{grid-template-columns:170px 96px minmax(0,1fr);column-gap:8px}
 .pform .frow select,.pform .frow .ck{grid-column:2/4}
-.pform .frow i,.sec i{font-style:normal;font-weight:400;font-size:var(--fs-s);letter-spacing:0;text-transform:none;color:var(--n500)}
+.pform .frow i,.sec i{font-style:normal;font-weight:400;font-size:var(--fs-s);color:var(--n500)}
 /* the live summary under the form: what the design comes to with the sizes typed so far */
 .pform-s{flex:none;padding:8px 16px 10px;border-top:1px solid var(--n300);background:var(--n50)}
 .sum{display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;column-gap:12px}
 .sum small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600)}
 .sum b{font-size:var(--fs-doc);line-height:19px;color:var(--n900);font-variant-numeric:tabular-nums}
 .pform-s .note{margin:6px 0 0;max-height:77px;overflow:auto}
-#cutDlg{width:520px}
+#cutDlg,#copyDlg,#pasteDlg{width:520px}
 
 /* Style, finish and difficulty: three choices side by side, each with what it takes */
 .opt3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.opt{display:block;padding:4px 10px 8px;border:1px solid var(--n300);border-radius:var(--r);background:#fff}
-.opt:hover{background:var(--n50);border-color:var(--n400)}
-.opt.on{background:var(--blue-50);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.opt3 .opt{display:block;padding:4px 10px 8px;border:1px solid var(--n300);border-radius:var(--r);background:#fff}
+.opt3 .opt:hover{background:var(--n50);border-color:var(--n400)}
+.opt3 .opt.on{background:var(--blue-50);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
 .opt p{margin:0;font-size:var(--fs-s);line-height:15px;color:var(--n600)}
 .opt dl{display:grid;grid-template-columns:44px minmax(0,1fr);gap:2px 8px;margin:8px 0 0}
 .opt dt{color:var(--n600)}
 .opt dd{margin:0}
 
-/* Help: terms on the left, what they mean on the right */
+/* Help: terms on the left, what they mean on the right. Every list in the dialog uses the same two columns,
+   so the text on the right starts at one line all the way down. */
 .help p{margin:0 0 4px}
-.help dl{display:grid;grid-template-columns:132px minmax(0,1fr);gap:4px 12px;margin:0}
-.help dl.keys{grid-template-columns:172px minmax(0,1fr)}
+.help dl{display:grid;grid-template-columns:172px minmax(0,1fr);gap:4px 12px;margin:0}
 .help dt{font-weight:600;color:var(--n900)}
 .help dd{margin:0}
 .help kbd{display:inline-block;min-width:18px;padding:0 4px;border:1px solid var(--n300);border-radius:var(--r);background:var(--n50);color:var(--n800);font-weight:400;line-height:16px;text-align:center}
 
 /* ---------- 12. Document pages (Joints & hardware, Cut list & shopping, Build instructions) ----------
    A white sheet 816px wide on the gray backdrop, like a page on a desk. The same markup is what gets printed
-   (section 14). .docbar is the strip of commands above the sheet; it is never printed. */
+   (section 14). The commands of a page (Print, Style & finish, Back to design) are in the ribbon. */
 .page{display:none;overflow:auto;padding:16px 16px 32px;background:var(--backdrop)}
-.docbar,.doc{width:816px;max-width:100%;margin:0 auto}
-.docbar{display:flex;align-items:center;gap:8px;min-height:36px;padding:5px 8px 5px 12px;background:var(--n50);border:1px solid var(--n300);border-bottom:0}
-.docbar .grow{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--n600)}
-.docbar .grow b{color:var(--n900)}
-.doc{padding:36px 44px;background:#fff;border:1px solid var(--n300);font-size:var(--fs-doc);line-height:19px;color:var(--n900)}
+.doc{width:816px;max-width:100%;margin:0 auto;padding:36px 44px;background:#fff;border:1px solid var(--n300);font-size:var(--fs-doc);line-height:19px;color:var(--n900)}
 .doc h1{margin:0;font-size:var(--fs-title);line-height:26px;font-weight:600}
 .doc .meta{margin:2px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--n800);font-size:var(--fs);line-height:var(--lh);color:var(--n600)}
 .doc h2{margin:22px 0 6px;font-size:var(--fs-h);line-height:20px;font-weight:600}
@@ -383,10 +403,11 @@ textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font
 .doc ul.cols{columns:2;column-gap:28px}
 .doc ul.cols li{break-inside:avoid}
 .doc .hint{margin:0 0 6px;font-size:var(--fs);line-height:var(--lh);color:var(--n600)}
+.doc .tbl + .hint{margin-top:6px} /* a remark under a table keeps clear of the table's last rule */
 .doc .warn{margin:4px 0;color:var(--danger)}
 .doc a{color:var(--blue)}
 .doc .btn{font-size:var(--fs);line-height:var(--lh)}
-.titleblock{display:none} /* the drawing-style title block is for paper only (section 14) */
+.titleblock,.printonly{display:none} /* for paper only (section 14): the drawing-style title block, and the plain-text twin of a field */
 
 /* table: gray header between two rules, thin rules between rows, numbers right-aligned in tabular figures */
 .tbl{width:100%;border-collapse:collapse;font-size:var(--fs);line-height:var(--lh);font-variant-numeric:tabular-nums}
@@ -416,9 +437,12 @@ textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font
 .facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;margin:0;font-size:var(--fs);line-height:var(--lh)}
 .facts dt{color:var(--n600)}
 .facts dd{margin:0}
-.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+/* the flat views with sizes: two drawings to a row, large enough to read the sizes written in them; each has the
+   same sizes as text underneath */
+.views{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;align-items:start}
 .views figure{margin:0}
-.views figcaption{margin-top:3px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600);text-align:center}
+.views figcaption{margin-top:4px;font-size:var(--fs);line-height:var(--lh);color:var(--n900);text-align:center;font-variant-numeric:tabular-nums}
+.views .hint{align-self:center;margin:0;padding:0 8px}
 .doc img.wide{max-width:520px}
 
 /* cutting diagrams: what to buy, then one bar per board (or one drawing per plywood sheet) with the cuts marked */
@@ -445,7 +469,10 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
 .need h4{margin:0;font-size:var(--fs-s);line-height:16px;font-weight:600;color:var(--n600)}
 .need ul{margin:0;padding:0;list-style:none}
 .need li{margin:0}
-.need .qty{display:inline-block;min-width:28px;font-variant-numeric:tabular-nums}
+/* the pieces of a step in three columns: how many, the letter, the name. The same space on both sides of the letter. */
+.need.pieces ul{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);column-gap:6px;align-items:baseline}
+.need.pieces li{display:contents}
+.need .qty{text-align:right;font-variant-numeric:tabular-nums}
 
 /* ---------- 13. Narrow windows ---------- */
 @media (max-width:1280px){
@@ -461,17 +488,29 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .projname input{width:120px}
   .tab{padding:0 9px}
   .st{padding:0 8px}
-  .st.opt{display:none}
+  .st.wide-only{display:none}
   .st .long{display:none}
   .st .short{display:inline}
 }
-/* smaller still: Front / Side / Top leave the ribbon (they stay in the View group's More menu and on keys 1, 3, 7),
-   and as a last resort the ribbon scrolls sideways rather than cutting commands off */
+/* smaller still: Front / Side / Top leave the ribbon (they stay in the View group's More menu and on keys 1, 3, 7)
+   and the groups sit a little closer, which fits the whole ribbon in a window 1000 wide (a tablet, or a laptop
+   with the browser beside something else). Below that, as a last resort, the ribbon scrolls sideways inside its
+   own strip rather than cutting commands off; the mouse wheel turns it (js/app.js). */
 @media (max-width:1100px){
   .stack.dirs{display:none}
+  .grp{padding:2px 2px 0}
+  .stack.add{grid-template-columns:96px auto}
   .ribbon{overflow-x:auto;scrollbar-width:none}
   .ribbon::-webkit-scrollbar{display:none}
+  /* more commands are off screen to the right (js/app.js sets the class): the right edge of the strip fades out.
+     The fade is a strip of its own that stays at the edge; it takes no room and lets clicks through. */
+  .ribbon.more::after{content:"";flex:none;position:sticky;right:0;width:40px;margin-left:-40px;background:linear-gradient(90deg,rgba(246,247,249,0),var(--n50) 80%);pointer-events:none}
   .st i{display:none}
+}
+/* a short window (a laptop): the remark under the presets form shows three lines instead of five, which leaves
+   more of the form in view; the rest of the remark scrolls */
+@media (max-height:780px){
+  .pform-s .note{max-height:47px}
 }
 /* a window narrower than the presets dialog: the list of designs gets slimmer, one tile to a row */
 @media (max-width:920px){
@@ -500,14 +539,15 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
 
   /* the title block replaces the on-screen heading */
   .doc h1,.doc .meta{display:none}
+  /* three cells to a row (Project, Sheet, Date / Overall size, Pieces to cut, Style), then one thin strip across */
   .titleblock{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,1.2fr);margin:0 0 12pt;border:1pt solid #000}
   .titleblock div{padding:3pt 6pt 4pt;border-right:.5pt solid #000;border-bottom:.5pt solid #000}
   .titleblock div:nth-child(3n){border-right:0}
-  .titleblock div:nth-last-child(-n+3){border-bottom:0}
   .titleblock small{display:block;font-size:7pt;line-height:1.3;color:#444}
   .titleblock b{display:block;font-size:10.5pt;line-height:1.25;font-weight:600}
   .titleblock .tb-name b{font-size:16pt}
-  .titleblock .tb-made{display:flex;align-items:flex-end;font-size:8pt;color:#444;white-space:nowrap}
+  .titleblock .tb-made{grid-column:1/-1;padding:2pt 6pt;border:0;font-size:7pt;line-height:1.3;color:#444;text-align:right}
+  .printonly{display:inline}
 
   .doc h2{margin:14pt 0 5pt;font-size:12pt;break-after:avoid}
   .doc .hint,.doc .meta,.views figcaption,.cut>span,.facts dt,.need h4,.board .waste{color:#444}
@@ -523,10 +563,10 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .tbl td{border-bottom-color:#999}
   .tbl tr.total td{border-top-color:#000}
   .tbl tbody tr:hover{background:none}
-  /* boxes that can be typed in print as plain text */
-  .tbl .fld,.buy select.fld{width:auto;height:auto;padding:0;border:0;background:none;box-shadow:none;appearance:none;-webkit-appearance:none;font:inherit;color:inherit}
-  .tbl input.price{width:4em}
-  @supports (field-sizing:content){.tbl input.price{width:auto;field-sizing:content}} /* as wide as the number in it */
+  /* A choice in a table (the fastener of a joint) prints as plain text. A price and a board length have a plain
+     twin beside them instead (class "printonly"), because a box never prints at the width of what is in it. */
+  .tbl .fld{width:auto;height:auto;padding:0;border:0;background:none;box-shadow:none;appearance:none;-webkit-appearance:none;font:inherit;color:inherit}
+  .buy{display:block} /* words and spaces as in a sentence, not spread out with gaps */
   .key{border-color:#000;color:#000}
 
   /* things that must stay in one piece: a step with its picture, a cutting bar, a picture with its caption */

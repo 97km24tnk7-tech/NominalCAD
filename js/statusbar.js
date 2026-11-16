@@ -42,7 +42,7 @@ const TOOL_PROMPTS={
 const PAGE_PROMPTS={
   joints:['i-screw','Joints & hardware','Every place two pieces touch, with a suggested fastener. Pick another in the Fasten with column and the hardware list follows.'],
   cut:['i-list','Cut list & shopping','What to buy and how to cut it. Type the prices from your store into the boxes and the total follows.'],
-  instr:['i-print','Build instructions','Shopping list, cut list and the steps in order. Press Print at the top of the page to print them.'],
+  instr:['i-print','Build instructions','Shopping list, cut list and the steps in order. '+PRINT_HINT], // PRINT_HINT: hosted.js
 };
 
 /* ---------- the prompt ---------- */
@@ -57,7 +57,10 @@ function setPrompt(html,iconId){
 function renderPrompt(){
   if(modal)return; // M / R / S is running and owns the prompt until it ends
   let p;
-  if(tab!=='design')p=PAGE_PROMPTS[tab];
+  if(tab!=='design'){
+    p=PAGE_PROMPTS[tab];
+    if(!S.parts.length)p=[p[0],p[1],'Nothing to show yet. Go to 1 Design and pick a furniture preset, or add a piece.']; // an empty page has no prices to type and nothing to print
+  }
   else if(explode)p=['i-display','Exploded view','Click any piece to put the design back together.'];
   else p=(TOOL_PROMPTS[tool]||TOOL_PROMPTS.select)();
   setPrompt(`<b>${p[1]}</b>${p[2]}`,p[0]);
@@ -77,7 +80,7 @@ function renderFacts(){
 
   // overall size: long form on a wide window, short form on a narrow one (the style sheet shows one of the two)
   if(b){
-    const w=fmt(b.hi[0]-b.lo[0]),d=fmt(b.hi[2]-b.lo[2]),h=fmt(b.hi[1]-b.lo[1]);
+    const w=fmtFt(b.hi[0]-b.lo[0]),d=fmtFt(b.hi[2]-b.lo[2]),h=fmtFt(b.hi[1]-b.lo[1]);
     setFact('#stSize',`<span class="long">${w} wide × ${d} deep × ${h} tall</span><span class="short">${w} × ${d} × ${h}</span>`,
       `Overall size: ${w} wide × ${d} deep × ${h} tall`);
   }else setFact('#stSize','');

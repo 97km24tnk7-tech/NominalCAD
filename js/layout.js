@@ -22,16 +22,23 @@ function syncPanels(){
       el.style.maxHeight=`calc(100% - ${y+PANEL_GAP}px)`;
     }else el.style.left=el.style.top=el.style.right=el.style.maxHeight='';
   }
+  // the two switches in the strip: "on" while the panel is on screen. Properties can be switched on with nothing
+  // selected; then there is no panel to see, and its switch only shows a blue icon ("armed").
+  const propsWanted=!panelOf('right').off,propsShowing=propsWanted&&sel.size>0;
   $('#tPieces').classList.toggle('on',!panelOf('left').off);
-  $('#tProps').classList.toggle('on',!panelOf('right').off);
+  $('#tProps').classList.toggle('on',propsShowing);
+  $('#tProps').classList.toggle('armed',propsWanted&&!propsShowing);
 }
 function togglePanel(k){const st=panelOf(k);st.off=!st.off;savePanels();syncPanels();}
+$('#tPieces').onclick=()=>togglePanel('left');
+$('#tProps').onclick=()=>togglePanel('right');
 function resetPanels(){panelState={};savePanels();syncPanels();}
 document.querySelectorAll('aside.float .fh').forEach(h=>{
   const el=h.parentElement,k=el.id;
   h.addEventListener('pointerdown',e=>{
     if(e.target.closest('button'))return;
-    const wrap=$('#cvWrap').getBoundingClientRect(),r=el.getBoundingClientRect(),dx=e.clientX-r.left,dy=e.clientY-r.top;h.setPointerCapture(e.pointerId);
+    const wrap=$('#cvWrap').getBoundingClientRect(),r=el.getBoundingClientRect(),dx=e.clientX-r.left,dy=e.clientY-r.top;
+    try{h.setPointerCapture(e.pointerId);}catch(err){} // keeps the drag when the pointer leaves the title bar; some pointers cannot be captured, and the drag still works without it
     const move=ev=>{const st=panelOf(k);st.x=Math.round(Math.max(0,Math.min(wrap.width-80,ev.clientX-wrap.left-dx)));st.y=Math.round(Math.max(0,Math.min(wrap.height-34,ev.clientY-wrap.top-dy)));syncPanels();};
     const up=()=>{h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up);savePanels();};
     h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);});

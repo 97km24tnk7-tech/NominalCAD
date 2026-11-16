@@ -9,18 +9,25 @@ const gizmoGroup=new THREE.Group();scene.add(gizmoGroup);
 const GCOL=[0xc0392b,0x2f6fb5,0x2e8b57],GNAME=['X (left-right)','Z (up-down)','Y (front-back)']; // indexed by world axis; the same colors as the axis symbol in the corner of the view
 const KEYAXIS={x:0,y:2,z:1};
 const HOTKEY={m:'g',r:'r',s:'s'}; // M move, R rotate, S stretch (inside the code the move operation is called 'g')
+const GIZMO_SIZE=.13;                        // length of a move arrow (and radius of a ring) as a share of the distance to the eye, so they look one size at any zoom
+const ARROW_GRAB_FROM=.3,ARROW_GRAB_TO=1.25; // the stretch of a move arrow that can be grabbed, as fractions of its length from the middle of the selection
+const ARROW_REACH=1.21;                      // where the point of an arrow ends, as a fraction of its length (the label of the selected piece stays above the up arrow)
 let modal=null,lastMouse=null;
 function selCenter(){const b=bbox(selParts());return b?b.lo.map((v,i)=>(v+b.hi[i])/2):null;}
 function buildGizmo(){
   while(gizmoGroup.children.length){const c=gizmoGroup.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose();});}
   gizmoGroup.position.set(0,0,0);gizmoGroup.visible=true; if(explode)return;
   if(!sel.size||lite||modal||(tool!=='select'&&tool!=='rotate'))return;
-  const c=selCenter(),L=cam.r*.13;if(!c)return;
+  const c=selCenter(),L=cam.r*GIZMO_SIZE;if(!c)return;
   for(let k=0;k<3;k++){const mat=new THREE.MeshBasicMaterial({color:GCOL[k],depthTest:false,transparent:true,opacity:.95}),g=new THREE.Group();let hit;
     if(tool==='select'){ // an arrow pointing along axis k
       const shaft=new THREE.Mesh(new THREE.CylinderGeometry(L*.018,L*.018,L,8),mat),tip=new THREE.Mesh(new THREE.ConeGeometry(L*.07,L*.22,12),mat);
-      hit=new THREE.Mesh(new THREE.CylinderGeometry(L*.09,L*.09,L*1.25,8),new THREE.MeshBasicMaterial({visible:false}));
-      shaft.position.y=L/2;tip.position.y=L*1.1;hit.position.y=L*.62;shaft.renderOrder=tip.renderOrder=9;g.add(shaft,tip,hit);
+      // the part of the arrow that can be grabbed: an unseen, fatter tube around it. It starts a little way out
+      // from the middle (ARROW_GRAB_FROM), so that pressing the middle of a piece drags the piece freely instead
+      // of catching one of the three arrows that meet there.
+      const grabLength=L*(ARROW_GRAB_TO-ARROW_GRAB_FROM);
+      hit=new THREE.Mesh(new THREE.CylinderGeometry(L*.09,L*.09,grabLength,8),new THREE.MeshBasicMaterial({visible:false}));
+      shaft.position.y=L/2;tip.position.y=L*1.1;hit.position.y=L*ARROW_GRAB_FROM+grabLength/2;shaft.renderOrder=tip.renderOrder=9;g.add(shaft,tip,hit);
       if(k===0)g.rotation.z=-Math.PI/2;else if(k===2)g.rotation.x=Math.PI/2;hit.userData={gz:'axis',k};}
     else{ // a ring to turn about axis k
       const ring=new THREE.Mesh(new THREE.TorusGeometry(L,L*.02,8,64),mat);hit=new THREE.Mesh(new THREE.TorusGeometry(L,L*.1,6,32),new THREE.MeshBasicMaterial({visible:false}));
@@ -37,7 +44,11 @@ function ringAngle(k,c){const pt=new THREE.Vector3(),C=new THREE.Vector3(c[0],c[
 const wrapAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function gizmoHit(e){
   if(!gizmoGroup.children.length)return null;setRay(e);
-  const h=ray.intersectObjects(gizmoGroup.children,true).find(h=>h.object.userData.gz);if(!h)return null;
+  // An arrow that points almost straight at the eye (the up arrow in the Top view) is seen as a dot over the middle
+  // of the piece. It cannot be grabbed there: the press should take the piece, and dragging along it would show nothing.
+  const eye=camera.getWorldDirection(new THREE.Vector3());
+  const endOn=o=>o.userData.gz==='axis'&&Math.abs(eye.dot(AXV[o.userData.k]))>.96;
+  const h=ray.intersectObjects(gizmoGroup.children,true).find(h=>h.object.userData.gz&&!endOn(h.object));if(!h)return null;
   const{gz,k}=h.object.userData,c=selCenter();fastGroup.visible=dimGroup.visible=handleGroup.visible=false;
   return gz==='axis'?{mode:'axis',k,c,s0:axisCoord(k,c),...moveState([...sel][0])}:{mode:'ring',k,c,a0:ringAngle(k,c),snap:snapshot()};
 }

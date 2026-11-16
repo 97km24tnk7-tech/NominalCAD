@@ -9,7 +9,7 @@ function commit(){undoStack.push(lastSnap);if(undoStack.length>200)undoStack.shi
 let saveWarned=false;
 function save(){ // autosave to this browser; tell the user once if the browser refuses, so work is not lost silently
   try{localStorage.setItem('woodshop.autosave',lastSnap);saveWarned=false;}
-  catch(e){if(!saveWarned){saveWarned=true;toast('This browser could not autosave (its storage is full or turned off). Use File, then Download as a file, to keep your work.');}}}
+  catch(e){if(!saveWarned){saveWarned=true;toast('This browser could not autosave (its storage is full or turned off). '+KEEP_ADVICE);}}}
 function load(json,keepHistory){S=Object.assign(blank(),JSON.parse(json));sel=new Set();if(!keepHistory){undoStack=[];redoStack=[];hiddenIds=new Set();}lastSnap=JSON.stringify(S);save();renderAll();}
 function undo(){if(!undoStack.length)return;redoStack.push(lastSnap);const j=undoStack.pop();const u=undoStack,r=redoStack;load(j,true);undoStack=u;redoStack=r;renderAll();}
 function redo(){if(!redoStack.length)return;undoStack.push(lastSnap);const j=redoStack.pop();load(j,true);renderAll();}

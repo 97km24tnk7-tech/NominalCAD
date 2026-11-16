@@ -6,14 +6,18 @@ function setRay(e){const r=cv.getBoundingClientRect();mouse.set((e.clientX-r.lef
 function pick(e){setRay(e);const hits=ray.intersectObjects(partsGroup.children.map(g=>g.children[0]));return hits[0]||null;}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('pointerdown',e=>{
-  cv.setPointerCapture(e.pointerId);const base={sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false};
+  try{cv.setPointerCapture(e.pointerId);}catch(err){} // keeps the drag when the pointer leaves the view; a pointer that cannot be captured still drags
+  const base={sx:e.clientX,sy:e.clientY,lx:e.clientX,ly:e.clientY,moved:false};
   if(modal){modalEnd(e.button===0);return;} // while M / R / S is running, a click places it and a right-click cancels
   if(e.button!==0){const h=pick(e);drag={...base,mode:'pan',hitId:h?h.object.userData.id:null};return;} // right button: drag to slide the view, click for the menu
   if(tool==='draw'){startDraw(e,base);return;}
-  const gz=gizmoHit(e);if(gz){drag={...base,...gz};return;} // an arrow or a ring of the transform gizmo
+  // What the pointer grabs on a selected piece, in this order: a blue stretch handle, then a move arrow or a ring,
+  // then the piece itself. The handle goes first because it sits on the end of the piece, where a move arrow
+  // often reaches too; if the arrow went first the handle could not be grabbed there.
   setRay(e);const hh=ray.intersectObjects(handleGroup.children)[0];
   if(hh){const q=selParts()[0],b=box(q),{k,side}=hh.object.userData; // grab a blue handle to stretch or shorten the piece
     drag={...base,mode:'resize',id:q.id,k,side,lo:b.lo.slice(),hi:b.hi.slice(),P:hh.object.position.clone(),off:hh.object.position.getComponent(k)-(side?b.hi[k]:b.lo[k])};lite=true;return;}
+  const gz=gizmoHit(e);if(gz){drag={...base,...gz};return;} // an arrow or a ring of the transform gizmo
   const hit=pick(e);if(explode&&hit){setExplode(0);drag=null;return;} // clicking a piece puts an exploded view back together
   if(tool==='connect'){if(hit)connectClick(hit.object.userData.id);else drag={...base,mode:'orbit'};return;}
   if(!hit){drag={...base,mode:e.shiftKey?'box':'orbit',add:e.ctrlKey||e.metaKey};return;} // Shift + drag on empty space draws a selection box

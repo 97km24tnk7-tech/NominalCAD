@@ -13,12 +13,14 @@ function renderParts(){
   const rows=S.parts.slice(0,MAX_ROWS).map(p=>
     `<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><span>${esc(M[p.mat].short)}</span><span class="num">${fmt(p.l)}</span></li>`).join('');
   list.innerHTML=rows+(count>MAX_ROWS?`<li class="note">Showing the first ${MAX_ROWS} of ${count.toLocaleString()} pieces. Click any piece in the 3D view to select it.</li>`:'');
-  // bring the selected row into view, so picking a piece in 3D also finds it in the list
+  // bring the selected row into view, so picking a piece in 3D also finds it in the list. The body of the panel
+  // is what scrolls; the column headings stay at its top and cover that much of it.
   const row=list.querySelector('li.on');
   if(row){
-    const frame=list.getBoundingClientRect(),r=row.getBoundingClientRect();
-    if(r.top<frame.top)list.scrollTop-=frame.top-r.top;
-    else if(r.bottom>frame.bottom)list.scrollTop+=r.bottom-frame.bottom;
+    const scroller=list.parentElement,frame=scroller.getBoundingClientRect(),r=row.getBoundingClientRect();
+    const top=frame.top+scroller.querySelector('.phead').offsetHeight;
+    if(r.top<top)scroller.scrollTop-=top-r.top;
+    else if(r.bottom>frame.bottom)scroller.scrollTop+=r.bottom-frame.bottom;
   }
 }
 $('#partList').addEventListener('click',e=>{
@@ -80,7 +82,7 @@ function propsOfProp(p){
 /* several pieces: their size together, and for exactly two the joint between them and a tape measure */
 function propsOfSeveral(ps){
   const b=bbox(ps);
-  let h=propsNote(`Together: <b>${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall</b>`);
+  let h=propsNote(`Together: <b>${fmtFt(b.hi[0]-b.lo[0])} wide × ${fmtFt(b.hi[2]-b.lo[2])} deep × ${fmtFt(b.hi[1]-b.lo[1])} tall</b>`);
   if(ps.length!==2)return h+propsNote('Select exactly two pieces to measure the gap between them.');
 
   const[ia,ib]=[...sel],joint=findJoints().find(j=>(j.a.id===ia&&j.b.id===ib)||(j.a.id===ib&&j.b.id===ia));
@@ -134,7 +136,7 @@ $('#props').addEventListener('click',e=>{
 
 /* ---------- Joints & hardware page ----------
    One row for every kind of joint (the same two pieces meeting the same way), with the fastener to use. Picking
-   another fastener in a row changes all the joints of that kind. (docBar, docHead and docTable are in plans.js.) */
+   another fastener in a row changes all the joints of that kind. (docHead and docTable are in plans.js.) */
 function renderJoints(){
   const page=$('#jointsPage'),sheetName='Joints and hardware';
   if(!S.parts.length){
@@ -164,7 +166,7 @@ function renderJoints(){
   const dots=Object.entries(JTYPES).filter(([key])=>key!=='none'&&key!=='glue')
     .map(([,type])=>`<span><i class="dot" style="background:#${type[1].toString(16).padStart(6,'0')}"></i>${type[0]}</span>`).join('');
   h+=`<h2 class="noprint">Dots in the 3D view</h2><div class="dots noprint">${dots}</div>`;
-  page.innerHTML=docBar()+`<div class="doc">${h}</div>`;
+  page.innerHTML=`<div class="doc">${h}</div>`;
   page.querySelectorAll('select[data-g]').forEach(choice=>choice.onchange=()=>{
     if(!choice.value)return;
     groups[+choice.dataset.g].js.forEach(j=>S.joints[j.key]=choice.value);

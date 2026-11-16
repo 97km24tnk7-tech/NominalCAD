@@ -1,7 +1,7 @@
 /* NominalCAD: the preset catalog and the step-by-step instructions for each preset */
 'use strict';
 const PRESETS=[
- {name:'Fish tank wall / rack',desc:'From one rack to a whole fish room wall. Auto-fits the most tanks and sizes the lumber for the water weight, or set every row by hand.',
+ {name:'Fish tank wall / rack',spec:'One rack or a whole wall',desc:'From one rack to a whole fish room wall. Auto-fits the most tanks and sizes the lumber for the water weight, or set every row by hand.',
   params:[{head:'Main tank'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3],clr:Math.max(8,Math.ceil(v[2]/2))}]))},
@@ -23,7 +23,7 @@ const PRESETS=[
    ...[1,2,3,4,5,6].map(i=>({k:'r'+i,label:'Row '+i+(i===1?' (bottom)':''),opts:[['','Main tank'],...TANK_OPTS,['store','Storage / sump shelf, no tanks']],v:''})),
    num('storeH','Storage or cabinet height',16)],
   info:p=>rackNotes(p).slice(0,5).join(' '),notes:rackNotes,build:buildRack,hw:rackHw},
- {name:'Single aquarium stand',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
+ {name:'Single aquarium stand',spec:'One tank, cabinet below',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
   params:[{head:'Tank'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3]}]))},
@@ -39,7 +39,7 @@ const PRESETS=[
   build(p){const a=standArgs(p);if(!a)return[];const pl=rackPlan(a),P=buildRack(a);
     if(p.under==='cabinet'||p.under==='panels')cabinetSkin(P,0,pl.W,pl.D,p.standH,{doors:p.under==='cabinet',left:true,right:true,back:true});
     return P;}},
- {name:'Cabinet stand with a row of tanks',desc:'A long cabinet with doors and one or more rows of tanks on top. Looks like furniture, works like a rack.',
+ {name:'Cabinet stand with a row of tanks',tile:'Cabinet stand',spec:'Doors below, tanks on top',desc:'A long cabinet with doors and one or more rows of tanks on top. Looks like furniture, works like a rack.',
   params:[{head:'Tanks'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3],clr:Math.max(8,Math.ceil(v[2]/2))}]))},
@@ -53,7 +53,7 @@ const PRESETS=[
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
   info:p=>rackNotes(cabArgs(p)).slice(0,4).join(' '),notes:p=>rackNotes(cabArgs(p)),build:p=>buildRack(cabArgs(p)),hw:p=>rackHw(cabArgs(p)),steps:p=>rackSteps(cabArgs(p))},
- {name:'Platform bed',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
+ {name:'Platform bed',spec:'2x6 frame, 1x4 slats',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
   params:[{k:'size',label:'Mattress',opts:[['twin','Twin'],['twinxl','Twin XL'],['full','Full'],['queen','Queen'],['king','King'],['calking','California king'],['custom','Custom (type below)']],v:'queen',
      fill:{twin:{Wm:38,Lm:75},twinxl:{Wm:38,Lm:80},full:{Wm:54,Lm:75},queen:{Wm:60,Lm:80},king:{Wm:76,Lm:80},calking:{Wm:72,Lm:84}}},
    num('Wm','Mattress width',60),num('Lm','Mattress length',80),num('H','Top of frame off floor',14)],
@@ -67,7 +67,7 @@ const PRESETS=[
     for(let i=0;i<n;i++)P.push(mk('Slat','1x4',[W-3,.75,3.5],[1.5,st,1.5+i*(3.5+gap)]));
     P.push(mk('Mattress','mattress',[W-3.5,10,L-3.5],[1.75,st+.75,1.75]));
     return P;}},
- {name:'Shed',desc:'Adjustable storage shed: floor on skids, stud walls, sloped roof, with a door and windows where you want them. Build at your own risk.',
+ {name:'Shed',spec:'Stud walls, sloped roof',desc:'Adjustable storage shed: floor on skids, stud walls, sloped roof, with a door and windows where you want them. Build at your own risk.',
   params:[{head:'Size'},
    num('W','Width (left to right)',120),num('D','Depth (front to back)',96),num('Hb','Wall height at the back',80),
    {k:'pitch',label:'Roof slope (inches up per foot)',v:3,dec:1},{k:'sp',label:'Stud spacing',opts:[['16','16" on center'],['24','24" on center']],v:'16'},
@@ -80,7 +80,7 @@ const PRESETS=[
    num('ww','Window width',24),num('wh','Window height',24),num('sill','Bottom of window above floor',40)],
   info:p=>shedNotes(p).slice(0,2).join(' '),notes:shedNotes,build:buildShed,
   hw:p=>[['Heavy T-hinges, 8"',3],['Gate latch or hasp',1],['Rafter ties (hurricane ties)',2*(Math.ceil(Math.max(p.W,48)/24)+1)],['Solid concrete blocks for under the skids',2*(Math.ceil(Math.max(p.W,48)/48)+1)]]},
- {name:'Bird feeder',desc:'Platform feeder with a pitched roof. A good first project from fence pickets or 1x boards.',
+ {name:'Bird feeder',spec:'Tray with a pitched roof',desc:'Platform feeder with a pitched roof. A good first project from fence pickets or 1x boards.',
   params:[num('L','Length',12)],
   build(p){const L=Math.max(p.L,8),P=[],a=25*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),ry=9.6,rz=4.625;
     P.push(mk('Tray','1x10',[L,.75,9.25],[0,0,0]),mk('Long rim','1x2',[L,1.5,.75],[0,.75,0]),mk('Long rim','1x2',[L,1.5,.75],[0,.75,8.5]),
@@ -89,7 +89,7 @@ const PRESETS=[
     for(const s of[-1,1]){const q=mk('Roof board','1x8',[L+2,.75,7.25],[-1,ry-3.625*sa-.375,rz+s*3.625*ca-3.625]);q.rot={k:0,deg:s*25};P.push(q);}
     return P;},
   hw:()=>[['Screw eyes',2],['Chain or rope, feet',4]]},
- {name:'Bookshelf',desc:'Sides, fixed shelves, toe kick and a thin plywood back.',
+ {name:'Bookshelf',spec:'Fixed shelves, thin back',desc:'Sides, fixed shelves, toe kick and a thin plywood back.',
   params:[num('W','Width',32),num('H','Height',48),{k:'board',label:'Shelf depth',opts:[['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x10'},{k:'n',label:'Shelves inside',v:3,int:1},{k:'back',label:'Plywood back',check:1,v:true}],
   info:p=>p.W>36?'Heads up: shelves wider than 36" sag under a row of books. Keep it at 36" or less, or add an upright divider in the middle.':'',
   notes:p=>p.W>36?['Shelves wider than 36" sag under a row of books. Add an upright divider in the middle, or keep heavy books on the bottom.']:[],
@@ -101,31 +101,31 @@ const PRESETS=[
     P.push(mk('Toe kick','1x4',[W-1.5,3.5,.75],[.75,0,bo+d-1.75]));
     if(p.back)P.push(mk('Back panel','ply14',[W,H-3.5,.25],[0,3.5,0]));
     return P;}},
- {name:'Dining table',desc:'4x4 legs, 2x4 aprons, 2x6 plank top.',
+ {name:'Dining table',spec:'4x4 legs, 2x6 plank top',desc:'4x4 legs, 2x4 aprons, 2x6 plank top.',
   params:[num('L','Length',60),num('W','Width',33),num('H','Height',30)],
   build:p=>buildTable({...p,leg:'4x4',apron:'2x4',top:'2x6',over:2})},
- {name:'Coffee table',desc:'Light frame with a slatted lower shelf.',
+ {name:'Coffee table',spec:'Slatted lower shelf',desc:'Light frame with a slatted lower shelf.',
   params:[num('L','Length',44),num('W','Width',22),num('H','Height',18)],
   build:p=>buildTable({...p,leg:'2x2',apron:'1x4',top:'1x6',over:1,shelf:'1x4',lowY:3})},
- {name:'Side table / nightstand',desc:'Small table with 2x2 legs and a board top.',
+ {name:'Side table / nightstand',spec:'2x2 legs, board top',desc:'Small table with 2x2 legs and a board top.',
   params:[num('L','Width',20),num('W','Depth',16.5),num('H','Height',24)],
   build:p=>buildTable({...p,leg:'2x2',apron:'1x4',top:'1x6',over:1})},
- {name:'Desk',desc:'4x4 legs, 2x4 aprons, one-piece plywood top.',
+ {name:'Desk',spec:'4x4 legs, plywood top',desc:'4x4 legs, 2x4 aprons, one-piece plywood top.',
   params:[num('L','Width',48),num('W','Depth',24),num('H','Height',30)],
   build:p=>buildTable({...p,leg:'4x4',apron:'2x4',top:'ply34',over:1})},
- {name:'Sturdy bench',desc:'Outdoor-style bench from 4x4s, 2x4s and 2x6s.',
+ {name:'Sturdy bench',spec:'4x4s, 2x4s and 2x6s',desc:'Outdoor-style bench from 4x4s, 2x4s and 2x6s.',
   params:[num('L','Length',48),num('W','Seat depth',16.5),num('H','Seat height',18)],
   build:p=>buildTable({...p,leg:'4x4',apron:'2x4',top:'2x6',over:1.5})},
- {name:'Five-board bench',desc:'Classic beginner bench: two plank legs, a top, two aprons.',
+ {name:'Five-board bench',spec:'Classic first project',desc:'Classic beginner bench: two plank legs, a top, two aprons.',
   params:[num('L','Length',36),num('H','Seat height',18),{k:'board',label:'Seat board',opts:[['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x12'}],
   build(p){const d=M[p.board].w,L=Math.max(p.L,14),H=Math.max(p.H,8),ins=3;
     return[mk('Leg',p.board,[.75,H-.75,d],[ins,0,0]),mk('Leg',p.board,[.75,H-.75,d],[L-ins-.75,0,0]),
       mk('Seat',p.board,[L,.75,d],[0,H-.75,0]),
       mk('Apron','1x4',[L-2*ins-1.5,3.5,.75],[ins+.75,H-4.25,0]),mk('Apron','1x4',[L-2*ins-1.5,3.5,.75],[ins+.75,H-4.25,d-.75])];}},
- {name:'Workbench',desc:'Heavy 4x4 frame, plywood top and a lower shelf.',
+ {name:'Workbench',spec:'4x4 frame, plywood top',desc:'Heavy 4x4 frame, plywood top and a lower shelf.',
   params:[num('L','Length',60),num('W','Depth',24),num('H','Height',34)],
   build:p=>buildTable({...p,leg:'4x4',apron:'2x4',top:'ply34',over:1,shelf:'ply12',lowY:6,endStretch:1})},
- {name:'Garage shelves',desc:'2x4 posts and rails with plywood decks.',
+ {name:'Garage shelves',spec:'2x4 frame, plywood decks',desc:'2x4 posts and rails with plywood decks.',
   params:[num('W','Width',48),num('D','Depth',18),num('H','Height',72),{k:'n',label:'Shelves',v:4,int:1}],
   build(p){const P=[],W=Math.max(p.W,16),D=Math.max(p.D,10),H=Math.max(p.H,20),n=Math.max(2,p.n);
     for(const x of[0,W-3.5])for(const z of[0,D-1.5])P.push(mk('Post','2x4',[3.5,H,1.5],[x,0,z]));
@@ -135,23 +135,23 @@ const PRESETS=[
       for(const x of xs)P.push(mk('Cross piece','2x4',[1.5,3.5,D-6],[x,y,3]));
       P.push(mk('Shelf deck','ply12',[W,.5,D-3],[0,y+3.5,1.5]));}
     return P;}},
- {name:'Storage box / toy chest',desc:'Plywood box with a lift-off lid.',
+ {name:'Storage box / toy chest',spec:'Plywood box, lift-off lid',desc:'Plywood box with a lift-off lid.',
   params:[num('W','Width',30),num('D','Depth',16),num('H','Height',16),{k:'ply',label:'Plywood',opts:[['ply34','3/4"'],['ply12','1/2"']],v:'ply34'},{k:'lid',label:'Lid',check:1,v:true}],
   build(p){const t=M[p.ply].t,W=Math.max(p.W,6),D=Math.max(p.D,6),H=Math.max(p.H,4);
     const P=[mk('Front',p.ply,[W,H,t],[0,0,D-t]),mk('Back',p.ply,[W,H,t],[0,0,0]),
       mk('Side',p.ply,[t,H,D-2*t],[0,0,t]),mk('Side',p.ply,[t,H,D-2*t],[W-t,0,t]),
       mk('Bottom',p.ply,[W-2*t,t,D-2*t],[t,0,t])];
     if(p.lid)P.push(mk('Lid',p.ply,[W,t,D],[0,H,0]));return P;}},
- {name:'Planter box',desc:'1x6 sides, 2x2 corner posts, slatted bottom.',
+ {name:'Planter box',spec:'1x6 sides, slatted bottom',desc:'1x6 sides, 2x2 corner posts, slatted bottom.',
   params:[num('L','Length',36),num('D','Width',16),{k:'rows',label:'Boards high',v:2,int:1}],
   build:p=>buildBox({...p,board:'1x6',post:'2x2',bottom:true})},
- {name:'Raised garden bed',desc:'2x6 sides screwed to 4x4 corner posts.',
+ {name:'Raised garden bed',spec:'2x6 sides, 4x4 posts',desc:'2x6 sides screwed to 4x4 corner posts.',
   params:[num('L','Length',72),num('D','Width',36),{k:'rows',label:'Boards high',v:2,int:1}],
   build:p=>buildBox({...p,board:'2x6',post:'4x4',bottom:false})},
- {name:'Entryway shoe bench',desc:'Sit-down bench with a slatted shoe shelf underneath.',
+ {name:'Entryway shoe bench',spec:'Seat over a shoe shelf',desc:'Sit-down bench with a slatted shoe shelf underneath.',
   params:[num('L','Length',42),num('W','Seat depth',16.5),num('H','Seat height',18)],
   build:p=>buildTable({...p,leg:'2x2',apron:'1x4',top:'1x6',over:1,shelf:'1x4',lowY:5})},
- {name:'Base cabinet with doors',desc:'Plywood cabinet with a shelf, two doors and a countertop. Good for a garage or laundry room.',
+ {name:'Base cabinet with doors',tile:'Base cabinet',spec:'Shelf, two doors, a top',desc:'Plywood cabinet with a shelf, two doors and a countertop. Good for a garage or laundry room.',
   params:[num('W','Width',30),num('D','Depth',24),num('H','Height (without top)',34.5)],
   hw:()=>[['Cabinet hinges, full overlay',4],['Door pulls',2]],
   build(p){const W=Math.max(p.W,12),D=Math.max(p.D,10),H=Math.max(p.H,16),sy=r16(4.25+(H-5)/2-.375),dw=(W-.375)/2;
@@ -163,7 +163,7 @@ const PRESETS=[
       mk('Back panel','ply14',[W,H-3.5,.25],[0,3.5,-.25]),
       mk('Countertop','ply34',[W+1,.75,D+1],[-.5,H,0]),
       mk('Door','ply34',[dw,H-4,.75],[.125,3.75,D]),mk('Door','ply34',[dw,H-4,.75],[W/2+.0625,3.75,D])];}},
- {name:'Wall shelf',desc:'A board shelf on a wall cleat with two supports. Screws into wall studs.',
+ {name:'Wall shelf',spec:'Board on a wall cleat',desc:'A board shelf on a wall cleat with two supports. Screws into wall studs.',
   params:[num('L','Length',36),{k:'board',label:'Shelf depth',opts:[['1x6','5 1/2" (1x6)'],['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)']],v:'1x8'},num('up','Height on the wall',54)],
   build(p){const L=Math.max(p.L,12),d=M[p.board].w,y=Math.max(p.up,0);
     return[mk('Wall cleat','1x4',[L,3.5,.75],[0,y,0]),mk('Shelf',p.board,[L,.75,d],[0,y+3.5,0]),
@@ -262,7 +262,13 @@ const STEPS={
 
 
 /* How to add a preset later:
-   1. Add one object to PRESETS above: { name, desc, params, build(p), and optionally info(p), notes(p), hw(p), steps(p) }.
+   1. Add one object to PRESETS above: { name, spec, desc, params, build(p), and optionally tile, info(p), notes(p), hw(p), steps(p) }.
+      - spec is the one short line under the name on the preset's tile: what it is made of, in about 25 letters
+        ('4x4 legs, plywood top'). desc is the full sentence shown on the right once the tile is picked.
+        If the name is too long for a tile (about 20 letters), give a shorter one in tile ('Cabinet stand').
+        selfTest() reports a tile whose name or line does not fit.
+      - info(p) is a remark shown under the form; when build(p) returns no pieces it must say why nothing fits
+        and what to change.
       - params is the form: num('key','Label',default), {k,label,opts:[[value,label]],v}, {k,label,check:1,v}, {k,label,v,int:1}, {head:'Section title'}.
       - build(p) returns the pieces, each made with mk(name, material, [width, height, depth], [x, y, z]).
       - steps(p) returns [{t:'what to do', add:['names of the pieces this step adds']}]. Older presets keep their steps in STEPS, keyed by name.
@@ -291,7 +297,9 @@ function renderPresetCards(){
     const i=PRESETS.findIndex(p=>p.name===name);
     if(i<0)return'';
     const preset=PRESETS[i],picture=preset.icon||PRESET_ICONS[name]||'i-presets';
-    return`<button class="card" data-i="${i}" title="${esc(preset.desc)}">${icon(picture,'l')}<span><b>${esc(preset.name)}</b><small>${esc(preset.desc)}</small></span></button>`;
+    // a tile has room for a short name and one short line; the full name and description are in its tooltip and on the right
+    return`<button class="card" data-i="${i}" title="${esc(preset.name+'. '+preset.desc)}">${icon(picture,'l')}`+
+      `<span><b>${esc(preset.tile||preset.name)}</b><small>${esc(preset.spec||'')}</small></span></button>`;
   };
   $('#presetCards').innerHTML=groups.map(([title,names])=>
     `<div class="sec">${esc(title)}</div><div class="tiles">${names.map(tile).join('')}</div>`).join('');

@@ -15,7 +15,7 @@
    A menu row looks like:  <button class="mi" data-cmd="hide"><i></i><span>Hide selected</span><kbd>H</kbd></button>
    (the first cell is an icon, or an empty <i> that shows a tick when the command has a row in CHECKS).
    Add data-keep to a row that should leave its panel open after the click (the switches in Display).
-   A button inside an element marked data-design switches to the Design tab before it runs. */
+   To grey a command out while it cannot be used, give it a row in ENABLED. */
 'use strict';
 const COMMANDS={
   duplicate:()=>dupSel(),
@@ -51,20 +51,44 @@ const CHECKS={
   togglePieces:()=>!panelOf('left').off,
   toggleProps:()=>!panelOf('right').off,
 };
-/* commands that only make sense some of the time: can it be used right now? */
+/* commands that only make sense some of the time: can it be used right now? While the answer is no, every
+   button and menu row of the command is greyed out. A command that is not listed can always be used. */
+const somethingSelected=()=>sel.size>0;
 const ENABLED={
-  toggleLegend:()=>viewMode==='block', // the color key explains the Color blocks look
+  remove:somethingSelected,
+  duplicate:somethingSelected,
+  dupGrab:somethingSelected,
+  row:somethingSelected,
+  mirror:somethingSelected,
+  move:somethingSelected,
+  rotate:somethingSelected,
+  stretch:()=>sel.size===1&&!isProp(selParts()[0]),   // one board at a time
+  hide:somethingSelected,
+  isolate:somethingSelected,
+  similar:somethingSelected,
+  group:()=>sel.size>1,
+  ungroup:()=>selParts().some(p=>p.grp),
+  selectAll:()=>S.parts.length>0,
+  showAll:()=>hiddenIds.size>0,
+  toggleLegend:()=>viewMode==='block',                // the color key explains the Color blocks look
 };
 function setViewMode(m){const s=$('#viewMode');s.value=m;s.dispatchEvent(new Event('change'));}
 
-/* show the current state on every switch-like control: ticks in menus, "on" buttons, the current tool */
+/* Shows the current state on every control: ticks in menus, "on" buttons, the current tool, and which commands
+   can be used right now. renderAll() calls it after every change to the design or the selection. */
 function syncChecks(){
   document.querySelectorAll('[data-cmd]').forEach(el=>{
     const cmd=el.dataset.cmd;
     if(CHECKS[cmd])el.classList.toggle(el.classList.contains('mi')?'checked':'on',!!CHECKS[cmd]());
     if(ENABLED[cmd])el.disabled=!ENABLED[cmd]();
   });
+  // a row that presses another button (data-click) can be used exactly when that button can
+  document.querySelectorAll('[data-click]').forEach(el=>{
+    const target=$(el.dataset.click);
+    if(target)el.disabled=target.disabled;
+  });
   document.querySelectorAll('.mi[data-tool]').forEach(el=>el.classList.toggle('checked',el.dataset.tool===tool));
+  $('#bDisplay').classList.toggle('on',xray||!!explode); // Display looks "on" while a special view is: see-through or exploded
 }
 
 /* ---------- pulldowns ---------- */
@@ -83,13 +107,11 @@ function openMenu(pd){
   list.style.left=Math.max(0,Math.min(b.left,innerWidth-list.offsetWidth-4))+'px';
   list.style.maxHeight=(innerHeight-top-8)+'px';
 }
-/* before anything else reacts to a click: put away the menu the click came from, and go to the Design tab
-   when the control only makes sense there */
+/* before anything else reacts to a click: put away the menu the click came from */
 document.addEventListener('click',e=>{
   const button=e.target.closest('button');
   if(!button||button.classList.contains('pd-btn'))return;
   if(button.closest('.menu,.pop')&&!button.hasAttribute('data-keep')){closeMenus();closeContext();}
-  if(tab!=='design'&&button.closest('[data-design]'))setTab('design');
 },true);
 document.addEventListener('click',e=>{
   const opener=e.target.closest('.pd-btn');
@@ -164,3 +186,5 @@ function openContext(x,y,hitId){
 }
 function closeContext(){$('#ctxMenu').style.display='none';}
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#ctxMenu'))closeContext();});
+
+syncChecks(); // the state at start-up (the first renderAll ran before this file was loaded)
