@@ -90,6 +90,10 @@ const HARDWARE_PRICES=[
   ...priceByLength('exterior-screws','Exterior screws',length=>`${length} exterior screws`,100,'box of 100',
     [['1-1/4"',8],['1-5/8"',9],['2"',10],['2-1/2"',12],['3"',14]],'exterior screws'),
   {id:'exterior-screws',name:'Exterior screws, other lengths',match:/exterior screws/i,pack:100,sold:'box of 100',price:11},
+  // the long screws that hold a fish rack to the wall studs (js/builders-fish.js, wallScrewLines): their own row, so
+  // that they stand before the wood screws, whose words would also catch "screws for the wall studs, 3 1/2"
+  ...priceByLength('structural-screws','Structural screws',length=>`${length} structural screws`,12,'pack of 12',
+    [['3"',8],['3-1/2"',9],['4"',10],['5"',12],['6"',14],['8"',18],['10"',22]],'screws for the wall studs'),
   ...priceByLength('wood-screws','Wood screws, #8',length=>`#8 × ${length} wood screws`,100,'box of 100',
     [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]],
     '(?:wood |construction )?screws(?: for the wall studs)?'),

@@ -106,6 +106,13 @@
        tank-overhang   a tank hangs over the edge of its shelf         warn
        tank-on-screws  a rail or a shelf under tanks hangs on          warn, or stop above 300 lb
                        fasteners alone
+       end-bearing     an end of a rail under tanks sits on less       stop
+                       than 1 1/2" of wood
+       rail-joint      two rails under tanks meet end to end with      stop
+                       nothing screwed across them, or with a deck
+                       seam on the joint (RAIL_RULES)
+       post-offset     an upright under tanks does not stand straight  stop
+                       over an upright, a post or a frame on the floor
        tips-over       the weight is centered outside the footprint    stop
        tips-under-load a push on an overhanging part tips it           stop or warn (a person's weight on a seat or floor)
        top-heavy       tall and shallow: fasten it to the wall         warn above 4 times its base, stop above 10 times
@@ -165,6 +172,12 @@
        has against the wall (a shelf lying flat) is not held by the wall: it needs a cleat and brackets.
      - Who carries whom: a piece is carried by what it sits on, and through a fastened side joint by a piece that
        is nearer the floor (or equally near and deeper, like a bed rail carrying the cleat screwed along it).
+       Whether a piece sits on something counts too: one that sits on something (or on the floor) is never carried
+       through a side joint by one that sits on nothing, nor by one that butts its face with an end; and a piece
+       that butts with its end the face of one that sits (a cross piece screwed between two rails) is carried by
+       it, whichever of the two is nearer the floor by the count of steps (a brace across the back can make the
+       back rail of a long fish wall a step nearer than the front one).
+       A rotated piece declared as carrying nothing (a brace) never rests on anything: its contacts are side joints.
        A piece fastened up under others (a drawer bottom nailed on under the four parts of its box) is carried by
        every one of them that is held up without it, not only by the one nearest the floor.
        Thin sheets (1/4" backs and skins) brace a frame but are never counted as carrying, and nothing is held
@@ -632,7 +645,11 @@ function verifyContacts(model,opt){
       const type=joints[T.id+'-'+Y.id]||joints[Y.id+'-'+T.id]||'screw';
       // pressing up and down: one lies on the other (a rafter on a wall plate, a roof deck on a rafter);
       // pressing sideways: they pass side by side (a brace across the back of a post)
-      const lower=press[1]>=.5?T:press[1]<=-.5?Y:null;
+      // A rotated piece declared as carrying nothing (a diagonal brace across the back of a frame) is screwed through
+      // its face to what it crosses and never sits on anything: where its corner happens to touch the top of a short
+      // block (the foot of a fish rack) that is still a side joint, not a rest.
+      let lower=press[1]>=.5?T:press[1]<=-.5?Y:null;
+      if(lower===Y&&T.declared&&T.use==='none')lower=null;
       verifyLink(T,Y,lower?'bear':'side',type,null,lower);
     }
   }
@@ -868,7 +885,22 @@ function verifyLoadPath(model,opt,found){
         // screwed along a bed rail, both ending at the legs) the deeper one carries the shallower one.
         // A rotated piece passing side by side (a brace) holds things together but is not counted as carrying,
         // unless nothing else carries the piece (a shelf between two splayed legs): see below.
-        const carries=Y.cost<X.cost||(Y.cost===X.cost&&extentOf(Y,1)>extentOf(X,1)+.1);
+        // And of two equally near and equally deep, the one that sits on something carries the one that does not
+        // (a rail on its uprights carries the cross piece screwed between it and the other rail, even where a
+        // brace across the back has made the back rail a step nearer the floor than the front one).
+        // The other way round, a piece that sits on something is never counted as hanging from the side of one that
+        // sits on nothing (a rail on its uprights does not hang from a cross piece that is only screwed between rails).
+        // And a piece that sits on nothing and butts a piece that sits with its end (a cross piece screwed between two
+        // rails) is carried by it, however the steps to the floor happen to count: through a brace across the back
+        // the back rail may be nearer the floor than the front one, and the cross piece is carried by both.
+        const sits=n=>n.grounded||n.links.some(l=>l.kind==='bear'&&l.upper===n&&l.lower.cost<Infinity);
+        const square=!X.tilt&&!Y.tilt,sitsX=square&&sits(X),sitsY=square&&sits(Y);
+        // (butts: X meets the face of Y with its end, as a cross piece meets a rail; it may also sit on a block at
+        // that end, the foot of a door stile, and is still carried by the rail it is screwed to)
+        const faceOf=n=>!link.j?'':(link.a===n?link.j.fa:link.j.fb);
+        const butts=faceOf(X)==='end'&&faceOf(Y)!=='end',buttedBy=faceOf(Y)==='end'&&faceOf(X)!=='end';
+        const carries=(Y.cost<X.cost||(Y.cost===X.cost&&extentOf(Y,1)>extentOf(X,1)+.1)||(sitsY&&butts)||
+          (sitsY&&!sitsX&&Y.cost===X.cost&&Math.abs(extentOf(Y,1)-extentOf(X,1))<=.1))&&!(sitsX&&!sitsY)&&!(sitsX&&sitsY&&buttedBy);
         if(carries&&!link.tilt)how='side';
         else if(Y.cost<X.cost)beside.push({node:Y,how:'side',fastened:true,link,iv:supportStretch(X,Y)});
       }
@@ -1296,9 +1328,13 @@ function verifyBeam(X,useKey,model,found){
         fix:'Stand an upright or a block under the rail at that joint so the rail sits on wood.'});
       return;
     }
+    // Where this rest is an end of the rail and another tank rail butts that end (a rail joint of a long fish
+    // wall), the two rail ends share one load: see railJointOf and postLoadOf.
+    const atEnd=k===0&&!before?-1:k===lane.rests.length-1&&!after?1:0;
+    const joint=atEnd?railJointOf(X,atEnd):'';
     for(const s of bearing){
       const Y=s.node;
-      model.reactions.push({node:Y,lb:R/bearing.length,y:X.lo[1],
+      model.reactions.push({node:Y,lb:R/bearing.length,y:X.lo[1],joint,
         x:(Math.max(X.lo[0],Y.lo[0])+Math.min(X.hi[0],Y.hi[0]))/2,z:(Math.max(X.lo[2],Y.lo[2])+Math.min(X.hi[2],Y.hi[2]))/2});
     }
   });
@@ -1352,23 +1388,152 @@ function verifyPlate(X,useKey,found){
   }
   report(worst);
 }
+/* The rail that butts the end `side` (-1 the start of its length, 1 the far end) of the tank rail X end to end,
+   as the two rail pieces of a long fish wall meet over a line of uprights: a key naming the pair, or ''. */
+function railJointOf(X,side){
+  const k=runAxis(X),endAt=X.c[k]+side*Math.sign(X.axes[0][k]||1)*X.h[0];
+  for(const link of X.links){
+    const Y=link.a===X?link.b:link.a,j=link.j;
+    if(!j||!isTankRail(Y)||j.fa!=='end'||j.fb!=='end'||j.k!==k||runAxis(Y)!==k)continue;
+    if(Math.abs(j.plane-endAt)<.05)return[X.id,Y.id].sort().join('|');
+  }
+  return'';
+}
+/* What a post or upright carries of the fish tanks above it: what rests on it, and everything that comes down
+   the same line from above. The rack engine's rule is that each support carries the load of one full span of
+   the rail on it (rackPlan's upLoad). Where two rail pieces meet end to end over one upright (a 4x4 at a rail
+   joint), each rail end would bring a full span of its own, but the two together are one span: half of each
+   neighbouring bay, the same as any upright inside a rail. So of the two ends of one joint only the heavier
+   counts. */
+function postLoadOf(V,model){
+  let lb=0;
+  const joints=new Map();
+  for(const r of model.reactions){
+    const direct=r.node===V;
+    const below=V.hi[1]<=r.y+.1&&r.x>=V.lo[0]-.5&&r.x<=V.hi[0]+.5&&r.z>=V.lo[2]-.5&&r.z<=V.hi[2]+.5;
+    if(!direct&&!below)continue;
+    if(r.joint)joints.set(r.joint,Math.max(joints.get(r.joint)||0,r.lb));
+    else lb+=r.lb;
+  }
+  for(const share of joints.values())lb+=share;
+  return lb;
+}
 /* posts and uprights under fish tanks: everything that comes down the same line */
 function verifyPosts(model,found){
   if(!model.reactions.length)return;
   for(const V of model.wood){
     if(V.cls!=='post')continue;
-    let lb=0;
-    for(const r of model.reactions){
-      const direct=r.node===V;
-      const below=V.hi[1]<=r.y+.1&&r.x>=V.lo[0]-.5&&r.x<=V.hi[0]+.5&&r.z>=V.lo[2]-.5&&r.z<=V.hi[2]+.5;
-      if(direct||below)lb+=r.lb;
-    }
+    const lb=postLoadOf(V,model);
     const safe=postSafeLoad(V.p.mat,V.p.l),long=safe<postSafeLoad(V.p.mat,0)-.5; // long enough that buckling, not crushing, decides
     if(lb>safe*VERIFY_OVER){
+      // (a thicker upright is only the fix when it is not one already)
+      const thicker=V.p.mat==='4x4'?'':'Use a thicker upright (a 4x4), or put',fix=thicker?thicker+' the uprights closer together so each one carries less.':'Put the uprights closer together so each one carries less (shorter bays), or use lighter tanks.';
       found.push({level:'stop',code:'post-load',ids:[V.id],group:V.name+'|'+V.p.mat,rank:lb/safe,
         text:`The ${V.name} carries about ${lbText(lb)} of fish tanks. A ${V.mat.short} standing on end${long?` and ${fmt(V.p.l)} long`:''} is good for about ${lbText(safe)}${long?', because a post that long and thin bows sideways under load':''}.`,
-        fix:'Use a thicker upright (a 4x4), or put the uprights closer together so each one carries less.'});
+        fix});
     }
+  }
+}
+
+/* ---------- Check c, continued: rails under fish tanks, where they end and where two of them meet ----------
+   A fish wall longer than the longest board has its rails joined end to end over a line of uprights
+   (js/rackjoints.js). The span check above already sees each rail piece as what it is, a span of its own that
+   ends on that line. What a joint needs beyond that is checked here, on the pieces as they are:
+     end-bearing   each end of a rail under tanks that rests on wood sits on at least RAIL_RULES.bearing of it
+                   (a rail end on the edge of an upright crushes the corner of the upright and slides off);
+     rail-joint    where two such rails meet end to end, something holds them together: a framing piece screwed
+                   to both, or two (a cross piece under each end) that are screwed to each other; and one piece of
+                   plywood rests on both and runs at least RAIL_RULES.bridge past the joint each way (a deck seam
+                   that lands on the joint ties nothing);
+     post-offset   a post or upright that carries tank weight and does not stand on the floor stands with at least
+                   RAIL_RULES.under of its foot straight over a post or upright below, or over a frame that lies on
+                   the floor, within RAIL_RULES.drop under it: the weight goes straight down through wood and does
+                   not land on the middle of a rail.
+   All three are stops. */
+const RAIL_RULES={bearing:1.5,bridge:3,under:.9,drop:14};
+const isTankRail=n=>n.cls==='beam'&&!n.tilt&&(n.tankW>0||n.use==='tankRail');
+function verifyRailEnds(model,found){
+  for(const X of model.wood){
+    if(!(X.tankW>0)||X.cls!=='beam'||X.tilt||!X.supported||X.grounded||X.hung)continue;
+    // the stretches of its length (from -h to h) that sit on wood
+    const bear=X.sup.filter(s=>s.how==='bear').map(s=>s.iv[0].slice()).sort((a,b)=>a[0]-b[0]),H=X.h[0],merged=[];
+    for(const iv of bear){
+      const last=merged[merged.length-1];
+      if(last&&iv[0]<=last[1]+.05)last[1]=Math.max(last[1],iv[1]);
+      else merged.push(iv);
+    }
+    if(!merged.length)continue;                                   // hangs on fasteners: tank-on-screws says so
+    const ends=[[merged[0],merged[0][0]+H],[merged[merged.length-1],H-merged[merged.length-1][1]]];
+    for(const[iv,fromEnd]of ends){
+      if(fromEnd>.05)continue;                                    // the end sticks out past its support: the overhang check says so
+      const length=iv[1]-iv[0];
+      if(length>=RAIL_RULES.bearing-.01)continue;
+      found.push({level:'stop',code:'end-bearing',ids:[X.id],group:X.name+'|end',rank:RAIL_RULES.bearing-length,
+        text:`An end of the ${X.name} sits on only ${fmt(r16(length))} of wood. Under full fish tanks each end of a rail needs at least ${fmt(RAIL_RULES.bearing)} under it, or it crushes the corner of what it sits on and can slip off.`,
+        fix:`Put a whole upright under that end (where two rails meet, an upright under each end), so the rail sits on ${fmt(RAIL_RULES.bearing)} or more.`});
+    }
+  }
+}
+function verifyRailJoints(model,found){
+  const other=(link,n)=>link.a===n?link.b:link.a;
+  const fastenedTo=n=>new Set(n.links.filter(l=>l.fastened).map(l=>other(l,n)));
+  const seen=new Set();
+  for(const X of model.wood){
+    if(!isTankRail(X))continue;
+    for(const link of X.links){
+      const Y=other(link,X),j=link.j;
+      if(!j||!isTankRail(Y)||j.fa!=='end'||j.fb!=='end'||runAxis(X)!==runAxis(Y)||j.k!==runAxis(X))continue;
+      const key=Math.min(X.i,Y.i)+'|'+Math.max(X.i,Y.i);
+      if(seen.has(key))continue;
+      seen.add(key);
+      // held together: one framing piece screwed to both, or two screwed to each other, one to each rail
+      const framing=n=>!n.sheet&&!n.prop&&n!==X&&n!==Y;
+      const nearX=[...fastenedTo(X)].filter(framing),nearY=new Set([...fastenedTo(Y)].filter(framing));
+      const tied=nearX.some(Z=>nearY.has(Z)||[...fastenedTo(Z)].some(W=>nearY.has(W)));
+      if(!tied)found.push({level:'stop',code:'rail-joint',ids:[X.id,Y.id],group:'tie|'+X.name,rank:1,
+        text:`Two pieces of the ${X.name} meet end to end, and nothing holds them to each other. Each could be pushed off its upright on its own.`,
+        fix:'Put a cross piece between the rails just inside the end of each rail piece and screw the two cross pieces to each other (or screw a block across the joint), and screw each rail end into its cross piece.'});
+      // a piece of plywood that rests on both and runs well past the joint each way
+      const plane=j.plane,k=j.k;
+      const bridged=X.links.some(l=>{
+        const P=other(l,X);
+        return P.sheet&&l.kind==='bear'&&l.lower===X&&P.links.some(m=>m.kind==='bear'&&m.lower===Y&&other(m,P)===Y)&&
+          P.lo[k]<=plane-RAIL_RULES.bridge+.01&&P.hi[k]>=plane+RAIL_RULES.bridge-.01;
+      });
+      if(!bridged)found.push({level:'stop',code:'rail-joint',ids:[X.id,Y.id],group:'deck|'+X.name,rank:1,
+        text:`Where two pieces of the ${X.name} meet end to end, no piece of the deck runs across the joint: a seam of the plywood lands on it, so the deck does not tie the two together.`,
+        fix:`Cut the deck so that a seam lands inside a bay, and one piece of plywood runs at least ${fmt(RAIL_RULES.bridge)} past the joint each way.`});
+    }
+  }
+}
+function verifyPostsStacked(model,found){
+  if(!model.reactions.length)return;
+  // the pieces that can carry a post from below: other posts, and anything that lies on the floor; sorted along x
+  const carriers=model.wood.filter(n=>!n.tilt&&(n.cls==='post'||n.grounded)).sort((a,b)=>a.lo[0]-b.lo[0]);
+  const loaded=new Set(model.reactions.map(r=>r.node));
+  for(const V of model.wood){
+    if(V.cls!=='post'||V.tilt||V.grounded||!V.supported||!loaded.has(V))continue;
+    const lb=postLoadOf(V,model);
+    // how much of its foot is straight over a carrier within RAIL_RULES.drop under it (a grid of points on the foot)
+    const near=[];
+    // (carriers are sorted by their left edge; any that reaches V has its left edge before V's right edge)
+    for(let c=0;c<carriers.length&&carriers[c].lo[0]<V.hi[0];c++){
+      const C=carriers[c];
+      if(C===V||C.hi[0]<=V.lo[0]||C.hi[1]>V.lo[1]+.05||C.hi[1]<V.lo[1]-RAIL_RULES.drop)continue;
+      if(C.hi[2]<=V.lo[2]||C.lo[2]>=V.hi[2])continue;
+      near.push(C);
+    }
+    const STEPS=6;
+    let over=0;
+    for(let a=0;a<STEPS;a++)for(let b=0;b<STEPS;b++){
+      const x=V.lo[0]+(a+.5)*extentOf(V,0)/STEPS,z=V.lo[2]+(b+.5)*extentOf(V,2)/STEPS;
+      if(near.some(C=>x>=C.lo[0]&&x<=C.hi[0]&&z>=C.lo[2]&&z<=C.hi[2]))over++;
+    }
+    const share=over/(STEPS*STEPS);
+    if(share>=RAIL_RULES.under-1e-6)continue;
+    found.push({level:'stop',code:'post-offset',ids:[V.id],group:V.name+'|offset',rank:1-share,
+      text:`The ${V.name} carries about ${lbText(lb)} of fish tanks, but only ${Math.round(share*100)}% of its foot stands straight over an upright or a post below it. The rest of the weight comes down on the middle of the frame under it instead of going straight to the floor.`,
+      fix:'Stand it directly above an upright of the row below (or a foot), so the weight goes straight down through wood.'});
   }
 }
 
@@ -1614,6 +1779,9 @@ function verifyDesign(parts,options){
     verifySpans(model,found);
     verifyTankSeats(model,found);
     verifyPosts(model,found);
+    verifyRailEnds(model,found);
+    verifyRailJoints(model,found);
+    verifyPostsStacked(model,found);
     verifyComponents(model,false);
     verifyTipping(model,opt,found);
     verifyRacking(model,opt,found);

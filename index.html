@@ -2,11 +2,11 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='864b3f2';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='7b27a1c';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=864b3f2">
+<link rel="stylesheet" href="css/style.css?v=7b27a1c">
 </head>
 <body data-tab="design">
 
@@ -623,7 +623,8 @@
       <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list &amp; shopping tab, type the prices from your store and the total follows.</dd>
       <dt>Build step by step</dt><dd>In the <b>Finish</b> group. The 3D view then shows the design as it stands after each step: what is built so far, the pieces of this step in orange, and the fasteners of this step in dark blue, right through the wood. A panel shows the words of the step and what you need for it. <b>Back</b> and <b>Next</b>, or the left and right arrow keys, move through the steps; Esc leaves and puts the view back as it was. The steps always follow the design: change, add or delete a piece and they are worked out again, here and on the Build instructions page. A design you drew yourself gets a suggested order.</dd>
       <dt>Check my design</dt><dd>In the <b>Tools</b> group, under <b>More</b> (or right-click empty space in the view). It looks for pieces that nothing holds up, boards too long for their load, and anything that could tip or lean over, and says what to change. Every preset passes it as it comes; run it after you change a design by hand or draw your own. These are rule-of-thumb checks, not an engineer's certification.</dd>
-      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; apart from counting visits on the public site (see Counting visits, below), it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
+      <dt>Long fish tank walls</dt><dd>A fish tank wall (or cabinet stand) longer than the longest board you can haul is still built as one wall: the rails of each row are made of pieces joined end to end over a pair of uprights (one upright when they are 4x4s), with a cross piece just inside each rail end, the two cross pieces screwed to each other, and the plywood deck running across the joint, and there are posts at the two ends only, so the tanks stay evenly spaced. The pieces are as even as the bays allow. <b>Build it as</b> in the preset's form can make it separate sections you can carry instead, each with its own posts; they are stood side by side where the rack goes and screwed together through the posts that meet, with no glue, so they come apart again. Either way every upright stands on one piece of deck, so it gets one set of pocket screws. These are rule-of-thumb checks, not an engineer's certification.</dd>
+      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and       <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; apart from counting visits on the public site (see Counting visits, below), it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
       <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
@@ -679,68 +680,70 @@
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=864b3f2"></script>
+<script src="three.min.js?v=7b27a1c"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=864b3f2"></script>
-<script src="js/hosted.js?v=864b3f2"></script>
-<script src="js/dialogs.js?v=864b3f2"></script>
-<script src="js/lengthboxes.js?v=864b3f2"></script>
-<script src="js/orient.js?v=864b3f2"></script>
-<script src="js/verify.js?v=864b3f2"></script>
-<script src="js/builders-furniture.js?v=864b3f2"></script>
-<script src="js/builders-fish.js?v=864b3f2"></script>
-<script src="js/builders-shed.js?v=864b3f2"></script>
-<script src="js/builders-storage.js?v=864b3f2"></script>
-<script src="js/builders-outdoor.js?v=864b3f2"></script>
-<script src="js/presets.js?v=864b3f2"></script>
-<script src="js/drawers.js?v=864b3f2"></script>
-<script src="js/nightstand.js?v=864b3f2"></script>
-<script src="js/state.js?v=864b3f2"></script>
-<script src="js/joints.js?v=864b3f2"></script>
-<script src="js/neighbors.js?v=864b3f2"></script>
-<script src="js/framing.js?v=864b3f2"></script>
-<script src="js/style.js?v=864b3f2"></script>
-<script src="js/fasteners.js?v=864b3f2"></script>
-<script src="js/visibility.js?v=864b3f2"></script>
-<script src="js/view3d.js?v=864b3f2"></script>
-<script src="js/viewmodes.js?v=864b3f2"></script>
-<script src="js/groups.js?v=864b3f2"></script>
-<script src="js/connections.js?v=864b3f2"></script>
-<script src="js/components.js?v=864b3f2"></script>
-<script src="js/hardware.js?v=864b3f2"></script>
-<script src="js/holds.js?v=864b3f2"></script>
-<script src="js/hardwareshapes.js?v=864b3f2"></script>
-<script src="js/copies.js?v=864b3f2"></script>
-<script src="js/tools.js?v=864b3f2"></script>
-<script src="js/transform.js?v=864b3f2"></script>
-<script src="js/panels.js?v=864b3f2"></script>
-<script src="js/piecetree.js?v=864b3f2"></script>
-<script src="js/unfasten.js?v=864b3f2"></script>
-<script src="js/statusbar.js?v=864b3f2"></script>
-<script src="js/viewpick.js?v=864b3f2"></script>
-<script src="js/fastenerview.js?v=864b3f2"></script>
-<script src="js/showfaces.js?v=864b3f2"></script>
-<script src="js/motion.js?v=864b3f2"></script>
-<script src="js/hanging.js?v=864b3f2"></script>
-<script src="js/hardwaretool.js?v=864b3f2"></script>
-<script src="js/drawertool.js?v=864b3f2"></script>
-<script src="js/plans.js?v=864b3f2"></script>
-<script src="js/buildsteps.js?v=864b3f2"></script>
-<script src="js/steppictures.js?v=864b3f2"></script>
-<script src="js/stepmode.js?v=864b3f2"></script>
-<script src="js/prices.js?v=864b3f2"></script>
-<script src="js/layout.js?v=864b3f2"></script>
-<script src="js/preview.js?v=864b3f2"></script>
-<script src="js/checkui.js?v=864b3f2"></script>
-<script src="js/app.js?v=864b3f2"></script>
-<script src="js/level.js?v=864b3f2"></script>
-<script src="js/glossary.js?v=864b3f2"></script>
-<script src="js/jointhelp.js?v=864b3f2"></script>
-<script src="js/wordlinks.js?v=864b3f2"></script>
-<script src="js/transfer.js?v=864b3f2"></script>
-<script src="js/menus.js?v=864b3f2"></script>
-<script src="js/selftest.js?v=864b3f2"></script>
-<script src="js/visits.js?v=864b3f2"></script>
+<script src="js/core.js?v=7b27a1c"></script>
+<script src="js/hosted.js?v=7b27a1c"></script>
+<script src="js/dialogs.js?v=7b27a1c"></script>
+<script src="js/lengthboxes.js?v=7b27a1c"></script>
+<script src="js/orient.js?v=7b27a1c"></script>
+<script src="js/verify.js?v=7b27a1c"></script>
+<script src="js/builders-furniture.js?v=7b27a1c"></script>
+<script src="js/builders-fish.js?v=7b27a1c"></script>
+<script src="js/rackjoints.js?v=7b27a1c"></script>
+<script src="js/builders-shed.js?v=7b27a1c"></script>
+<script src="js/builders-storage.js?v=7b27a1c"></script>
+<script src="js/builders-outdoor.js?v=7b27a1c"></script>
+<script src="js/presets.js?v=7b27a1c"></script>
+<script src="js/drawers.js?v=7b27a1c"></script>
+<script src="js/nightstand.js?v=7b27a1c"></script>
+<script src="js/state.js?v=7b27a1c"></script>
+<script src="js/joints.js?v=7b27a1c"></script>
+<script src="js/neighbors.js?v=7b27a1c"></script>
+<script src="js/framing.js?v=7b27a1c"></script>
+<script src="js/style.js?v=7b27a1c"></script>
+<script src="js/fasteners.js?v=7b27a1c"></script>
+<script src="js/fastenerroom.js?v=7b27a1c"></script>
+<script src="js/visibility.js?v=7b27a1c"></script>
+<script src="js/view3d.js?v=7b27a1c"></script>
+<script src="js/viewmodes.js?v=7b27a1c"></script>
+<script src="js/groups.js?v=7b27a1c"></script>
+<script src="js/connections.js?v=7b27a1c"></script>
+<script src="js/components.js?v=7b27a1c"></script>
+<script src="js/hardware.js?v=7b27a1c"></script>
+<script src="js/holds.js?v=7b27a1c"></script>
+<script src="js/hardwareshapes.js?v=7b27a1c"></script>
+<script src="js/copies.js?v=7b27a1c"></script>
+<script src="js/tools.js?v=7b27a1c"></script>
+<script src="js/transform.js?v=7b27a1c"></script>
+<script src="js/panels.js?v=7b27a1c"></script>
+<script src="js/piecetree.js?v=7b27a1c"></script>
+<script src="js/unfasten.js?v=7b27a1c"></script>
+<script src="js/statusbar.js?v=7b27a1c"></script>
+<script src="js/viewpick.js?v=7b27a1c"></script>
+<script src="js/fastenerview.js?v=7b27a1c"></script>
+<script src="js/showfaces.js?v=7b27a1c"></script>
+<script src="js/motion.js?v=7b27a1c"></script>
+<script src="js/hanging.js?v=7b27a1c"></script>
+<script src="js/hardwaretool.js?v=7b27a1c"></script>
+<script src="js/drawertool.js?v=7b27a1c"></script>
+<script src="js/plans.js?v=7b27a1c"></script>
+<script src="js/buildsteps.js?v=7b27a1c"></script>
+<script src="js/steppictures.js?v=7b27a1c"></script>
+<script src="js/stepmode.js?v=7b27a1c"></script>
+<script src="js/prices.js?v=7b27a1c"></script>
+<script src="js/layout.js?v=7b27a1c"></script>
+<script src="js/preview.js?v=7b27a1c"></script>
+<script src="js/checkui.js?v=7b27a1c"></script>
+<script src="js/app.js?v=7b27a1c"></script>
+<script src="js/level.js?v=7b27a1c"></script>
+<script src="js/glossary.js?v=7b27a1c"></script>
+<script src="js/jointhelp.js?v=7b27a1c"></script>
+<script src="js/wordlinks.js?v=7b27a1c"></script>
+<script src="js/transfer.js?v=7b27a1c"></script>
+<script src="js/menus.js?v=7b27a1c"></script>
+<script src="js/selftest.js?v=7b27a1c"></script>
+<script src="js/visits.js?v=7b27a1c"></script>
 </body>
 </html>

@@ -31,7 +31,7 @@ const TERMS=[
   {word:'Door stile',group:'parts',match:/\bdoor stile\b/i,
     what:'An upright piece in the front of a wide cabinet, between two pairs of doors. It runs from the bottom shelf up to the frame above and helps hold that frame up, and the doors on each side of it are hinged to it.'},
   {word:'Panel stud',group:'parts',match:/\bpanel stud\b/i,
-    what:'An upright 2x4 inside the end of a tall cabinet base, halfway between the front post and the back post. The thin side panel there is too big to cut from one sheet, so it is made in two halves, and both halves are nailed to this piece where they meet.'},
+    what:'An upright 2x4 inside a cabinet base, standing where two thin panels meet and no post or upright is there: inside the end of a tall cabinet, halfway between the front post and the back post, or against the back where a bay is wider than a sheet of plywood. Both panels are nailed to this piece where they meet.'},
   {word:'Filler block',group:'parts',match:/\bfiller block\b/i,
     what:'A short block fastened to the outside of a rail in a tank rack, where a shelf frame is narrower than the rack is deep. It brings the frame out to the full depth at that spot, so the upright of the row above stands on solid wood.'},
   {word:'Back rail',group:'parts',match:/\bback rail\b/i,

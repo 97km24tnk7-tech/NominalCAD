@@ -18,6 +18,7 @@ const PRESETS=[
    {head:'Your space'},
    num('W','Wall width (try 10\')',120,24,600),num('H','Height available',84,24,120),num('maxD','Max depth from wall',30,8,60),
    {k:'board',label:'Longest board you can haul',opts:[['96','8 ft'],['120','10 ft'],['144','12 ft'],['192','16 ft']],v:'96'},
+   RACK_BUILD_FIELD,
    {head:'Access and lighting'},
    num('light','Space for light',3,0,12),num('clr','Hand room above tank',8,0,24),num('low','Lowest tank off floor',6,0,36),
    {k:'orient',label:'Tanks face',opts:[['auto','Auto: whichever fits most'],['long','Long side out'],['end','Short end out']],v:'auto'},
@@ -50,7 +51,7 @@ const PRESETS=[
     if(!a)return list;
     const pl=rackPlan(a);
     if(p.under==='cabinet')list.push(...doorHardware(doorTotal(pl),p.standH-1));
-    if(pl.wall)list.push(wallScrews(pl));
+    if(pl.wall)list.push(...wallScrewLines(pl,standWallGap(p)));
     return list;
   },
   build(p){const a=standArgs(p);if(!a)return[];const pl=rackPlan(a),P=buildRack(a);
@@ -64,7 +65,7 @@ const PRESETS=[
    {k:'levels',label:'Rows of tanks on top',opts:[['1','1 row'],['2','2 rows'],['3','3 rows']],v:'1'},
    num('clr','Hand room above each tank',8,0,24),
    {head:'Cabinet'},
-   num('W','Length available',72,24,600),num('storeH','Cabinet height inside',24,6,48),
+   num('W','Length available',72,24,600),num('storeH','Cabinet height inside',24,6,48),RACK_BUILD_FIELD,
    {head:'Do it by hand (leave on Auto to let the program decide)'},
    {k:'perRow',label:'Tanks per row (0 = auto)',v:0,int:1,min:0,max:500},
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},

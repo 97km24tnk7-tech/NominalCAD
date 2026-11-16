@@ -158,7 +158,10 @@ function designMiddle(){
 function hiddenSide(piece,s){
   if(s===1)return-1;
   const b=plainBox(piece);
-  return designMiddle()[s]>=(b.lo[s]+b.hi[s])/2?1:-1;
+  const side=designMiddle()[s]>=(b.lo[s]+b.hi[s])/2?1:-1;
+  // not a face that another board lies against (faceCovered, js/fastenerroom.js)
+  if(typeof faceCovered==='function'&&faceCovered(piece,s,side)&&!faceCovered(piece,s,-side))return-side;
+  return side;
 }
 
 /* ---------- the makers: one per kind of fastener ---------- */
@@ -728,7 +731,7 @@ function fastenerProblem(f){
    the order such things are usually built in, but nothing depends on it being the true order: whichever joint
    is looked at second gets out of the way.
 
-   Brads and framing nails are left alone (a thin nail turns aside), and so are slanted screws and the long
+   Framing nails are left alone (a thin nail turns aside), and so are slanted screws and the long
    screws of a wall plate, which have their own reasons for where they are. A design with more than
    SETTLE_MAX fastened joints is not looked at: its screws stay where the rules of thumb put them. */
 const SETTLE_MAX=6000;
@@ -741,7 +744,8 @@ function settledLayouts(){
   if(moved)return moved;
   moved=new Map();
   settledMemo.set(graph,moved);   // before anything is laid out, so that nothing below comes back here
-  const links=graph.links.filter(link=>link.joint&&link.fastened&&(link.type==='screw'||link.type==='pocket'));
+  // (brads too: one driven through a thin panel onto the head of a screw bends over, so it is moved aside like a screw)
+  const links=graph.links.filter(link=>link.joint&&link.fastened&&(link.type==='screw'||link.type==='pocket'||link.type==='nail'));
   if(!links.length||links.length>SETTLE_MAX)return moved;
   const rank=link=>{
     const list=layoutAsLaidOut(link),f=list[0];
@@ -781,7 +785,7 @@ function settledLayouts(){
   };
   for(const{link}of ranked){
     const list=layoutAsLaidOut(link);
-    const free=list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket')&&!f.toe&&!(f.also&&f.also.length));
+    const free=list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket'||f.kind==='brad')&&!f.toe&&!(f.also&&f.also.length));
     if(!free||!list.some(f=>meets(f,link))){settle(list,link);continue;}
     let best=null;
     for(const candidate of movedLayouts(link.joint,list)){
@@ -897,8 +901,9 @@ function stretchGap(p1,d1,len1,p2,d2,len2){
 }
 /* The screws of two different joints that come nearer to each other than their own thickness plus a hair: one
    would hit the other when it is driven. Returns [{a, b, gap}] with the two fasteners. Screws and pocket-hole
-   screws only: a brad or a nail turns aside, a screw does not. */
-const SCREW_CLEARANCE=.04;
+   screws only: a brad or a nail turns aside, a screw does not. The room they must keep is a drill bit, the same
+   as FASTENER_ROOM in js/fastenerroom.js: closer than that, two holes run into each other. */
+const SCREW_CLEARANCE=1/8;
 /* Would these two screws touch inside the wood? Their shanks are compared from 1/4" under the head on: two heads
    that sit back to back in two boards that touch (the posts of two racks standing side by side) are not in each
    other's way. */
