@@ -202,16 +202,29 @@ function angledIntoUpright(joint,list,X,others){
   // the side the screws start on: the one with a sideways part in their direction
   const s=[0,1,2].find(k=>k!==shape.k&&Math.abs(made[0].dir[k])>1e-6);
   const t=[0,1,2].find(k=>k!==shape.k&&k!==s);
-  const hidden=hiddenSide(board,s),box=plainBox(board);
+  let hidden=hiddenSide(board,s);
+  const box=plainBox(board);
+  // A face that will be covered for good is better still, as for pocket holes (coveredForGood, js/fasteners.js):
+  // a bookshelf's back rail is screwed to a divider from its back face, before the back panel is nailed over it,
+  // not from its front face, which is seen when one looks into the bay.
+  if(coveredForGood(board,s,-hidden)&&!coveredForGood(board,s,hidden))hidden=-hidden;
   const where=boardFace==='end'?`the end of ${board.name}`:`the edge of ${board.name}`;
-  // (a screw whose hidden side is covered by a third piece starts on the other side: angledFromOpenSides)
-  const onHidden=angledFromOpenSides(boardFace==='end'?made.map(f=>{
+  // all of them on the hidden side first: into the end of a board, and through its edge too (a toe kick 3 1/2"
+  // tall meets a divider with what counts as its edge; started on both of its faces in turn, one head would be
+  // on the front of the toe kick, where it shows)
+  const allOnHidden=boardFace==='end'||boardFace==='edge'?made.map(f=>{
     const pos=f.pos.slice(),dir=f.dir.slice();
     pos[s]=hidden>0?box.hi[s]:box.lo[s];
     dir[s]=-hidden*Math.abs(dir[s]);
     return{...f,pos,dir};
-  }):made,shape).map(f=>({...f,angledAt:X.name,
+  }):made;
+  // A screw whose hidden side is covered by a third piece where it starts goes in from the other side
+  // (angledFromOpenSides). That is decided again wherever the screws are moved to below: one that met the bottom
+  // board near the top of a toe kick and was moved down clear of it starts on the hidden face again, not on the
+  // front of the toe kick, where it would show.
+  const startedFromOpenSides=layout=>angledFromOpenSides(layout,shape).map(f=>({...f,angledAt:X.name,
     tip:`${f.label}, driven at an angle. Goes through ${where} into ${X.name}${boardFace==='end'&&s===1?(Math.abs(f.pos[1]-box.lo[1])<.01?', from its underside':', from its top face'):''}: the other face of ${X.name} is covered by the piece on its other side.`}));
+  const onHidden=startedFromOpenSides(allOnHidden);
   // moved along the end, toward its middle first, until none meets a screw already in X or in the board: the
   // first joint's screws (others), and the straight screws of every other joint of X and of the board (at the
   // doubled posts of the fish rack, the screws through a post into the ends of its rail and cross piece)
@@ -226,11 +239,11 @@ function angledIntoUpright(joint,list,X,others){
     if(!meetsOthers(onHidden))return onHidden;
     for(const step of REACH.shifts){
       for(const way of[1,-1]){
-        const shifted=onHidden.map(f=>{
+        const shifted=startedFromOpenSides(allOnHidden.map(f=>{
           const pos=f.pos.slice(),toward=f.pos[t]<middle?1:-1;
           pos[t]+=way*toward*step;
           return{...f,pos};
-        });
+        }));
         const inside=shifted.every(f=>f.pos[t]>=range[0]+FASTEN.endMin-1e-6&&f.pos[t]<=range[1]-FASTEN.endMin+1e-6);
         const apart=shifted.every((f,i)=>shifted.every((g,n)=>n===i||Math.abs(f.pos[t]-g.pos[t])>=FASTEN.endMin));
         if(inside&&apart&&!meetsOthers(shifted)&&shifted.every(f=>!piecesOverStart(f).length))return shifted;

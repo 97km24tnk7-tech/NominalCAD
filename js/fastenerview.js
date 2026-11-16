@@ -24,7 +24,7 @@ const FASTENERS_DRAWN_MAX=30000;  // never more than this many at once
 const HEAD_THICK=.1,HEAD_PROUD=.02; // a head is this thick, and stands this far out of the wood so that it can be seen
 /* what each kind looks like in the Solid and See-through views (in Fasteners only they take the color of their
    kind from JTYPES, the same colors as the key on the Fasteners tab) */
-const FASTENER_LOOK={screw:0x4b4f55,pocket:0x5f7186,brad:0x7b7f85,nail:0x8a8f96,dowel:0x9a6b3c,bracket:0xb9bec5,bracketScrew:0x55595f,hole:0x4a3524,glue:0xf2c230};
+const FASTENER_LOOK={screw:0x4b4f55,pocket:0x5f7186,brad:0x7b7f85,nail:0x8a8f96,dowel:0x9a6b3c,bracket:0xb9bec5,bracketScrew:0x55595f,hole:0x4a3524,glue:0xf2c230,plug:0xc49a62};
 /* the fastener type a kind stands for, when a fastener does not say its own (f.type, set by fastenerLayout) */
 const TYPE_OF_KIND={screw:'screw',pocket:'pocket',brad:'nail',dowel:'dowel',bracket:'bracket',nail:'frame'};
 
@@ -144,6 +144,11 @@ function drawFasteners(){
       drawnFasteners.push({f,link});
       const hex=colorOf(f,isPicked);
       if(f.kind==='screw'||f.kind==='brad'||f.kind==='nail')pin(f,hex,hex);
+      // a plugged head (rule 12, js/fasteners.js): the round wooden plug that covers it, on the face, in every view
+      if(f.plug){
+        const across=Math.abs(f.plug.out[1])>.5?[1,0,0]:[0,1,0];
+        ovals.push([placed(ovalAt(f.plug.at,f.plug.out,across,f.plug.dia/2,f.plug.dia/2)),isPicked?VIEW_COL.sel:byKind?hex:FASTENER_LOOK.plug]);
+      }
       else if(f.kind==='pocket'){
         pin(f,hex,hex);
         const hole=isPicked?VIEW_COL.sel:FASTENER_LOOK.hole,slant=Math.sin(FASTEN.pocketDegrees*Math.PI/180);

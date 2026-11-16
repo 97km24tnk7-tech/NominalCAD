@@ -74,6 +74,10 @@ function pieceLabel(piece,letterOf){
    The label is kept whole when its shape is not known, so nothing is ever lost. */
 const FASTENER_LABELS=[
   [/^(#\d+ × \S+) (wood screws|exterior screws)$/,(m,n)=>`${n} ${n===1?m[2].replace(/s$/,''):m[2]}, ${m[1]}`],
+  [/^(1\/4" × \S+) structural screws$/,(m,n)=>`${n} structural screw${n===1?'':'s'}, ${m[1]}`],
+  [/^(\S+) wood plugs$/,(m,n)=>`${n} wood plug${n===1?'':'s'}, ${m[1]}`],
+  [/^(\S+) dowel rod, cut into plugs$/,(m,n)=>`${n} plug${n===1?'':'s'} cut from ${m[1]} dowel rod`],
+  [/^Pocket-hole plugs$/,(m,n)=>`${n} pocket-hole plug${n===1?'':'s'}`],
   [/^(\S+) pocket-hole screws$/,(m,n)=>`${n} pocket-hole screw${n===1?'':'s'}, ${m[1]}`],
   [/^(.+) wood dowels$/,(m,n)=>`${n} wood dowel${n===1?'':'s'}, ${m[1]}`],
   [/^(\S+) brad nails \(18 gauge\)$/,(m,n)=>`${n} brad nail${n===1?'':'s'}, ${m[1]}`],
@@ -557,6 +561,12 @@ function faceWords(piece,out,withDirection){
   const axis=[0,1,2].reduce((best,k)=>Math.abs(out[k])>Math.abs(out[best])?k:best,0),high=out[axis]>0;
   if(axis===1)return high?'top face':'underside';
   const b=plainBox(piece),middle=designMiddle();
+  // A piece in the middle of the design (the cross rail under the middle of a desk) has no inside or outside face:
+  // the face is named by the way it looks, or, where the joints of a line differ, either face will do
+  if(middle[axis]>b.lo[axis]-.5&&middle[axis]<b.hi[axis]+.5){
+    const end=DIRECTION_ENDS[axis][high?1:0];
+    return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face (either one)`;
+  }
   const inward=high===(middle[axis]>(b.lo[axis]+b.hi[axis])/2);
   return`${inward?'inside':'outside'} face`+(withDirection?` (the one that faces the ${DIRECTION_ENDS[axis][high?1:0]})`:` (the one that faces ${inward?'the middle of the design':'out'})`);
 }
@@ -564,15 +574,18 @@ function faceWords(piece,out,withDirection){
    board screwed at an angle into an upright that is covered on its other side starts them all on its hidden side
    (js/fastenerreach.js). The words for that: ', all from its underside', or ', from both sides in turn'. */
 function angledFromWords(all){
-  const faces=new Set();
+  const faces=new Map();   // which face each starts on -> its words
   for(const facts of all)for(const f of facts.layout){
     if(!f.toe)continue;
     const k=facts.joint.k,s=[0,1,2].filter(axis=>axis!==k).reduce((best,axis)=>Math.abs(f.dir[axis])>Math.abs(f.dir[best])?axis:best);
     const out=[0,0,0];
     out[s]=f.dir[s]>0?-1:1;
-    faces.add(faceWords(f.through,out,false));
+    const words=faceWords(f.through,out,false);
+    // a piece in the middle of the design has the same words for both of its faces ("back or front face (either
+    // one)"): there the two faces are told apart by the way they look, so nails from both sides do not read as one face
+    faces.set(/\(either one\)/.test(words)?words+'|'+s+'|'+out[s]:words,words);
   }
-  return faces.size===1&&all.some(facts=>facts.layout.length>1)?`, all from its ${[...faces][0]}`:', from both sides in turn';
+  return faces.size===1&&all.some(facts=>facts.layout.length>1)?`, all from its ${[...faces.values()][0]}`:', from both sides in turn';
 }
 /* 'Stud (F)'; 'Shelf deck (F, G)' for pieces of one name in two or three sizes; the bare name for more sizes */
 function namedLabel(pieces,letterOf){
@@ -596,8 +609,11 @@ function lineKindKey(facts){
   return[facts.link.type,facts.spec.hw.map(row=>row[0]).join('+'),facts.how,byRule?'':facts.intoFace==='end'?'end':'side',byRule||spaced?'spaced':facts.spec.n].join('|');
 }
 // (moved: screws that were set aside to pass the screws of another joint, js/fasteners.js, get a line of their own, so one line gives one set of marks)
+// (pocket holes in the underside of some shelves and in the top face of others, rule 13 in js/fasteners.js, get a
+//  line each: one line names one face; holes on the two inside faces of a pair of sides still share one)
+const pocketUpOrDown=facts=>facts.f&&facts.f.pocket?'face:'+Math.round(facts.f.pocket.out[1])+(facts.f.pocket.plugged?':plugged':''):'';
 const linePairKey=facts=>facts.how==='sheet'||facts.how==='plate'?[lineKindKey(facts),facts.through.name].join('|')
-  :[lineKindKey(facts),facts.through.name,facts.into.name,facts.intoFace,movedMarks(facts)].join('|');
+  :[lineKindKey(facts),facts.through.name,facts.into.name,facts.intoFace,movedMarks(facts),pocketUpOrDown(facts)].join('|');
 /* where moved screws sit on the piece they go through, from its nearest end and edges: joints with the same marks share a line */
 function movedMarks(facts){
   if(!facts.f||!facts.f.moved)return'';
@@ -608,6 +624,16 @@ function movedMarks(facts){
 function bracketScrewWords(spec){
   const row=spec.hw.find(entry=>/screws for brackets/.test(entry[0]));
   return row?row[0].replace(/ screws for brackets$/,''):'#8 × 5/8"';
+}
+/* What to do about the head of a plugged screw (type 'plug', rule 12 in js/fasteners.js): sink it, and cover it. The
+   finishing step (finText, js/style.js) says how the plugs are cut flush or the holes filled. */
+function plugWords(f){
+  const painted=FINISHES[look().finish][2]===2,deep=inchWords(f.sunk);
+  const start=` These heads would show, so sink them: drill a 3/8" hole ${deep} deep for each one first (a counterbore), then drill the pilot hole in its middle and drive the screw.`;
+  // deeper than a store plug is long (3/8"): a length of dowel rod fills the hole, under paint too
+  if(plugIsDowel(f.sunk))return start+` A store-bought plug is only about 3/8" long and would sit deep in that hole, so cut a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long for each hole, put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`;
+  return start+(painted?' Under paint the holes are filled with wood filler when you finish.'
+      :' Put a little glue in each hole and tap in a 3/8" wooden plug, with its grain running the same way as the wood around it. It is cut flush when you finish.');
 }
 /* One "Fasten with" line for these joints: {type, links, places, each, total, label, hardware, line, where, sample}. */
 function fastenLine(links,letterOf){
@@ -648,7 +674,11 @@ function fastenLine(links,letterOf){
   group.sample={link:sample.link,layout:sample.layout,dims:here.dims,here,rule:here.rule||null};
   const leans=all.some(facts=>facts.f&&facts.f.lean),sunk=all.find(facts=>facts.f&&facts.f.sunk);
   const tail=()=>(leans?(all.every(facts=>facts.f.lean)?' Drive each nail at a slight slant, so that its point stays inside the wood.':' Where a nail driven straight would come out of the far side, drive it at a slight slant.'):'')+
-    (sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'');
+    (sunk&&sunk.f.plug?plugWords(sunk.f):
+      sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'')+
+    (all.some(facts=>facts.f&&facts.f.structural)?' Structural screws need no pilot hole: drive them with the bit that comes in the box, until the washer head is snug on the wood.':'')+
+    // rule 13 in js/fasteners.js: holes high enough to be seen from below
+    (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged))?` These holes are more than ${SEEN.underAbove}" up, where they are seen from below, so once the screws are in, glue a pocket-hole plug into each one (sold in bags, in pine and oak), with its flat side lined up with the face, and sand it flush when the glue is dry.`:'');
   /* the two pieces of a pair in words: with "the" for a sentence, without for a list */
   const pieceWords=(pair,inSentence)=>{
     const through=namedLabel(pair.throughs,letterOf),into=namedLabel(pair.intos,letterOf);
@@ -842,7 +872,8 @@ function fastenLines(links,letterOf){
   };
   // (when screws that were moved out of each other's way make too many lines, they share the line of their pair
   //  again, and that line says how each sort is marked)
-  const pairOnly=facts=>linePairKey(facts).replace(/\|moved:[^|]*$/,'|');
+  // (the marks are one part of the key, not always the last: the face of pocket holes comes after them)
+  const pairOnly=facts=>linePairKey(facts).replace(/\|moved:[^|]*/,'|');
   let lists=sortBy(linePairKey);
   if(lists.length>LINES_MAX)lists=sortBy(pairOnly);
   if(lists.length>LINES_MAX)lists=sortBy(lineKindKey);
@@ -1148,10 +1179,75 @@ function sheetLayoutWords(pieces,letterOf){
   return`Where each sheet goes, by its cut-list letter, seen from outside and from left to right: ${said.join(' ')}`;
 }
 
+/* ---------- room for the drill behind a pocket hole ----------
+   A pocket screw is driven along its own line, from behind the hole: the drill and the long square bit that comes
+   with a pocket-hole jig (about 6") need about 13" of room there. Inside a closed box or a narrow case there is
+   less: the room is measured from where the hole opens, back along the screw, to the first piece that is already
+   in place when the step drives it. Below DRIVER_ROOM.usual the step says so and names the tool that fits (a 3"
+   driver bit in a right-angle drill attachment, which needs about 4"); below DRIVER_ROOM.least nothing fits, and
+   the self-check pocketHolesHaveRoomForTheDrill fails. */
+const DRIVER_ROOM={usual:13,least:4,look:60};
+/* how far a ray from `from` along `way` (a unit vector) travels before it enters the box, or Infinity */
+function rayDistanceToBox(from,way,b){
+  let near=0,far=Infinity;
+  for(let k=0;k<3;k++){
+    if(Math.abs(way[k])<1e-9){
+      if(from[k]<b.lo[k]||from[k]>b.hi[k])return Infinity;
+      continue;
+    }
+    let t1=(b.lo[k]-from[k])/way[k],t2=(b.hi[k]-from[k])/way[k];
+    if(t1>t2)[t1,t2]=[t2,t1];
+    near=Math.max(near,t1);far=Math.min(far,t2);
+    if(near>far)return Infinity;
+  }
+  return far>0?near:Infinity;
+}
+/* The room behind one pocket hole, with the pieces in `present` (a Set of ids) in place. `later`: pieces of the
+   same step that are not one of the two the screw joins; the step's words put those in after this screw (the legs
+   of a bed after the screws from the end rail into the side rail), so they are not in the way. A step whose
+   pieces cannot be fastened in such an order is split in two (the toy chest's front, then its back). */
+function driverRoom(f,present,later){
+  if(f.kind!=='pocket'||!f.pocket)return Infinity;
+  const length=Math.hypot(...f.dir)||1,back=f.dir.map(v=>-v/length);
+  const from=pointPlus(f.pocket.mouth,back,.05);
+  let room=Infinity;
+  for(const piece of S.parts){
+    if(piece===f.through||piece===f.into||!present.has(piece.id)||(later&&later.has(piece.id))||isProp(piece)||tilted(piece))continue;
+    room=Math.min(room,rayDistanceToBox(from,back,plainBox(piece)));
+  }
+  return room>DRIVER_ROOM.look?Infinity:room;
+}
+/* The "Fasten with" lines of a step whose pocket holes have less room than the usual drill and bit need:
+   [{group, room, through, into}] with the least room of each line. */
+function tightPockets(groups,present,stepPieces){
+  const tight=[];
+  for(const group of groups){
+    if(group.type!=='pocket')continue;
+    let least=Infinity,sample=null;
+    for(const link of group.links)for(const f of fastenersOfLink(link)){
+      const later=new Set((stepPieces||[]).filter(p=>p!==f.through&&p!==f.into).map(p=>p.id));
+      const room=driverRoom(f,present,later);
+      if(room<least){least=room;sample=f;}
+    }
+    if(least<DRIVER_ROOM.usual)tight.push({group,room:least,through:sample.through,into:sample.into});
+  }
+  return tight;
+}
+/* the sentence a step gets for its tight pocket holes */
+function tightPocketWords(tight,letterOf){
+  if(!tight.length)return'';
+  const least=Math.min(...tight.map(entry=>entry.room));
+  const which=listWords([...new Set(tight.map(entry=>`in the ${pieceLabel(entry.through,letterOf)} that go into the ${pieceLabel(entry.into,letterOf)}`))]);
+  return` Little room for the drill: behind the pocket holes ${which} there is only ${inchWords(Math.floor(least*4)/4)} along the screw, and a drill with the long pocket-hole bit needs about ${DRIVER_ROOM.usual}". Drive those screws with a 3" driver bit in a right-angle drill attachment.`;
+}
+
 /* ---------- tools for one step ---------- */
 const STEP_TOOLS={
   measure:'tape measure, pencil and square',
   screw:'drill/driver, pilot-hole bit and countersink bit',
+  structural:'drill/driver and the driver bit that comes with the structural screws',
+  plug:'3/8" drill bit for the counterbores, and a small hammer',
+  plugFilled:'3/8" drill bit for the counterbores',
   pocket:'pocket-hole jig and drill/driver',
   dowel:'dowel jig, drill and mallet',
   nail:'brad nailer (or hammer and nail set)',
@@ -1171,6 +1267,14 @@ function stepTools(step){
     return tools;
   }
   if(step.kind==='finish'){
+    // coverWords, js/style.js: plugs (and pieces of dowel in deep holes) are sawn flush, holes under paint filled
+    if(plugsInDesign()){
+      const plugged=findJoints().filter(j=>jType(j)==='plug').map(j=>jSpec(j,'plug'));
+      const painted=FINISHES[look().finish][2]===2,dowels=plugged.some(spec=>spec.deep),shallow=plugged.some(spec=>!spec.deep);
+      const sawn=dowels&&shallow&&!painted?'the wooden plugs and the pieces of dowel':dowels?'the pieces of dowel':'the wooden plugs';
+      if(!painted||dowels)add('flush-cut saw for '+sawn);
+      if(painted&&shallow)add('putty knife for the wood filler');
+    }
     if(hasFinishStep())add('sandpaper: '+sandpaperGrits());
     const finish=look().finish;
     if(finish!=='none')add('brush or roller');
@@ -1199,10 +1303,22 @@ function stepTools(step){
   // what the fasteners of the step take; a drill is named once, with its bits when screws need pilot holes
   const types=new Set(step.groups.map(group=>group.type));
   const hardwareKinds=new Set(step.hardware.map(row=>row.kind));
-  if(types.has('screw'))add(STEP_TOOLS.screw);
+  // a step whose screws are all structural screws (washer heads, driven without a pilot hole) needs no pilot-hole
+  // or countersink bit, only the bit that comes in their box
+  const screwGroups=step.groups.filter(group=>group.type==='screw'||group.type==='plug');
+  const allStructural=screwGroups.length>0&&screwGroups.every(group=>[...group.hardware.keys()].some(label=>/structural screws/.test(label)));
+  if(allStructural)add(STEP_TOOLS.structural);
+  else if(screwGroups.length)add(STEP_TOOLS.screw);
   else if(types.has('bracket')||hardwareKinds.size)add('drill/driver');
+  // the counterbores of plugged heads; a hammer to tap the plugs in (under paint a shallow hole takes filler only)
+  if(types.has('plug')){
+    const painted=FINISHES[look().finish][2]===2;
+    const tapped=!painted||step.groups.some(group=>group.type==='plug'&&group.links.some(link=>jSpec(link.joint,'plug').deep));
+    add(tapped?STEP_TOOLS.plug:STEP_TOOLS.plugFilled);
+  }
   for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))add(STEP_TOOLS[type]);
-  if(['screw','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
+  if(step.tight&&step.tight.length)add('right-angle drill attachment and a 3" driver bit, for the pocket screws with little room');
+  if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners
   step.glued=step.groups.some(group=>GLUED_TYPES[group.type])||(step.groups.length>0&&/\bglue\b/i.test(words+' '+step.groups.map(group=>group.line).join(' ')));
   if(hardwareKinds.has('cup'))add('1 3/8" Forstner bit for the cup holes');
@@ -1520,11 +1636,16 @@ function makeBuildPlan(graph){
         const kind=isFinishStep(step)?'finish':isCutStep(step)?'cut':pieces.length?'build':'note';
         // changed: its own pieces were resized, moved or deleted; or a piece it quotes a number about was (quotedMeasures)
         const quotesStale=Array.isArray(step.about)&&!measuresStillTrue(step.about);
-        const changed=pieces.length>0&&((step.sig&&!sameSignature(step.sig,stepSignature(pieces)))||quotesStale);
+        const edited=pieces.length>0&&((step.sig&&!sameSignature(step.sig,stepSignature(pieces)))||quotesStale);
+        // refresh: a design saved under an older rule for fasteners, whose fasteners in this step changed when it
+        // was opened (js/fasteningupgrade.js): its old words describe the old fasteners, so it is written from the
+        // pieces too, without the note that the person changed something
+        const refreshed=pieces.length>0&&!!step.refresh&&!edited;
+        const changed=edited||refreshed;
         // fasten: the preset's own lines for joints the program cannot see (rotated pieces). A line is a sentence,
         // or {line, uses: [[hardware-list label, count]]} when the preset has counted what it takes.
         const own=step.fasten||[];
-        drafts.push({kind,source:changed?'rewritten':'preset',words:stepText(step),was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,
+        drafts.push({kind,source:changed?'rewritten':'preset',words:stepText(step),was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,refreshed,
           extra:own.map(entry=>typeof entry==='string'?entry:entry.line),extraUses:own.flatMap(entry=>entry.uses||[]),uncounted:own.some(entry=>typeof entry==='string')});
       }
       for(const cluster of after.get(index)||[]){
@@ -1624,13 +1745,22 @@ function makeBuildPlan(graph){
       step.words=generatedWords(draft.pieces,before,letterOf,graph,firstBuild&&!before.size);
     }else if(draft.source==='rewritten'){
       rewritten++;
-      step.was=draft.words;
+      step.was=draft.refreshed?'':draft.words;
       step.words=rewrittenWords(draft.pieces,before,letterOf,graph);
     }else if(draft.kind==='hardware'){
       const kinds=[...new Set(draft.items.map(item=>item.kind))];
       step.words=`Mount the ${listWords([...new Set(draft.items.map(item=>HARDWARE[item.kind].name.toLowerCase().replace(/ \(.*| ?,.*/g,'')+'s'))])} on the ${pluralOrOne(draft.items,letterOf)}. `+
         kinds.map(kind=>HARDWARE[kind].mount).join(' ');
     }
+    // pocket holes with little room behind them for the drill, with the pieces that are in place by then: the
+    // pieces built so far, less a part built apart that is not set in place yet; a part built apart is built
+    // on its own (only its own pieces are around it)
+    const index=draft.draftIndex;
+    let present;
+    if(draft.apart&&index!==undefined)present=new Set(S.parts.filter(p=>draft.pieces.some(own=>partOf.get(own.id)===partOf.get(p.id))&&built.has(p.id)).map(p=>p.id));
+    else present=new Set([...built].filter(id=>!(index!==undefined&&placedAt.has(id)&&placedAt.get(id)>index&&stepOfPiece.get(id)<index)));
+    step.tight=tightPockets(step.groups,present,draft.pieces);
+    if(step.tight.length)step.words+=tightPocketWords(step.tight,letterOf);
     // a screwed joint is stronger with glue: steps the program writes say so once, unless the design is built dry
     if(draft.source!=='preset'&&step.groups.some(group=>group.type==='screw')&&glueListed&&S.glue!==false){
       step.words+=' Spread a thin line of wood glue in each screwed joint first: it makes the joint much stronger.';
@@ -1853,11 +1983,17 @@ SELFTESTS.push(function buildStepsFollowTheDesign(problems){
     const plan=buildPlan();
     if(plan.suggested||plan.rewritten)wrong(`${preset.name}: a preset that nobody changed must keep its own steps and words`);
   }
-  // a line says through and into, and at how many places
+  // a line says through and into, and at how many places (in Rustic / rough, where the shelves are screwed through
+  // the sides; in Everyday and Fine they are held by pocket holes in their undersides)
   place('Bookshelf');
+  look().style='rustic';commit();
   let plan=buildPlan(true);
   const shelves=plan.steps.find(step=>step.pieces.some(p=>p.name==='Shelf'));
-  if(!shelves||!shelves.groups.some(group=>/through the Side \([A-Z]+\) into the end of the Shelf \([A-Z]+\)/.test(group.line)&&/6 places \(12 in all\)/.test(group.line)))wrong('the Bookshelf does not say "through the Side into the end of the Shelf" for its six shelf ends');
+  if(!shelves||!shelves.groups.some(group=>/through the Side \([A-Z]+\) into the end of the Shelf \([A-Z]+\)/.test(group.line)&&/6 places \(12 in all\)/.test(group.line)))wrong('the Bookshelf in Rustic / rough does not say "through the Side into the end of the Shelf" for its six shelf ends');
+  look().style='std';commit();
+  plan=buildPlan(true);
+  const pocketed=plan.steps.find(step=>step.pieces.some(p=>p.name==='Shelf'));
+  if(!pocketed||!pocketed.groups.some(group=>/pocket holes drilled in the underside of the Shelf \([A-Z]+\)/i.test(group.line)))wrong('the Bookshelf in Everyday does not hold its shelves by pocket holes in their undersides: '+(pocketed?pocketed.groups.map(group=>group.line).join(' / '):'no step'));
   // deleted: the step goes, the numbers stay continuous
   place('Workbench');
   const stepsBefore=buildPlan(true).steps.length;
@@ -2052,3 +2188,45 @@ function whatABeginnerReads(wrong,place){
   if(/to the 2x4 piece \([A-Z]+\)\. /.test(glued.words)&&!/a second 2x4 piece/.test(glued.words))wrong('a board glued to a board of the same name reads "Add the 2x4 piece (B) to the 2x4 piece (B)": '+glued.words);
   if(/drill|screw|with a square/i.test(glued.words)||glued.need.tools.some(tool=>/drill/.test(tool)))wrong('a step that only glues talks of a drill, screws or a square: '+glued.words+' | '+glued.need.tools.join('; '));
 }
+
+/* Room for the drill, and the face the words name. For every preset of furniture for the house (HOUSE_FURNITURE,
+   js/showfaces.js) and the Workbench, at its usual size and at the smallest and largest of each number, in
+   Everyday (the pocket holes of Fine furniture are the same):
+     - every pocket hole has at least DRIVER_ROOM.least behind it once its step's pieces are in place;
+     - a step whose pocket holes have less than DRIVER_ROOM.usual says so and lists the tool that fits;
+     - (usual size, Everyday and Fine) a step whose words say its pocket holes are drilled in the underside (or the
+       top face) of a piece has no line under it that drills that piece's holes in another face. */
+SELFTESTS.push(function pocketHolesHaveRoomForTheDrill(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('room for the drill: '+text);};
+  const seen=new Set(),once=(key,text)=>{if(!seen.has(key)){seen.add(key);wrong(text);}};
+  for(const name of HOUSE_FURNITURE.concat(['Workbench'])){
+    const preset=PRESETS.find(candidate=>candidate.name===name);
+    if(!preset)continue;
+    for(const{vals,where}of sizesToTry(preset)){
+      if(preset.check&&(preset.check(vals)||[]).some(f=>f.level==='stop'))continue;
+      const styles=where==='default size'?['std','fine']:['std'];
+      for(const style of styles){
+        if(!placeInStyle(preset,vals,style))continue;
+        const at=`${name} (${where}, ${STYLES[style][0]})`;
+        for(const step of buildPlan(true).steps){
+          for(const entry of step.tight||[]){
+            if(entry.room<DRIVER_ROOM.least)once(name+'least',`${at}: step ${step.no}: the pocket holes in the ${entry.through.name} into the ${entry.into.name} have only ${fmt(Math.max(0,entry.room))} behind them, too little for any drill`);
+          }
+          if((step.tight||[]).length&&(!/Little room for the drill/.test(step.words)||!step.need.tools.some(tool=>/right-angle/.test(tool))))
+            once(name+'said',`${at}: step ${step.no} has pocket holes with little room for the drill and does not say so, or does not list the tool`);
+          // the face the words name for a piece's pocket holes, against the lines under them
+          for(const group of step.groups){
+            if(group.type!=='pocket')continue;
+            const line=group.line.match(/drilled in the (underside|top face|[^,()]+?) of (?:the |each )?([A-Z][a-z ]+?) \([A-Z]+\)/);
+            if(!line)continue;
+            const piece=line[2].toLowerCase().replace(/[^a-z ]/g,''),face=line[1];
+            for(const named of['underside','top face']){
+              const says=new RegExp(`(pocket holes[^.]*? in the ${named} of (the |each )?${piece}\b)`,'i').test(step.words);
+              if(says&&face!==named)once(name+style+'face'+step.no,`${at}: step ${step.no} says the pocket holes are in the ${named} of the ${line[2]}, and a line under it drills them in the ${face}`);
+            }
+          }
+        }
+      }
+    }
+  }
+});});

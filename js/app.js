@@ -414,7 +414,8 @@ function makePreset(add){
   },replaceNote);
 }
 function placePreset(preset,vals,parts,add){
-  const notes=preset.notes?preset.notes(vals):[];
+  // (furniture for the house also says where screw heads show in each style, and how to hide any: headsNote, js/showfaces.js)
+  const notes=(preset.notes?preset.notes(vals):[]).concat(headsNote(preset.name));
   const stepsOf=preset.steps||STEPS[preset.name],steps=stepsOf?stepsOf(vals):[];
   // What each piece is for, which pieces go on the wall and which hang on bought hardware: Check my design reads
   // them later. They are kept for THIS placement, under a number that each of its pieces carries (piece.set), not
@@ -446,7 +447,9 @@ function placePreset(preset,vals,parts,add){
   else delete S.glue;
   const setNumber=S.nextSet=(S.nextSet||0)+1;
   S.sets=S.sets||{};
-  S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings};
+  // vals: the form values it was made with, so its steps and notes can be written again for it later (a design
+  // brought up to a new rule for fasteners, js/fasteningupgrade.js)
+  S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings,vals:{...vals}};
   parts.forEach(p=>{p.set=setNumber;});
   const hwBefore=S.hw||[],hwOwn=preset.hw?preset.hw(vals):[];
   S.hw=hwBefore.concat(hwOwn);   // while the doors are hung: whether the preset lists a catch decides whether they get one

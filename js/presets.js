@@ -131,13 +131,13 @@ const PRESETS=[
     {spacing:'gap',gap:BOOKSHELF_SPACING_LIMITS[0]},{spacing:'gap',gap:BOOKSHELF_SPACING_LIMITS[1],extra:'bottom'}]},
  /* The tables, desks and benches below are all made by tablePreset (js/builders-furniture.js): what each is made of
     is one row of TABLE_KINDS there, and the plan adds cross rails and deeper aprons as the sizes typed here need them. */
- tablePreset('Dining table','4x4 legs, 2x4 aprons, 2x6 plank top on cross rails.',
+ tablePreset('Dining table','4x4 legs, 2x4 aprons, 2x6 plank top on a cross rail (none on a short table, more on a long one).',
   [num('L','Length',60,36,108),num('W','Width',33,27,50),num('H','Height',30,26,42)]),
  tablePreset('Coffee table','Light frame with a board top and a slatted lower shelf.',
   [num('L','Length',44,24,60),num('W','Width',22,16,33),num('H','Height',18,14,24)]),
  tablePreset('Side table / nightstand','Small table with 2x2 legs and a board top.',
   [num('L','Width',20,12,36),num('W','Depth',16.5,11,24),num('H','Height',24,16,36)]),
- tablePreset('Desk','4x4 legs, 2x4 aprons, one-piece plywood top on cross rails.',
+ tablePreset('Desk','4x4 legs, 2x4 aprons, one-piece plywood top on a cross rail (more on a wide desk).',
   [num('L','Width',48,30,96),num('W','Depth',24,18,48),num('H','Height',30,26,44)]),
  tablePreset('Sturdy bench','Outdoor-style bench from 4x4s, 2x4s and 2x6s.',
   [num('L','Length',48,24,108),num('W','Seat depth',16.5,14,24),num('H','Seat height',18,14,24)]),
@@ -203,13 +203,19 @@ function tableSteps(plan){
   // the holes that will hold the top are drilled now, while the aprons are loose: in a built frame the jig does not fit
   const drillForTop=` Before you put the frames together, also drill the pocket holes that will hold the ${surface}: along the top edge of the inside face of every apron${plan.railCount?' and cross rail':''}, as many as the step that fastens the ${surface} lists, with the jig set as that list says.`;
   const pocketWords=' Glue each joint and drive two pocket screws through each end of the apron into the leg. Drill the pocket holes on the inside face, where they will not show.';
-  const throughLeg=' Glue each joint, drill pilot holes, and drive the screws listed below in through the outside face of the leg into each end of the apron. Where the list says to, drill a deep hole for each head first, so the screw reaches.';
+  // What kind of screw goes through the leg depends on the leg and on the fastener picked: through a 4x4 the list
+  // gives 1/4" structural screws, which take no pilot hole (screwForJoint, js/style.js), and "Screws, heads
+  // plugged" picked by hand gives #8 screws in deep counterbores. So these words leave that to the list under
+  // the step, whose lines say it (fastenLine, js/buildsteps.js), and never contradict it.
+  const throughLeg=' Glue each joint and drive the screws listed below in through the outside face of the leg into each end of the apron, the way the list says: wood screws take a pilot hole, structural screws do not, and the list says where a head needs a deep hole first.';
   // TABLE_KINDS shortEnds: a short apron with no room for pocket holes at both ends and the seat's holes as well
   const shortEnds=!!(TABLE_KINDS[plan.name]&&TABLE_KINDS[plan.name].shortEnds);
   const shortWhy=` The short aprons are too short for pocket holes at their ends: those holes would take up the room the holes that hold the ${surface} need.`;
+  // (the owner kept those heads in Everyday: the notes and this sentence say how they can be hidden)
+  const shortHeads=` Their heads show on the front and back faces of the legs. To hide them, choose Fine furniture in Style & finish, which joins these aprons with glued dowels instead, or click a screw of each of the four joints between a leg and a short apron in the 3D view and pick "Screws, heads plugged" in Properties (a choice there changes that one joint), which sinks the heads deep in the leg under glued lengths of dowel rod.`;
   const dowelWords=' Glue each joint and join it with the dowels listed below: mark matching places on the leg and on the end of the apron, drill the holes with a doweling jig, glue the dowels in and clamp the joint.';
   steps.push(styledStep({
-    std:endFrames+(shortEnds?throughLeg+shortWhy:pocketWords)+(shop?'':drillForTop)+square,
+    std:endFrames+(shortEnds?throughLeg+shortWhy+shortHeads:pocketWords)+(shop?'':drillForTop)+square,
     fine:endFrames+(shortEnds?dowelWords+shortWhy:pocketWords)+drillForTop+square,
     rustic:endFrames+throughLeg+square},
     ['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[])));
@@ -280,25 +286,29 @@ function bedSteps(p){
   const plan=bedPlan(p),beams=plan.beamXs.length,legs=plan.beamLegZs.length;
   // The head and the foot are the ends people look at: in Everyday and Fine nothing goes through the end rails
   // (BED_JOINTS in js/builders-furniture.js); in Rustic / rough the end rails are screwed through, heads showing.
-  const rails='Stand the two side rails on edge, cleats facing in, and fit the two end rails (the head and the foot of the bed) between them, flush with the ends of the side rails. Glue each joint and drive two 3" screws through the side rail into the end of the end rail. Then stand a leg in each inside corner, in the space past the end of the cleat, with its top level with the top of the cleat.';
+  // The sides show no heads either in Everyday and Fine, but for the screws that hold a side rail to its legs: those
+  // are sunk under wooden plugs (BED_JOINTS: pluggedUnlessRustic), and the finishing step says how the plugs are cut
+  const fitRails='Stand the two side rails on edge, cleats facing in, and fit the two end rails (the head and the foot of the bed) between them, flush with the ends of the side rails.';
+  const standLegs=' Then stand a leg in each inside corner, in the space past the end of the cleat, with its top level with the top of the cleat.';
   const steps=[CUT,
-   {t:'Screw a cleat along the inside of each side rail, 1 3/4" below the top edge and centered end to end. Glue it and drive a 2 1/2" screw every 8". The slats rest on these, so do not skimp on the screws.',add:['Side rail','Cleat']},
+   {t:'Screw a cleat along the inside of each side rail, 1 3/4" below the top edge and centered end to end. Glue it and drive the screws listed below in through the cleat into the rail, about one every 8", so their heads are on the inside, under the slats. The slats rest on these, so do not skimp on the screws.',add:['Side rail','Cleat']},
    styledStep({
-     std:rails+' Glue it and drive two 3" screws through the side rail into it, and hold it to the end rail with the L-bracket listed below, inside the corner, so that no screw shows on the head or the foot.',
-     rustic:rails+' Glue it and drive two 3" screws through the side rail and two through the end rail into it.'},['End rail','Leg'])];
+     std:fitRails+' Glue each joint and drive the pocket screws listed below into the side rail, from holes drilled in the inside face of the end rail near its ends (drill them before the rails go together).'+standLegs+
+       ' Glue it and fasten the side rail to it with the screws listed below, driven in through the outside of the side rail. That joint carries the bed, so it is screwed, but the heads would show: sink each one in a counterbore and cover it, as the list says. Then fasten the leg to the end rail from inside the bed: drive the screws listed below in through the inside face of the leg into the end rail, each head in a counterbore as deep as the list says, so that no screw shows on the head or the foot.',
+     rustic:fitRails+' Glue each joint and drive the screws listed below through the side rail into the end of the end rail.'+standLegs+' Glue it and drive the screws listed below through the side rail and through the end rail into it.'},['End rail','Leg'])];
   if(beams){
     const one=beams===1,theBeam=one?'the beam':'each beam';
     const place=`Fasten the ${one?'center beam':beams+' center beams'} between the head and foot rails, on edge, with ${one?'its top':'their tops'} level with the cleats${one?', in the middle of the bed':', spaced evenly across the bed'}. `;
     const legsWords=`Stand ${legs} center legs against one side of ${theBeam}${one?'':' (the side that faces the middle of the bed)'}, with their tops level with the top of the beam: one at each end, tight against the head or foot rail, and ${legs===3?'one in the middle':'the rest evenly spaced between'}. `+
-      'Glue each leg to the beam and drive two 3" screws through the beam into it. ';
+      'Glue each leg to the beam and drive two of the screws listed below through the beam into it. ';
     steps.push(styledStep({
       std:place+`Drive the pocket screws listed below from the holes in each end of ${theBeam} into the head and foot rails (drill them before the beam goes in). `+legsWords+
-        'Then hold the leg that stands against the head rail, and the one against the foot rail, to that rail with the L-brackets listed below, inside the bed.',
-      rustic:place+`Drive two 3" screws through each rail into the end of ${theBeam}. `+legsWords+
-        `Then drive two 3" screws through the head rail and two through the foot rail into the leg that stands against it: that leg reaches ${fmt(plan.railLap)} up the rail, which is the room you have for them.`},
+        'Then fasten the leg that stands against the head rail, and the one against the foot rail, to that rail from inside the bed: the screws listed below go in through the leg into the rail, each head in a counterbore as deep as the list says.',
+      rustic:place+`Drive two of the screws listed below through each rail into the end of ${theBeam}. `+legsWords+
+        `Then drive two screws through the head rail and two through the foot rail into the leg that stands against it: that leg reaches ${fmt(plan.railLap)} up the rail, which is the room you have for them.`},
       ['Center beam','Center leg']));
   }
-  steps.push({t:`Lay the slats across with even gaps of about ${fmt(plan.slatGap)}; the first and the last lie tight against the head and foot rails, on the tops of the corner legs. Drive two 1 5/8" screws down through each end of every slat into the cleat${beams?', and two more into '+(beams===1?'the center beam':'each center beam'):''}. Where a slat lies on the top of a leg, its two screws go into the leg. The mattress sits about 1" down inside the frame so it cannot slide.`,add:['Slat']},
+  steps.push({t:`Lay the slats across with even gaps of about ${fmt(plan.slatGap)}; the first and the last lie tight against the head and foot rails, on the tops of the corner legs. Drive two of the screws listed below down through each end of every slat into the cleat${beams?', and two more into '+(beams===1?'the center beam':'each center beam'):''}. Where a slat lies on the top of a leg, its two screws go into the end of the leg instead, and they are longer (the list gives both lengths): a screw into the end of a board needs more grip. The mattress sits about 1" down inside the frame so it cannot slide.`,add:['Slat']},
     FIN,{t:'Set the mattress on the slats.',add:['Mattress']});
   return steps;
 }

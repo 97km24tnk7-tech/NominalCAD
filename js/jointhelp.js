@@ -49,7 +49,31 @@ const JOINT_HELP={
     tips:['Wood splits most easily near the end of a board. Keep screws 3/4 inch or more from an end where you can. Where a screw has to be closer, as at a corner of 3/4 inch boards, the pilot hole is what prevents the split.',
       'The screw has to be shorter than the two pieces together, or its point comes out the far side. The lengths in the lists already allow for that.',
       'When the list says "driven at an angle", start the screw in the side of the first piece about 1 inch from the joint and slant it so it passes through the corner into the second piece. Drill the slanted pilot hole first.',
-      'If a gap stays between the pieces, back the screw out, squeeze the pieces together with a clamp, and drive it again.']},
+      'If a gap stays between the pieces, back the screw out, squeeze the pieces together with a clamp, and drive it again.',
+      'Into the end of a board a screw needs to go deeper than into a face: 1-1/4 inch or more of it in the end, against 3/4 inch in a face. The lengths in the lists allow for that. Where no ordinary screw is long enough (through a 4x4 leg), the list gives a structural screw: thicker, with a washer head, and no pilot hole needed.']},
+  plug:{
+    title:'Screws with plugged heads',
+    what:'A wood screw whose head is sunk in a short, wide hole (a counterbore) and hidden under a wooden plug glued into that hole. Used where a screw has to go in from a face that is seen and there is no hidden way to fasten that joint as strongly.',
+    picture:jhSvg('A screw sunk in a counterbore with a wooden plug over its head',
+      '<rect class="w2" x="118" y="52" width="44" height="100"/>'+
+      '<rect class="w" x="20" y="22" width="156" height="30"/>'+
+      '<rect class="hole" x="131" y="22" width="18" height="11"/>'+
+      '<rect class="peg" x="131" y="20" width="18" height="11"/>'+
+      '<path class="m" d="M131 33h18l-5 6h-8z"/><rect class="m" x="138.5" y="39" width="3" height="64"/><path class="m" d="M138.5 103h3l-1.5 7z"/>'+
+      '<path class="ld" d="M150 24l34-10"/><text class="t" x="187" y="12">plug, glued in</text><text class="t" x="187" y="23">and cut flush</text>'+
+      '<path class="ld" d="M148 36h34"/><text class="t" x="185" y="40">head sunk 3/8 inch</text>'+
+      '<text class="t" x="26" y="45">the face that is seen</text>'+
+      '<path class="ld" d="M148 90h34"/><text class="t" x="185" y="94">screw into the</text><text class="t" x="185" y="105">second piece</text>'),
+    need:['Drill','3/8 inch drill bit for the counterbores (a brad-point or Forstner bit leaves a clean edge)','7/64 inch drill bit for the pilot holes',
+      'Wooden plugs, 3/8 inch (sold in bags at the home center, in pine, oak and other woods), or wood filler if the piece is painted; a 3/8 inch dowel rod for any hole the list makes deeper than 3/8 inch',
+      'Wood glue','A small hammer','A flush-cut saw (a thin saw that cuts level with the surface) or a sharp chisel'],
+    steps:['Mark where each screw goes. Drill a 3/8 inch hole there, 3/8 inch deep unless the list says deeper: wrap a piece of tape round the bit at that depth so you know when to stop. (Through a thick leg a head may have to go deeper to reach. Such a hole is filled with a piece of 3/8 inch dowel rod cut 1/4 inch longer than the hole, instead of a plug.)',
+      'Hold the two pieces where they go, and drill the pilot hole in the middle of the counterbore, through the first piece and into the second.',
+      'Drive the screw until its head is snug at the bottom of the counterbore.',
+      'Put a drop of glue in the hole, turn a plug so its grain runs the same way as the wood around it, and tap it in until it stops.',
+      'When the glue is dry, saw the plug off level with the surface and sand it smooth. Under paint, fill the hole with wood filler instead of a plug and sand it flush when it is dry.'],
+    tips:['Plugs cut from the same wood as the piece, with the grain lined up, almost disappear under a clear finish. Plugs of a darker wood (or round wooden buttons that stand a little proud) make a feature of them instead.',
+      'Never plug a screw that you may want to take out again: drill the plug out first if you must.']},
   pocket:{
     title:'Pocket-hole screws',
     what:'A slanted hole is drilled into the hidden side of one piece, so a screw can go out through its end and into the next piece. Strong, quick, and no screw shows.',

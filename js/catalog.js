@@ -112,7 +112,7 @@ const CATALOG=[
   {id:'garage-shelves',name:'Garage shelves',group:'storage',spec:'2x4 frame, plywood decks',icon:'i-p-shelf',
     builder:'Garage shelves',tags:['shop','shelves','garage','shelving unit']},
   {id:'base-cabinet',name:'Base cabinet',group:'storage',spec:'Shelf, doors and a top',icon:'i-p-cabinet',
-    builder:'Base cabinet with doors',tags:['beginner','doors','cabinet','cupboard','kitchen','door']},
+    builder:'Base cabinet with doors',tags:['doors','cabinet','cupboard','kitchen','door']},
   {id:'storage-box',name:'Storage box / toy chest',group:'storage',spec:'Plywood box, hinged lid',icon:'i-p-box',
     builder:'Storage box / toy chest',tags:['box','chest','toys','lid','blanket chest','kids','toy chest']},
   {id:'wall-shelf',name:'Wall shelf',group:'storage',spec:'Board on a wall cleat',icon:'i-p-wallshelf',
@@ -121,7 +121,7 @@ const CATALOG=[
   {id:'platform-bed',name:'Platform bed',group:'bedroom',spec:'2x6 frame, 1x4 slats',icon:'i-p-bed',
     builder:'Platform bed',tags:['bed','mattress','twin','queen','king']},
   {id:'drawer-nightstand',name:'Drawer nightstand',group:'bedroom',spec:'Plywood, 1 to 4 drawers',icon:'i-p-cabinet',
-    builder:'Nightstand with drawers',tags:['beginner','doors','drawers','bedside','nightstand','dresser']},
+    builder:'Nightstand with drawers',tags:['doors','drawers','bedside','nightstand','dresser']},
   // Outdoors
   {id:'shed',name:'Shed',group:'outdoors',spec:'Gable or lean-to roof',icon:'i-p-shed',
     builder:'Shed',tags:['outdoor','building','garden','storage','roof']},
@@ -137,8 +137,8 @@ const CATALOG=[
 ];
 
 /* Start here: a few good first projects, in this order. Each must carry the beginner tag (selfTest checks).
-   The Bookshelf and the Storage box are not here: in the Everyday style they are held together with pocket
-   screws, so no screw head shows (js/showfaces.js), and a pocket-hole jig on top of the plywood is what the window rates "Beginner with patience", not "a good first project". */
+   The Bookshelf, the Storage box, the Base cabinet and the Drawer nightstand are not here (nor tagged beginner):
+   in the Everyday style they are held together with pocket screws, so no screw head shows on a top, front or side (js/showfaces.js), and a pocket-hole jig on top of the plywood is what the window rates "Beginner with patience", not "a good first project". */
 const CATALOG_START=['five-board-bench','wall-shelf','planter-box','side-table','raised-garden-bed','sturdy-bench'];
 
 const CATALOG_RECENT_KEY='woodshop.catalog.recent';       // browser storage: ids of the entries made last, newest first

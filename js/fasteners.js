@@ -55,8 +55,70 @@
      9. Framing nails (stud walls, floor frames, roofs) follow js/framing.js: straight through a plate into the
         end of a stud, through plywood into the framing behind it, at an angle through the side of a piece that
         stands on another (toenailed). A nail that would reach the far face is driven at a slant so that it
-        does not. A wall plate on a floor deck gets long screws that land in the framing under the deck. */
+        does not. A wall plate on a floor deck gets long screws that land in the framing under the deck.
+    12. A screw that holds a joint bites deep enough into the piece that receives it (SCREW_BITE, biteWanted).
+        How deep is measured along the screw, inside the receiving piece.
+        - Into side grain (a face or an edge of a board, and the face or edge of plywood): at least 3/4". A #8
+          screw is about 0.16" thick, and a wood screw comes near its full hold at about 4 to 5 times its own
+          thickness of thread in the wood. A receiving piece too thin for that (a 3/4" top or drawer front,
+          screwed from below) takes all of it but 1/4", so the point stays hidden: 1/2" in a 3/4" board.
+        - Into end grain (the end of a board): at least 1 1/4". End grain holds a screw about half as well as
+          side grain (the thread lies between the ends of the fibres and tears them out), so it needs more of
+          it: 1 2/3 times the side grain bite, rounded to the nearest 1/4". A 3/4" side into the end of a 3/4"
+          shelf takes 2" screws, a 1 1/2" rail into the end of another takes 3".
+        - A piece too thick for the longest #8 screw the store has (3 1/2") to bite that far into END grain (a
+          4x4 leg screwed into the end of a 2x apron: 3 1/2" of leg) gets a 1/4" structural screw instead
+          (STRUCTURAL_SCREWS: washer head, no pilot hole; US home centers stock them in 4", 5" and 6"). The makers
+          of such screws ask for about 6 times its thickness into end grain, 1 1/2": through a 4x4 that is the
+          5" screw. Into SIDE grain such a piece gets a counterbore instead (rule 4: the head sits in a deep hole,
+          at least 1/2" of wood left under it).
+        - A screw whose head is to be hidden under a wooden plug (type 'plug') sits in a 3/8" deep counterbore
+          (PLUG_DEPTH), and the screw is picked for the wood left under that hole.
+        Pocket screws follow the jig's chart instead (rule 5): the jig is made for that bite. Brads (the glue
+        holds), dowels, the short screws of a bracket, framing nails and screws driven at an angle are not held
+        to this rule. jSpec (js/style.js) picks the length by it, drivenStraight below sinks the head when it
+        must, and the self-check screwsBiteDeepEnough (js/screwbite.js) holds every preset to it in every style. */
 'use strict';
+/* Rule 12 in numbers (inches) */
+const SCREW_BITE={side:.75,end:1.25,thinLeave:.25,structuralEnd:1.5};
+const STRUCTURAL_SCREWS=[[4,'4"'],[5,'5"'],[6,'6"']];   // 1/4" structural screws, the lengths a home center stocks
+const STRUCTURAL_SIZE={dia:.25,head:.6};                 // a 1/4" structural screw and its washer head
+const PLUG_DEPTH=.375;                                    // a 3/8" plug in a 3/8" counterbore
+const PLUG_DIA=.375;
+/* How deep a screw must bite into the piece that receives it (rule 12). depthInto: how far the receiving piece
+   reaches along the screw; endGrain: the screw goes into the end of a board. */
+function biteWanted(depthInto,endGrain){
+  if(endGrain)return Math.min(SCREW_BITE.end,depthInto-.125);
+  return Math.min(SCREW_BITE.side,Math.max(.25,depthInto-SCREW_BITE.thinLeave));
+}
+/* Does a screw through this joint go into end grain? (j as findJoints gives it, through: 'a' or 'b') */
+const intoEndGrain=(j,through)=>(through==='a'?j.fb:j.fa)==='end';
+
+/* Rule 13: high up, the underside shows. In furniture for the house a pocket hole on the underside of a board, or
+   on a face that looks sideways under a shelf, is out of sight only while it is low: a person standing in front
+   looks down on it. Higher than SEEN.underAbove (54", about the shoulder of a grown-up) it is seen from below, in
+   plain sight (the underside of the top of a tall bookcase, the supports of a shelf hung at eye level). There:
+     - the holes of a board with something above it (a shelf: books stand on it) go on its top face instead;
+     - so do those of the top of the design when its top face is SEEN.topFrom (68", the eye of a tall grown-up)
+       or higher: nobody standing sees it;
+     - otherwise no face is out of sight, and the holes are drilled where they would be and filled with glued
+       pocket-hole plugs, sanded flush (f.pocket.plugged): the shopping list buys the plugs and the step says so.
+   Floors are at y = 0 (a wall shelf is drawn at the height it hangs). seenFromBelow is what the self-check
+   showFacesOfHouseFurniture (js/showfaces.js) asks too. */
+const SEEN={underAbove:54,topFrom:68};
+/* Is a hole that opens at `at`, on a face looking `out`, seen by a person standing in front of the design? Only
+   faces that look down or sideways (not up, not to the back) higher than SEEN.underAbove, with nothing in front
+   of them (a door), count. */
+function seenFromBelow(at,out){
+  if(at[1]<=SEEN.underAbove||out[1]>.5||out[2]<-.5)return false;
+  const from=pointPlus(at,out,.06),forward=[0,0,1];
+  return!S.parts.some(p=>!isProp(p)&&!tilted(p)&&rayHitsBox(from,forward,plainBox(p)));
+}
+/* Is the top face of this piece out of sight: as high as SEEN.topFrom, or with another piece standing over it? */
+function topFaceUnseen(piece){
+  const b=plainBox(piece);
+  return b.hi[1]>=SEEN.topFrom-1e-6||faceIsInside(piece,1,1);
+}
 
 const FASTEN={
   endMin:.75,        // rule 1
@@ -167,20 +229,70 @@ function hiddenSide(piece,s){
 /* ---------- the makers: one per kind of fastener ---------- */
 
 /* Screws and brads driven straight through the face of one piece into the other (rules 1 to 4). */
-function drivenStraight(j,shape,n,kind,len,label){
-  const side=thruPart(j),through=j[side],into=shape.other(through);
+/* Rule 12: how deep the head of a screw (or a brad) driven straight is sunk. A screw that would not bite deep
+   enough into the next piece (the piece it goes through is too thick for it) gets a deep hole for its head (a
+   counterbore), deep enough for the bite the rule wants, leaving at least 1/2" of wood under the head. A screw
+   whose head is to be plugged sits at least PLUG_DEPTH deep. (A brad only has to reach: the glue holds. One that
+   would bite less than 1/2" is sunk for 3/4", as before.) jSpec (js/style.js) asks the same question, so the list
+   says the depth the layout drills. */
+function sunkDepth(kind,len,depthThrough,depthInto,endGrain,plug){
+  const wanted=kind==='screw'?biteWanted(depthInto,endGrain):Math.min(.75,depthInto-.125);
+  let sunk=plug?PLUG_DEPTH:0;
+  const reach=len-depthThrough+sunk;
+  if(kind==='screw'?reach<wanted-.01:reach<Math.min(.5,depthInto-.125)){
+    // to the next 1/16", a depth that can be measured, and never leaving less than 1/2" under the head
+    sunk=Math.max(sunk,Math.min(depthThrough-.5,Math.ceil((sunk+wanted-reach)*16-1e-6)/16));
+  }
+  return sunk;
+}
+/* a plugged head deeper than a store-bought plug is long: the hole is filled with a glued length of dowel rod */
+const plugIsDowel=sunk=>sunk>PLUG_DEPTH+.01;
+function drivenStraight(j,shape,n,kind,len,label,plug){
+  const side=screwSide(j,kind==='screw'&&!plug),through=j[side],into=shape.other(through);
   const depthThrough=shape.depthOf(through),depthInto=shape.depthOf(into);
   const way=shape.signInto(into),dir=alongAxis(shape.k,way);
-  // A piece so thick that the screw would bite less than 1/2" into the next one gets a deep hole (counterbore),
-  // deep enough for 3/4" of bite, leaving at least 1/2" of wood under the head.
-  let sunk=0;
-  const reach=len-depthThrough;
-  if(reach<Math.min(.5,depthInto-.125))sunk=Math.max(0,Math.min(depthThrough-.5,Math.min(.75,depthInto-.125)-reach));
+  const sunk=sunkDepth(kind,len,depthThrough,depthInto,intoEndGrain(j,side),plug);
   const start=shape.plane-way*(depthThrough-sunk);
-  return spreadAlong(n,shape.long,FASTEN.endMin).map((along,i)=>({
-    kind,pos:shape.point(along,acrossAt(i,n,shape.wide),start),dir,len,...FASTENER_SIZE[kind],through,into,label,sunk,
-    tip:`${label}. Goes through ${through.name} into ${into.name}.`+(sunk?' Its head sits in a deep hole so it can reach.':'')+(kind==='brad'?' The glue does the holding.':''),
-  }));
+  const structural=/structural/.test(label),sizes=structural?STRUCTURAL_SIZE:FASTENER_SIZE[kind];
+  return spreadAlong(n,shape.long,FASTEN.endMin).map((along,i)=>{
+    const pos=shape.point(along,acrossAt(i,n,shape.wide),start);
+    const f={kind,pos,dir,len,...sizes,through,into,label,sunk,structural,
+      tip:`${label}. Goes through ${through.name} into ${into.name}.`+
+        (plug?` Its head sits in a 3/8" hole ${fmt(sunk)} deep under ${plugIsDowel(sunk)?'a glued length of 3/8" dowel':'a glued wooden plug'}, cut flush.`:sunk?' Its head sits in a deep hole so it can reach.':'')+
+        (structural?' A structural screw: no pilot hole needed.':'')+(kind==='brad'?' The glue does the holding.':'')};
+    // the plug over the head: where it lies on the face and which way that face looks
+    if(plug)f.plug={at:pointPlus(pos,dir,-sunk),out:dir.map(v=>-v),dia:PLUG_DIA};
+    return f;
+  });
+}
+/* The piece a screw goes through (thruPart, js/joints.js), with one tie decided for furniture for the house: two
+   pieces of the same thickness face to face (a bed rail and the cleat along its inside) are screwed from the
+   piece whose far face looks into the design, so the heads are on the inside (the cleat) and not on the outside
+   of the rail. Shop pieces, racks and buildings keep the plain rule.
+   fromThicker (plain wood screws, in Everyday and Fine furniture): the same holds for two pieces of different
+   thickness, when the thinner one is on the outside (a bed's head rail and the 4x4 leg standing inside its corner):
+   the screws go in from the inside face of the thicker piece, their heads sunk in counterbores as deep as rule 12
+   needs, instead of through the show face of the thin one. Rustic / rough keeps its heads on the outside. */
+function screwSide(j,fromThicker){
+  const side=thruPart(j);
+  if(!side||j.fa!=='face'||j.fb!=='face'||typeof S==='undefined'||!S.parts.includes(j.a))return side;
+  const sameThickness=Math.abs(j.da-j.db)<=.01;
+  // (only pieces side by side: a board lying on another, a slat on a cleat, is screwed down as always)
+  if(!sameThickness&&!(fromThicker&&j.k!==1&&look().style!=='rustic'))return side;
+  if(!isHouseFurniturePiece(j.a))return side;
+  // the far face of a piece looks into the design when the middle of the design lies beyond it, away from the joint
+  const looksIn=piece=>{
+    const b=plainBox(piece),middle=designMiddle()[j.k],farIsHigh=(b.lo[j.k]+b.hi[j.k])/2>j.plane;
+    return farIsHigh?middle>b.hi[j.k]-1e-6:middle<b.lo[j.k]+1e-6;
+  };
+  const aIn=looksIn(j.a),bIn=looksIn(j.b);
+  if(aIn!==bIn)return aIn?'a':'b';
+  return side;
+}
+/* Was this piece placed by a preset of furniture for the house (HOUSE_FURNITURE, js/showfaces.js)? */
+function isHouseFurniturePiece(piece){
+  const set=S.sets&&piece.set!==undefined?S.sets[piece.set]:null;
+  return!!set&&typeof HOUSE_FURNITURE!=='undefined'&&HOUSE_FURNITURE.includes(set.name);
 }
 /* Screws, brads and nails with no face to go through: driven at an angle through the end of one piece (rule 7).
    toed: the piece they start in, when the caller knows (a toenailed joint, js/framing.js); else it is worked out. */
@@ -295,6 +407,7 @@ function pocketPiece(j){
    bit drills to a fixed stop, so the head seats at the jig's shoulder: the screw is never "slid back" to make it
    fit. The screw leaves the piece half the jig setting in from the drilled face (in the middle of the end when
    the jig is set for the piece itself), and the hole opens on the hidden side. */
+const ROW_ON_OTHER_FACE_BELOW=8;   // inches across: a piece held at its ends that is narrower takes its row on its other face
 function pocketScrews(j,shape,n,len,label){
   const through=pocketPiece(j),into=shape.other(through);
   const way=shape.signInto(into),box=plainBox(through);
@@ -324,8 +437,23 @@ function pocketScrews(j,shape,n,len,label){
   // A piece held at its ends by pocket holes of its own (a cross rail) gets the row that holds what lies on it (the
   // top) on its other face, when that face is inside the frame too: drilled on the same face, the screws of the
   // row would run into the screws of the ends inside the wood.
+  // A wide board (the bottom of a toy chest, 14" from front to back) is left alone: there the holes at its ends and
+  // the rows along its edges are far apart, rule 11 keeps the rows clear of the end holes along the board, and all
+  // the holes stay on the one face the step names (its underside, driven with the chest upside down).
   const heldAtEnds=endPocketsOn(through,j);
-  if(heldAtEnds&&faceIsInside(through,s,-hidden))hidden=-hidden;
+  const narrow=box.hi[shape.k]-box.lo[shape.k]<ROW_ON_OTHER_FACE_BELOW;
+  if(heldAtEnds&&narrow&&faceIsInside(through,s,-hidden))hidden=-hidden;
+  // Rule 13: an underside high enough to be seen from below. The holes go on the top face when nobody sees that,
+  // or stay and are plugged.
+  const house=isHouseFurniturePiece(through);
+  let plugged=false;
+  if(house&&s===1&&hidden<0){
+    const under=[(box.lo[0]+box.hi[0])/2,box.lo[1],(box.lo[2]+box.hi[2])/2];
+    if(seenFromBelow(under,[0,-1,0])){
+      if(topFaceUnseen(through))hidden=1;
+      else plugged=true;
+    }
+  }
   let crossS=crossFor(hidden);
   if(toFaceOf(hidden,crossS)<headOff&&toFaceOf(-hidden,crossFor(-hidden))>toFaceOf(hidden,crossS)){
     hidden=-hidden;
@@ -359,14 +487,19 @@ function pocketScrews(j,shape,n,len,label){
     cross[shape.k]=shape.plane;
     cross[s]=crossS;
     cross[t]=at;
+    const mouth=pointPlus(cross,dir,-mouthBack);
+    // (rule 13 for a face that looks sideways, under a shelf hung high: the supports of a wall shelf)
+    const plug=plugged||(house&&s!==1&&seenFromBelow(mouth,out));
     return{kind:'pocket',pos:pointPlus(cross,dir,-shoulder),dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
-      pocket:{mouth:pointPlus(cross,dir,-mouthBack),out,dia:.375},
+      pocket:{mouth,out,dia:.375,plugged:plug},
       ...why,
-      tip:`${label}. Goes from a pocket hole in ${through.name} into ${into.name}. The holes are on the hidden side.`};
+      tip:`${label}. Goes from a pocket hole in ${through.name} into ${into.name}. `+
+        (plug?'The hole would be seen from below, so it is filled with a glued pocket-hole plug, sanded flush.':'The holes are on the hidden side.')};
   });
   // The layout depends on the neighbours: one that had to move a hole is worked out again at every change
   // (loose), and one that did not is worked out again when the piece gets more or fewer neighbours (near).
-  if(blocked.spans.length||endHoles.spans.length||heldAtEnds)list.loose=true;
+  // (rule 13 looks at what stands in front of and over the piece: worked out again at every change)
+  if(blocked.spans.length||endHoles.spans.length||heldAtEnds||house)list.loose=true;
   if(!placed.length&&endHoles.spans.length)list.noRoom=true;   // every hole of the row lands in the end holes
   list.near={id:through.id,count:blocked.count};
   return list;
@@ -405,16 +538,26 @@ function endPocketsOn(piece,j){
    (0 when it is not, or while that is being worked out): a row may have left out holes that had no room past the
    holes in the ends of its piece (rule 11). jSpec gives this number, so the lists count what is drawn. */
 let countingPockets=false;
-function pocketCountAsLaidOut(j){
-  if(countingPockets||typeof connGraph!=='function'||!S.parts.includes(j.a))return 0;
+/* the pocket holes of this joint as they are laid out in the design, or null (see pocketCountAsLaidOut) */
+function pocketLayoutInDesign(j){
+  if(countingPockets||typeof connGraph!=='function'||!S.parts.includes(j.a))return null;
   countingPockets=true;
   try{
     const link=connGraph().byKey.get(j.key),seen=link&&link.joint;
-    if(!seen||link.type!=='pocket'||seen.a!==j.a||seen.b!==j.b)return 0;
+    if(!seen||link.type!=='pocket'||seen.a!==j.a||seen.b!==j.b)return null;
     const same=CARRY_FIELDS.every(field=>seen[field]===j[field])&&
       seen.ru[0]===j.ru[0]&&seen.ru[1]===j.ru[1]&&seen.rv[0]===j.rv[0]&&seen.rv[1]===j.rv[1];
-    return same?layoutAsLaidOut(link).length:0;
+    return same?layoutAsLaidOut(link):null;
   }finally{countingPockets=false;}
+}
+function pocketCountAsLaidOut(j){
+  const layout=pocketLayoutInDesign(j);
+  return layout?layout.length:0;
+}
+/* how many pocket holes of this joint are filled with plugs (rule 13), as laid out in the design */
+function pocketPlugsAsLaidOut(j){
+  const layout=pocketLayoutInDesign(j);
+  return layout?layout.filter(f=>f.pocket&&f.pocket.plugged).length:0;
 }
 /* Rule 11: the stretches along a piece (direction t) that the pocket holes in its own ends take up on one face
    (out: the way that face looks). A pocket hole opens as a long oval: the 3/8" bit crosses the face at 15 degrees,
@@ -602,9 +745,10 @@ function fastenerLayout(j,type){
   if(!n||!spec.hw.length)return[];
   const shape=jointShape(j),sizes=sizesInLabel(spec.hw[0][0]),label=oneOf(spec.hw[0][0]);
   let list=[];
-  if(type==='screw'||type==='nail'){
+  if(type==='screw'||type==='nail'||type==='plug'){
+    // (a plugged screw is a wood screw whose head sits under a wooden plug: rule 12)
     const kind=type==='nail'?'brad':'screw',len=sizes[sizes.length-1]||1.25;
-    list=thruPart(j)?drivenStraight(j,shape,n,kind,len,label):drivenAtAnAngle(j,shape,n,kind,len,label);
+    list=thruPart(j)?drivenStraight(j,shape,n,kind,len,label,type==='plug'):drivenAtAnAngle(j,shape,n,kind,len,label);
   }
   else if(type==='pocket')list=pocketScrews(j,shape,n,sizes[0]||1.25,label);
   else if(type==='dowel')list=dowelPegs(j,shape,n,sizes[0]||.375,sizes[1]||1.5,label);
@@ -746,8 +890,9 @@ function settledLayouts(){
   if(moved)return moved;
   moved=new Map();
   settledMemo.set(graph,moved);   // before anything is laid out, so that nothing below comes back here
-  // (brads too: one driven through a thin panel onto the head of a screw bends over, so it is moved aside like a screw)
-  const links=graph.links.filter(link=>link.joint&&link.fastened&&(link.type==='screw'||link.type==='pocket'||link.type==='nail'));
+  // (brads too: one driven through a thin panel onto the head of a screw bends over, so it is moved aside like a screw;
+  // a plugged screw is a screw whose head is sunk, and moves like one)
+  const links=graph.links.filter(link=>link.joint&&link.fastened&&(link.type==='screw'||link.type==='pocket'||link.type==='plug'||link.type==='nail'));
   if(!links.length||links.length>SETTLE_MAX)return moved;
   const rank=link=>{
     const list=layoutAsLaidOut(link),f=list[0];
@@ -786,18 +931,66 @@ function settledLayouts(){
       }
     }
   };
+  // what can be moved: screws, pocket screws and brads, not one driven at an angle (a toe screw) or one of a set
+  const movable=list=>list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket'||f.kind==='brad')&&!f.toe&&!(f.also&&f.also.length));
+  const unsettle=link=>{for(const list of cells.values())for(let i=list.length-1;i>=0;i--)if(list[i].link===link)list.splice(i,1);};
+  /* the way out of the way for one joint: the whole joint moved, else each screw by itself; null when neither clears */
+  const wayOut=(link,list)=>{
+    for(const candidate of movedLayouts(link.joint,list)){
+      if(!candidate.some(f=>meets(f,link)))return candidate;
+    }
+    const nudged=nudgedLayout(link.joint,list,f=>meets(f,link));
+    return nudged&&!nudged.some(f=>meets(f,link))?nudged:null;
+  };
+  /* When a joint cannot get out of the way (the screws of a top driven down into the edge of a short apron, right
+     where the screws through the leg go into its end, with no room to move along a 3/4" edge), the joints already
+     settled that it meets give way instead: each is moved like any other, with this joint in place. When one of
+     them cannot move either, everything is put back as it was. */
+  const giveWay=(link,list)=>{
+    const blockers=new Set();
+    for(const f of list)for(const key of cellsOf(f))for(const other of cells.get(key)||[])if(other.link!==link&&screwsMeet(f,other.f))blockers.add(other.link);
+    if(!blockers.size||[...blockers].some(other=>!movable(moved.get(other)||layoutAsLaidOut(other))))return false;
+    const before=new Map([...blockers].map(other=>[other,moved.get(other)]));
+    for(const other of blockers)unsettle(other);
+    settle(list,link);
+    for(const other of blockers){
+      // from where the rules of thumb put it, else from where it had been moved to before
+      const out=wayOut(other,layoutAsLaidOut(other))||(before.get(other)&&wayOut(other,before.get(other)));
+      if(!out){
+        // put it all back
+        unsettle(link);
+        for(const back of blockers){
+          unsettle(back);
+          if(before.get(back))moved.set(back,before.get(back));else moved.delete(back);
+          settle(before.get(back)||layoutAsLaidOut(back),back);
+        }
+        return false;
+      }
+      moved.set(other,out);
+      settle(out,other);
+    }
+    return true;
+  };
   for(const{link}of ranked){
     const list=layoutAsLaidOut(link);
-    const free=list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket'||f.kind==='brad')&&!f.toe&&!(f.also&&f.also.length));
-    if(!free||!list.some(f=>meets(f,link))){settle(list,link);continue;}
-    let best=null;
-    for(const candidate of movedLayouts(link.joint,list)){
-      if(!candidate.some(f=>meets(f,link))){best=candidate;break;}
+    if(!list.some(f=>meets(f,link))){settle(list,link);continue;}
+    // screws that cannot move themselves (driven at an angle: a toe screw up through a foot) make the others move
+    if(!movable(list)){if(!giveWay(link,list))settle(list,link);continue;}
+    const best=wayOut(link,list);
+    if(best){moved.set(link,best);settle(best,link);continue;}
+    // the others give way to this joint where it stands, or where one of its own moves leaves fewer in its way
+    let gave=false;
+    for(const where of[list,...movedLayouts(link.joint,list)]){
+      if(!giveWay(link,where))continue;
+      if(where!==list)moved.set(link,where);
+      gave=true;
+      break;
     }
-    // no move of the whole joint clears it: each screw that meets another gets out of its way by itself
-    if(!best)best=nudgedLayout(link.joint,list,f=>meets(f,link));
-    if(best)moved.set(link,best);
-    settle(best||list,link);
+    if(gave)continue;
+    // nothing clears it: each screw that meets another still gets out of its way where it can
+    const nudged=nudgedLayout(link.joint,list,f=>meets(f,link));
+    if(nudged)moved.set(link,nudged);
+    settle(nudged||list,link);
   }
   return moved;
 }
@@ -902,19 +1095,25 @@ function stretchGap(p1,d1,len1,p2,d2,len2){
   else if(t>1){t=1;s=Math.max(0,Math.min(1,(b-d)/a));}
   return Math.hypot(w[0]+s*u[0]-t*v[0],w[1]+s*u[1]-t*v[1],w[2]+s*u[2]-t*v[2]);
 }
-/* The screws of two different joints that come nearer to each other than their own thickness plus a hair: one
-   would hit the other when it is driven. Returns [{a, b, gap}] with the two fasteners. Screws and pocket-hole
-   screws only: a brad or a nail turns aside, a screw does not. The room they must keep is a drill bit, the same
-   as FASTENER_ROOM in js/fastenerroom.js: closer than that, two holes run into each other. */
+/* The screws of two different joints that come nearer to each other than their own thickness plus a drill bit:
+   one would hit the other when it is driven, or leave a sliver of wood between them that splits. A screw cannot
+   be placed to a hair by hand and a structural screw driven without a pilot hole wanders, so 1/8" (the pilot bit
+   of a #8 screw, the room js/fastenerroom.js asks for) is kept between them, and screws that settle (below) move
+   until they have it. Returns [{a, b, gap}] with the two fasteners. Screws and pocket-hole screws only: a brad or
+   a nail turns aside, a screw does not. */
 const SCREW_CLEARANCE=1/8;
+/* Two structural screws that cross inside one piece (the screws of a long and a short apron through a 4x4 leg)
+   are driven with no pilot hole and wander more: they are kept 1/2" apart, in practice staggered in height. */
+const STRUCTURAL_CLEARANCE=1/2;
 /* Would these two screws touch inside the wood? Their shanks are compared from 1/4" under the head on: two heads
    that sit back to back in two boards that touch (the posts of two racks standing side by side) are not in each
    other's way. */
 const HEAD_DEPTH=.25;
 function screwsMeet(a,b){
+  const clearance=a.structural&&b.structural?STRUCTURAL_CLEARANCE:SCREW_CLEARANCE;
   for(const x of drilledStretches(a)){
     for(const y of drilledStretches(b)){
-      if(stretchGap(x.from,x.dir,x.len,y.from,y.dir,y.len)<x.r+y.r+SCREW_CLEARANCE)return true;
+      if(stretchGap(x.from,x.dir,x.len,y.from,y.dir,y.len)<x.r+y.r+clearance)return true;
     }
   }
   return false;
@@ -941,6 +1140,22 @@ function drilledStretches(f){
   }
   return out;
 }
+/* Self-check: screws that pass within a hair of each other count as meeting (the Rustic Dining table had a top screw
+   0.043" from the tip of a structural screw), a drill bit apart they do not, and two structural screws crossing in
+   a leg need 1/2". The presets themselves are checked by screwsPassEachOther below and showFacesOfHouseFurniture
+   (js/showfaces.js), which use this same test. */
+SELFTESTS.push(function screwsKeepADrillBitApart(problems){
+  const screw=(pos,dir,structural)=>({kind:'screw',pos,dir,len:3,dia:structural?.25:.164,head:.33,structural:!!structural});
+  // two shanks crossing at right angles, their surfaces `gap` apart
+  const pair=(gap,structural)=>{
+    const r=structural?.125:.082;
+    return[screw([0,0,-1.5],[0,0,1],structural),screw([-1.5,2*r+gap,0],[1,0,0],structural)];
+  };
+  if(!screwsMeet(...pair(.06)))problems.push('screws 1/16" apart must count as running into each other');
+  if(screwsMeet(...pair(.2)))problems.push('screws 3/16" apart must not count as running into each other');
+  if(!screwsMeet(...pair(.3,true)))problems.push('two structural screws 5/16" apart in a leg must count as too close (they wander without a pilot hole)');
+  if(screwsMeet(...pair(.6,true)))problems.push('two structural screws 5/8" apart must not count as too close');
+});
 function screwsThatMeet(){
   const screws=[];
   for(const link of connGraph().links){
@@ -1015,7 +1230,7 @@ SELFTESTS.push(function screwsPassEachOther(problems){
 function screwsHaveRoom(label,wrong){
   const ROOM=FASTEN.endMin-.02;
   for(const link of connGraph().links){
-    if(!link.joint||!link.fastened||link.type!=='screw')continue;
+    if(!link.joint||!link.fastened||(link.type!=='screw'&&link.type!=='plug'))continue;
     const j=link.joint,long=Math.max(j.ru[1]-j.ru[0],j.rv[1]-j.rv[0]);
     const layout=fastenersOfLink(link);
     if(long<TWO_SCREWS_FROM&&layout.length>1){wrong(`${label}: ${layout.length} screws in a ${fmt(r16(long))} joint (${layout[0].through.name} into ${layout[0].into.name})`);return;}

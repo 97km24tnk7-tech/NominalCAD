@@ -97,6 +97,17 @@ const HARDWARE_PRICES=[
   ...priceByLength('wood-screws','Wood screws, #8',length=>`#8 × ${length} wood screws`,100,'box of 100',
     [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]],
     '(?:wood |construction )?screws(?: for the wall studs)?'),
+  // 1/4" structural screws (washer head, no pilot hole), where a #8 cannot bite far enough into end grain: through
+  // a 4x4 leg into the end of an apron (rule 12 in js/fasteners.js). Sold in small boxes by the length.
+  ...priceByLength('structural-screws','Structural screws, 1/4"',length=>`1/4" × ${length} structural screws`,12,'box of 12',
+    [['4"',12],['5"',14],['6"',16]]),
+  {id:'structural-screws',name:'Structural screws, 1/4", other lengths',match:/structural screws/i,pack:12,sold:'box of 12',price:14},
+  // the plugs that hide the heads of plugged screws (type 'plug'): cut flush after the glue dries
+  {id:'wood-plugs',name:'Wood plugs, 3/8"',match:/wood plugs/i,pack:25,sold:'bag of 25',price:4,search:'3/8 in. flat head wood plugs'},
+  // pocket holes that would be seen from below are filled with these, glued in and sanded flush (rule 13, js/fasteners.js)
+  {id:'pocket-plugs',name:'Pocket-hole plugs',match:/pocket-hole plugs/i,pack:50,sold:'bag of 50',price:7,search:'pocket hole plugs pine'},
+  // a head sunk deeper than a plug is long gets a length of dowel rod instead: about 20 such plugs to a 36" rod
+  {id:'dowel-rod-plugs',name:'Dowel rod, 3/8" × 36"',match:/dowel rod, cut into plugs/i,pack:20,sold:'36" rod (about 20 plugs)',price:2,search:'3/8 in. x 36 in. hardwood dowel rod'},
   // the short screws of a bracket under a 3/4" top are 1/2" (bracketScrew, js/style.js)
   {id:'bracket-screws-half',name:'Short screws for brackets, #8 × 1/2"',match:/1\/2" screws for brackets/i,pack:100,sold:'box of 100',price:5},
   {id:'bracket-screws',name:'Short screws for brackets, #8 × 5/8"',match:/screws for brackets/i,pack:100,sold:'box of 100',price:5},

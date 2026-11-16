@@ -73,9 +73,16 @@ const BOOKSHELF_MIN_OPENING={plain:4,atDivider:6};
 /* House furniture shows no fastener on its top or its front, unless it is built Rustic / rough (STYLE_RULES in
    js/joints.js). The bookshelf's top is held to the back rail by pocket holes in the rail (on its back face, which
    the back panel covers); the toy chest's front is held by pocket holes inside the sides and the bottom; the wall
-   shelf is held from underneath by pocket holes in the cleat (on its back, against the wall) and the supports. */
-const BOOKSHELF_JOINTS=[['Top','Back rail','pocketUnlessRustic'],['Top','Divider','pocketUnlessRustic']];
-const STORAGE_BOX_JOINTS=[['Front','Side','pocketUnlessRustic'],['Front','Bottom','pocketUnlessRustic']];
+   shelf is held from underneath by pocket holes in the cleat (on its back, against the wall) and the supports.
+   The outside of the sides shows nothing either (the owner: "hide those too"): the boards between the sides of a
+   bookshelf or a cabinet are held to them by pocket holes on their underside or on the face toward the inside of
+   the case, and the toy chest's sides, back and bottom by pocket holes on the inside. A divider or a partition is
+   inside the case: the screws through it are covered by the board on its other side, as before. */
+const CASE_SIDE_JOINTS=['Top','Bottom','Shelf','Toe kick','Base rail','Back rail','Top rail'].map(board=>['Side',board,'pocketUnlessRustic']);
+const BOOKSHELF_JOINTS=[['Top','Back rail','pocketUnlessRustic'],['Top','Divider','pocketUnlessRustic'],...CASE_SIDE_JOINTS,
+  ['Bottom','Toe kick','pocketUnlessRustic'],['Bottom','Base rail','pocketUnlessRustic']];
+const STORAGE_BOX_JOINTS=[['Front','Side','pocketUnlessRustic'],['Front','Bottom','pocketUnlessRustic'],
+  ['Back','Side','pocketUnlessRustic'],['Back','Bottom','pocketUnlessRustic'],['Side','Bottom','pocketUnlessRustic']];
 const WALL_SHELF_JOINTS=[['Shelf','Wall cleat','pocketUnlessRustic'],['Shelf','Support','pocketUnlessRustic']];
 const BOOKSHELF_USES={Top:'books',Bottom:'books',Shelf:'books','Toe kick':'books','Base rail':'books','Back rail':'none'};
 const SHEET_WIDTH=48;               // a sheet of plywood is 4 ft wide
@@ -329,8 +336,22 @@ function bookshelfHardware(p){
   const s=bookshelfPlan(p);
   return s.anchored?[['Wood screws, 3", through the back rail into the wall studs',2*s.studs]]:[];
 }
+/* Rule 13 (js/fasteners.js) for a board of a case, as the layout decides it: where the pocket holes of a board
+   whose underside is `under` inches above the floor go: 'under', 'top' (a shelf high up, under its books; the top
+   of the case when it is above the eye) or 'plugged' (the top of a case whose top face is lower than SEEN.topFrom). */
+function caseBoardHoleFace(under,top,topmost){
+  if(under<=SEEN.underAbove)return'under';
+  return!topmost||top>=SEEN.topFrom?'top':'plugged';
+}
 function bookshelfSteps(p){
   const s=bookshelfPlan(p),heights=s.shelfY.map(fmt),div=s.dividers;
+  // shelves high enough to take their pocket holes on the top face, and where the holes of the top go
+  const highShelves=s.shelfY.filter(y=>caseBoardHoleFace(y,y+.75,false)==='top').map(fmt);
+  const highNote=highShelves.length?` (in its top face instead for the ${highShelves.length>1?'shelves':'shelf'} at ${listWords(highShelves)}: an underside more than ${SEEN.underAbove}" up is in plain sight from below, and the books cover the top face)`:'';
+  const topFace=caseBoardHoleFace(s.H-.75,s.H,true);
+  const topHoles=topFace==='top'?`from holes drilled in its top face near each end (the top is more than ${SEEN.topFrom}" up, above the eye, where nobody sees them; underneath they would be in plain sight from below), so nothing shows on the sides`
+    :topFace==='plugged'?`from holes drilled in its underside near each end, so nothing shows on the top or on the sides. An underside this high is seen from below, so fill those holes with glued pocket-hole plugs, as the list says`
+    :'from holes drilled in its underside near each end, so nothing shows on the top or on the sides';
   const uprights=div?`the two sides and the ${div>1?div+' dividers':'divider'}`:'the two sides';
   // shelves at heights set by hand: say what the clear openings come to, so the marks can be checked against them
   const openings=s.fit&&s.shelves?` Every opening between the boards is ${fmt(s.fit.gap)} clear${s.fit.alike?'':`, except the ${s.fit.at} one, which is ${fmt(s.fit.leftover)}`}. From the bottom up: ${bookshelfBuiltOpenings(s).map(fmt).join(', ')}.`
@@ -341,24 +362,35 @@ function bookshelfSteps(p){
     // The order is the order a drill can follow: the bottom board, then the toe kick and base rail under it (their
     // screws go down through the bottom board, and with the first shelf in place the drill no longer fits above
     // it), then the shelves, then the top.
-    {t:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
-      (div?' '+secondSideOfUpright('divider'):''),add:['Bottom']},
-    {t:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Glue them, drive two screws through each ${div?'upright':'side'} into each of their ends, and screw down through the bottom board into them about every 8".`+
-      (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':''),add:['Toe kick','Base rail']},
-    ...(heights.length?[{t:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pilot holes, glue, and two screws through the ${div?'upright':'side'} into each end of a shelf.`+
-      (div?' '+secondSideOfUpright('divider'):''),add:['Shelf']}]:[]),
+    // Everyday and Fine furniture: nothing shows on the outside of the sides (CASE_SIDE_JOINTS), so each board is
+    // held to a side by pocket holes drilled in the board before it goes in; Rustic / rough screws through the side
     styledStep({
-      std:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then fasten it to the top of '+(div>1?'each divider':'the divider')+' with the pocket screws listed below, from holes drilled in the faces of the divider near its top end, so nothing shows on the top':''}.`,
+      std:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. First drill the pocket holes listed below in the underside of each board, near its ends, so that no screw shows on the outside of the sides. Then glue the ends and drive the pocket screws into the sides.`+
+        (div?` At a divider, screw through the divider into the end of the board in the first bay, as the list below says. ${secondSideOfUpright('divider')}`:''),
+      rustic:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
+        (div?' '+secondSideOfUpright('divider'):'')},['Bottom']),
+    styledStep({
+      std:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Drill the pocket holes listed below in the face of each one that looks into the case: ${div?'at an end that meets a side, for the side':'at each end, for the sides'}, and along it, for the bottom board above it. Glue them and drive the pocket screws.`+
+        (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':''),
+      rustic:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Glue them, drive two screws through each ${div?'upright':'side'} into each of their ends, and screw down through the bottom board into them about every 8".`+
+        (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':'')},['Toe kick','Base rail']),
+    ...(heights.length?[styledStep({
+      std:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pocket holes near the ends of each shelf, in its underside${highNote}, glue, and the pocket screws listed below into the ${div?'uprights':'sides'}.`+
+        (div?` At a divider, screw through the divider into the first shelf, as you did with the bottom boards. ${secondSideOfUpright('divider')}`:''),
+      rustic:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pilot holes, glue, and two screws through the ${div?'upright':'side'} into each end of a shelf.`+
+        (div?' '+secondSideOfUpright('divider'):'')},['Shelf'])]:[]),
+    styledStep({
+      std:`Fasten the top between the sides, flush with their top ends: glue, and the pocket screws listed below ${topHoles}${div?'. Then fasten it to the top of '+(div>1?'each divider':'the divider')+' with the pocket screws listed below, from holes drilled in the faces of the divider near its top end':''}.`,
       rustic:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`},['Top'])];
   if(s.backRail){
     const railWords=`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, drive two screws through each ${div?'upright':'side'} into each of its ends, and `;
     const railMore=
       (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+
       (s.back?'':' Together with the base rail'+(div?'s':'')+' it keeps the case (the box that the sides, the top and the bottom make) from leaning sideways.')+(s.anchored?' The screws into the wall studs will go through this rail.':'');
-    steps.push(styledStep({
-      std:railWords+'fasten the top to it with the pocket screws listed below, from holes drilled in the back face of the rail before it goes in (the back face is covered by the back panel or the wall, so no hole shows, and nothing goes down through the top).'+railMore,
-      fine:`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, and drive the pocket screws listed below from holes drilled in its back face before it goes in: at each end into the ${div?'upright':'side'}, and along it up into the top (the back face is covered by the back panel or the wall, so no hole shows).`+railMore,
-      rustic:railWords+'screw down through the top into it about every 8".'+railMore},['Back rail']));
+    // Everyday and Fine: pocket holes in the back face of the rail, at its ends into the sides and along it into the
+    // top (CASE_SIDE_JOINTS); Rustic / rough screws through the sides and down through the top
+    const fromBehind=`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, and drive the pocket screws listed below from holes drilled in its back face before it goes in: ${div?'at an end that meets a side, into the side':'at each end into the side'}, and along it up into the top (the back face is covered by the back panel or the wall, so no hole shows, and nothing shows on the top or the sides).`+railMore;
+    steps.push(styledStep({std:fromBehind,fine:fromBehind,rustic:railWords+'screw down through the top into it about every 8".'+railMore},['Back rail']));
   }
   if(s.back){
     steps.push({t:'Lay the case (the box you have built so far) face down. Measure corner to corner both ways and nudge it until the two measurements match, then glue and nail the back on, with a nail about every 6" into the back edge of every board it lies against: the sides, the top, '+(div?'the bottom boards'+(heights.length?', the shelves':'')+' and the '+(div>1?'dividers':'divider'):heights.length?'the bottom board and the shelves':'and the bottom board')+'.'+
@@ -498,8 +530,9 @@ const CABINET_LIMITS={W:[12,48],D:[12,30],H:[24,42]};
 const CABINET_ONE_DOOR_BELOW=21;    // narrower than this, one door; from here up, a pair
 const CABINET_USES={Side:'none',Partition:'none',Bottom:'shelf',Shelf:'shelf',Countertop:'tableTop','Top rail':'tableTop','Toe kick':'shelf','Base rail':'shelf','Back rail':'none',Door:'door'};
 /* Fasteners the cabinet names itself: the countertop is screwed from below through the top rails, and only rests
-   on the top edges of the sides (a screw there would have to go down through the face of the countertop). */
-const CABINET_JOINTS=[['Countertop','Side','none'],['Countertop','Partition','none']];
+   on the top edges of the sides (a screw there would have to go down through the face of the countertop). The
+   sides show nothing outside (CASE_SIDE_JOINTS): the bottom, the rails and the shelf are held by pocket holes. */
+const CABINET_JOINTS=[['Countertop','Side','none'],['Countertop','Partition','none'],...CASE_SIDE_JOINTS];
 
 function cabinetPlan(p){
   const T=.75;
@@ -549,15 +582,31 @@ function cabinetHardware(p){
 }
 function cabinetSteps(p){
   const s=cabinetPlan(p),part=s.partitions;
+  // Everyday and Fine furniture: nothing shows on the outside of the sides (CASE_SIDE_JOINTS), so every board is held
+  // to a side by pocket holes drilled in the board itself; Rustic / rough screws through the sides
+  const atSide='the pocket screws listed below, from holes drilled in it before it goes in (the list says which face), so nothing shows on the outside of the sides';
   const steps=[STORAGE_CUT_STEP,
-    {t:`Mark the underside of the bottom (3 1/2" from the bottom end) and of the shelf (${fmt(s.shelfY)}) on the inside of both sides${part?' and on both faces of the partition':''}. Fasten ${part?'a bottom panel between each side and the partition':'the bottom between the two sides'}, flush with the back edges. Glue every joint, drill pilot holes and screw through the ${part?'side or the partition':'sides'} into its ends, about every 8".`+
-      (part?' The partition stands on the floor like the sides and is 3/4" shorter, because the top rails sit on it. '+secondSideOfUpright('partition'):''),add:['Side','Partition','Bottom']},
-    {t:`Under ${part?'each bottom panel':'the bottom'}, fasten a toe kick set back 2 1/4" from the front and a base rail flush with the back. Glue them, drive two screws through each side into each of their ends, and screw down through the bottom into them about every 8".`+
-      (part?' At the partition, the one in the first bay is screwed through the partition, and the one in the next bay gets its two screws driven at an angle through its end into the partition.':'')+` They carry the bottom${part?' panels':''}.`,add:['Toe kick','Base rail']},
-    {t:`Fasten the two top rails between the sides, lying flat and flush with the top, one at the front and one at the back, with glue and two screws through each side into each end${part?'. Then screw down through them into the top of the partition':''}.`,add:['Top rail']},
-    {t:`Under the back top rail, fasten ${part?'a back rail in each bay':'the back rail'}, standing on edge and flush with the back. Glue it, drive two screws through each side into each of its ends, and screw down through the top rail into it about every 8".`+
-      (part?' At the partition, do as you did with the base rails.':'')+' The screws that hold the cabinet to the wall will go through this rail.',add:['Back rail']},
-    {t:`Fasten ${part?'a shelf in each bay':'the shelf'} at the marks, with glue and a screw about every 8" through the sides into its ends${part?' (and at the partition, the second shelf the same way as the second bottom panel)':''}. It sits flush with the back and 1" back from the front, so the doors can close.`,add:['Shelf']},
+    styledStep({
+      std:`Mark the underside of the bottom (3 1/2" from the bottom end) and of the shelf (${fmt(s.shelfY)}) on the inside of both sides${part?' and on both faces of the partition':''}. Fasten ${part?'a bottom panel between each side and the partition':'the bottom between the two sides'}, flush with the back edges. Glue every joint, and hold each end that meets a side with ${atSide}.`+
+        (part?' The partition stands on the floor like the sides and is 3/4" shorter, because the top rails sit on it. At the partition, screw through the partition into the bottom panel of the first bay, as the list below says. '+secondSideOfUpright('partition'):''),
+      rustic:`Mark the underside of the bottom (3 1/2" from the bottom end) and of the shelf (${fmt(s.shelfY)}) on the inside of both sides${part?' and on both faces of the partition':''}. Fasten ${part?'a bottom panel between each side and the partition':'the bottom between the two sides'}, flush with the back edges. Glue every joint, drill pilot holes and screw through the ${part?'side or the partition':'sides'} into its ends, about every 8".`+
+        (part?' The partition stands on the floor like the sides and is 3/4" shorter, because the top rails sit on it. '+secondSideOfUpright('partition'):'')},['Side','Partition','Bottom']),
+    styledStep({
+      std:`Under ${part?'each bottom panel':'the bottom'}, fasten a toe kick set back 2 1/4" from the front and a base rail flush with the back. Glue them, hold each end that meets a side with ${atSide}, and screw down through the bottom into them about every 8".`+
+        (part?' At the partition, the one in the first bay is screwed through the partition, and the one in the next bay gets its two screws driven at an angle through its end into the partition.':'')+` They carry the bottom${part?' panels':''}.`,
+      rustic:`Under ${part?'each bottom panel':'the bottom'}, fasten a toe kick set back 2 1/4" from the front and a base rail flush with the back. Glue them, drive two screws through each side into each of their ends, and screw down through the bottom into them about every 8".`+
+        (part?' At the partition, the one in the first bay is screwed through the partition, and the one in the next bay gets its two screws driven at an angle through its end into the partition.':'')+` They carry the bottom${part?' panels':''}.`},['Toe kick','Base rail']),
+    styledStep({
+      std:`Fasten the two top rails between the sides, lying flat and flush with the top, one at the front and one at the back, with glue and ${atSide}${part?'. Then screw down through them into the top of the partition (the countertop covers those heads)':''}.`,
+      rustic:`Fasten the two top rails between the sides, lying flat and flush with the top, one at the front and one at the back, with glue and two screws through each side into each end${part?'. Then screw down through them into the top of the partition':''}.`},['Top rail']),
+    styledStep({
+      std:`Under the back top rail, fasten ${part?'a back rail in each bay':'the back rail'}, standing on edge and flush with the back. Glue it, hold each end that meets a side with ${atSide}, and screw down through the top rail into it about every 8".`+
+        (part?' At the partition, do as you did with the base rails.':'')+' The screws that hold the cabinet to the wall will go through this rail.',
+      rustic:`Under the back top rail, fasten ${part?'a back rail in each bay':'the back rail'}, standing on edge and flush with the back. Glue it, drive two screws through each side into each of its ends, and screw down through the top rail into it about every 8".`+
+        (part?' At the partition, do as you did with the base rails.':'')+' The screws that hold the cabinet to the wall will go through this rail.'},['Back rail']),
+    styledStep({
+      std:`Fasten ${part?'a shelf in each bay':'the shelf'} at the marks, with glue and ${atSide}${part?' (and at the partition, the second shelf the same way as the second bottom panel)':''}. It sits flush with the back and 1" back from the front, so the doors can close.`,
+      rustic:`Fasten ${part?'a shelf in each bay':'the shelf'} at the marks, with glue and a screw about every 8" through the sides into its ends${part?' (and at the partition, the second shelf the same way as the second bottom panel)':''}. It sits flush with the back and 1" back from the front, so the doors can close.`},['Shelf']),
     {t:'Lay the cabinet face down. Measure corner to corner both ways and nudge the cabinet until the two measurements match, then glue and nail the back panel on, with a nail about every 6" into every edge it lies against. The back keeps the cabinet square.',add:['Back panel']},
     {t:'Set the countertop on so it overhangs 1/2" on each side and 1" at the front. Screw up through the two top rails into it with 1 1/4" screws, about every 8": they hold without coming through the top.',add:['Countertop']},
     STORAGE_FINISH_STEP,   // before the doors: a door is finished lying flat, and no hinge or pull gets finish on it
@@ -667,12 +716,18 @@ function storageBoxHardware(p){
 }
 function storageBoxSteps(p){
   const s=storageBoxPlan(p);
+  // The walls go together in two steps, so that only the last one is screwed from inside the closed box: the
+  // sides onto the front first, while the drill has all the room it wants behind each pocket hole, then the back.
+  // The bottom's holes are all on its underside and are driven with the chest upside down.
   const steps=[STORAGE_CUT_STEP,
     styledStep({
-      std:'Fasten the two sides between the front and the back. Glue each joint. Hold the front with the pocket screws listed below, from holes drilled on the inside faces of the sides, so nothing shows on the front; drill pilot holes and screw through the back into the side edges, a screw every 6".',
-      rustic:'Fasten the two sides between the front and the back. Glue each joint, drill pilot holes and screw through the front and the back into the side edges, a screw every 6".'},['Front','Back','Side']),
+      std:'Drill the pocket holes listed below on the inside face of each side, at both ends (the ends that meet the front and the back). Stand the front face down, glue the front end of each side and fasten the two sides to it with the pocket screws listed below, square to the front, so nothing shows on the outside of the chest.',
+      rustic:'Stand the front face down and fasten the two sides to it, square to it. Glue each joint, drill pilot holes and screw through the front into the side edges, a screw every 6".'},['Front','Side']),
     styledStep({
-      std:'Drop the bottom in flush with the lower edges. Glue it, screw through the back and the two sides into it with a screw every 6", and hold the front to it with the pocket screws listed below, from holes drilled on the underside of the bottom.',
+      std:'Glue the back ends of the sides, set the back on, flush all round, and drive the pocket screws listed below from inside the chest into the back.',
+      rustic:'Set the back on the other ends of the sides, flush all round, and screw through it into the side edges the same way, with glue.'},['Back']),
+    styledStep({
+      std:'Drill the pocket holes listed below in the underside of the bottom, along all four edges. Turn the chest upside down, drop the bottom in flush with the lower edges, glue it and drive the pocket screws into the front, the back and the two sides, so nothing shows on the outside of the chest.',
       rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom']),
     {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit a soft-close lid support inside so it cannot slam on fingers.',add:['Lid']},
     STORAGE_FINISH_STEP];

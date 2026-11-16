@@ -2,6 +2,8 @@
 'use strict';
 /* ---------- joints ---------- */
 const JTYPES={screw:['Wood screws',0x333333,'Drill a pilot hole first so the wood does not split. A thin line of glue makes it much stronger.'],
+ // a wood screw whose head is hidden: sunk in a 3/8" counterbore under a glued wooden plug (filler under paint)
+ plug:['Screws, heads plugged',0x6d4c2f,'Drill a 3/8" hole for each head (a counterbore, 3/8" deep, or as deep as the list says), drive the screw, glue in a wooden plug (in a deeper hole, a piece of 3/8" dowel rod) and saw it flush when the glue is dry. Under paint, a 3/8" deep hole is filled with wood filler instead.'],
  pocket:['Pocket-hole screws',0x1e88e5,'Needs a pocket-hole jig. Drill the angled holes on the hidden side, clamp, then drive the screws.'],
  dowel:['Dowels + glue',0x8d5524,'Drill matching holes in both pieces (a dowel jig helps), glue, tap together and clamp.'],
  nail:['Brad nails + glue',0x888888,'Glue does the holding; brads just keep things in place while it dries.'],
@@ -58,7 +60,10 @@ const STYLE_RULES={
   restsInFine:{rustic:'screw',std:'screw',fine:'none'},
   // an apron too short for pocket holes at both ends and the holes for the top as well (TABLE_KINDS: shortEnds):
   // screwed through the leg from the end of the piece, and doweled in Fine furniture
-  doweledInFine:{rustic:'screw',std:'screw',fine:'dowel'}
+  doweledInFine:{rustic:'screw',std:'screw',fine:'dowel'},
+  // a joint that takes a screw through a show face and has no hidden way that is as strong (a bed rail to its
+  // leg): the head is sunk and covered by a glued wooden plug (filler under paint); Rustic leaves it showing
+  pluggedUnlessRustic:{rustic:'screw',std:'plug',fine:'plug'}
 };
 const isStyleRule=type=>typeof type==='string'&&Object.prototype.hasOwnProperty.call(STYLE_RULES,type);
 /* the fastener a type or a rule stands for in this style ('std' when none is given and there is no design yet) */

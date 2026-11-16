@@ -185,6 +185,7 @@ function fastenedGroups(){
 /* ---------- plain words ---------- */
 const FASTENER_WORDS={ // one, several
   screw:['wood screw','wood screws'],
+  plug:['wood screw with a plugged head','wood screws with plugged heads'],
   pocket:['pocket-hole screw','pocket-hole screws'],
   dowel:['dowel and glue','dowels and glue'],
   nail:['brad nail and glue','brad nails and glue'],

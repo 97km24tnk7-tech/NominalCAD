@@ -268,9 +268,17 @@ function nightstandSteps(p){
   const fromEdge=drawer.slideFromEdge,fromBox=drawer.slideFromBoxFront;
   const whySidesRunThrough=plan.kind==='slide'?'the slides will be screwed along the sides':'the sides are what the cabinet guides, so they run the whole length';
   const steps=[CUT,
-    {t:`Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`,add:['Side','Bottom','Top rail']},
-    {t:`Fasten the toe kick under the bottom panel, on edge, set back ${fmt(NS.kickBack)} from the front. Screw down through the bottom panel into its top edge, and through the sides into its ends.`,add:['Toe kick']}];
-  if(plan.shelf)steps.push({t:`Fasten the shelf between the sides, with its underside ${fmt(plan.shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(plan.shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`,add:['Shelf']});
+    // Everyday and Fine furniture: no screw shows on the outside of the sides (CASE_SIDE_JOINTS): the boards are held
+    // by pocket holes drilled in them; Rustic / rough screws through the sides
+    styledStep({
+      std:`Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends. Then glue each joint and drive the pocket screws into the sides, so nothing shows on the outside.`,
+      rustic:`Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail']),
+    styledStep({
+      std:`Fasten the toe kick under the bottom panel, on edge, set back ${fmt(NS.kickBack)} from the front. Hold it to the bottom panel and to the sides with the pocket screws listed below, from holes drilled in its back face.`,
+      rustic:`Fasten the toe kick under the bottom panel, on edge, set back ${fmt(NS.kickBack)} from the front. Screw down through the bottom panel into its top edge, and through the sides into its ends.`},['Toe kick'])];
+  if(plan.shelf)steps.push(styledStep({
+    std:`Fasten the shelf between the sides, with its underside ${fmt(plan.shelfHeight)} above the bottom panel. Drill the pocket holes listed below in its underside near each end. Cut two scrap blocks ${fmt(plan.shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you drive the pocket screws into the sides.`,
+    rustic:`Fasten the shelf between the sides, with its underside ${fmt(plan.shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(plan.shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`},['Shelf']));
   steps.push(
     {t:'Lay the cabinet on its front. Measure corner to corner both ways and push it until the two measurements match, then glue and nail the back panel on, flush with the outside of the sides and the top. The back is what keeps the cabinet square, so do not skip the glue.',add:['Back panel']},
     {t:`Stand the cabinet up. Run a thin line of glue along the top edges of the two sides, then set the top on: flush with the back of the back panel, ${fmt(NS.topSide)} past each side, and ${fmt((plan.style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0)+NS.topFront)} past the front of the cabinet. Screw up through the two top rails into the top with 1-1/4" screws, from inside the cabinet, so no screw shows on top.`,add:['Top']},
@@ -329,7 +337,13 @@ PRESETS.push({
   variants:[{slides:'runner'},{fronts:'inset'},{slides:'runner',fronts:'inset'},{cub:false,slides:'runner'},{cub:false,fronts:'inset'}],
   // the top is held by the rail screws from below, with glue on the sides, so nothing shows on top;
   // the fasteners inside a drawer are the same for every drawer (DRAWER_JOINTS, js/drawers.js)
-  joints:[['Side','Top','glue'],...DRAWER_JOINTS],
+  joints:[['Side','Top','glue'],...DRAWER_JOINTS,
+    // nothing shows on the outside of the sides: the bottom, the rails, the shelf and the toe kick are held to them
+    // by pocket holes (CASE_SIDE_JOINTS, js/builders-storage.js); Rustic / rough screws through the sides
+    ...CASE_SIDE_JOINTS,
+    // the top of the bottom panel is the floor of the open shelf, seen from the front: the toe kick is held to it
+    // by pocket holes in the toe kick's back face, not by screws down through it (as the Bookshelf does)
+    ['Bottom','Toe kick','pocketUnlessRustic']],
   hw:nightstandHardware,
 });
 PRESET_GROUPS.find(group=>group[0]==='Bedroom')[1].push('Nightstand with drawers');

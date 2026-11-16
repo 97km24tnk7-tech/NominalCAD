@@ -18,7 +18,8 @@
 
 const WORD_LINKS=[
   {re:/\bpocket[- ]hole screws?\b|\bpocket[- ]holes?\b|\bpocket screws?\b/i,joint:'pocket'},
-  {re:/\bwood screws?\b|\bexterior screws?\b/i,joint:'screw'},
+  {re:/\bwooden plugs?\b|\bwood plugs?\b|\bplugged heads?\b/i,joint:'plug'},
+  {re:/\bwood screws?\b|\bexterior screws?\b|\bstructural screws?\b/i,joint:'screw'},
   {re:/\bdowels?\b/i,joint:'dowel'},
   {re:/\bbrad nails?\b|\bbrads\b/i,joint:'nail'},
   {re:/\bframing nails?\b/i,joint:'frame'},

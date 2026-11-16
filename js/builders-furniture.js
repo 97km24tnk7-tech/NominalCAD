@@ -435,9 +435,18 @@ function buildBed(p){
 /* Fasteners the bed names itself: the slats only touch the rails they lie between (they are screwed down into
    the cleats, the beams and the tops of the legs), and a cleat only touches the legs at its ends. */
 const BED_JOINTS=[['Side rail','Slat','none'],['End rail','Slat','none'],['Cleat','Leg','none'],
-  // the head and the foot are the show ends of a bed: the center beams are held by pocket holes in their own ends and
-  // the legs by L-brackets inside the corners, so nothing goes through the end rails (Rustic / rough screws through them)
-  ['End rail','Center beam','pocketUnlessRustic'],['End rail','Leg','bracketUnlessRustic'],['End rail','Center leg','bracketUnlessRustic']];
+  // the head and the foot are the show ends of a bed: the center beams are held by pocket holes in their own ends, and
+  // each leg is screwed to its end rail from the inside face of the leg (screwSide, js/fasteners.js: in Everyday and
+  // Fine the thick piece inside the corner is screwed through, its heads in counterbores), so nothing goes through the
+  // end rails. Rustic / rough screws through them. (A corner brace did this before: it carries little, and that
+  // corner is racked each time someone sits on the end of the bed.)
+  ['End rail','Center beam','pocketUnlessRustic'],['End rail','Leg','screw'],['End rail','Center leg','screw'],
+  // The sides show no heads either (the owner: "hide those too, or mention and explain how to cover"). The side
+  // rail is held to the end rail by pocket holes in the end rail, and the cleat is screwed from its inside face
+  // into the rail (screwSide, js/fasteners.js). The side rail to its leg is the one joint that keeps screws through
+  // a show face: it carries the bed and holds the frame square, and two small brackets inside the corner would
+  // not do that as well. So those screws are sunk under wooden plugs (filler under paint) in Everyday and Fine.
+  ['Side rail','End rail','pocketUnlessRustic'],['Side rail','Leg','pluggedUnlessRustic']];
 function bedNotes(p){
   const plan=bedPlan(p),beams=plan.beamXs.length,legs=plan.beamLegZs.length,notes=[];
   const onLegs=beams===1?`on ${legs} legs of its own`:`each on ${legs} legs of its own`;
