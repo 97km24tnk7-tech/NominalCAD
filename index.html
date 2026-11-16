@@ -107,6 +107,7 @@
       <span class="seg" id="levelSwitch" role="group" aria-label="How much the program shows">
         <button data-level="beginner" title="Beginner: the three steps a first project needs. The program picks every screw and joint for you.">Beginner</button><button data-level="expert" title="Expert: adds the Fasteners tab, a table where you can change the screw or joint used anywhere two pieces meet.">Expert</button>
       </span>
+      <button class="ib" data-open-words title="Woodworking words: what an apron, a cleat or a pocket hole is, and how each joint is made" aria-label="Woodworking words"><svg class="i m"><use href="#i-info"/></svg></button>
       <button class="ib" data-cmd="help" title="How to use NominalCAD (F1)" aria-label="Help"><svg class="i m"><use href="#i-help"/></svg></button>
     </div>
     <input type="file" id="fileIn" accept=".json" hidden>
@@ -441,12 +442,24 @@
 </dialog>
 
 <div id="ctxMenu" class="menu"></div>
+<!-- the card that opens beside a highlighted word on a page (js/wordlinks.js) -->
+<div id="infoCard" class="infocard" role="dialog" aria-label="Explanation"></div>
+<!-- Woodworking words (js/glossary.js): every word the program uses, explained, and how each joint is made -->
+<dialog class="dlg wide" id="wordsDlg">
+  <div class="dlg-h"><span>Woodworking words</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b words-b">
+    <div class="frow"><label for="wordsFind">Find a word</label><input class="fld" id="wordsFind" type="search" placeholder="apron, pilot hole, flush..." autocomplete="off"></div>
+    <div id="wordsList"></div>
+  </div>
+  <div class="dlg-f"><span class="grow">On the pages, click any highlighted word for the same explanations.</span><button class="btn pri" data-close>Close</button></div>
+</dialog>
 
 <dialog class="dlg wide" id="helpDlg">
   <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b help">
     <div class="sec">The quick way</div>
     <p>Click <b>Furniture presets</b> (the blue button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Then open the <b>Build instructions</b> tab for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
+    <p>New to woodworking? <button class="lnk" data-open-words>Woodworking words</button> explains every name the program uses for a piece (apron, cleat, slat) and shows how each joint is made, with a drawing. On the pages, a highlighted word can be clicked for the same thing.</p>
     <div class="sec">Where things are</div>
     <dl>
       <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: Design, Cut list &amp; shopping, Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
@@ -520,6 +533,9 @@
 <script src="js/preview.js"></script>
 <script src="js/app.js"></script>
 <script src="js/level.js"></script>
+<script src="js/glossary.js"></script>
+<script src="js/jointhelp.js"></script>
+<script src="js/wordlinks.js"></script>
 <script src="js/transfer.js"></script>
 <script src="js/menus.js"></script>
 <script src="js/selftest.js"></script>

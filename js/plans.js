@@ -360,6 +360,7 @@ function renderCut(instr){
   let h=docHead(sheetName)+
     `<div class="lead"><img id="shot" src="${pics.overview||''}" alt="The finished design"><dl class="facts">${facts.map(([name,value])=>`<dt>${name}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`;
   if(S.notes&&S.notes.length)h+=`<h2>Notes</h2><ul>${S.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
+  if(window.wordsSection)h+=wordsSection(); // Beginner: the names this design uses for its pieces, explained (js/glossary.js)
   if(instr&&pics.views.length){
     // three drawings, two to a row; the fourth place says what the sizes measure
     const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');

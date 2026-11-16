@@ -581,3 +581,66 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
   .board .waste,svg.sheet{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:repeating-linear-gradient(135deg,#fff 0 5px,#bbb 5px 6px)}
   .dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* ===== woodworking words and joint cards (js/glossary.js, js/jointhelp.js, js/wordlinks.js) ===== */
+/* data-beginner: the opposite of data-expert. Shown in Beginner, hidden in Expert. */
+body[data-level="expert"] [data-beginner]{display:none!important}
+/* a button that reads as a link inside a sentence */
+.lnk{border:0;background:none;padding:0;font:inherit;color:var(--blue-d);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.lnk:hover{color:var(--blue)}
+.lnk:focus-visible{outline:2px solid var(--blue-300);outline-offset:2px}
+/* a list of words with their explanations: on the pages, and in the Woodworking words window */
+.terms{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:5px 14px;margin:0 0 6px;font-size:var(--fs);line-height:var(--lh)}
+.terms dt{font-weight:600;color:var(--n900)}
+.terms dt small{display:block;font-weight:400;font-size:var(--fs-s);color:var(--n600)}
+.terms dt .lnk{display:block;font-weight:400;font-size:var(--fs-s)}
+.terms dd{margin:0;color:var(--n800)}
+.words-b{max-height:min(70vh,640px);overflow:auto}
+.words-b .sec{margin:12px 0 4px;border-bottom:1px solid var(--n200)}
+#wordsFind{width:260px}
+.note.termline{margin-bottom:8px}
+/* a word on a page that can be clicked for its explanation */
+.term{background:var(--blue-50);color:var(--blue-d);border-bottom:1px dotted var(--blue-d);border-radius:var(--r) var(--r) 0 0;padding:0 2px;cursor:pointer}
+.term:hover{background:var(--blue-300);color:#fff}
+.term:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+/* in Expert only the joint words stay highlighted */
+body[data-level="expert"] .term.word{background:none;color:inherit;border:0;padding:0;cursor:inherit}
+/* the card that opens beside a clicked word */
+.infocard{display:none;position:fixed;z-index:60;width:320px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;background:#fff;border:1px solid var(--n400);border-radius:var(--r-float);box-shadow:0 6px 24px rgba(20,24,29,.18)}
+.infocard.wide{width:400px}
+.ic-h{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 6px 10px;background:var(--n100);border-bottom:1px solid var(--n300)}
+.ic-b{padding:8px 10px 10px}
+.ic-more{margin:8px 0 0;font-size:var(--fs-s)}
+/* what a joint card holds: a sentence, the drawing, three short lists */
+.jcard{font-size:var(--fs);line-height:var(--lh);color:var(--n800)}
+.jcard p{margin:0 0 8px}
+.jcard h4{margin:10px 0 3px;font-size:var(--fs-s);font-weight:600;color:var(--n600);text-transform:none}
+.jcard ul,.jcard ol{margin:0;padding-left:18px}
+.jcard li{margin:0 0 3px}
+details.jd{border-bottom:1px solid var(--n200)}
+details.jd summary{padding:5px 2px;font-weight:600;color:var(--n900);cursor:pointer}
+details.jd summary:hover{background:var(--n100)}
+details.jd[open]{padding-bottom:10px}
+details.jd .jcard{max-width:420px;padding:2px 2px 0 16px}
+/* the drawings: a cut through the joint */
+svg.jh{display:block;width:100%;height:auto;margin:2px 0 4px;background:var(--n50);border:1px solid var(--n200);border-radius:var(--r)}
+svg.jh .w{fill:#f0dfbf;stroke:#8a6a3a;stroke-width:1.5}
+svg.jh .w2{fill:#dfc79a;stroke:#8a6a3a;stroke-width:1.5}
+svg.jh .m{fill:#4d545c;stroke:#2d3136;stroke-width:1}
+svg.jh .m.thread,svg.jh .m.brad,svg.jh .m.screwline{fill:none;stroke:#2d3136}
+svg.jh .m.thread{stroke-width:1}
+svg.jh .m.brad{stroke-width:2}
+svg.jh .m.screwline{stroke-width:3.5;stroke-linecap:round}
+svg.jh .g{fill:none;stroke:#d99a00;stroke-width:3}
+svg.jh .peg{fill:#c9a36a;stroke:#8a6a3a;stroke-width:1.2}
+svg.jh .hole{fill:#fff;stroke:#8a6a3a;stroke-width:1;stroke-dasharray:3 2}
+svg.jh .ld{fill:none;stroke:#59626c;stroke-width:1}
+svg.jh .ld.arrow{stroke:#262c33;stroke-width:1.5}
+svg.jh .ah{fill:#262c33;stroke:none}
+svg.jh .t{font:10px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#262c33}
+@media print{
+  #infoCard{display:none!important}
+  .term,.term.word{background:none!important;color:inherit!important;border:0!important;padding:0!important}
+  .terms{font-size:9.5pt;gap:3pt 10pt}
+  .words{break-inside:avoid}
+}

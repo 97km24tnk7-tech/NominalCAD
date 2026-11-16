@@ -52,7 +52,8 @@ function renderProps(){
   if(ps.length>1){who.textContent=ps.length+' pieces';el.innerHTML=propsOfSeveral(ps);return;}
   const p=ps[0];
   who.textContent=p.name;
-  el.innerHTML=isProp(p)?propsOfProp(p):propsOfPiece(p);
+  // in Beginner, one line first that says what this kind of piece is (js/glossary.js; not loaded yet at start-up)
+  el.innerHTML=(window.termLine?termLine(p):"")+(isProp(p)?propsOfProp(p):propsOfPiece(p));
 }
 /* one wooden piece: name, material, size, position, quarter turns, angle */
 function propsOfPiece(p){
