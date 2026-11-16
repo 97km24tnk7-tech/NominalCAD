@@ -13,27 +13,118 @@ const GIZMO_SIZE=.13;                        // length of a move arrow (and radi
 const ARROW_GRAB_FROM=.3,ARROW_GRAB_TO=1.25; // the stretch of a move arrow that can be grabbed, as fractions of its length from the middle of the selection
 const ARROW_REACH=1.21;                      // where the point of an arrow ends, as a fraction of its length (the label of the selected piece stays above the up arrow)
 let modal=null,lastMouse=null;
+
+/* The move arrows are a convenience, not a need: a piece can also be dragged freely, moved with M (then X, Y or Z),
+   or placed by typing X, Y, Z in Properties. So they keep out of the way of what is selected:
+   - they are see-through (ARROW_SEE_THROUGH) until the pointer is on one, which then shows at full strength;
+   - on a door, lid or drawer that can open they are not drawn at all: the handle that opens it takes their place
+     (selectionMover, js/motion.js);
+   - Display, "Move arrows" turns them off; the choice is remembered in this browser (ARROWS_KEY).
+   Grabbing an arrow works exactly as before. The rings of the Rotate tool are not affected by any of this. */
+const ARROW_SEE_THROUGH=.45;     // opacity of a move arrow the pointer is not on
+const ARROW_FULL=1;              // opacity of the arrow under the pointer, and of the one being dragged
+const RING_OPACITY=.95;          // the rings of the Rotate tool
+const ARROWS_KEY='woodshop.arrows';
+let moveArrowsOn=true;
+try{moveArrowsOn=localStorage.getItem(ARROWS_KEY)!=='off';}catch(e){}
+let arrowMats=[];                // the material of each move arrow now drawn, by world axis (empty when none are)
+let arrowLit=null;               // the world axis of the arrow drawn at full strength, or null
+
+function setMoveArrows(on){
+  moveArrowsOn=!!on;
+  try{localStorage.setItem(ARROWS_KEY,moveArrowsOn?'on':'off');}catch(e){}
+  buildGizmo();
+  draw();
+}
+/* the selection is a door, lid or drawer that can open: its open handle stands where the arrows would */
+function arrowsGiveWay(){
+  const mover=typeof selectionMover==='function'?selectionMover():null;
+  return!!mover&&!mover.stuck;
+}
+/* show one arrow at full strength (or none, with null) and the others see-through */
+function lightArrow(k){
+  if(arrowLit===k)return;
+  arrowLit=k;
+  arrowMats.forEach((mat,axis)=>{if(mat)mat.opacity=axis===k?ARROW_FULL:ARROW_SEE_THROUGH;});
+  draw();
+}
+
 function selCenter(){const b=bbox(selParts());return b?b.lo.map((v,i)=>(v+b.hi[i])/2):null;}
 function buildGizmo(){
-  while(gizmoGroup.children.length){const c=gizmoGroup.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose();});}
-  gizmoGroup.position.set(0,0,0);gizmoGroup.visible=true; if(explode)return;
+  while(gizmoGroup.children.length){
+    const c=gizmoGroup.children.pop();
+    c.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose();});
+  }
+  arrowMats=[];
+  gizmoGroup.position.set(0,0,0);
+  gizmoGroup.visible=true;
+  if(explode)return;
   if(!sel.size||lite||modal||(tool!=='select'&&tool!=='rotate'))return;
-  const c=selCenter(),L=cam.r*GIZMO_SIZE;if(!c)return;
-  for(let k=0;k<3;k++){const mat=new THREE.MeshBasicMaterial({color:GCOL[k],depthTest:false,transparent:true,opacity:.95}),g=new THREE.Group();let hit;
-    if(tool==='select'){ // an arrow pointing along axis k
-      const shaft=new THREE.Mesh(new THREE.CylinderGeometry(L*.018,L*.018,L,8),mat),tip=new THREE.Mesh(new THREE.ConeGeometry(L*.07,L*.22,12),mat);
-      // the part of the arrow that can be grabbed: an unseen, fatter tube around it. It starts a little way out
-      // from the middle (ARROW_GRAB_FROM), so that pressing the middle of a piece drags the piece freely instead
-      // of catching one of the three arrows that meet there.
-      const grabLength=L*(ARROW_GRAB_TO-ARROW_GRAB_FROM);
-      hit=new THREE.Mesh(new THREE.CylinderGeometry(L*.09,L*.09,grabLength,8),new THREE.MeshBasicMaterial({visible:false}));
-      shaft.position.y=L/2;tip.position.y=L*1.1;hit.position.y=L*ARROW_GRAB_FROM+grabLength/2;shaft.renderOrder=tip.renderOrder=9;g.add(shaft,tip,hit);
-      if(k===0)g.rotation.z=-Math.PI/2;else if(k===2)g.rotation.x=Math.PI/2;hit.userData={gz:'axis',k};}
-    else{ // a ring to turn about axis k
-      const ring=new THREE.Mesh(new THREE.TorusGeometry(L,L*.02,8,64),mat);hit=new THREE.Mesh(new THREE.TorusGeometry(L,L*.1,6,32),new THREE.MeshBasicMaterial({visible:false}));
-      ring.renderOrder=9;g.add(ring,hit);if(k===0)g.rotation.y=Math.PI/2;else if(k===1)g.rotation.x=Math.PI/2;hit.userData={gz:'ring',k};}
-    g.position.set(c[0],c[1],c[2]);gizmoGroup.add(g);}
+  if(tool==='select'&&(!moveArrowsOn||arrowsGiveWay()))return;
+  const c=selCenter(),L=cam.r*GIZMO_SIZE;
+  if(!c)return;
+  for(let k=0;k<3;k++){
+    const g=tool==='select'?moveArrow(k,L):turnRing(k,L);
+    g.position.set(c[0],c[1],c[2]);
+    gizmoGroup.add(g);
+  }
 }
+/* an arrow pointing along world axis k, L long, as a group: its shaft, its point and the unseen tube that is
+   grabbed, built standing along Y and then laid along axis k */
+function moveArrow(k,L){
+  const mat=new THREE.MeshBasicMaterial({color:GCOL[k],depthTest:false,transparent:true,opacity:k===arrowLit?ARROW_FULL:ARROW_SEE_THROUGH});
+  arrowMats[k]=mat;
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(L*.018,L*.018,L,8),mat);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(L*.07,L*.22,12),mat);
+  // The part of the arrow that can be grabbed: an unseen, fatter tube around it. It starts a little way out from
+  // the middle (ARROW_GRAB_FROM), so that pressing the middle of a piece drags the piece freely instead of
+  // catching one of the three arrows that meet there.
+  const grabLength=L*(ARROW_GRAB_TO-ARROW_GRAB_FROM);
+  const hit=new THREE.Mesh(new THREE.CylinderGeometry(L*.09,L*.09,grabLength,8),new THREE.MeshBasicMaterial({visible:false}));
+  shaft.position.y=L/2;
+  tip.position.y=L*1.1;
+  hit.position.y=L*ARROW_GRAB_FROM+grabLength/2;
+  shaft.renderOrder=tip.renderOrder=9;
+  hit.userData={gz:'axis',k};
+  const g=new THREE.Group();
+  g.add(shaft,tip,hit);
+  if(k===0)g.rotation.z=-Math.PI/2;
+  else if(k===2)g.rotation.x=Math.PI/2;
+  return g;
+}
+/* a ring to turn about world axis k, L in radius, and the unseen, fatter ring that is grabbed, as a group */
+function turnRing(k,L){
+  const mat=new THREE.MeshBasicMaterial({color:GCOL[k],depthTest:false,transparent:true,opacity:RING_OPACITY});
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(L,L*.02,8,64),mat);
+  const hit=new THREE.Mesh(new THREE.TorusGeometry(L,L*.1,6,32),new THREE.MeshBasicMaterial({visible:false}));
+  ring.renderOrder=9;
+  hit.userData={gz:'ring',k};
+  const g=new THREE.Group();
+  g.add(ring,hit);
+  if(k===0)g.rotation.y=Math.PI/2;
+  else if(k===1)g.rotation.x=Math.PI/2;
+  return g;
+}
+/* the move arrow under the pointer (its world axis), or null. Like gizmoHit, but it changes nothing. */
+function arrowUnderPointer(e){
+  if(!arrowMats.length)return null;
+  setRay(e);
+  const eye=camera.getWorldDirection(new THREE.Vector3());
+  const h=ray.intersectObjects(gizmoGroup.children,true).find(h=>h.object.userData.gz==='axis'&&Math.abs(eye.dot(AXV[h.object.userData.k]))<=.96);
+  return h?h.object.userData.k:null;
+}
+let arrowHoverQueued=false,arrowHoverEvent=null;
+cv.addEventListener('pointermove',e=>{
+  arrowHoverEvent=e;
+  if(arrowHoverQueued)return;
+  arrowHoverQueued=true;
+  requestAnimationFrame(()=>{ // at most once per drawn frame
+    arrowHoverQueued=false;
+    if(drag)lightArrow(drag.mode==='axis'?drag.k:arrowLit); // the arrow being dragged stays at full strength
+    else lightArrow(arrowUnderPointer(arrowHoverEvent));
+  });
+});
+cv.addEventListener('pointerleave',()=>{if(!drag)lightArrow(null);});
 /* how far along the line through c in direction k the mouse is pointing */
 function axisCoord(k,c){const A=AXV[k],D=ray.ray.direction,w0=ray.ray.origin.clone().sub(new THREE.Vector3(c[0],c[1],c[2])),b=D.dot(A),den=1-b*b;
   return den<1e-5?0:(A.dot(w0)-b*D.dot(w0))/den;}

@@ -26,8 +26,11 @@
      openSaid(mover, share)  '35°' for a hinge, '6 1/2"' for a slide
      showClosed               true while everything is to be drawn closed (the printed pictures)
 
-   In the 3D view the selected door, lid or drawer shows a small blue handle: drag it to open or close (an arc for
-   a hinge, an arrow for a slide); click it to swing fully open or shut. */
+   In the 3D view the selected door, lid or drawer shows a blue handle with a light rim: drag it to open or close
+   (a ball on an arc for a hinge, a cone on a line for a slide); click it to swing fully open or shut. A
+   double-click on the piece itself does the same as that click (openByDoubleClick). While the selection is the
+   door, lid or drawer, the move arrows give way to the handle (selectionMover), and the status bar says how to
+   open it (moverPrompt). */
 'use strict';
 
 let showClosed=false;
@@ -339,6 +342,15 @@ $('#stMotion').onclick=e=>{
 };
 
 /* ---------- the handle in the 3D view ---------- */
+/* The handle has to be clear to see and to grab on any wood and on glass: a blue core with a light rim around it,
+   drawn above everything in the scene (the move arrows of js/transform.js are drawn at order 9). When the selection
+   is the door, lid or drawer itself, the move arrows are not drawn at all (selectionMover): the handle takes their
+   place, and the piece still moves by dragging it, with M, or with the X, Y, Z boxes in Properties. */
+const HANDLE_COL=VIEW_COL.sel;   // the selection blue: a darker blue than the up arrow (GCOL in js/transform.js)
+const HANDLE_RIM=0xffffff;       // the light rim and the light edge of the track
+const HANDLE_SIZE=.018;          // radius of the ball (or the base of the cone) as a share of the distance to the eye
+const HANDLE_MIN=.65;            // inches: never smaller than this, however close the eye is
+const HANDLE_ORDER=12;           // drawn after everything else in the scene
 const motionGroup=new THREE.Group();
 scene.add(motionGroup);
 let motionHandle=null; // {mover, at: THREE.Vector3, radius, ...} for the selected door, lid or drawer
@@ -349,6 +361,31 @@ function selectedMover(){
     if(mover&&!mover.stuck)return mover;
   }
   return null;
+}
+/* The door, lid or drawer that IS the selection: every selected piece rides on it (the drawer front alone, or the
+   whole drawer). Null when anything else is selected as well. A stuck one is returned too: the status bar then
+   says why it cannot open. */
+function selectionMover(){
+  if(!sel.size)return null;
+  let mover=null;
+  for(const id of sel){
+    const riding=moverOf(id);
+    if(!riding||(mover&&riding!==mover))return null;
+    mover=riding;
+  }
+  return mover;
+}
+/* one see-through mesh of the handle, drawn above everything (order: the rim first, the blue core over it) */
+function handleMesh(geometry,color,opacity,order){
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color,depthTest:false,depthWrite:false,transparent:true,opacity}));
+  mesh.renderOrder=order;
+  motionGroup.add(mesh);
+  return mesh;
+}
+/* the track of the handle (the arc of a hinge, the line of a slide) as a thin blue tube with a light edge */
+function handleTrack(curve,segments,radius){
+  handleMesh(new THREE.TubeGeometry(curve,segments,radius*.2,6,false),HANDLE_RIM,.7,HANDLE_ORDER);
+  handleMesh(new THREE.TubeGeometry(curve,segments,radius*.09,6,false),HANDLE_COL,.9,HANDLE_ORDER+1);
 }
 /* Where the handle of a swinging piece is: a little way past its far edge (clear of the blue stretch handle that
    sits on that edge), on a circle about the pin. */
@@ -370,34 +407,29 @@ function buildMotionHandle(){
   if(tool!=='select'||modal||explode||showClosed||lite)return;
   const mover=selectedMover();
   if(!mover)return;
-  const radius=Math.max(.5,cam.r*.014),open=mover.open;
-  const paint=()=>new THREE.MeshBasicMaterial({color:VIEW_COL.sel,depthTest:false,transparent:true,opacity:.95});
-  let at;
+  const radius=Math.max(HANDLE_MIN,cam.r*HANDLE_SIZE),open=mover.open;
   if(mover.kind==='swing'){
+    // a ball on the arc it travels along, a little way past the far edge of the door
     const g=swingGeometry(mover,open,radius*4.5),points=[];
-    at=g.at;
     for(let i=0;i<=32;i++)points.push(g.center.clone().add(g.out.clone().applyAxisAngle(mover.axis,i/32*mover.limit*Math.PI/180)));
-    const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:VIEW_COL.sel,depthTest:false,transparent:true,opacity:.8}));
-    arc.renderOrder=8;
-    motionGroup.add(arc);
-    const ball=new THREE.Mesh(new THREE.SphereGeometry(radius,16,12),paint());
-    ball.position.copy(at);ball.renderOrder=9;
-    motionGroup.add(ball);
-    motionHandle={mover,at,radius,swing:g};
+    handleTrack(new THREE.CatmullRomCurve3(points),48,radius);
+    handleMesh(new THREE.SphereGeometry(radius*1.35,20,14),HANDLE_RIM,.9,HANDLE_ORDER+2).position.copy(g.at);
+    handleMesh(new THREE.SphereGeometry(radius,20,14),HANDLE_COL,1,HANDLE_ORDER+3).position.copy(g.at);
+    motionHandle={mover,at:g.at,radius:radius*1.35,swing:g};
   }else{
+    // a cone pointing the way the drawer comes out, on the line it travels along, just in front of the drawer
     const all=bbox(mover.parts),middle=new THREE.Vector3((all.lo[0]+all.hi[0])/2,(all.lo[1]+all.hi[1])/2,(all.lo[2]+all.hi[2])/2);
     const half=Math.abs(mover.axis.x)*(all.hi[0]-all.lo[0])/2+Math.abs(mover.axis.y)*(all.hi[1]-all.lo[1])/2+Math.abs(mover.axis.z)*(all.hi[2]-all.lo[2])/2;
-    const closedAt=middle.addScaledVector(mover.axis,half+radius*2.5); // just in front of the drawer
-    at=closedAt.clone().addScaledVector(mover.axis,open*mover.travel);
-    const cone=new THREE.Mesh(new THREE.ConeGeometry(radius,radius*2.6,16),paint());
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),mover.axis);
-    cone.position.copy(at);cone.renderOrder=9;
-    motionGroup.add(cone);
-    const track=new THREE.Line(new THREE.BufferGeometry().setFromPoints([closedAt,closedAt.clone().addScaledVector(mover.axis,mover.travel)]),
-      new THREE.LineBasicMaterial({color:VIEW_COL.sel,depthTest:false,transparent:true,opacity:.8}));
-    track.renderOrder=8;
-    motionGroup.add(track);
-    motionHandle={mover,at,radius:radius*1.3,closedAt};
+    const closedAt=middle.addScaledVector(mover.axis,half+radius*2.5);
+    const at=closedAt.clone().addScaledVector(mover.axis,open*mover.travel);
+    handleTrack(new THREE.LineCurve3(closedAt,closedAt.clone().addScaledVector(mover.axis,mover.travel)),1,radius);
+    const pointing=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),mover.axis);
+    for(const[scale,color,opacity,order]of[[1.35,HANDLE_RIM,.9,HANDLE_ORDER+2],[1,HANDLE_COL,1,HANDLE_ORDER+3]]){
+      const cone=handleMesh(new THREE.ConeGeometry(radius*scale,radius*2.6*scale,20),color,opacity,order);
+      cone.quaternion.copy(pointing);
+      cone.position.copy(at);
+    }
+    motionHandle={mover,at,radius:radius*1.4,closedAt};
   }
 }
 SCENE_EXTRAS.push(buildMotionHandle);
@@ -430,8 +462,11 @@ VIEW_PICKERS.push({
     const gap=origin.clone().addScaledVector(dir,along).distanceTo(handle.at);
     if(gap>handle.radius*1.5)return null;
     const mover=handle.mover;
-    return{dist:along,tip:`Drag to open or close ${mover.name}. Click to ${mover.open?'close':'open'} it.`,through:true,
+    return{dist:along,tip:`Drag to open or close ${mover.name}. Click to ${mover.open?'close':'open'} it, or double-click the piece.`,through:true,
       press(e,base){
+        lastHandlePress=performance.now();
+        lastHandleMover=mover;
+        selAtHandlePress=new Set(sel);
         const start=mover.open;
         drag={...base,mode:'custom',
           move(ev){
@@ -446,13 +481,315 @@ VIEW_PICKERS.push({
               (hit?` It hits ${esc(hit.other.name)} after ${openSaid(mover,openReach(mover).free)}.`:'')+' Release to keep it. Alt for any amount.');
           },
           up(d){
-            if(!d.moved)setOpen(mover,start>0?0:1); // a click swings it fully open or shut
+            if(!d.moved){
+              // The second click of a double-click is left to the double-click (see below): the first click
+              // already swung it, and a second swing would undo that.
+              if(pressCount>=2)return;
+              setOpen(mover,start>0?0:1); // a click swings it fully open or shut
+              handleClickedAt=performance.now();
+            }
             const hit=openBlock(mover,mover.open);
             commit();
             if(hit)toast(`${mover.name} hits ${hit.other.name} before it is open ${openSaid(mover,mover.open)}. Both are shown in red.`);
           }};
       }};
   },
+});
+
+/* ---------- double-click a door, lid or drawer to open or close it ----------
+   A double-click on any piece that rides on a mover opens it fully when it is closed, and closes it when it is open
+   at all, as one undo step (openTo), with the same word about what it hits. It leaves that piece selected. The two
+   clicks of a double-click are ordinary clicks first: they select the piece and do not move it (a press only
+   becomes a drag after the pointer has moved). Only the second click must not step the selection up to the
+   component around the piece (pickAgain, js/components.js). A double-click on anything else does nothing new.
+   The open handle can sit over the piece (in front of the middle of a drawer front, seen from the front), so a
+   double-click may land on it too, and it still swings the door or drawer once, never twice:
+     first click on the handle        it swings (an ordinary click on the handle); the double-click then does nothing
+     second click on the handle       the handle leaves it to the double-click, which swings the handle's mover
+   Things that are not pieces: a double-click on a hinge, a pull or other hardware mounted on a door, lid or drawer
+   opens that one; on a fastener, or on hardware of the cabinet, it does nothing new (the fastener stays picked),
+   even when the wood behind it is a door (Fasteners only shows the cabinet's screws through a closed door).
+   With Ctrl (or Cmd) held the clicks add to and take from the selection, so the double-click does nothing new. In
+   an exploded view the first click only puts the design back together. */
+let pressCount=0;            // the click count of the last press on the 3D view (2 on the second press of a double-click)
+let lastHandlePress=-1e9;    // when the open handle was last pressed (performance.now())
+let handleClickedAt=-1e9;    // when a click on the open handle last swung its mover
+let lastHandleMover=null;    // the mover of the handle that was pressed last
+let selAtHandlePress=new Set(); // and what was selected then
+let pressesAt=[-1e9,-1e9];   // when the last two left presses on the 3D view began: a double-click's own two
+let pressesApart=[false,false]; // and whether the view was exploded when each began
+let steppedUpAt=-1e9;        // when a click last stepped the selection up to a component (pickAgain)
+cv.addEventListener('pointerdown',e=>{ // capture: runs before the press is handled (and the handle is pressed)
+  if(e.button!==0)return;
+  pressesAt=[pressesAt[1],performance.now()];
+  pressesApart=[pressesApart[1],!!explode]; // read before js/tools.js puts an exploded view back together
+},true);
+cv.addEventListener('mousedown',e=>{pressCount=e.detail;});
+cv.addEventListener('pointerup',()=>{ // runs before the pointerup of js/tools.js, which would step the selection up
+  if(pressCount>=2&&drag&&drag.mode==='move'&&!drag.moved&&moverOf(drag.primary))drag.again=false;
+},true);
+/* With Pick set to Component, the first click of a double-click on a door that is already selected steps the
+   selection up to the component around it, and says so. The double-click then puts the selection back on the
+   door; it needs to know that this happened, to take the words away again. */
+const pickAgainBeforeMotion=pickAgain;
+pickAgain=function(pieceId){
+  steppedUpAt=performance.now();
+  return pickAgainBeforeMotion(pieceId);
+};
+/* the hardware the clicks picked, when it is mounted on a door, lid or drawer: the piece it is on; else null */
+function pickedHardwarePiece(){
+  if(!picked||picked.type!=='hw')return null;
+  const item=hardwareList().find(candidate=>candidate.id===picked.id);
+  return item&&moverOf(item.on)?item.on:null;
+}
+cv.addEventListener('dblclick',e=>{
+  if(e.button!==0||e.ctrlKey||e.metaKey)return;
+  if(tool!=='select'||modal||explode||tab!=='design'||showClosed||placingHardware||placingDrawer)return;
+  if(pressesApart[0]||pressesApart[1])return; // the first click put an exploded view back together
+  const firstPress=pressesAt[0]; // the start of this double-click
+  if(handleClickedAt>=firstPress){ // its first click was on the handle and has swung it already
+    // The handle moved with it, so the second click may have landed on empty space (which drops the selection)
+    // or on another piece: the selection goes back to what it was on the handle's door or drawer.
+    const stillOnIt=sel.size>0&&[...sel].every(id=>{const m=moverOf(id);return m&&lastHandleMover&&m.lead.id===lastHandleMover.lead.id;});
+    if(!stillOnIt&&selAtHandlePress.size){sel=new Set(selAtHandlePress);renderAll();}
+    return;
+  }
+  if(lastHandlePress>=firstPress&&lastHandleMover){ // its second click was on the handle
+    const mover=movers().find(m=>m.lead.id===lastHandleMover.lead.id);
+    if(mover&&!mover.stuck)openTo(mover,mover.open>0?0:1); // the selection is already on it
+    return;
+  }
+  // A click on a fastener or on hardware picks it (and a click on a piece drops the pick): the double-click was
+  // on that thing, not on the wood behind it.
+  let pieceId=null;
+  if(picked)pieceId=pickedHardwarePiece();
+  else{
+    scene.updateMatrixWorld(); // the clicks may have redrawn the scene since the last frame
+    const hit=pick(e);
+    if(hit)pieceId=hit.object.userData.id;
+  }
+  if(pieceId==null||!moverOf(pieceId))return;
+  if(steppedUpAt>=firstPress&&$('#toast'))$('#toast').classList.remove('on'); // "Selected ..., the component that ..."
+  openByDoubleClick(pieceId);
+});
+/* Open or close the mover a piece rides on; false when it rides on none (nothing happens then). The selection
+   becomes what a click on the piece picks, but only the pieces of this door, lid or drawer: with Pick set to
+   Component a click picks the whole "Doors" component, and the handle would then show on one door while the
+   move arrows came back for the pair. */
+function openByDoubleClick(pieceId){
+  const mover=moverOf(pieceId);
+  if(!mover)return false;
+  const isOnIt=id=>{const riding=moverOf(id);return!!riding&&riding.lead.id===mover.lead.id;};
+  sel=new Set();
+  const onIt=pickIds(pieceId).filter(isOnIt);
+  sel=new Set(onIt.length?onIt:[pieceId]);
+  picked=null;
+  // the component the selection now is exactly, if any, so that a later click steps up from there
+  if(pickedComp!=null&&!selectionIs(pickedComp))pickedComp=(compChain(pieceId).find(comp=>selectionIs(comp.id))||{id:null}).id;
+  if(mover.stuck){renderAll();return true;} // the status bar says why it cannot open (moverPrompt)
+  openTo(mover,mover.open>0?0:1);
+  return true;
+}
+
+/* ---------- the status bar while a door, lid or drawer is selected: how to open it ---------- */
+function moverPrompt(mover){
+  const name=esc(mover.name);
+  if(mover.stuck)return`${name} cannot open: it is also fastened to ${esc(mover.stuck.name)}. Unfasten that connection (U).`;
+  const verb=mover.kind==='swing'?(mover.open>0?'close':'open'):(mover.open>0?'push in':'pull out');
+  const moving=sel.size+followerCount(); // the piece moves with everything it is fastened to (js/connections.js)
+  return`To ${verb} ${name}, double-click it or drag the blue handle. `+
+    (moving>1?`Dragging the piece moves all ${moving} pieces that are fastened together.`:'Dragging the piece moves it.');
+}
+const promptBeforeMotion=TOOL_PROMPTS.select;
+TOOL_PROMPTS.select=()=>{
+  const mover=!picked&&selectionMover();
+  return mover?['i-select','Select / move',moverPrompt(mover)]:promptBeforeMotion();
+};
+
+/* ---------- check: a double-click opens and closes, the handle stands clear of the move arrows ---------- */
+SELFTESTS.push(function openWithTheMouse(problems){
+  const wrong=text=>problems.push('open with the mouse: '+text);
+  const preset=PRESETS.find(candidate=>candidate.name==='Nightstand with drawers');
+  if(!preset){wrong('there is no Nightstand with drawers');return;}
+  const tabKept=tab,toolKept=tool,arrowsKept=moveArrowsOn,modeKept=woodMode,pickKept=pickLevel,pickedCompKept=pickedComp;
+  let presetKept=null,storedArrows=null;
+  try{presetKept=localStorage.getItem(LAST_PRESET_KEY);storedArrows=localStorage.getItem(ARROWS_KEY);}catch(e){}
+  const arrowsInScene=()=>{
+    const found=[];
+    gizmoGroup.traverse(o=>{if(o.userData.gz==='axis')found.push(o);});
+    return found;
+  };
+  /* a real double-click on the middle of a piece, as the browser sends it */
+  const doubleClick=(pieceId,across,keys)=>{
+    const frame=cv.getBoundingClientRect();
+    scene.updateMatrixWorld(true);
+    // across: how far across its face, from the left (.1 is clear of the pull and the handle in the middle)
+    // keys: modifier keys held, as {ctrlKey:true}
+    const b=box(byId(pieceId)),middle=new THREE.Vector3(b.lo[0]+(b.hi[0]-b.lo[0])*(across||.1),(b.lo[1]+b.hi[1])/2,b.hi[2]).project(camera);
+    const where={clientX:frame.left+(middle.x+1)/2*frame.width,clientY:frame.top+(1-middle.y)/2*frame.height,button:0,pointerId:1,bubbles:true,...(keys||{})};
+    for(const detail of[1,2]){
+      scene.updateMatrixWorld(true); // the first click redraws the scene; a frame would be drawn before the second
+      cv.dispatchEvent(new PointerEvent('pointerdown',where));
+      cv.dispatchEvent(new MouseEvent('mousedown',{...where,detail}));
+      cv.dispatchEvent(new PointerEvent('pointerup',where));
+      cv.dispatchEvent(new MouseEvent('mouseup',{...where,detail}));
+      cv.dispatchEvent(new MouseEvent('click',{...where,detail}));
+    }
+    scene.updateMatrixWorld(true);
+    cv.dispatchEvent(new MouseEvent('dblclick',{...where,detail:2}));
+  };
+  try{
+    setWoodMode('solid');
+    setTab('design');
+    setTool('select');
+    lastHandlePress=handleClickedAt=-1e9;
+    const vals=presetDefaults(preset);
+    load(JSON.stringify(blank()),true);
+    placePreset(preset,vals,preset.build(vals),false);
+    undoStack=[]; // it holds at most 200 steps, and the self-checks before this one may have filled it (selfTest puts it back)
+    fit('front');
+    const frame=cv.getBoundingClientRect();
+    const drawer=movers().filter(m=>m.kind==='slide').pop(); // the top drawer
+    const front=drawer&&drawer.parts.find(p=>p.name==='Drawer front');
+    if(!front){wrong('the nightstand has no drawer front on a slide');return;}
+    const where=JSON.stringify(S.parts.map(p=>[p.id,p.pos,p.l,p.w,p.t]));
+
+    // the double-click, through the real events of the 3D view
+    if(frame.width){
+      sel=new Set();renderAll();
+      const undoBefore=undoStack.length;
+      doubleClick(front.id);
+      if(!(moverOf(front.id).open>=1))wrong('a double-click on a closed drawer front does not pull the drawer out');
+      if(undoStack.length!==undoBefore+1)wrong(`opening a drawer by double-click took ${undoStack.length-undoBefore} undo steps, not one`);
+      if(sel.size!==1||!sel.has(front.id))wrong('after a double-click the selection is not the drawer front');
+      doubleClick(front.id);
+      if(moverOf(front.id).open>0)wrong('a second double-click on an open drawer does not push it back in');
+      if(undoStack.length!==undoBefore+2)wrong('closing a drawer by double-click is not one undo step');
+      if(sel.size!==1||!sel.has(front.id))wrong('after the second double-click the selection is not the drawer front');
+      if(JSON.stringify(S.parts.map(p=>[p.id,p.pos,p.l,p.w,p.t]))!==where)wrong('the clicks of a double-click moved a piece');
+      // in the middle of the front, where the open handle of the selected drawer stands in front of it: once each
+      doubleClick(front.id,.5);
+      if(!(moverOf(front.id).open>=1))wrong('a double-click on the middle of a drawer front (over its handle) does not leave it pulled out');
+      doubleClick(front.id,.5);
+      if(moverOf(front.id).open>0)wrong('a second double-click on the middle of a drawer front does not leave it pushed in');
+      if(undoStack.length!==undoBefore+4)wrong(`four double-clicks made ${undoStack.length-undoBefore} undo steps`);
+      // with Ctrl held the clicks add to and take from the selection: nothing opens, the selection is kept
+      sel=new Set([front.id]);renderAll();
+      doubleClick(front.id,.1,{ctrlKey:true});
+      if(moverOf(front.id).open>0||undoStack.length!==undoBefore+4)wrong('a Ctrl + double-click opens the drawer');
+      // in an exploded view the first click only puts the design back together
+      sel=new Set();setExplode(1);renderAll();
+      doubleClick(front.id);
+      if(moverOf(front.id).open>0||undoStack.length!==undoBefore+4)wrong('a double-click in the exploded view opens the drawer');
+      if(explode)setExplode(0);
+    }
+    // a double-click on a fastener picks it and opens nothing, even with a drawer front right behind it; on a pull it
+    // opens the drawer the pull is on (the dblclick alone, as if the two clicks had picked the thing)
+    const dblclickOver=pieceId=>{
+      const b=box(byId(pieceId)),middle=new THREE.Vector3((b.lo[0]+b.hi[0])/2,(b.lo[1]+b.hi[1])/2,b.hi[2]).project(camera),frameNow=cv.getBoundingClientRect();
+      lastHandlePress=handleClickedAt=-1e9;
+      pressesAt=[performance.now(),performance.now()];
+      pressesApart=[false,false];
+      cv.dispatchEvent(new MouseEvent('dblclick',{clientX:frameNow.left+(middle.x+1)/2*frameNow.width,clientY:frameNow.top+(1-middle.y)/2*frameNow.height,button:0,bubbles:true,detail:2}));
+    };
+    const connection=connGraph().links.find(link=>link.fastened&&link.joint&&(link.a.id===front.id||link.b.id===front.id));
+    const pull=hardwareList().find(item=>item.on===front.id&&HARDWARE[item.kind]&&!HARDWARE[item.kind].motion);
+    if(frame.width&&connection){
+      sel=new Set();picked={type:'conn',key:connection.key};renderAll();
+      const undoBefore=undoStack.length;
+      dblclickOver(front.id);
+      if(moverOf(front.id).open>0||undoStack.length!==undoBefore)wrong('a double-click on a fastener opens the drawer behind it');
+      if(!picked||picked.type!=='conn')wrong('a double-click on a fastener drops the fastener');
+      picked=null;
+    }
+    if(frame.width&&pull){
+      sel=new Set();picked={type:'hw',id:pull.id};renderAll();
+      dblclickOver(front.id);
+      if(!(moverOf(front.id).open>=1))wrong('a double-click on the pull of a drawer does not pull it out');
+      if(picked||!sel.has(front.id))wrong('after a double-click on a pull the drawer front is not the selection');
+      undo();
+    }
+    // and the same through the function the event calls, which works when the 3D view is not on screen
+    openByDoubleClick(front.id);
+    if(!(moverOf(front.id).open>=1))wrong('openByDoubleClick does not open a closed drawer');
+    undo();
+    if(moverOf(front.id).open>0)wrong('one undo after a double-click does not close the drawer again');
+
+    // the drawer selected: the handle is there, the move arrows are not, and the status bar says how to open it
+    sel=new Set([front.id]);renderAll();
+    if(!motionHandle||motionHandle.mover.lead.id!==drawer.lead.id||!motionGroup.children.length)wrong('a selected drawer front shows no open handle');
+    if(arrowsInScene().length)wrong('the move arrows are drawn over a selected drawer');
+    if(!/double-click/.test($('#status').textContent))wrong('the status bar does not say how to open a selected drawer: '+$('#status').textContent);
+    if(motionGroup.children.some(mesh=>GCOL.includes(mesh.material.color.getHex())))wrong('the open handle has the color of a move arrow');
+    if(motionGroup.children.some(mesh=>mesh.renderOrder<=9))wrong('the open handle is not drawn above the move arrows');
+
+    // Pick set to Component: a click on a cabinet door picks the pair ("Doors"); a double-click opens the door that
+    // was clicked and leaves only that door selected, with its handle and without the move arrows
+    const stand=PRESETS.find(candidate=>candidate.name==='Single aquarium stand');
+    if(stand&&frame.width){
+      const standVals=presetDefaults(stand);
+      load(JSON.stringify(blank()),true);
+      placePreset(stand,standVals,stand.build(standVals),false);
+      undoStack=[];
+      fit('front');
+      pickLevel='comp';pickedComp=null;sel=new Set();renderAll();
+      const door=movers().find(m=>m.kind==='swing');
+      if(door){
+        doubleClick(door.lead.id,.3);
+        const onlyThatDoor=sel.size>0&&[...sel].every(id=>{const m=moverOf(id);return m&&m.lead.id===door.lead.id;});
+        if(!(moverOf(door.lead.id).open>=1))wrong('with Pick set to Component a double-click on a door does not open it');
+        if(!onlyThatDoor)wrong('with Pick set to Component a double-click on a door leaves more than that door selected');
+        if(arrowsInScene().length)wrong('with Pick set to Component the move arrows come back after a double-click on a door');
+        if(!motionHandle||motionHandle.mover.lead.id!==door.lead.id)wrong('with Pick set to Component the handle is not on the door that was double-clicked');
+      }
+      pickLevel=pickKept;pickedComp=null;
+    }
+
+    // a plain board: a double-click changes nothing; the arrows are there and see-through; the switch hides them
+    load(JSON.stringify(blank()),true);
+    const[board]=addParts([mk('Shelf','1x12',[30,.75,11.25],[0,20,0])]);
+    commit();
+    undoStack=[];
+    fit('front');
+    sel=new Set();renderAll();
+    const before=JSON.stringify(S.parts),undoBefore=undoStack.length;
+    if(frame.width)doubleClick(board);
+    if(openByDoubleClick(board))wrong('a plain board is taken for a door or drawer');
+    if(JSON.stringify(S.parts)!==before||undoStack.length!==undoBefore)wrong('a double-click on a plain board changed the design');
+    sel=new Set([board]);
+    setMoveArrows(true);
+    lightArrow(null);
+    renderAll();
+    const shown=arrowsInScene();
+    if(shown.length!==3)wrong(`a selected board shows ${shown.length} move arrows, not 3`);
+    if(!arrowMats.length||arrowMats.some(mat=>Math.abs(mat.opacity-ARROW_SEE_THROUGH)>1e-6))wrong('the move arrows of a selected board are not see-through');
+    lightArrow(0);
+    if(Math.abs(arrowMats[0].opacity-ARROW_FULL)>1e-6||Math.abs(arrowMats[1].opacity-ARROW_SEE_THROUGH)>1e-6)wrong('the arrow under the pointer is not drawn at full strength');
+    lightArrow(null);
+    setMoveArrows(false);
+    if(arrowsInScene().length)wrong('with Move arrows off in Display the arrows are still drawn');
+    setTool('rotate');
+    let rings=0;
+    gizmoGroup.traverse(o=>{if(o.userData.gz==='ring')rings++;});
+    if(rings!==3)wrong('with Move arrows off the rings of the Rotate tool are gone too');
+    setTool('select');
+  }finally{
+    pickLevel=pickKept;
+    pickedComp=pickedCompKept;
+    picked=null;
+    if(explode)setExplode(0);
+    moveArrowsOn=arrowsKept;
+    try{
+      if(storedArrows===null)localStorage.removeItem(ARROWS_KEY);else localStorage.setItem(ARROWS_KEY,storedArrows);
+      if(presetKept===null)localStorage.removeItem(LAST_PRESET_KEY);else localStorage.setItem(LAST_PRESET_KEY,presetKept);
+    }catch(e){}
+    arrowLit=null;
+    setWoodMode(modeKept);
+    load(JSON.stringify(blank()),true);
+    setTool(toolKept);
+    setTab(tabKept);
+    if($('#toast'))$('#toast').classList.remove('on');
+  }
 });
 
 /* ---------- Properties: how far it is open ---------- */

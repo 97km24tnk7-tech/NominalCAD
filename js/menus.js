@@ -26,6 +26,7 @@ const COMMANDS={
   toggleFasteners:()=>$('#showFast').click(),
   toggleSizes:()=>$('#showDims').click(),
   toggleLegend:()=>toggleLegend(),
+  toggleArrows:()=>setMoveArrows(!moveArrowsOn),                                     // js/transform.js
   dupGrab:()=>dupGrab(),
   row:()=>openRow(),
   mirror:()=>openMirror(),
@@ -62,6 +63,7 @@ const CHECKS={
   toggleFasteners:()=>$('#showFast').checked,
   toggleSizes:()=>$('#showDims').checked,
   toggleLegend:()=>legendOn,
+  toggleArrows:()=>moveArrowsOn,
   togglePieces:()=>!panelOf('left').off,
   toggleProps:()=>!panelOf('right').off,
 };
