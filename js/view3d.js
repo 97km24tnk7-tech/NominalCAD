@@ -115,18 +115,23 @@ function rebuildScene(){
     const sc=sun.shadow.camera;sc.left=sc.bottom=-r*1.3;sc.right=sc.top=r*1.3;sc.near=.1;sc.far=r*6;sc.updateProjectionMatrix();}
   sun.castShadow=shadows;
   const clash=new Set(findClashes().flatMap(([a,b])=>[a.id,b.id])); // pieces that overlap another piece are drawn red
-  for(const p of S.parts){if(hiddenIds.has(p.id))continue;const s=size(p),geo=new THREE.BoxGeometry(s[0],s[1],s[2]),on=sel.has(p.id);
+  for(const p of S.parts){if(hiddenIds.has(p.id))continue;
+    // "Show me" (js/visibility.js): its pieces are drawn like selected ones, everything else nearly clear
+    const lit=!!spotlightIds&&spotlightIds.has(p.id),ghost=!!spotlightIds&&!lit;
+    const s=size(p),geo=new THREE.BoxGeometry(s[0],s[1],s[2]),on=sel.has(p.id)||lit;
     let mat;
     if(isProp(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color,transparent:true,opacity:.35,depthWrite:false});
     else if(real){grainUV(geo,s,p.ax[0],p.id);mat=new THREE.MeshStandardMaterial({color:on?VIEW_COL.selFill:partColor(p),map:painted?null:grainTex,roughness:.82,metalness:0});}
     else mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.selFill:blk.get(p.name)});
     if(!isProp(p)){if(clash.has(p.id)&&!on)mat.color.setHex(VIEW_COL.clash);if(xray){mat.transparent=true;mat.opacity=.35;mat.depthWrite=false;}}
+    if(ghost){mat.transparent=true;mat.opacity=.07;mat.depthWrite=false;}
     const mesh=new THREE.Mesh(geo,mat);
-    mesh.userData.id=p.id;if(!isProp(p)){mesh.castShadow=mesh.receiveShadow=shadows;}
+    mesh.userData.id=p.id;if(!isProp(p)){mesh.castShadow=mesh.receiveShadow=shadows&&!ghost;}   // a see-through piece throws no shadow
     const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial(real?{color:on?VIEW_COL.sel:0x3a2a18,transparent:true,opacity:on?1:.3}:{color:on?VIEW_COL.sel:0x222222}));
     if(clash.has(p.id)&&!on){edges.material.color.setHex(VIEW_COL.clashEdge);edges.material.opacity=1;}
+    if(ghost){edges.material.transparent=true;edges.material.opacity=.14;}
     const g=new THREE.Group();g.add(mesh,edges);partsGroup.add(g);meshes.set(p.id,g);setMeshPos(p);}
-  if($('#showFast').checked&&S.parts.length<=600&&!lite)for(const j of findJoints()){const type=jType(j);if(type==='none'||type==='glue')continue;
+  if($('#showFast').checked&&S.parts.length<=600&&!lite&&!spotlightIds)for(const j of findJoints()){const type=jType(j);if(type==='none'||type==='glue')continue;
     const n=jSpec(j,type).n,lu=j.ru[1]-j.ru[0]>=j.rv[1]-j.rv[0];
     for(let i=0;i<n;i++){const t=(i+.5)/n,pos=[0,0,0];pos[j.k]=j.plane;
       pos[j.u]=lu?j.ru[0]+(j.ru[1]-j.ru[0])*t:(j.ru[0]+j.ru[1])/2;pos[j.v]=lu?(j.rv[0]+j.rv[1])/2:j.rv[0]+(j.rv[1]-j.rv[0])*t;

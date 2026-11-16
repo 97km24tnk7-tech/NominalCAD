@@ -23,10 +23,13 @@
          options.action  the label of the button that agrees, e.g. 'Delete'   (default 'OK')
          options.danger  true when agreeing destroys something that cannot be brought back
          options.title   the words in the title bar                            (default 'Please confirm')
+         options.cancel  the label of the button that declines, e.g. 'Go back' (default 'Cancel')
+         options.wide    true for a long message: the dialog is made wider
      showMessage(title, text, options)     a notice with one OK button. A line break in text starts a new line.
          options.steps   a list of sentences shown under the text as numbered steps (the dialog is wider for them)
          options.extra   one more button, left of OK, that does the first thing for the person:
                          {label: 'Copy design as text', icon: 'i-copy', run: function}. It closes the notice.
+         options.wide    true for a long message: the dialog is made wider
 
    Both return at once; nothing waits for the answer. Put whatever should happen after "yes" inside onYes. */
 'use strict';
@@ -66,19 +69,21 @@ function quickDialog(){
 }
 
 /* Fills in the shared dialog and shows it on top of whatever is open.
-   q = {title, text, okLabel, danger, withCancel, steps (optional list), extra (optional {label, icon, run})} */
+   q = {title, text, okLabel, danger, withCancel, cancelLabel (optional), wide (optional),
+        steps (optional list), extra (optional {label, icon, run})} */
 function openQuick(q){
   const dlg=quickDialog(),ok=dlg.querySelector('#quickOk'),no=dlg.querySelector('#quickNo');
   const more=dlg.querySelector('#quickMore');
   dlg.querySelector('#quickTitle').textContent=q.title;
   dlg.querySelector('#quickBody').innerHTML=`<p class="dlg-msg">${esc(q.text)}</p>`+
     (q.steps?`<ol class="dlg-steps">${q.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol>`:'');
-  dlg.classList.toggle('narrow',!q.steps); // numbered steps get the standard width, so that each fits on a line or two
+  dlg.classList.toggle('narrow',!q.steps&&!q.wide); // numbered steps and long messages get the standard width
   more.hidden=!q.extra;
   more.innerHTML=q.extra?(q.extra.icon?icon(q.extra.icon):'')+esc(q.extra.label):'';
   ok.textContent=q.okLabel;
   ok.className=q.danger?'btn dng':'btn pri';
   no.hidden=!q.withCancel;
+  no.textContent=q.cancelLabel||'Cancel';
   quickYes=null;
   quickExtra=q.extra?q.extra.run:null;
   if(!dlg.open)dlg.showModal();
@@ -89,14 +94,15 @@ function askConfirm(message,options,onYes){
   if(typeof options==='function'){onYes=options;options=null;}
   options=options||{};
   if(autoConfirm){onYes();return;}
-  openQuick({title:options.title||'Please confirm',text:message,okLabel:options.action||'OK',danger:!!options.danger,withCancel:true});
+  openQuick({title:options.title||'Please confirm',text:message,okLabel:options.action||'OK',danger:!!options.danger,withCancel:true,
+    cancelLabel:options.cancel,wide:options.wide});
   quickYes=onYes;
 }
 
 function showMessage(title,text,options){
   options=options||{};
   if(autoConfirm){autoMessages.push(title+': '+text);return;}
-  openQuick({title,text,okLabel:'OK',danger:false,withCancel:false,steps:options.steps,extra:options.extra});
+  openQuick({title,text,okLabel:'OK',danger:false,withCancel:false,wide:options.wide,steps:options.steps,extra:options.extra});
 }
 
 /* ---------- behavior every dialog shares ---------- */

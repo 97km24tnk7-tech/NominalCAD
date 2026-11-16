@@ -62,27 +62,48 @@ const PRICE_LIMIT_WAIT_MS=3*60*60*1000;     // after "daily limit reached", do n
 /* Screws and nails cost more the longer they are, and a design that needs two lengths needs two boxes. So every
    length the program can ask for gets its own row, with its own estimate, made here from one short table:
    lengths = [[length as the program writes it, price of one pack], ...]. nameOf(length) must give exactly the
-   item name that jSpec (js/style.js) writes, because that name is how the row is found. */
-function priceByLength(parent,kind,nameOf,pack,sold,lengths){
+   item name that jSpec (js/style.js) writes, because that name is how the row is found.
+   A preset's own hardware list (hw(p)) writes the kind first and the length after it, with a space where jSpec
+   has a hyphen: 'Construction screws, 2 1/2" (posts to rails)'. presetWords is a pattern for the words such a
+   name starts with; the same row then takes those names too, so that a screw has one price however it is named. */
+function priceByLength(parent,kind,nameOf,pack,sold,lengths,presetWords){
   const literal=text=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return lengths.map(([length,price])=>({
-    id:`${parent}:${length}`,parent,name:`${kind}, ${length}`,
-    match:new RegExp('(^|[^-/\\d])'+literal(nameOf(length)),'i'),   // '1"' must not also catch '1-1/4"'
-    pack,sold,price}));
+  const spaced=length=>literal(length).replace('-','[- ]');          // '2-1/2"' is also written '2 1/2"'
+  return lengths.map(([length,price])=>{
+    const asJoint='(^|[^-/\\d])'+literal(nameOf(length));            // '1"' must not also catch '1-1/4"'
+    const asPreset=presetWords?`|^(?:${presetWords}),? ${spaced(length)}`:'';
+    return{id:`${parent}:${length}`,parent,name:`${kind}, ${length}`,match:new RegExp(asJoint+asPreset,'i'),pack,sold,price};
+  });
 }
 const HARDWARE_PRICES=[
+  // Nails for framing (js/framing.js and the Shed): sold by weight, so a pack is what a box of that weight holds,
+  // about. These rows stand first because their names also carry words of later rows ("hurricane ties").
+  {id:'framing-nails',name:'Framing nails, 3" (10d)',match:/framing nails/i,pack:340,sold:'5 lb box (about 340)',price:20,search:'10d common nails 3 in. 5 lb box'},
+  {id:'plywood-nails',name:'Nails for plywood, 2-1/2" (8d)',match:/nails \(8d\)/i,pack:500,sold:'5 lb box (about 500)',price:20,search:'8d common nails 2-1/2 in. 5 lb box'},
+  {id:'hanger-nails',name:'Short nails for metal ties, 1-1/2"',match:/hanger nails/i,pack:150,sold:'1 lb box (about 150)',price:7,search:'joist hanger nails 1-1/2 in. 1 lb box'},
+  // plywood a preset asks for by the sheet because the pieces are cut on site to a slope (the Shed's gable ends)
+  {id:'plywood-to-fit',name:'1/2" plywood to cut to fit',match:/^1\/2" plywood/i,pack:1,sold:'4 ft × 8 ft sheet',price:40,search:'1/2 in. plywood sheathing 4 ft. x 8 ft.'},
   ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,100,'box of 100',
     [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12]]),
   {id:'pocket-screws',name:'Pocket-hole screws, other lengths',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
+  // screws made for outdoors (coated or stainless) cost more than plain ones, so they have rows of their own
+  ...priceByLength('exterior-screws','Exterior screws',length=>`${length} exterior screws`,100,'box of 100',
+    [['1-1/4"',8],['1-5/8"',9],['2"',10],['2-1/2"',12],['3"',14]],'exterior screws'),
+  {id:'exterior-screws',name:'Exterior screws, other lengths',match:/exterior screws/i,pack:100,sold:'box of 100',price:11},
   ...priceByLength('wood-screws','Wood screws, #8',length=>`#8 × ${length} wood screws`,100,'box of 100',
-    [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]]),
+    [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]],
+    '(?:wood |construction )?screws(?: for the wall studs)?'),
   {id:'bracket-screws',name:'Short screws for brackets, #8 × 5/8"',match:/screws for brackets/i,pack:100,sold:'box of 100',price:5},
   {id:'wood-screws',name:'Wood screws, #8, other lengths',match:/wood screws/i,pack:100,sold:'box of 100',price:9},
   {id:'dowels',name:'Wood dowels',match:/wood dowels/i,pack:30,sold:'bag of 30',price:4},
   ...priceByLength('brads','Brad nails, 18 gauge',length=>`${length} brad nails`,1000,'box of 1,000',
     [['5/8"',5],['3/4"',5.5],['1"',6],['1-1/4"',7],['1-1/2"',8],['2"',9]]),
   {id:'brads',name:'Brad nails, 18 gauge, other lengths',match:/brad nails/i,pack:1000,sold:'box of 1,000',price:7},
-  {id:'brackets',name:'L-brackets (corner braces)',match:/l-brackets/i,pack:4,sold:'pack of 4',price:4.5},
+  // The big braces that hold a shelf unit to the wall: the garage shelves name theirs 'Corner braces (L-brackets),
+  // 4"'. This row stands above the small L-brackets and only takes a name that STARTS with "Corner braces",
+  // because the small ones at a joint are named '1-1/2" L-brackets (corner braces)' by jSpec.
+  {id:'corner-braces',name:'Corner braces, 4"',match:/^corner braces/i,pack:2,sold:'pack of 2',price:7,search:'corner brace 4 in. zinc 2-pack'},
+  {id:'brackets',name:'L-brackets, 1-1/2" (small corner braces)',match:/l-brackets/i,pack:4,sold:'pack of 4',price:4.5},
   {id:'cabinet-hinges',name:'Cabinet hinges',match:/cabinet hinges/i,pack:2,sold:'pack of 2',price:7},
   {id:'t-hinges',name:'Heavy T-hinges',match:/t-hinges/i,pack:1,sold:'each',price:9},
   {id:'hinges',name:'Other hinges',match:/hinge/i,pack:1,sold:'each',price:4},
@@ -90,7 +111,15 @@ const HARDWARE_PRICES=[
   {id:'pulls',name:'Door and drawer pulls',match:/pulls|knobs/i,pack:1,sold:'each',price:3.5},
   {id:'catches',name:'Magnetic door catches',match:/catch/i,pack:1,sold:'each',price:2.5},
   {id:'latch',name:'Gate latch or hasp',match:/latch|hasp/i,pack:1,sold:'each',price:9},
-  {id:'rafter-ties',name:'Rafter ties',match:/rafter ties|hurricane/i,pack:1,sold:'each',price:1},
+  {id:'barrel-bolts',name:'Barrel bolts',match:/barrel bolts?/i,pack:1,sold:'each',price:6,search:'barrel bolt 4 in.'},
+  {id:'lid-support',name:'Soft-close lid support',match:/lid support/i,pack:1,sold:'each',price:12,search:'toy box lid support soft close'},
+  {id:'toggle-bolts',name:'Heavy-duty toggle bolts',match:/toggle bolts/i,pack:2,sold:'pack of 2',price:5,search:'heavy duty toggle bolt 1/4 in.'},
+  // framing hardware for sheds and other outdoor buildings
+  {id:'rafter-ties',name:'Metal hurricane ties',match:/rafter ties|hurricane/i,pack:1,sold:'each',price:1,search:'hurricane tie rafter to plate'},
+  {id:'joist-hangers',name:'Joist hangers',match:/joist hangers?/i,pack:1,sold:'each',price:1.8},
+  {id:'ground-anchors',name:'Ground anchors for a shed',match:/ground anchors/i,pack:1,sold:'each',price:15,search:'shed ground anchor auger with cable'},
+  {id:'roofing-nails',name:'Roofing nails',match:/roofing nails/i,pack:1,sold:'1 lb box',price:5,search:'roofing nails 1-1/4 in. 1 lb'},
+  {id:'landscape-fabric',name:'Landscape fabric',match:/landscape fabric/i,pack:50,sold:'roll of 3 ft × 50 ft',price:13,search:'landscape fabric 3 ft. x 50 ft.'},
   {id:'blocks',name:'Solid concrete blocks',match:/concrete blocks/i,pack:1,sold:'each',price:2.5,search:'solid concrete block 4 in. x 8 in. x 16 in.'},
   {id:'screw-eyes',name:'Screw eyes',match:/screw eyes/i,pack:1,sold:'each',price:1},
   {id:'chain',name:'Chain or rope',match:/chain or rope/i,pack:1,sold:'per foot',price:1,search:'chain by the foot'},
@@ -113,6 +142,8 @@ const PRICE_STORES=[
 /* how a store names a board of each wood (the keys are the wood ids of WOODS in js/style.js) */
 const WOOD_SEARCH_WORDS={pine:'lumber',select:'select pine board',poplar:'poplar board',cedar:'cedar lumber',
   pt:'pressure-treated lumber',oak:'red oak board',rough:'rough sawn lumber'};
+/* the wood of the design as the first words of a board's row on the shopping list; plain pine needs none */
+const WOOD_ROW_WORDS={select:'Select pine',poplar:'Poplar',cedar:'Cedar',pt:'Pressure-treated',oak:'Red oak',rough:'Rough-sawn'};
 
 /* ---------- 2. Dates, written the same way everywhere ---------- */
 const PRICE_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -229,7 +260,7 @@ function indexFor(kind){
 const cents=amount=>Math.round(amount*100)/100;
 /* the built-in estimate for an 8 ft board or one sheet in the wood of the design, before the price index */
 function lumberEstimate(m){
-  const dearer=WOODS[look().wood][2];                                      // how much dearer this wood is than pine
+  const dearer=m.treated?1:WOODS[look().wood][2];                          // how much dearer this wood is than pine (a treated board has a price of its own)
   return builtInPrice(m)*(m.kind==='sheet'?Math.pow(dearer,.6):dearer);    // plywood follows the wood only part of the way
 }
 /* an 8 ft board or one sheet of this material, in the wood of the design */
@@ -546,7 +577,8 @@ let shopNow=null; // {buy, hardware, model} of the shopping list drawn last, so 
 /* the words to type into a store's search box for one board or sheet */
 function lumberSearchWords(m,stock){
   if(m.kind==='sheet')return`${fmt(m.t).replace('"','')} in. x 4 ft. x 8 ft. plywood`;
-  const named=/^(\d+)x(\d+)$/.exec(m.id),wood=WOOD_SEARCH_WORDS[look().wood]||'lumber';
+  // a pressure-treated board is looked up by the plain size it is named after, as treated lumber
+  const named=/^(\d+)x(\d+)$/.exec(m.treated?m.nom:m.id),wood=m.treated?WOOD_SEARCH_WORDS.pt:WOOD_SEARCH_WORDS[look().wood]||'lumber';
   return named?`${named[1]} in. x ${named[2]} in. x ${stock/12} ft. ${wood}`:`${m.short} ${stock/12} ft. ${wood}`;
 }
 function hardwareSearchWords(label,family){
@@ -570,7 +602,9 @@ function shoppingModel(buy,hardware){
   const rows=[];
   for(const b of buy){
     const info=lumberPriceInfo(b.m.id),each=priceOf(b.m.id,b.stock);
-    rows.push({group:'lumber',name:b.stock?`${b.m.short}, ${b.stock/12} ft long`:`${b.m.short}, 4 ft × 8 ft sheet`,note:'',
+    // a board is named with its wood when that is not plain pine, so the list says what to ask for: "Cedar 2x6, 8 ft long"
+    const wood=b.m.treated?'':WOOD_ROW_WORDS[look().wood]||'';
+    rows.push({group:'lumber',name:b.stock?`${wood?wood+' ':''}${b.m.short}, ${b.stock/12} ft long`:`${b.m.short}, 4 ft × 8 ft sheet`,note:'',
       qty:b.qty,key:info.key,scale:b.stock?b.stock/96:1,each,info,total:cents(each*b.qty),words:lumberSearchWords(b.m,b.stock)});
   }
   const items=hardware?hardware.rows.slice():[];
@@ -1321,5 +1355,59 @@ SELFTESTS.push(function prices(problems){
   }finally{
     priceBook=keptBook;priceNotice=keptNotice;priceBusy=false;priceBookScratch=false;S.look=keptLook;shopNow=keptShop;
     refreshPriceViews(); // the line over the 3D view says what the real price book says again
+  }
+});
+
+/* Every hardware item a preset can put on the shopping list has an estimate. A preset's hw(p) is asked with its
+   default sizes, with each choice of each option, with each check box flipped, with each number at its limits
+   and with the other choices the preset declares (variants); an item no row of HARDWARE_PRICES matches would
+   show "no estimate" and be left out of the total, so it is reported here. */
+function presetHardwareVariants(preset){
+  const defaults=presetDefaults(preset),variants=[defaults];
+  const withValue=(key,value)=>variants.push({...defaults,[key]:value});
+  for(const q of preset.params){
+    if(!q.k)continue;
+    if(q.opts)q.opts.forEach(([value])=>withValue(q.k,value));
+    else if(q.check)withValue(q.k,!q.v);
+    else for(const limit of[q.min,q.max])if(limit!==undefined)withValue(q.k,limit);
+  }
+  for(const variant of preset.variants||[])variants.push({...defaults,...variant});
+  return variants;
+}
+SELFTESTS.push(function presetHardwarePrices(problems){
+  const missing=new Set();
+  for(const preset of PRESETS){
+    if(!preset.hw)continue;
+    for(const vals of presetHardwareVariants(preset)){
+      let rows=[];
+      try{rows=preset.hw(vals)||[];}
+      catch(e){continue;} // numbers the preset refuses; its check(p) is tried by the structural list
+      for(const[label]of rows)if(!hardwareFamily(label))missing.add(`${preset.name}: "${label}"`);
+    }
+  }
+  for(const item of missing)problems.push(`prices: no estimate for a hardware item a preset lists (add a row to HARDWARE_PRICES): ${item}`);
+  // a screw named the way a preset names it is priced by its length, like one named by a joint
+  const asPreset=hardwareFamily('Construction screws, 2 1/2" (posts to rails)'),asJoint=hardwareFamily('#8 × 2-1/2" wood screws');
+  if(!asPreset||!asJoint||asPreset.id!==asJoint.id)problems.push('prices: a 2 1/2 in. screw listed by a preset is not priced like the same screw at a joint');
+  const outdoor=hardwareFamily('Exterior screws, 1 5/8"'),indoor=hardwareFamily('Screws, 1 5/8" (corner braces down into the top shelf)');
+  if(!outdoor||!indoor||outdoor.id===indoor.id||!(outdoor.price>indoor.price))problems.push('prices: exterior screws are not priced apart from plain ones');
+  if((hardwareFamily('Corner braces (L-brackets), 4", to hold the unit to the wall')||{}).id!=='corner-braces')problems.push('prices: a 4 in. corner brace is priced as a small L-bracket');
+  if((hardwareFamily('1-1/2" L-brackets (corner braces)')||{}).id!=='brackets')problems.push('prices: the small L-bracket at a joint is priced as a 4 in. corner brace');
+  // A preset lists only what its joints do not already count: a screw of the same length from both would be on
+  // the shopping list twice. (Screws into the wall are extra, and say so in their name.)
+  for(const preset of PRESETS){
+    if(!preset.hw)continue;
+    let parts=[],own=[];
+    try{const vals=presetDefaults(preset);parts=preset.build(vals);own=preset.hw(vals)||[];}
+    catch(e){continue;}
+    const kept=S;
+    S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear'}}; // looked at as a new project, like assessParts in js/app.js
+    let atJoints;
+    try{atJoints=new Set(hardwareTotals(findJoints()).rows.map(([label])=>(hardwareFamily(label)||{}).id));}
+    finally{S=kept;}
+    for(const[label]of own){
+      const family=hardwareFamily(label);
+      if(family&&atJoints.has(family.id)&&!/wall|stud/i.test(label))problems.push(`prices: ${preset.name} lists "${label}" itself, and its joints already count the same screws: they would be bought twice`);
+    }
   }
 });

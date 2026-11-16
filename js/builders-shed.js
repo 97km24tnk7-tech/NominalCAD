@@ -1,69 +1,1050 @@
-/* NominalCAD: shed framing builder */
+/* NominalCAD: the shed. A framed garden shed that has to pass the structural check (js/verify.js) at every
+   size the form allows, or say in plain words why it cannot be built ("The preset rule" in README.md).
+
+   How it is built, from the ground up:
+     floor    4x4 skids, the outer two right under the front and back walls; a rim joist on each of those and
+              floor joists every 16" between them; 3/4" plywood deck with its sheet ends on joists
+     walls    2x4 studs measured from the outside corner, bottom plate, top plate and a cap plate that laps the
+              corners; at the door and each window a full stud, a trimmer stud and a doubled header sized for
+              the opening; 1/2" plywood sheathing, which is what stops the shed from leaning over.
+              The door and window openings are framed and left open (the owner: a plywood slab for a door
+              "seems silly", they "should just be openings"). "Add a plywood door" (p.door) and "Show the
+              window" (p.glass) are options of the form, off to start with; the door's pieces, hinges,
+              latch and building step are there only when its option is on.
+     gable    a ridge board, pairs of rafters notched over the front and back walls, a rafter tie across the shed
+              no more than 4 ft apart so the walls cannot spread, gable studs under the two end pairs
+     lean-to  the front wall is taller; the side walls follow the slope under a sloped rake plate; rafters run
+              from the back wall to the front wall
+   Rafters, floor joists and headers are picked with beamCheck (js/verify.js), the same sums the check uses.
+
+   shedPlan(p) makes every decision once: sizes, lumber, where the openings go, and the list of things that
+   cannot work (plan.problems, which is what the preset's check(p) returns). buildShed, shedNotes, shedSteps
+   and shedHardware all read the same plan, so the drawing, the notes and the instructions cannot disagree.
+
+   World axes: X = left to right (the ridge of a gable runs this way), Y = up, Z = back (0) to front. */
 'use strict';
-/* Shed: simplified stick framing (floor on skids, four stud walls, single-slope roof). Not engineered plans. */
-function tile(P,name,mat,t,x0,z0,W,D,y){ // flat panels no bigger than 8 ft x 4 ft
-  const nx=Math.ceil(W/96-1e-6),nz=Math.ceil(D/48-1e-6);
-  for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)P.push(mk(name,mat,[W/nx,t,D/nz],[x0+i*W/nx,y,z0+j*D/nz]));}
-function shedWall(P,alongX,ox,oz,len,y,h,sp,ops,outer){
-  // ops: openings in wall coordinates {u0,u1,bot,top}; bot = 0 is a door. outer = which face is outside (0 or 1)
-  const put=(name,mat,u,ul,yy,yl,n0,nl)=>{const q=alongX?mk(name,mat,[ul,yl,nl],[ox+u,yy,oz+n0]):mk(name,mat,[nl,yl,ul],[ox+n0,yy,oz+u]);P.push(q);return q;};
-  const acc=[];
-  for(let o of ops){const w=Math.min(o.u1-o.u0,len-9),u0=Math.max(4.5,Math.min(o.u0,len-4.5-w));o={...o,u0,u1:u0+w,top:Math.min(o.top,h-8.5)};
-    if(w>=6&&o.top-o.bot>=6&&acc.every(a=>o.u1+3<=a.u0||o.u0>=a.u1+3))acc.push(o);}
-  ops=acc;
-  let segs=[[0,len]];for(const o of ops)if(o.bot<=0)segs=segs.flatMap(([a,b])=>o.u0>a&&o.u1<b?[[a,o.u0],[o.u1,b]]:[[a,b]]);
-  for(const[a,b]of segs)put('Bottom plate','2x4',a,b-a,y,1.5,0,3.5);
-  put('Top plate','2x4',0,len,y+h-1.5,1.5,0,3.5);
-  const reg=[0];for(let c=sp;c<len-2.25;c+=sp)reg.push(c-.75);reg.push(len-1.5);
-  let us=reg.slice();
-  for(const o of ops){us=us.filter(u=>u+1.5<=o.u0-1.5+1e-6||u>=o.u1+1.5-1e-6);us.push(o.u0-1.5,o.u1);}
-  us=[...new Set(us.map(r16))].sort((a,b)=>a-b);const keep=[];
-  for(const u of us)if(!keep.length||u>=keep[keep.length-1]+1.5-1e-6)keep.push(u);
-  for(const u of keep)put('Stud','2x4',u,1.5,y+1.5,h-3,0,3.5);
-  for(const o of ops){const w=o.u1-o.u0;
-    put('Header','2x6',o.u0,w,y+o.top,5.5,0,1.5);put('Header','2x6',o.u0,w,y+o.top,5.5,1.5,1.5);
-    if(o.bot>0)put('Sill','2x4',o.u0,w,y+o.bot-1.5,1.5,0,3.5);
-    for(const u of reg){if(u<o.u0+1e-6||u+1.5>o.u1-1e-6)continue;
-      const hi=h-1.5-(o.top+5.5);if(hi>=2)put('Cripple','2x4',u,1.5,y+o.top+5.5,hi,0,3.5);
-      const lo=o.bot-3;if(o.bot>0&&lo>=2)put('Cripple','2x4',u,1.5,y+1.5,lo,0,3.5);}
-    if(o.bot<=0)put('Shed door','ply34',o.u0+.25,w-.5,y+.25,o.top-.5,outer?2.75:0,.75);
-    else put('Window','glass',o.u0,w,y+o.bot,o.top-o.bot,1.25,1);
-  }
-  return ops;
+
+const SHED={
+  WALL:3.5,            // thickness of a 2x4 wall
+  OVERHANG:6,          // how far the roof reaches past the front and back walls, measured level
+  RAFTER_EVERY:24,     // rafters, on center
+  JOIST_EVERY:16,      // floor joists, on center
+  SKID_EVERY:72,       // skids are never further apart than this
+  TIE_EVERY:48,        // rafter ties are never further apart than this
+  NAIL_LB:115,         // what one 3" (10d) common nail holds sideways in spruce framing lumber, by rule of thumb
+  TIE_MIN_NAILS:4,     // never fewer nails than this at each end of a rafter tie
+  TIE_MAX_NAILS:6,     // ties 4 ft apart are used only when this many nails at each end can take the push
+  RAFTERS:['2x4','2x6','2x8','2x10','2x12'],
+  JOISTS:['2x6','2x8'],
+  HEADERS:['2x6','2x8','2x10','2x12'],   // always doubled
+  RIDGES:['2x4','2x6','2x8','2x10','2x12'],
+  MARGIN:.97,          // a member is picked when it uses no more than this much of its limit
+  GABLE_MIN_PITCH:3,   // flatter than this the rafters push the walls apart harder than ties should be trusted with
+  TALLEST_WALL:120,    // 2x4 studs are not used taller than 10 ft; this is what limits the slope of a lean-to
+  CORNER:4.5,          // nearest an opening may come to the end of its wall: corner stud, full stud, trimmer stud
+  BETWEEN:6,           // least solid wall between two openings: trimmer and full stud for each
+  BRACE:24,            // a stretch of sheathed wall at least this wide braces the wall
+  PIER:12,             // with nothing wider than this between openings, on either of two facing walls, nothing braces them
+  SLIVER:8,            // no sheet of plywood narrower than this along a wall
+  STRIP:3,             // a strip of sheathing lower than this, or a block shorter than this, is left out
+  SHEATHING:.5,        // the wall sheathing is 1/2" plywood
+  DOOR_THICK:.75,      // the optional door ("Add a plywood door") is 3/4" plywood
+  DOOR_GAP:.25,        // the gap round that door, and between the two doors of a pair
+  DOOR_SHEET:48        // a sheet of plywood is 4 ft wide, so an opening wider than this gets a pair of doors
+};
+/* what the structural check should take each piece for (keys of USES in js/verify.js) */
+const SHED_USES={'Skid':'floor','Rim joist':'floor','Floor joist':'floor','Floor deck':'floor',
+  'Top plate':'roof','Cap plate':'roof','Rake plate':'roof','Header':'roof','Rafter':'roof','Roof deck':'roof',
+  'Bottom plate':'roof','Stud':'roof','Trimmer stud':'roof','Cripple':'roof','Gable stud':'roof',
+  'Ridge board':'none','Rafter tie':'none','Sill':'none','Blocking':'none','Wall sheathing':'none','Shed door':'door'};
+
+/* How the shed is fastened: the preset's `joints` list, [piece name, piece name, fastener type] (the types are
+   rows of JTYPES in js/joints.js). A shed is nailed, not put together with pocket screws and glue, which is
+   what the program would suggest from the shapes of the pieces alone:
+     frame     nailed straight through (js/framing.js picks the piece the nail goes through, turns plywood into
+               nails by spacing, and gives a wall plate on the floor deck long screws down into the floor frame)
+     toenail   nailed at an angle, for a piece that stands on one already in place
+     none      the two only touch: the edges of two sheets of plywood, where no fastener can hold
+   The floor deck is nailed like the rest of the plywood (screws would bring wood glue and clamps onto the lists,
+   which nobody uses on a shed floor). A pair that is not listed would keep the program's suggestion; the
+   self-check at the end of this file makes sure no pair is left to it.
+   Rafters, rake plates and the roof deck are rotated pieces, which have no joints; shedRoofFasteners counts
+   their nails and writes their lines. */
+const SHED_JOINTS=(()=>{
+  const framing=['Rim joist','Floor joist','Bottom plate','Top plate','Cap plate','Stud','Trimmer stud','Header','Cripple','Sill','Blocking','Gable stud'];
+  return[
+    // floor
+    ['Rim joist','Skid','toenail'],['Floor joist','Skid','toenail'],['Floor joist','Rim joist','frame'],
+    ['Floor deck','Floor joist','frame'],['Floor deck','Rim joist','frame'],
+    ['Floor deck','Floor deck','none'],['Floor deck','Wall sheathing','none'],['Wall sheathing','Wall sheathing','none'],
+    // walls: studs between plates, and the wall down to the floor
+    ['Bottom plate','Floor deck','frame'],
+    ...['Stud','Trimmer stud','Cripple'].flatMap(stud=>[['Bottom plate',stud,'frame'],[stud,'Top plate','frame']]),
+    ['Stud','Stud','frame'],['Stud','Trimmer stud','frame'],['Header','Stud','frame'],['Header','Trimmer stud','frame'],['Cripple','Header','frame'],
+    ['Sill','Trimmer stud','frame'],['Cripple','Sill','frame'],['Blocking','Stud','frame'],['Blocking','Trimmer stud','frame'],['Blocking','Cripple','frame'],
+    ['Stud','Cap plate','frame'],
+    // plates at the corners and on top
+    ['Bottom plate','Bottom plate','toenail'],['Top plate','Top plate','toenail'],['Cap plate','Cap plate','toenail'],['Cap plate','Top plate','frame'],
+    // what stands on the cap plates once the walls are up
+    ['Cap plate','Rafter tie','toenail'],['Cap plate','Gable stud','toenail'],['Gable stud','Ridge board','toenail'],
+    // plywood on the frame
+    ...framing.map(name=>[name,'Wall sheathing','frame'])];
+})();
+
+/* ---------- small helpers ---------- */
+/* a number from the form, or the fallback when it cannot be read, kept between lo and hi */
+function shedNumber(value,fallback,lo,hi){
+  const v=Number.isFinite(+value)?+value:fallback;
+  return r16(Math.min(hi,Math.max(lo,v)));   // to the nearest 1/16", so that pieces cut from these sizes meet exactly
 }
-function shedPlan(p){const W=Math.max(p.W,48),D=Math.max(p.D,48),Hb=Math.max(p.Hb,60),rise=r16(Math.max(0,p.pitch)/12*(D-3.5));
-  return{W,D,Hb,Hf:Hb+rise,F:9.75,rise,ang:Math.atan2(rise,D-3.5),rm:D>100?'2x6':'2x4'};}
+/* The smallest board of `sizes` that carries `lbPerInchOf(section)` over `span` inches within the limits of the
+   use. plies = 2 for a doubled header. Returns {mat, ratio, good} (good = the longest span it could make), or null. */
+function shedPickBeam(sizes,span,lbPerInchOf,useKey,plies){
+  for(const mat of sizes){
+    const section=sectionOf((plies||1)*M[mat].t,M[mat].w,false),load=lbPerInchOf(section);
+    const result=beamCheck(section,span,load,useKey);
+    if(result.ratio<=SHED.MARGIN)return{mat,ratio:result.ratio,good:maxSpanFor(section,load,useKey)};
+  }
+  return null;
+}
+/* Left edges of 1 1/2" members along a run: one at each end, and one centered on every multiple of `every`
+   measured from the outside corner of the building, which is `offset` before the start of the run. One that
+   would run into the member at the far end stands tight against it instead, so that no two are ever further
+   apart than `every` (the roof deck and the floor deck are only good for that much). */
+function shedLayout(length,every,offset){
+  const out=[0];
+  for(let center=every;;center+=every){
+    let edge=center-.75-offset;
+    if(edge>=length-1.5-1e-6)break;           // at or past the end member
+    if(edge>length-3)edge=length-3;           // it would overlap the end member
+    if(edge>=1.5-1e-6)out.push(edge);
+  }
+  out.push(length-1.5);
+  return out;
+}
+/* Cuts the stretch from a to b into sheets no wider than maxWidth. Every cut lands on a multiple of `every`,
+   which is the middle of a stud, joist or rafter, and no sheet is a sliver. Returns [[from, to], ...]. */
+function shedBreaks(a,b,every,maxWidth){
+  const out=[];
+  let cur=a;
+  while(b-cur>maxWidth+1e-6){
+    let next=Math.floor((cur+maxWidth+1e-6)/every)*every;
+    if(b-next<SHED.SLIVER)next-=every;
+    if(next<=cur+1e-6)next=cur+maxWidth;
+    out.push([cur,next]);
+    cur=next;
+  }
+  out.push([cur,b]);
+  return out;
+}
+
+/* ---------- the plan ---------- */
+function shedPlan(p){
+  const problems=[];
+  const stop=(text,fix)=>{if(!problems.some(f=>f.text===text))problems.push({level:'stop',text,fix});};
+  const W=shedNumber(p.W,120,48,192),D=shedNumber(p.D,96,48,144),Hb=shedNumber(p.Hb,84,72,96);
+  const lean=p.roof==='lean',sp=+p.sp===24?24:16,T=SHED.WALL;
+
+  // the roof slope
+  const asked=Number.isFinite(+p.pitch)?Math.min(24,Math.max(0,+p.pitch)):4;
+  let pitch=Math.min(12,Math.max(1,asked));
+  if(!lean&&asked<SHED.GABLE_MIN_PITCH){
+    stop(`A gable roof this flat (${asked} in 12) cannot be built this way. The flatter the roof, the harder the rafters push the tops of the walls outward, and below ${SHED.GABLE_MIN_PITCH} in 12 that push is more than rafter ties and nails should be trusted with.`,
+      `Use a slope of ${SHED.GABLE_MIN_PITCH} or more, or choose the lean-to roof, which can be as flat as 1 in 12.`);
+    pitch=SHED.GABLE_MIN_PITCH;
+  }
+  // A lean-to may be as steep as the form allows. A steep one looks odd, but it stands: what stops it is the
+  // height of its front wall (see TALLEST_WALL below), never the slope by itself.
+  const deg=Math.round(Math.atan(pitch/12)*18000/Math.PI)/100,ang=deg*Math.PI/180;
+  const tan=Math.tan(ang),cos=Math.cos(ang),sin=Math.sin(ang);
+
+  // The notch (birdsmouth) that sits on the wall: as long as the plate is wide, but never deeper than a third
+  // of the board, so on a steep roof it is short and the rafter bears on the outer edge of the wall only.
+  const seatFor=mat=>Math.min(T,Math.floor(M[mat].w/3/sin*16)/16);
+  // The span of a rafter, measured on the level the way the structural check measures it: between the middles
+  // of its bearings, and no more than 1 3/4" into each. A lean-to rafter runs from wall to wall; a gable
+  // rafter from its seat to the ridge, so a short seat makes the span a little longer.
+  const spanFor=mat=>{
+    const seat=seatFor(mat);
+    return lean?D-T:D/2-.75-seat+Math.min(seat/2,1.75)+1.75;
+  };
+  // rafters: the smallest board that carries the roof over its own span
+  const roofLoad=section=>USES.roof.psf/144*SHED.RAFTER_EVERY+WOOD_RULES.DENSITY*section.A;
+  let rafter=null;
+  for(const mat of SHED.RAFTERS){
+    rafter=shedPickBeam([mat],spanFor(mat),roofLoad,'roof');
+    if(rafter)break;
+  }
+  const rafterSpan=spanFor(rafter?rafter.mat:'2x12');
+  if(!rafter){
+    stop(`No rafter up to a 2x12 can span ${fmtFt(r16(rafterSpan))} under a roof load of ${USES.roof.psf} lb per square foot.`,
+      lean?'Make the shed shallower, or choose the gable roof, whose rafters span half as far.':'Make the shed shallower.');
+    rafter={mat:'2x12',ratio:1,good:rafterSpan};
+  }
+  const depth=M[rafter.mat].w,plumb=depth/cos,seat=seatFor(rafter.mat);
+
+  // Rafter ties (gable). Each pair of rafters pushes the tops of the walls apart with about
+  //   (roof load on the pair, per inch of shed depth) x depth / (4 x rise over run)   pounds,
+  // so a flat roof on a deep shed pushes hardest. A tie takes the push of every pair up to the next tie and
+  // hands it to the rafters through the nails at its ends, so the nails decide how far apart the ties may be:
+  // 4 ft when a few nails can take it, otherwise a tie beside every pair. Within the limits of the form the
+  // hardest case (12 ft deep at 3 in 12, a tie at every pair) needs 7 nails, which fit in that long overlap.
+  const pushPerPair=USES.roof.psf/144*SHED.RAFTER_EVERY*D/(4*tan);
+  const tieNails=every=>Math.max(SHED.TIE_MIN_NAILS,Math.ceil(pushPerPair*every/SHED.RAFTER_EVERY/SHED.NAIL_LB-1e-6));
+  const tieEvery=tieNails(SHED.TIE_EVERY)<=SHED.TIE_MAX_NAILS?SHED.TIE_EVERY:SHED.RAFTER_EVERY;
+  const tie={every:tieEvery,nails:tieNails(tieEvery),push:Math.round(pushPerPair*tieEvery/SHED.RAFTER_EVERY)};
+
+  // floor: skids no further apart than SKID_EVERY, and the smallest joist that spans between them
+  const floorLoad=section=>USES.floor.psf/144*SHED.JOIST_EVERY+WOOD_RULES.DENSITY*section.A;
+  const skidCount=Math.max(2,Math.ceil((D-T)/SHED.SKID_EVERY-1e-6)+1),joistSpan=(D-T)/(skidCount-1);
+  const joist=shedPickBeam(SHED.JOISTS,joistSpan,floorLoad,'floor')||{mat:'2x8',ratio:1,good:joistSpan};
+  const skids=[];
+  for(let i=0;i<skidCount;i++)skids.push(r16(i*(D-T)/(skidCount-1)));
+  const F=3.5+M[joist.mat].w+.75;                       // top of the floor deck above the ground
+
+  // wall heights
+  // (rounded down to 1/16": a front wall a hair too tall would make the rafter notch deeper than it may be)
+  const Hf=lean?Math.floor((Hb+(D-T)*tan)*16+1e-6)/16:Hb;
+  if(lean&&Hf>SHED.TALLEST_WALL+1e-6){
+    // the steepest slope, to one decimal, that keeps the front wall within the limit at this depth and back wall
+    const steepest=Math.floor((SHED.TALLEST_WALL-Hb)/(D-T)*120)/10;
+    stop(`The front wall of this lean-to would be ${fmtFt(Hf)} tall: at ${pitch} in 12 the roof climbs ${fmtFt(r16(Hf-Hb))} over a shed ${fmtFt(D)} deep. 2x4 studs should not stand taller than ${fmtFt(SHED.TALLEST_WALL)}: they bow, and a wall that tall catches the wind.`,
+      `Use a slope of ${steepest} in 12 or less with these sizes, lower the back wall, make the shed shallower, or choose the gable roof: its peak is in the middle, so the walls stay ${fmtFt(Hb)} tall at any slope up to 12 in 12.`);
+  }
+
+  // gable: the ridge board is as deep as the plumb cut on the rafters, unless that would foul the rafter ties
+  const ridgeTop=(D/2-.75-seat)*tan+plumb;              // above the top of the walls
+  let ridge=SHED.RIDGES.find(mat=>M[mat].w>=plumb-1e-6)||'2x12';
+  if(ridgeTop-M[ridge].w<3.5){
+    const lower=SHED.RIDGES.filter(mat=>M[mat].w>=depth-1e-6&&ridgeTop-M[mat].w>=3.5).pop();
+    if(lower)ridge=lower;
+  }
+  // a rafter tie is a 2x4 on edge; its ends stop where its top corner would poke through the roof
+  const tieClip=Math.min(2.5,Math.max(0,Math.ceil((seat+(3.5-plumb)/tan)*16)/16));
+
+  // the four walls. u runs along a wall from its start; side walls fit between the front and back walls.
+  const walls={
+    back: {key:'back', label:'back wall', alongX:true, ox:0,  oz:0,  len:W,    outer:0,offset:0,bearing:true, height:Hb},
+    front:{key:'front',label:'front wall',alongX:true, ox:0,  oz:D-T,len:W,    outer:1,offset:0,bearing:true, height:Hf},
+    left: {key:'left', label:'left wall', alongX:false,ox:0,  oz:T,  len:D-2*T,outer:0,offset:T,bearing:false,height:Hb},
+    right:{key:'right',label:'right wall',alongX:false,ox:W-T,oz:T,  len:D-2*T,outer:1,offset:T,bearing:false,height:Hb}};
+  // how far the sheathing stops below the top of a wall the rafter tails pass over
+  const tailDrop=Math.ceil(((seat+.5)*tan+.125)*16)/16;
+  for(const wall of Object.values(walls)){
+    wall.ops=[];
+    wall.outside=wall.len+2*wall.offset;   // corner to corner of the building, which is the length a person measures
+    wall.raked=lean&&!wall.alongX;
+    // where the studs end, above the floor deck: under the two plates, or under the sloped rake plate
+    wall.studTop=wall.raked?u=>Hb+(T+u-seat)*tan-1.5/cos:()=>wall.height-3;
+    wall.cap=wall.raked?null:lean?[0,wall.len]:wall.alongX?[T,wall.len-T]:[-T,wall.len+T];
+    // sheathing goes up to the top of the wall; on a side wall of a lean-to, level with its low end (the sloped
+    // strip above that is cut on site to follow the roof)
+    // Where a rafter or the rake plate passes right over the top edge it stops 1/4" short: the roof sits on the
+    // plates, never on the edge of the plywood.
+    wall.sheathTop=wall.raked?r16(F+wall.studTop(0))-.25
+      :wall.key==='back'||(wall.key==='front'&&!lean)?F+wall.height-tailDrop
+      :lean?F+wall.height-.25:F+wall.height;
+    // One sheet covers 8 ft. It starts at the top of the skids when it reaches the top of the wall from there,
+    // otherwise it hangs from the top of the wall; a wall too tall for either gets a second row of sheets.
+    const top=wall.sheathTop;
+    wall.sheathBottom=top-3.5<=96?3.5:top-F<=96?top-96:3.5;
+    // A level joint between sheets needs wood behind it (blocking). Height above the floor deck of that joint:
+    // between two rows of sheets, or along the top edge of the sheets on a raked wall, where the sloped piece
+    // the builder cuts to the roof begins. null when the sheets end on the plates.
+    wall.sheathJoint=top-wall.sheathBottom>96+1e-6?wall.sheathBottom+96-F:wall.raked?top-F:null;
+  }
+
+  // headers: doubled, sized for the opening and for how much roof the wall carries
+  const lineLoad=wall=>USES.roof.psf/144*(wall.bearing?D/2+SHED.OVERHANG:SHED.RAFTER_EVERY);
+  const headerFor=(wall,width)=>shedPickBeam(SHED.HEADERS,width+1.5,section=>lineLoad(wall)+WOOD_RULES.DENSITY*section.A,'roof',2);
+  /* an opening between u0 and u1, from `bot` to `top` above the floor deck. The header sits on top of it, or
+     tight under the plate when less than a cripple stud's worth of space would be left above it. */
+  const addOpening=(wall,kind,u0,width,bot,top,header)=>{
+    const room=wall.studTop(u0-1.5),deep=M[header].w;
+    wall.ops.push({kind,u0,u1:u0+width,bot,top,header,hy:room-(top+deep)<1.5?Math.floor((room-deep)*16)/16:top});
+    wall.ops.sort((a,b)=>a.u0-b.u0);
+  };
+
+  // the door
+  const doorWall=walls[p.dwall]||walls.front,doorRoom=doorWall.len-2*SHED.CORNER;
+  let dw=shedNumber(p.dw,36,12,96),dh=shedNumber(p.dh,72,24,120),du;
+  if(dw>doorRoom+1e-6){
+    stop(`The door is ${fmt(dw)} wide, but the ${doorWall.label} is only ${fmtFt(doorWall.outside)} long on the outside. With a corner stud, a full stud and a trimmer stud on each side there is room for a door up to ${fmt(doorRoom)} wide.`,
+      'Make the door narrower, put it on a longer wall, or make the shed bigger.');
+    dw=doorRoom;
+  }
+  // The door's distance is measured the way a person standing outside and facing the wall would measure it:
+  // from the outside corner on their left to the near edge of the door. On the back wall and the right wall
+  // that corner is at the far end of the wall as this plan counts along it (u runs left to right seen from the
+  // front, and back to front), so the distance is turned round there.
+  const doff=shedNumber(p.doff,0,0,1200);
+  if(doff>0){
+    const fromStart=doff-doorWall.offset,turned=doorWall.key==='back'||doorWall.key==='right';
+    du=turned?doorWall.len-fromStart-dw:fromStart;
+    if(du<SHED.CORNER-1e-6||du+dw>doorWall.len-SHED.CORNER+1e-6){
+      // to the 1/16" like every other size; rounded inward so that both ends of the range really fit
+      const nearest=Math.ceil((doorWall.offset+SHED.CORNER)*16-1e-6)/16,furthest=Math.floor((doorWall.offset+doorWall.len-SHED.CORNER-dw)*16+1e-6)/16;
+      const where=furthest>nearest+1e-6?`between ${fmt(nearest)} and ${fmt(furthest)}`:fmt(nearest);   // one number when there is only one place for it
+      stop(`A ${fmt(dw)} door set ${fmt(doff)} from the corner does not fit on the ${doorWall.label}, which is ${fmtFt(doorWall.outside)} long on the outside. It needs a corner stud, a full stud and a trimmer stud between it and each corner.`,
+        `Set it ${where} from the corner, or type 0 to center it.`);
+      du=Math.min(Math.max(du,SHED.CORNER),doorWall.len-SHED.CORNER-dw);
+    }
+  }else du=r16((doorWall.len-dw)/2);
+  let doorHeader=headerFor(doorWall,dw);
+  if(!doorHeader){
+    stop(`A door ${fmt(dw)} wide in the ${doorWall.label} needs a header stronger than a doubled 2x12 to carry the roof above it.`,
+      'Make the door narrower, or put it in a side wall, which carries much less of the roof.');
+    doorHeader={mat:'2x12'};
+  }
+  const doorTop=doorWall.studTop(du-1.5)-M[doorHeader.mat].w;
+  if(dh>doorTop+1e-6){
+    stop(`The door is ${fmt(dh)} tall. With the doubled ${doorHeader.mat} header over it, it needs ${fmt(dh+M[doorHeader.mat].w)} under the top plates, but the ${doorWall.label} has only ${fmt(r16(doorTop+M[doorHeader.mat].w))} there.`,
+      `Make the door ${fmt(Math.floor(doorTop))} or shorter, or make the walls taller${lean&&doorWall.key!=='front'?', or put the door in the taller front wall':''}.`);
+    dh=Math.floor(doorTop);
+  }
+  addOpening(doorWall,'door',du,dw,0,dh,doorHeader.mat);
+
+  // the windows: shared out over the wall or walls chosen, either side of a door on the same wall
+  const windowWalls=p.wwall==='both'?[walls.left,walls.right]:[walls[p.wwall]||walls.right];
+  const wanted=new Map(windowWalls.map(wall=>[wall,0]));
+  const windowCount=Math.round(shedNumber(p.wn,1,0,24));
+  for(let i=0;i<windowCount;i++){
+    const wall=windowWalls[i%windowWalls.length];
+    wanted.set(wall,wanted.get(wall)+1);
+  }
+  const ww=shedNumber(p.ww,24,6,96),wh=shedNumber(p.wh,24,6,96),sill=shedNumber(p.sill,40,6,96);
+  for(const[wall,count]of wanted){
+    if(!count)continue;
+    const door=wall.ops.find(o=>o.kind==='door');
+    const free=door?[[SHED.CORNER,door.u0-SHED.BETWEEN],[door.u1+SHED.BETWEEN,wall.len-SHED.CORNER]]:[[SHED.CORNER,wall.len-SHED.CORNER]];
+    const room=free.map(([a,b])=>Math.max(0,Math.floor((b-a+SHED.BETWEEN+1e-6)/(ww+SHED.BETWEEN))));
+    const fits=room.reduce((sum,n)=>sum+n,0);
+    if(count>fits){
+      stop(`${count} window${count>1?'s':''} ${fmt(ww)} wide ${count>1?'do':'does'} not fit on the ${wall.label}, which is ${fmtFt(wall.outside)} long on the outside${door?' and has the door in it':''}. Each window needs a trimmer stud and a full stud on both sides. There is room for ${fits||'none'}.`,
+        'Ask for fewer or narrower windows, or put them on a longer wall or on both side walls.');
+    }
+    let header=headerFor(wall,ww);
+    if(!header){
+      stop(`A window ${fmt(ww)} wide in the ${wall.label} needs a header stronger than a doubled 2x12.`,'Make the windows narrower.');
+      header={mat:'2x12'};
+    }
+    const share=room.map(()=>0);
+    for(let left=Math.min(count,fits),i=0;left>0;i++){
+      const k=i%room.length;
+      if(share[k]<room[k]){share[k]++;left--;}
+    }
+    free.forEach(([a,b],k)=>{
+      const n=share[k];
+      if(!n)return;
+      const between=Math.max(SHED.BETWEEN,(b-a-n*ww)/(n+1)),ends=(b-a-n*ww-(n-1)*between)/2;
+      for(let i=0;i<n;i++){
+        const u0=r16(a+ends+i*(ww+between)),top=wall.studTop(u0-1.5)-M[header.mat].w;
+        let height=wh;
+        if(sill+wh>top+1e-6){
+          stop(`The windows reach ${fmt(sill+wh)} above the floor. With the doubled ${header.mat} header over them they need ${fmt(sill+wh+M[header.mat].w)} under the top plate, but the ${wall.label} has only ${fmt(r16(top+M[header.mat].w))} there.`,
+            `Lower the windows or make them shorter (the top of the glass can be at most ${fmt(Math.floor(top))} above the floor), or make the walls taller.`);
+          height=Math.floor(top)-sill;
+        }
+        if(height>=6)addOpening(wall,'window',u0,ww,sill,sill+height,header.mat);
+      }
+    });
+  }
+
+  // bracing: each way the shed could lean, one of the two walls that resist it needs a solid sheathed stretch
+  for(const wall of Object.values(walls)){
+    const total=wall.alongX?W:D;
+    let from=0,widest=0;
+    for(const o of wall.ops){widest=Math.max(widest,wall.offset+o.u0-from);from=wall.offset+o.u1;}
+    wall.solid=Math.max(widest,total-from);
+  }
+  for(const[a,b,way]of[[walls.front,walls.back,'left or right'],[walls.left,walls.right,'forward or back']]){
+    const widest=Math.max(a.solid,b.solid);
+    if(widest>=SHED.BRACE)continue;
+    // narrow piers between openings brace a little (marginal); next to nothing cannot work
+    problems.push({level:widest>=SHED.PIER?'warn':'stop',
+      text:`Neither the ${a.label} nor the ${b.label} has a solid stretch at least ${fmt(SHED.BRACE)} wide between its corners and openings (the widest is ${fmt(r16(widest))}). The plywood sheathing on those stretches is all that stops the shed from leaning ${way}`+
+        (widest>=SHED.PIER?', and narrow strips between openings do that job poorly.':'.'),
+      fix:'Make the door or the windows narrower, ask for fewer windows, or move some of them to another wall.'});
+  }
+
+  // The openings are framed and left open. Two options of the form put something in them; neither changes a
+  // single piece of the framing, so the bracing rule above and every other check hold with them on or off.
+  const windowOpenings=Object.values(walls).flatMap(wall=>wall.ops).filter(o=>o.kind==='window');
+  return{W,D,Hb,Hf,F,lean,pitch,deg,ang,tan,cos,sin,sp,seat,walls,problems,skids,
+    plywoodDoor:!!p.door,          // "Add a plywood door": off, the door opening is framed and left open
+    doorLeaves:p.door?shedDoorLeaves(dw):0,   // how many plywood doors are built: none, one, or a pair in a wide opening
+    showWindows:!!p.glass,         // "Show the window": off, the window openings are framed and left open
+    windowCount:windowOpenings.length,
+    windowSize:windowOpenings.length?[ww,windowOpenings[0].top-windowOpenings[0].bot]:null,   // width and height of each opening
+    rafter:{mat:rafter.mat,depth,plumb,span:rafterSpan,good:rafter.good},
+    joist:{mat:joist.mat,span:joistSpan,good:joist.good},
+    ridge:{mat:ridge,top:ridgeTop},tieClip,tie,
+    rafterEdges:shedLayout(W,SHED.RAFTER_EVERY,0),
+    peak:lean?F+Hf+(T-seat+SHED.OVERHANG)*tan+plumb:F+Hb+(D/2-seat)*tan+plumb};
+}
+
+/* ---------- building it ---------- */
+function shedFloor(P,plan){
+  const{W,D,joist}=plan,deep=M[joist.mat].w;
+  // the skids and the floor frame are pressure-treated boards (materials of their own, js/core.js): they sit near the ground
+  const floorMat=treatedMat(joist.mat);
+  for(const z of plan.skids)P.push(mk('Skid',treatedMat('4x4'),[W,3.5,3.5],[0,0,z]));
+  P.push(mk('Rim joist',floorMat,[W,deep,1.5],[0,3.5,0]),mk('Rim joist',floorMat,[W,deep,1.5],[0,3.5,D-1.5]));
+  for(const x of shedLayout(W,SHED.JOIST_EVERY,0))P.push(mk('Floor joist',floorMat,[1.5,deep,D-3],[x,3.5,1.5]));
+  // the sheets lie with their long side across the joists, and their ends on the middle of a joist
+  const rows=Math.ceil(D/48-1e-6);
+  for(const[x0,x1]of shedBreaks(0,W,SHED.JOIST_EVERY,96)){
+    for(let row=0;row<rows;row++){
+      const z0=r16(row*D/rows),z1=r16((row+1)*D/rows);
+      P.push(mk('Floor deck','ply34',[x1-x0,.75,z1-z0],[x0,3.5+deep,z0]));
+    }
+  }
+}
+/* one framed wall: plates, studs, and the framing round each opening */
+function shedWall(P,plan,wall){
+  const T=SHED.WALL,len=wall.len;
+  // a piece in wall coordinates: u along the wall, y above the floor deck, n through the wall
+  const put=(name,mat,u,ul,y,yl,n0,nl)=>{
+    P.push(wall.alongX?mk(name,mat,[ul,yl,nl],[wall.ox+u,plan.F+y,wall.oz+n0]):mk(name,mat,[nl,yl,ul],[wall.ox+n0,plan.F+y,wall.oz+u]));
+  };
+  // a stud is cut to its long point: under a sloped plate that is its higher side
+  const longPoint=u=>Math.max(wall.studTop(u),wall.studTop(u+1.5));
+  const uprights=[];   // every upright of this wall: where it stands and from where to where it goes (for the blocking)
+  const upright=(name,u,from,to)=>{
+    if(to-from<1.5-1e-6)return;
+    put(name,'2x4',u,1.5,from,to-from,0,T);
+    // A block exactly as tall as a 2x4 is wide (a 3 1/2" cripple) could be read as lying through the wall. It
+    // stands like every other upright: its length is its height, so it is nailed into its end like the rest.
+    const piece=P[P.length-1];
+    if(piece.ax[0]!==1)piece.ax=[1,3-1-piece.ax[2],piece.ax[2]];
+    uprights.push({u,from,to});
+  };
+
+  let plates=[[0,len]];
+  for(const o of wall.ops){
+    if(o.kind==='door')plates=plates.flatMap(([a,b])=>o.u0>a&&o.u1<b?[[a,o.u0],[o.u1,b]]:[[a,b]]);
+  }
+  for(const[a,b]of plates)put('Bottom plate','2x4',a,b-a,0,1.5,0,T);
+  if(!wall.raked){
+    put('Top plate','2x4',0,len,wall.height-3,1.5,0,T);
+    put('Cap plate','2x4',wall.cap[0],wall.cap[1]-wall.cap[0],wall.height-1.5,1.5,0,T);
+  }
+  const layout=shedLayout(len,plan.sp,wall.offset);
+  const atOpening=u=>wall.ops.some(o=>u<o.u1+3-1e-6&&u+1.5>o.u0-3+1e-6);
+  for(const u of layout)if(!atOpening(u))upright('Stud',u,1.5,longPoint(u));
+
+  for(const o of wall.ops){
+    const deep=M[o.header].w,width=o.u1-o.u0;
+    upright('Stud',o.u0-3,1.5,longPoint(o.u0-3));
+    upright('Stud',o.u1+1.5,1.5,longPoint(o.u1+1.5));
+    upright('Trimmer stud',o.u0-1.5,1.5,o.hy);
+    upright('Trimmer stud',o.u1,1.5,o.hy);
+    // two boards on edge, flush with both faces of the wall; scraps of 1/2" plywood go between them
+    for(const n0 of[0,2])put('Header',o.header,o.u0-1.5,width+3,o.hy,deep,n0,1.5);
+    if(o.kind==='window')put('Sill','2x4',o.u0,width,o.bot-1.5,1.5,0,T);
+    for(const u of layout){
+      if(u>=o.u0-1.5-1e-6&&u+1.5<=o.u1+1.5+1e-6)upright('Cripple',u,o.hy+deep,longPoint(u));
+      if(o.kind==='window'&&u>=o.u0-1e-6&&u+1.5<=o.u1+1e-6)upright('Cripple',u,1.5,o.bot-1.5);
+    }
+    // An opening is framed and left open unless its option is on.
+    if(o.kind==='window'){
+      if(plan.showWindows)put('Window','glass',o.u0,width,o.bot,o.top-o.bot,1.25,1);
+      continue;
+    }
+    if(!plan.plywoodDoor)continue;
+    // The door stands in the opening with a gap all round, and its face is flush with the outside of the wall
+    // sheathing: a T-hinge has one leaf on the wall and one on the door, so the two faces must be level.
+    const leaves=shedDoorLeaves(width),gap=SHED.DOOR_GAP,leaf=(width-gap*(leaves+1))/leaves;
+    const flush=wall.outer?T+SHED.SHEATHING-SHED.DOOR_THICK:-SHED.SHEATHING;
+    for(let i=0;i<leaves;i++)put('Shed door','ply34',o.u0+gap+i*(leaf+gap),leaf,gap,o.top-2*gap,flush,SHED.DOOR_THICK);
+  }
+  shedBlocking(wall,uprights,put);
+}
+/* how many doors close an opening of this width when "Add a plywood door" is on: one, or a pair */
+function shedDoorLeaves(openingWidth){
+  return openingWidth>SHED.DOOR_SHEET?2:1;
+}
+/* Blocking: a 2x4 on edge between the studs, flush with the outside of the wall, behind a level joint in the
+   sheathing (wall.sheathJoint), so that the edges of both sheets have wood to be nailed to. One goes wherever
+   two neighboring uprights both pass the joint and no opening, sill or header is in the way. */
+function shedBlocking(wall,uprights,put){
+  if(wall.sheathJoint===null)return;
+  const at=wall.sheathJoint,half=1.75;
+  const through=uprights.filter(s=>s.from<=at-half+1e-6&&s.to>=at+half-1e-6).sort((a,b)=>a.u-b.u);
+  for(let i=1;i<through.length;i++){
+    const from=through[i-1].u+1.5,to=through[i].u;
+    // the sheets above and below an opening have no level joint, so nothing goes between its two full studs
+    const inTheWay=wall.ops.some(o=>from<o.u1-1e-6&&to>o.u0+1e-6);
+    if(to-from>=SHED.STRIP&&!inTheWay)put('Blocking','2x4',from,to-from,at-half,3.5,wall.outer?SHED.WALL-1.5:0,1.5);
+  }
+}
+/* 1/2" plywood on the outside of one wall, corner to corner of the building, cut round the openings.
+   Sloped tops (a lean-to's side walls, the triangle of a gable) are left for the builder to cut to the roof. */
+function shedSheathing(P,plan,wall){
+  const total=wall.alongX?plan.W:plan.D,off=wall.offset,out=wall.outer?SHED.WALL:-.5;
+  const wallTop=wall.sheathTop,wallBottom=wall.sheathBottom;
+  const sheet=(a,b,y0,y1)=>{
+    if(b-a<1||y1-y0<SHED.STRIP)return;
+    for(let y=y0;y<y1-1e-6;y+=96){
+      const tall=Math.min(96,y1-y);
+      P.push(wall.alongX?mk('Wall sheathing','ply12',[b-a,tall,.5],[a,y,wall.oz+out]):mk('Wall sheathing','ply12',[.5,tall,b-a],[wall.ox+out,y,a]));
+    }
+  };
+  const solid=(a,b)=>{
+    if(b-a<1)return;
+    for(const[from,to]of shedBreaks(a,b,plan.sp,48))sheet(from,to,wallBottom,wallTop);
+  };
+  // the piece above or below an opening: one sheet turned on its side while it is no taller than a sheet is
+  // wide; otherwise (over a wide door in a tall wall) cut into widths like the rest of the wall, which puts
+  // the joints on the cripple studs above the header
+  const patch=(a,b,y0,y1)=>{
+    if(b-a<=48+1e-6||y1-y0<=48+1e-6)sheet(a,b,y0,y1);
+    else for(const[from,to]of shedBreaks(a,b,plan.sp,48))sheet(from,to,y0,y1);
+  };
+  let from=0;
+  for(const o of wall.ops){
+    const a=off+o.u0,b=off+o.u1;
+    solid(from,a);
+    patch(a,b,plan.F+o.top,wallTop);                                     // above the opening
+    patch(a,b,wallBottom,plan.F+(o.kind==='door'?0:o.bot));              // below a window, or over the floor frame under a door
+    from=b;
+  }
+  solid(from,total);
+}
+/* A board or a sheet lying on the roof slope. It runs from zA to zB (measured level) along the line
+   y = lineAt(z), which rises toward the front when dir is 1 and toward the back when dir is -1.
+   above = true: it lies on top of the line (the roof deck on the rafters); false: it hangs under it
+   (a rafter under the roof surface). Both ends are cut square, so the length is the full board. */
+function shedSlopePiece(plan,name,mat,x0,wide,thick,zA,zB,lineAt,dir,above){
+  const length=(zB-zA)/plan.cos,zMid=(zA+zB)/2,side=above?1:-1;
+  const cy=lineAt(zMid)+side*thick/2*plan.cos,cz=zMid-side*dir*thick/2*plan.sin;
+  const piece=mk(name,mat,[wide,thick,length],[x0,0,0]);
+  // exact, not rounded to 1/16": pieces on a slope have to touch each other to within a hair
+  const s=size(piece),fine=v=>Math.round(v*1024)/1024;
+  piece.pos=[x0,fine(cy-s[1]/2),fine(cz-s[2]/2)];
+  piece.rot={k:0,deg:-dir*plan.deg};
+  return piece;
+}
+/* plywood on one roof slope: long side across the rafters, sheet ends on the middle of a rafter */
+function shedRoofDeck(P,plan,zA,zB,topLine,dir){
+  const courses=Math.ceil((zB-zA)/plan.cos/48-1e-6),step=(zB-zA)/courses;
+  for(const[x0,x1]of shedBreaks(0,plan.W,SHED.RAFTER_EVERY,96)){
+    for(let c=0;c<courses;c++)P.push(shedSlopePiece(plan,'Roof deck','ply12',x0,x1-x0,.5,zA+c*step,zA+(c+1)*step,topLine,dir,true));
+  }
+}
+function shedGableRoof(P,plan){
+  const{W,D,tan,seat,sp}=plan,mid=D/2,wallTop=plan.F+plan.Hb,over=SHED.OVERHANG,rafter=plan.rafter;
+  // the underside of the rafters on each slope; the roof surface is one plumb cut higher
+  const slopes=[
+    {dir:1, from:-over, to:mid-.75,deckFrom:-over,deckTo:mid,   under:z=>wallTop+(z-seat)*tan},
+    {dir:-1,from:mid+.75,to:D+over,deckFrom:mid,  deckTo:D+over,under:z=>wallTop+(D-seat-z)*tan}];
+  const ridgeDeep=M[plan.ridge.mat].w,ridgeBottom=wallTop+plan.ridge.top-ridgeDeep;
+  P.push(mk('Ridge board',plan.ridge.mat,[W,ridgeDeep,1.5],[0,ridgeBottom,mid-.75]));
+  for(const slope of slopes){
+    const surface=z=>slope.under(z)+rafter.plumb;
+    for(const x of plan.rafterEdges)P.push(shedSlopePiece(plan,'Rafter',rafter.mat,x,1.5,rafter.depth,slope.from,slope.to,surface,slope.dir,false));
+    shedRoofDeck(P,plan,slope.deckFrom,slope.deckTo,surface,slope.dir);
+  }
+  // rafter ties: across the shed on the cap plates, beside a pair of rafters, never more than plan.tie.every
+  // apart (4 ft, or beside every pair when the roof pushes hard; the end walls tie the two end pairs)
+  // A rafter that stands over an end wall (the last one of the regular spacing can land there) is tied by that
+  // wall like the end pair, and a tie beside it would run into the gable studs.
+  const inner=plan.rafterEdges.slice(1,-1).filter(x=>x<=W-SHED.WALL+1e-6);
+  let tied=0;
+  inner.forEach((x,i)=>{
+    const nextLine=i+1<inner.length?inner[i+1]+.75:W;
+    if(nextLine-tied<=plan.tie.every+1e-6)return;
+    P.push(mk('Rafter tie','2x4',[1.5,3.5,D-2*plan.tieClip],[x-1.5,wallTop,plan.tieClip]));
+    tied=x+.75;
+  });
+  // gable studs: on the cap plate of each end wall, under the end rafters, in line with the wall studs below
+  for(const x0 of[0,W-SHED.WALL]){
+    const stud=(z,top)=>{if(top-wallTop>=3)P.push(mk('Gable stud','2x4',[3.5,r16(top-wallTop),1.5],[x0,wallTop,z]));};
+    stud(mid-.75,ridgeBottom);
+    for(let center=sp;center<D-1e-6;center+=sp){
+      if(Math.abs(center-mid)<2.25)continue;
+      const z=center-.75;
+      stud(z,center<mid?slopes[0].under(z+1.5):slopes[1].under(z));
+    }
+  }
+}
+function shedLeanRoof(P,plan){
+  const{W,D,tan,seat}=plan,wallTop=plan.F+plan.Hb,over=SHED.OVERHANG,rafter=plan.rafter;
+  const under=z=>wallTop+(z-seat)*tan,surface=z=>under(z)+rafter.plumb;
+  // the sloped plate on top of each side wall; the end rafters lie on these
+  for(const x0 of[0,W-SHED.WALL])P.push(shedSlopePiece(plan,'Rake plate','2x4',x0,3.5,1.5,SHED.WALL,D-SHED.WALL,under,1,false));
+  for(const x of plan.rafterEdges)P.push(shedSlopePiece(plan,'Rafter',rafter.mat,x,1.5,rafter.depth,-over,D+over,surface,1,false));
+  shedRoofDeck(P,plan,-over,D+over,surface,1);
+}
 function buildShed(p){
-  const{W,D,Hb,Hf,F,ang,rm}=shedPlan(p),P=[],sp=+p.sp||16;
-  const nsk=D>100?3:2;for(let i=0;i<nsk;i++)P.push(mk('Skid','4x4',[W,3.5,3.5],[0,0,r16(8+i*(D-19.5)/(nsk-1))]));
-  P.push(mk('Rim joist','2x6',[W,5.5,1.5],[0,3.5,0]),mk('Rim joist','2x6',[W,5.5,1.5],[0,3.5,D-1.5]));
-  const xs=[0];for(let c=16;c<W-2.25;c+=16)xs.push(c-.75);xs.push(W-1.5);
-  for(const x of xs)P.push(mk('Floor joist','2x6',[1.5,5.5,D-3],[x,3.5,1.5]));
-  tile(P,'Floor deck','ply34',.75,0,0,W,D,9);
-  const walls={back:{len:W,ops:[]},front:{len:W,ops:[]},left:{len:D-7,ops:[]},right:{len:D-7,ops:[]}};
-  const dW=walls[p.dwall]||walls.front,du=p.doff>0?p.doff:(dW.len-p.dw)/2;
-  dW.ops.push({u0:du,u1:du+p.dw,bot:0,top:p.dh});
-  const wl=p.wwall==='both'?['left','right']:[p.wwall],cnt={};
-  for(let i=0;i<Math.min(p.wn,8);i++){const k=wl[i%wl.length];cnt[k]=(cnt[k]||0)+1;}
-  for(const k in cnt){const w=walls[k],d=w.ops[0],segs=d?[[0,d.u0],[d.u1,w.len]]:[[0,w.len]],per=segs.map(()=>0); // windows go either side of a door on the same wall
-    for(let i=0;i<cnt[k];i++)per[i%segs.length]++;
-    segs.forEach(([a,b],si)=>{for(let i=0;i<per[si];i++){const c=a+(b-a)*(i+1)/(per[si]+1);w.ops.push({u0:c-p.ww/2,u1:c+p.ww/2,bot:p.sill,top:p.sill+p.wh});}});}
-  shedWall(P,true,0,0,W,F,Hb,sp,walls.back.ops,0);
-  shedWall(P,true,0,D-3.5,W,F,Hf,sp,walls.front.ops,1);
-  shedWall(P,false,0,3.5,D-7,F,Hb,sp,walls.left.ops,0);
-  shedWall(P,false,W-3.5,3.5,D-7,F,Hb,sp,walls.right.ops,1);
-  // roof: rafters and plywood lie on the slope from the back wall up to the front wall
-  const rh=M[rm].w,ca=Math.cos(ang),sa=Math.sin(ang),Lr=r16((D+12)/ca),deg=-Math.round(ang*1800/Math.PI)/10,cy=F+(Hb+Hf)/2+rh/2/ca,cz=D/2;
-  const rx=[0];for(let c=24;c<W-2.25;c+=24)rx.push(c-.75);rx.push(W-1.5);
-  for(const x of rx){const r=mk('Rafter',rm,[1.5,rh,Lr],[x,cy-rh/2,cz-Lr/2]);r.rot={k:0,deg};P.push(r);}
-  const nx=Math.ceil(W/96-1e-6),ns=Math.ceil(Lr/48-1e-6),pl=Lr/ns,off=rh/2+.25;
-  for(let i=0;i<nx;i++)for(let j=0;j<ns;j++){const s=-Lr/2+(j+.5)*pl,q=mk('Roof deck','ply12',[W/nx,.5,pl],[i*W/nx,cy+s*sa+off*ca-.25,cz+s*ca-off*sa-pl/2]);q.rot={k:0,deg};P.push(q);}
+  const plan=shedPlan(p),P=[];
+  shedFloor(P,plan);
+  for(const wall of Object.values(plan.walls)){
+    shedWall(P,plan,wall);
+    shedSheathing(P,plan,wall);
+  }
+  if(plan.lean)shedLeanRoof(P,plan);
+  else shedGableRoof(P,plan);
   return P;
 }
-function shedNotes(p){const s=shedPlan(p),Lr=(s.D+12)/Math.cos(s.ang);
-  return['BUILD AT YOUR OWN RISK. This is a simplified framing layout to help you plan and price a shed. It is not an engineered plan. Sheds usually need a permit and must meet local rules for wind, anchoring, size and distance from property lines, so check with your city or county building department before you buy lumber.',
-   `Shed is ${fmtFt(s.W)} wide × ${fmtFt(s.D)} deep (${Math.round(s.W*s.D/144)} sq ft of floor). Walls are ${fmtFt(s.Hb)} tall at the back and ${fmtFt(s.Hf)} at the front, so the roof drains to the back.`,
-   `Not in the cut list: siding (about ${Math.ceil(2*(s.W+s.D)/48)+1} sheets of 4 ft × 8 ft exterior siding such as T1-11), roofing for about ${Math.ceil(s.W*Lr/144*1.1)} sq ft (drip edge, felt, and shingles or metal panels), trim, and paint.`,
-   'Set the skids on solid concrete blocks or a compacted gravel pad, level in both directions, and anchor the shed to the ground. Use pressure-treated lumber for the skids and floor frame.',
-   'The triangle above each side wall is left open in the drawing. Fill it with short studs cut to fit before you put the siding on.'];}
-const num=(k,label,v)=>({k,label,v});
+
+/* ---------- words: notes, hardware, steps ---------- */
+/* "a doubled 2x6", or "a doubled 2x6 or 2x8" when the openings need different sizes */
+function shedHeaderWords(plan){
+  const mats=[...new Set(Object.values(plan.walls).flatMap(wall=>wall.ops.map(o=>o.header)))];
+  mats.sort((a,b)=>M[a].w-M[b].w);
+  return'a doubled '+mats.join(' or ');
+}
+/* where the rafter ties go: "at least every 4 ft", or "beside every pair of rafters" when the roof pushes hard */
+function shedTieWords(plan){
+  return plan.tie.every>SHED.RAFTER_EVERY?`at least every ${plan.tie.every/12} ft`:'beside every pair of rafters between the two end walls';
+}
+/* the end of the "Not in the cut list" note: the door and the windows, when their openings are left open */
+function shedNotIncluded(plan){
+  const several=plan.windowCount>1,windows=several?'windows':'a window';
+  const missing=[plan.plywoodDoor?'':'a door',plan.windowCount&&!plan.showWindows?windows:''].filter(Boolean);
+  let words='';
+  if(missing.length){
+    const openings=missing.length>1||several?'The openings are framed and left open, ready for the ones you choose':'The opening is framed and left open, ready for the one you choose';
+    words+=`. Also not included: ${missing.join(' and ')}. ${openings}`+
+      (plan.plywoodDoor?'':' (the Shed preset can add a plain plywood door: tick "Add a plywood door")');
+  }
+  // a window that is drawn is still a bought one: it is in no list, so say what size to buy
+  if(plan.windowCount&&plan.showWindows){
+    words+=`. The ${several?plan.windowCount+' windows drawn are bought ones and are':'window drawn is a bought one and is'} not in the shopping list: buy ${several?'windows':'one'} made for an opening ${fmt(plan.windowSize[0])} wide and ${fmt(plan.windowSize[1])} tall`;
+  }
+  return words;
+}
+function shedNotes(p){
+  const s=shedPlan(p),roofArea=Math.ceil(s.W*(s.D+2*SHED.OVERHANG)/s.cos/144*1.1);
+  const roofing=s.pitch<2?'At this slope use roll roofing or a rubber membrane: shingles leak on a roof flatter than 2 in 12.'
+    :s.pitch<4?'At this slope metal panels work best: shingles need a double layer of underlayment below 4 in 12.'
+    :'Shingles or metal panels both suit this slope.';
+  const shape=s.lean
+    ?`It has a lean-to roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the back wall is ${fmtFt(s.Hb)} tall and the front wall ${fmtFt(s.Hf)}, so the roof drains to the back.`
+    :`It has a gable roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the walls are ${fmtFt(s.Hb)} tall and the ridge is ${fmtFt(r16(s.peak))} above the ground.`;
+  // The sizing, one short sentence at a time. "Reaches ... with nothing under it" is what builders call the span.
+  const rafterReach=`Each ${s.rafter.mat} rafter, one every ${SHED.RAFTER_EVERY}", reaches ${fmtFt(r16(s.rafter.span))} ${s.lean?'from wall to wall':`from the wall to the ${s.ridge.mat} ridge board`} with nothing under it (its span). A ${s.rafter.mat} is good for about ${fmtFt(Math.floor(s.rafter.good))} there.`;
+  const ties=s.lean?'':` A 2x4 rafter tie crosses the shed ${shedTieWords(s)}, so the roof cannot push the walls apart. Each tie holds back about ${Math.round(s.tie.push/10)*10} lb.`;
+  const gable=shedGableSheets(s),above=s.lean?'the sloped strip of sheathing above each side wall':'the triangle of sheathing above each end wall';
+  return['BUILD AT YOUR OWN RISK. This is a simplified framing layout to help you plan and price a shed. It is not an engineered plan. Sheds usually need a permit and must meet local rules for wind, snow, anchoring, size and distance from property lines, so check with your city or county building department before you buy lumber.',
+   `The shed is ${fmtFt(s.W)} wide × ${fmtFt(s.D)} deep (${Math.round(s.W*s.D/144)} sq ft of floor). ${shape}`,
+   `The roof is sized by rule of thumb for light snow: ${USES.roof.psf} lb on every square foot. ${rafterReach}${ties} Heavy snow country needs bigger rafters than this: ask your building department.`,
+   `The floor is sized by rule of thumb for ${USES.floor.psf} lb on every square foot. Each ${s.joist.mat} floor joist, one every ${SHED.JOIST_EVERY}", reaches ${fmtFt(r16(s.joist.span))} from one skid to the next. A ${s.joist.mat} is good for about ${fmtFt(Math.floor(s.joist.good))} there. Over each opening in a wall there is ${shedHeaderWords(s)} header.`,
+   'The 1/2" plywood wall sheathing is what stops the shed from leaning over, so do not leave it off. Grooved plywood siding (T1-11) nailed straight to the studs does the same job in its place. To see the framing behind the sheathing, turn on the see-through view (Alt+Z) or hide those pieces.',
+   `Not drawn and not in the cut list: ${above}, because you cut it on site to follow the roof. The plywood for it is on the shopping list (${gable} more sheet${gable>1?'s':''} of 1/2" plywood).`,
+   `Not in any list: roofing for about ${roofArea} sq ft (drip edge, underlayment, and the roofing itself), siding or paint, and trim${shedNotIncluded(s)}. ${roofing}`,
+   'The nail and screw counts on the shopping list are close estimates. Nails are sold by the box, so there will be some left over.',
+   'Set the skids on solid concrete blocks or a compacted gravel pad, level in both directions, and anchor the shed to the ground. The skids and the floor frame are pressure-treated lumber in the cut list and the shopping list, because ordinary wood rots that close to the ground. Buy the framing nails hot-dip galvanized: plain steel nails rust away in treated lumber.'];
+}
+/* Sheets of 1/2" plywood for the wall above the drawn sheathing: the two triangles of a gable, or the sloped
+   strips above the side walls of a lean-to. They are cut on site to follow the roof, so they are not pieces of
+   the design; the two of them together are as big as one rectangle as long as the shed is deep and as tall as
+   the roof rises, and a sheet is 48" by 96". At least one sheet. */
+function shedGableSheets(plan){
+  const rise=plan.lean?plan.Hf-plan.Hb:plan.ridge.top;
+  return Math.max(1,Math.ceil(plan.D*rise/(48*96)-.02));
+}
+function shedHardware(p){
+  const s=shedPlan(p),leaves=s.doorLeaves;
+  // Hinges and a latch only when the plywood door is asked for: an opening needs neither. Of a pair of doors
+  // one is bolted shut at the top and the bottom, and the latch holds the other one to it.
+  // The screws that come with T-hinges are too short to reach a stud through the sheathing, and often too long
+  // for a 3/4" door, so the two kinds the door step asks for are listed.
+  const doorHardware=!leaves?[]:[['Heavy T-hinges, 8"',3*leaves],['Gate latch or hasp',1]]
+    .concat(leaves>1?[['Barrel bolts, for the door of the pair that stays shut',2]]:[])
+    .concat([[`Exterior screws, 2 1/2", for the hinge leaves on the wall`,3*SHED_HINGE.wallScrews*leaves],
+      [`Exterior screws, 3/4", for the hinge straps on the door`,3*SHED_HINGE.doorScrews*leaves]]);
+  const ties=2*s.rafterEdges.length,roof=shedRoofFasteners(p,s),sheets=shedGableSheets(s);
+  return doorHardware.concat([
+    // nails for the roof: the program finds no joints on rotated pieces, so the shed counts these itself
+    // (the nails of the floor and the walls are counted from their joints, under the same two names)
+    [FRAMING.NAIL,roof.framing],
+    [FRAMING.SHEET_NAIL,roof.plywood],
+    ['Metal hurricane ties, one where each rafter crosses a wall',ties],
+    ['Joist hanger nails, 1-1/2", for the metal hurricane ties',ties*SHED_HINGE.tieNails],
+    [`1/2" plywood, 4 ft × 8 ft sheets, for ${s.lean?'the sloped tops of the side walls':'the gable ends'} (cut to the roof)`,sheets],
+    ['Solid concrete blocks for under the skids',s.skids.length*(Math.ceil(s.W/48)+1)],
+    ['Ground anchors with cable or strap',4]]);
+}
+/* small counts for the hardware list: screws for each leaf of a T-hinge, nails for each metal hurricane tie */
+const SHED_HINGE={wallScrews:3,doorScrews:4,tieNails:10};
+/* The roof's own nails, counted from the plan and the pieces: {framing, plywood, lines}. lines are the
+   "Fasten with" lines the roof steps show, since no joint is found for a rotated piece.
+     gable    3 nails where each rafter meets the ridge board, 2 driven at an angle where it sits on the wall,
+              plan.tie.nails at each end of every rafter tie, 2 for each gable stud into the rafter above it
+     lean-to  2 nails at an angle at each wall, the end rafters nailed down to the rake plates every 12", and
+              2 nails through each rake plate into every stud under it
+     both     the roof deck: one 2 1/2" nail for every 8" of rafter under a sheet, which is what a nail every 6"
+              at the sheet edges and every 12" elsewhere comes to */
+function shedRoofFasteners(p,plan){
+  const parts=buildShed(p),named=name=>parts.filter(piece=>piece.name===name);
+  const rafters=named('Rafter').length,nail=FRAMING.NAIL_WORDS;
+  let plywood=0;
+  for(const sheet of named('Roof deck')){
+    // across the rafters (left to right) and up the slope; whichever is longer is the sheet's "length"
+    const across=sheet.ax[0]===0?sheet.l:sheet.w,upSlope=sheet.ax[0]===0?sheet.w:sheet.l;
+    const raftersUnder=Math.round(across/SHED.RAFTER_EVERY)+1;         // a sheet's ends land on rafters
+    plywood+=raftersUnder*Math.ceil(upSlope/FRAMING.SHEET_COUNT_EVERY);
+  }
+  if(plan.lean){
+    const sideStuds=parts.filter(piece=>/^(Stud|Trimmer stud|Cripple)$/.test(piece.name)&&(piece.pos[0]<1||piece.pos[0]>plan.W-SHED.WALL-1)).length;
+    const alongRake=2*Math.ceil(plan.D/plan.cos/12);
+    return{plywood,framing:rafters*4+alongRake+2*sideStuds,
+      lines:{rake:[`Rake plate to Stud: 2 × ${nail} down through the plate into the top of every stud`],
+        rafter:[`Rafter to Cap plate: 2 × ${nail} driven at an angle at each wall, and a metal hurricane tie nailed on with a 1-1/2" joist hanger nail in every hole`,
+          `End rafter to Rake plate: ${nail} every 12" along its length`]}};
+  }
+  const ties=named('Rafter tie').length,gableStuds=named('Gable stud').length;
+  return{plywood,framing:rafters*5+ties*2*plan.tie.nails+gableStuds*2,
+    lines:{rafter:[`Rafter to Ridge board: 3 × ${nail} at the top of each rafter (through the ridge board into the end of the first rafter of a pair, driven at an angle for its partner)`,
+        `Rafter to Cap plate: 2 × ${nail} driven at an angle, and a metal hurricane tie nailed on with a 1-1/2" joist hanger nail in every hole`],
+      tie:[`Rafter tie to Rafter: ${plan.tie.nails} × ${nail} at each end, through the tie into the side of the rafter`],
+      gable:[`Gable stud to Rafter: 2 × ${nail} driven at an angle up into the rafter`]}};
+}
+/* how a sheet of the roof deck is nailed, for the roof deck step */
+const shedDeckLine=()=>`Roof deck to Rafter: ${framingSheetWords()}`;
+/* One wall in words, for its own step: how long it is, what its plates and studs measure, and where each
+   opening starts. Distances are given the way a person standing outside and facing the wall measures them:
+   from the outside corner of the shed on their left. On the back wall and the right wall that corner is at the
+   far end of the wall as the plan counts along it, so the distance is turned round there (as for p.doff). */
+function shedWallWords(plan,wall,counts){
+  // counts: how many studs and cripples this wall has (shedWallCounts), so that the step of each wall says what
+  // to take from the pile; without it the words give the sizes only
+  const studs=counts&&counts.Stud?counts.Stud+' studs':'studs',cripples=counts&&counts.Cripple?counts.Cripple:0;
+  const turned=wall.key==='back'||wall.key==='right';
+  const fromLeft=o=>r16(turned?wall.outside-(wall.offset+o.u1):wall.offset+o.u0);
+  const name=wall.label[0].toUpperCase()+wall.label.slice(1);
+  const between=wall.alongX?'':', because this wall fits between the front and back walls';
+  let text=`${name}: ${fmtFt(wall.outside)} long on the outside of the shed. `;
+  if(wall.raked){
+    const longPoint=u=>Math.max(wall.studTop(u),wall.studTop(u+1.5))-1.5;
+    text+=`Its bottom plate is ${fmt(wall.len)} long${between}. It gets no top plate yet: the sloped rake plate goes on when the walls are up. Its ${studs} get longer toward the front, from ${fmt(r16(longPoint(0)))} at the back to ${fmt(r16(longPoint(wall.len-1.5)))} at the front.`;
+  }else{
+    text+=`Its bottom plate and top plate are ${fmt(wall.len)} long${between}. Its ${studs} are ${fmt(r16(wall.height-4.5))} long.`;
+  }
+  if(!wall.ops.length)return text+' It has no opening: a stud at each end and one on every mark between.';
+  const ops=wall.ops.slice().sort((a,b)=>fromLeft(a)-fromLeft(b));
+  for(const o of ops){
+    const wide=fmt(o.u1-o.u0),start=fromLeft(o);
+    const onPlate=wall.offset?` (${fmt(r16(start-wall.offset))} from that end of the plates)`:'';
+    const framing=`Each side of it gets a full stud, then a trimmer stud ${fmt(r16(o.hy-1.5))} long on the side of the opening. The header, two ${o.header} boards ${fmt(o.u1-o.u0+3)} long, sits on the two trimmer studs.`;
+    if(o.kind==='door'){
+      text+=` The door opening is ${wide} wide and ${fmt(o.top)} tall. Seen from outside, it starts ${fmt(start)} from the left corner of the shed${onPlate}. The bottom plate stops at the opening, so it is in two pieces: ${fmt(turned?wall.len-o.u1:o.u0)} on the left and ${fmt(turned?o.u0:wall.len-o.u1)} on the right. ${framing}`;
+    }else{
+      text+=` A window opening ${wide} wide and ${fmt(o.top-o.bot)} tall starts ${fmt(start)} from the left corner of the shed, seen from outside${onPlate}. Its bottom is ${fmt(o.bot)} above the floor deck. ${framing} The sill, a flat 2x4 ${wide} long, goes between the trimmer studs under the opening.`;
+    }
+  }
+  // where the short studs go: above a header that leaves room under the plate, and under a window sill
+  const above=ops.some(o=>wall.studTop(o.u0)-(o.hy+M[o.header].w)>=1.5-1e-6),below=ops.some(o=>o.kind==='window');
+  const where=[above?`above ${ops.length>1?'each header':'the header'}`:'',below?'under the window sill':''].filter(Boolean).join(' and ');
+  const short=cripples===1?'One short cripple stud fills in':`${cripples?cripples+' short':'Short'} cripple studs fill in`;
+  return text+(where?` ${short} ${where}, on the stud marks.`:'');
+}
+/* How many uprights of each kind stand in one wall, counted on the pieces themselves: {Stud, 'Trimmer stud',
+   Cripple}. A piece belongs to the wall whose strip of floor it stands inside. */
+function shedWallCounts(wall,parts){
+  const along=wall.alongX?0:2,through=wall.alongX?2:0,start=wall.alongX?wall.ox:wall.oz,inner=wall.alongX?wall.oz:wall.ox;
+  const counts={};
+  for(const piece of parts){
+    if(!/^(Stud|Trimmer stud|Cripple)$/.test(piece.name))continue;
+    const b=box(piece);
+    const inside=b.lo[through]>=inner-.01&&b.hi[through]<=inner+SHED.WALL+.01&&b.lo[along]>=start-.01&&b.hi[along]<=start+wall.len+.01;
+    if(inside)counts[piece.name]=(counts[piece.name]||0)+1;
+  }
+  return counts;
+}
+function shedSteps(p){
+  const s=shedPlan(p),parts=buildShed(p),built=new Set(parts.map(piece=>piece.name));
+  const roofLines=shedRoofFasteners(p,s).lines;
+  // a step lists only the pieces this shed really has; fasten = lines for joints the program cannot see
+  const step=(t,names,fasten)=>{
+    const made={t,add:(names||[]).filter(name=>built.has(name))};
+    if(fasten&&fasten.length)made.fasten=fasten;
+    return made;
+  };
+  const degrees=Math.round(s.deg*10)/10;
+  const brace='hold it upright with a brace (a spare board nailed at a slant from the wall down to the floor frame)';
+  const plumb='plumb (straight up and down: check with a level)';
+  const longScrews='drive the long screws down through the bottom plates and the floor deck into the floor frame, into a joist wherever one passes under the plate';
+  const steps=[
+    step('Read the notes at the top first: check permit rules, and build at your own risk. A shed is a big project: if you have never framed a wall, build it with somebody who has. Then cut every piece on the cut list and pencil its letter on it.'),
+    step(`Set the ${s.skids.length} skids (the pressure-treated 4x4s) on solid blocks or a gravel pad, ${fmtFt(r16(s.joist.span))} apart center to center with the outer two flush with the front and back of the floor, and level them both ways. Build the floor frame on top: a rim joist along the front and back skids with the ${s.joist.mat} floor joists between them every ${SHED.JOIST_EVERY}" on center. Nail through each rim joist into the end of every joist. Measure corner to corner until the two diagonals match, then nail the frame down to the skids with nails driven at an angle.`,['Skid','Rim joist','Floor joist']),
+    step('Nail the 3/4" plywood floor deck to the joists and the rim joists. Lay each sheet with its long side across the joists, so that the ends of the sheets land on the middle of a joist.',['Floor deck']),
+    step(`Frame the four walls flat on the floor deck, one at a time. This step says how; the next four steps give the sizes of each wall. Lay the top plate and the bottom plate side by side and mark the stud positions on both at once: every ${s.sp}" on center, measured from the outside corner of the shed, so that the joints in the sheathing land on studs. Nail through the plates into the ends of the studs. At the door and each window put a full stud on each side, then a shorter trimmer stud nailed to it on the side of the opening, for the header to sit on. The header is two boards on edge (${shedHeaderWords(s).replace('a doubled ','')}, see the cut list) with scraps of 1/2" plywood between them so that it is as thick as the wall. A flat 2x4 sill goes under each window, with short cripple studs above the header and below the sill. Two lines of the list below are for the step where the walls are stood up: the long screws through the bottom plates, and the nails that join the corner studs.`,
+      ['Bottom plate','Top plate','Stud','Trimmer stud','Header','Sill','Cripple']),
+    ...SHED_WALL_ORDER.map(key=>step(shedWallWords(s,s.walls[key],shedWallCounts(s.walls[key],parts)))),
+    s.lean
+      ?step(`Stand the back wall first and ${brace}. Then stand the two side walls and the tall front wall. Check that each one is ${plumb}, nail the corner studs together, and ${longScrews}. The two side walls follow the roof: the top of each of their studs is cut at ${degrees} degrees, and the lengths in the cut list are measured to the longer side of that cut. Nail the sloped rake plate across the tops of those studs, from the back wall to the front wall, and nail a cap plate on top of the front and back walls. Get a helper for this step: walls are heavy and awkward.`,['Rake plate','Cap plate'],roofLines.rake)
+      :step(`Stand the back wall first and ${brace}. Then stand the two end walls and the front wall. Check that each one is ${plumb}, nail the corner studs together, and ${longScrews}. Then nail the cap plates on top. The cap plates of the end walls run over the ends of the front and back walls: that overlap ties the four walls together. Get a helper for this step: walls are heavy and awkward.`,['Cap plate']),
+    step('Check once more that every wall is plumb and the corners are square. '+
+      (built.has('Blocking')?`Nail the short 2x4 blocks on edge between the studs, flush with the outside of the wall, ${s.lean&&s.walls.front.sheathJoint!==null?'behind the level joint between the lower and upper sheets of the tall front wall and ':''}along the top edge of the sheets on the two side walls, so that every edge of every sheet has wood behind it. `:'')+
+      'Then nail the 1/2" plywood sheathing to the studs and plates, with each upright joint on the middle of a stud. This is what keeps the shed from leaning, so sheathe the walls before you frame the roof.',
+      ['Blocking','Wall sheathing'])];
+  const notch=`Where a rafter sits on a wall, cut a notch (a birdsmouth) with a level seat ${fmt(s.seat)} long, so the rafter sits flat on the plate; never notch deeper than a third of the board`;
+  const ladder='Work from a ladder that stands on the floor inside the shed, never from the top of a wall';
+  if(s.lean){
+    steps.push(step(`Set a ${s.rafter.mat} rafter every ${SHED.RAFTER_EVERY}" on center, running from the back wall up to the front wall with about ${fmt(SHED.OVERHANG)} hanging over at each end. They sit at ${degrees} degrees. ${notch}. The two end rafters lie on the rake plates: nail them down along their whole length. Fasten every rafter to both walls with a metal hurricane tie. ${ladder}.`,['Rafter'],roofLines.rafter));
+  }else{
+    steps.push(
+      step(`Cut the ${s.rafter.mat} rafters. The top end of each is cut at a slant, ${degrees} degrees off a square cut, so that it stands upright against the ridge board once the rafter is in place. The length in the cut list is measured to the longer side of that cut. The bottom end stays square. ${notch}. Start at one end of the shed: with a helper, set a pair of rafters with their feet on the wall plates and their top ends against the two faces of the ${s.ridge.mat} ridge board, at its end, and nail them. Do the same at the other end, so that the ridge board is held level. Then add a pair every ${SHED.RAFTER_EVERY}" on center, each rafter opposite its partner. Fasten every rafter to the wall with a metal hurricane tie. ${ladder}.`,['Ridge board','Rafter'],roofLines.rafter),
+      step(`Rafter ties stop the roof from pushing the walls apart, so never leave them out. Lay a 2x4 on edge across the shed from the front wall to the back wall, resting on the cap plates against the side of a pair of rafters: one ${shedTieWords(s)}. Nail it to the side of both rafters with ${s.tie.nails} nails at each end, spread over the whole overlap in two rows so the wood does not split, and trim its top corners to the roof slope. These nails are what hold the roof together (each tie holds back about ${Math.round(s.tie.push/10)*10} lb on this shed), so do not use fewer. The end walls do this job for the two end pairs.`,['Rafter tie'],roofLines.tie),
+      step(`Fill in under the two end pairs of rafters with gable studs. They stand on the cap plate in line with the studs of the wall below, with their tops cut at ${degrees} degrees to fit under the rafter (their lengths are measured to the longer side of that cut). The middle one holds up the end of the ridge board.`,['Gable stud'],roofLines.gable));
+  }
+  const gableSheets=shedGableSheets(s);
+  steps.push(
+    step('Nail the 1/2" plywood roof deck to the rafters. Lay each sheet with its long side across the rafters, with the ends of the sheets on the middle of a rafter, starting at the lower edge of the roof.',['Roof deck'],[shedDeckLine()]),
+    step(`Cut sheathing to fit ${s.lean?'the sloped strip above each side wall':'the triangle above each end wall'} from the extra ${gableSheets>1?gableSheets+' sheets':'sheet'} of 1/2" plywood on the shopping list, and nail it on like the rest of the sheathing. Then add the siding or paint, the drip edge, the underlayment and the roofing.`));
+  // The door and the windows. Each opening is framed and left open unless its option is on, so the plywood
+  // door is only built, and a window only fitted, when the person asked for it.
+  const windowCount=s.windowCount;
+  if(s.plywoodDoor)steps.push(step(shedDoorWords(s),['Shed door']));
+  if(s.showWindows&&windowCount)steps.push(step(`Fit ${windowCount>1?'the windows in their openings':'the window in its opening'} and seal around ${windowCount>1?'them':'it'} with exterior caulk.`,['Window']));
+  steps.push(step(shedOpenWords(s,windowCount)+'Anchor the shed to the ground.'));
+  return steps;
+}
+/* the order the walls are framed and stood up in: each gets a step of its own (shedWallWords) */
+const SHED_WALL_ORDER=['back','left','right','front'];
+/* The step that hangs the plywood door (only there with "Add a plywood door"). It names nothing that is not in
+   the cut list or the hardware list: the plywood, three T-hinges a door, the latch, and for a pair the two bolts. */
+function shedDoorWords(plan){
+  const pair=plan.doorLeaves>1,gap=fmt(SHED.DOOR_GAP);
+  const hang=`Stand ${pair?'each door':'it'} in the opening on ${gap} spacers, with its face flush with the outside of the wall sheathing, and hang it on three T-hinges${pair?' along its outer edge':''}: `+
+    'screw the short leaf of each hinge through the sheathing into the studs beside the opening, and the long strap across the face of the door. '+
+    'Do not use the screws packed with the hinges. For the leaf on the wall use the 2 1/2" exterior screws on the shopping list, so that they reach the studs; for the strap on the door use the 3/4" ones, which do not come out through the back of the plywood.';
+  const shut=pair?' Fit a barrel bolt at the top and one at the bottom of one door, on the inside, so that it can be bolted shut into the header and the floor, and fit the latch between the two doors.'
+    :' Fit the latch on the edge away from the hinges.';
+  return`Cut the ${pair?'two doors (a pair, because a sheet of plywood is only 4 ft wide)':'door'} from 3/4" plywood. The cut list size leaves a gap of ${gap} all round${pair?' and between the two':''}, so ${pair?'they swing':'it swings'} freely. `+
+    hang+shut+' Prime and paint the plywood on both faces and every edge before the first rain, or it soaks up water and comes apart (primer and paint are not on the shopping list: see the notes).';
+}
+/* What the last step says about the openings that are left open: nothing when the door and the windows are
+   both asked for, otherwise one sentence naming what is open and what can go there. */
+function shedOpenWords(plan,windowCount){
+  const doorOpen=!plan.plywoodDoor,windowsOpen=windowCount>0&&!plan.showWindows;
+  if(!doorOpen&&!windowsOpen)return'';
+  const windows=windowCount>1?'window openings':'window opening';
+  if(doorOpen&&windowsOpen)return`The door opening and the ${windows} are framed and left open: hang a door and fit ${windowCount>1?'windows':'a window'} of your choice later, and seal around them with exterior caulk. `;
+  if(doorOpen)return'The door opening is framed and left open: hang a door of your choice there later. ';
+  return`The ${windows} ${windowCount>1?'are':'is'} framed and left open: fit ${windowCount>1?'windows':'a window'} of your choice there later, and seal around ${windowCount>1?'them':'it'} with exterior caulk. `;
+}
+
+/* ---------- a check on the builder itself ---------- */
+/* The structural check (js/verify.js) works from which pieces touch and are fastened, so a rafter whose notch
+   was a little too deep, or a stud a hair short of its plate, could still pass it. This looks at the pieces
+   themselves and lists every place where wood does not sit on wood:
+     - every rafter crosses a wall, has a cap plate under it there, bears on at least 1 1/2" of it, and its notch
+       is no deeper than a third of the board; on a gable its top corner meets the ridge board at the top edge
+     - the ridge board sits on a gable stud at both ends
+     - every stud, trimmer stud, cripple and gable stud stands on a plate, header or sill and has a plate, a
+       header, a sill, the ridge or the underside of a sloped piece on top of it
+     - every header board sits on two trimmer studs, and every rafter tie on both walls beside a pair of rafters
+   Returns plain sentences; an empty list means all is well. selfTest runs it for sheds of both roof styles
+   (selfTestShed in js/selftest.js). `parts` is only given by that test, to prove a fault is noticed. */
+function shedBearingProblems(p,parts){
+  const plan=shedPlan(p),found=[],T=SHED.WALL,close=.07;
+  parts=parts||buildShed(p);
+  const named=(...names)=>parts.filter(piece=>names.includes(piece.name));
+  const where=piece=>`the ${piece.name} at ${box(piece).lo.map(v=>fmt(r16(v))).join(', ')}`;
+  const overlap=(a,b,k)=>Math.min(a.hi[k],b.hi[k])-Math.max(a.lo[k],b.lo[k]);
+  // A piece lying on the slope is turned about the left-to-right axis. under(z) is the height of its underside,
+  // which runs from `from` to `to`; its top edge is `shift` further along and `rise` higher.
+  const sloped=piece=>{
+    const s=size(piece),turn=piece.rot.deg*Math.PI/180,cos=Math.cos(turn),sin=Math.sin(turn);
+    const y0=piece.pos[1]+s[1]/2-s[1]/2*cos,z0=piece.pos[2]+s[2]/2-s[1]/2*sin,half=s[2]/2*cos;
+    return{under:z=>y0-sin/cos*(z-z0),from:z0-half,to:z0+half,shift:s[1]*sin,rise:s[1]*cos,cos,backSlope:turn<0};
+  };
+  const rafters=named('Rafter'),caps=named('Cap plate').map(box);
+
+  // rafters on the walls
+  const strips=[{label:'back wall',from:0,to:T,top:plan.F+plan.Hb},{label:'front wall',from:plan.D-T,to:plan.D,top:plan.F+plan.Hf}];
+  for(const rafter of rafters){
+    const line=sloped(rafter),bounds=box(rafter),depth=M[rafter.mat].w;
+    const crossed=strips.filter(strip=>line.from<strip.to&&line.to>strip.from);
+    if(!crossed.length)found.push(`${where(rafter)} crosses no wall`);
+    for(const strip of crossed){
+      let seat=0,deepest=0;
+      for(let z=strip.from;z<=strip.to+1e-9;z+=1/16){
+        const gap=line.under(z)-strip.top;
+        if(gap<=close)seat+=1/16;
+        deepest=Math.max(deepest,-gap);
+      }
+      // how much of the rafter's thickness has a cap plate under it (it may straddle the joint between two plates)
+      const under=caps.filter(cap=>Math.abs(cap.hi[1]-strip.top)<close&&cap.lo[2]<strip.to&&cap.hi[2]>strip.from)
+        .reduce((sum,cap)=>sum+Math.max(0,overlap(cap,bounds,0)),0);
+      const plate=under>1.4;
+      if(!plate)found.push(`${where(rafter)} has no cap plate under it on the ${strip.label}`);
+      else if(seat<1.5)found.push(`${where(rafter)} bears on only ${fmt(seat)} of the ${strip.label}`);
+      if(deepest*line.cos>depth/3+close)found.push(`${where(rafter)} is notched deeper than a third of the board over the ${strip.label}`);
+    }
+  }
+
+  // gable: rafters meet the ridge board, and the ridge board sits on the two end walls
+  const ridgeBoard=named('Ridge board')[0];
+  if(!plan.lean&&!ridgeBoard)found.push('there is no ridge board');
+  if(ridgeBoard){
+    const ridge=box(ridgeBoard);
+    for(const rafter of rafters){
+      const line=sloped(rafter),end=line.backSlope?line.to:line.from,face=line.backSlope?ridge.lo[2]:ridge.hi[2];
+      if(Math.abs(end+line.shift-face)>close||Math.abs(line.under(end)+line.rise-ridge.hi[1])>close)found.push(`${where(rafter)} does not meet the top edge of the ridge board`);
+    }
+    const kings=named('Gable stud').map(box).filter(stud=>Math.abs(stud.hi[1]-ridge.lo[1])<close&&overlap(stud,ridge,2)>1.4);
+    if(kings.length<2)found.push('the ridge board does not sit on a gable stud at both ends');
+  }
+
+  // uprights: wood under the foot and wood on top
+  const level=named('Bottom plate','Top plate','Cap plate','Header','Sill','Ridge board').map(box);
+  const onSlope=named('Rake plate','Rafter').map(piece=>({bounds:box(piece),line:sloped(piece)}));
+  for(const upright of named('Stud','Trimmer stud','Cripple','Gable stud')){
+    const b=box(upright),overPlan=other=>overlap(b,other,0)>.2&&overlap(b,other,2)>.2;
+    const foot=level.some(other=>overPlan(other)&&Math.abs(other.hi[1]-b.lo[1])<close);
+    // under a sloped piece the top of the upright is cut to the slope: its long point touches
+    const head=level.some(other=>overPlan(other)&&Math.abs(other.lo[1]-b.hi[1])<close)||
+      onSlope.some(({bounds,line})=>overlap(b,bounds,0)>.2&&b.hi[2]>=line.from&&b.lo[2]<=line.to&&
+        Math.abs(Math.max(line.under(b.lo[2]),line.under(b.hi[2]))-b.hi[1])<close);
+    if(!foot)found.push(`${where(upright)} stands on nothing`);
+    if(!head)found.push(`${where(upright)} has nothing on top of it`);
+  }
+
+  // headers on trimmer studs, rafter ties on the walls
+  const trimmers=named('Trimmer stud').map(box);
+  for(const header of named('Header')){
+    const b=box(header);
+    if(trimmers.filter(stud=>Math.abs(stud.hi[1]-b.lo[1])<close&&overlap(stud,b,0)>1.4&&overlap(stud,b,2)>1.4).length!==2)found.push(`${where(header)} does not sit on two trimmer studs`);
+  }
+  for(const tie of named('Rafter tie')){
+    const b=box(tie);
+    const onWalls=caps.filter(cap=>Math.abs(cap.hi[1]-b.lo[1])<close&&overlap(cap,b,0)>1.4&&overlap(cap,b,2)>=.9).length;
+    const beside=rafters.filter(rafter=>Math.abs(box(rafter).lo[0]-b.hi[0])<close).length;
+    if(onWalls<2||beside<2)found.push(`${where(tie)} does not rest on both walls beside a pair of rafters`);
+  }
+  return[...new Set(found)];
+}
+
+/* A size field of a preset's form: key, label, default size, and (optional) the smallest and the largest size
+   the form accepts, in inches. The presets dialog turns away anything outside the limits with a plain message,
+   and selfTest builds the preset at both limits (see "The preset rule" in README.md). */
+const num=(k,label,v,min,max)=>{
+  const field={k,label,v};
+  if(min!==undefined)field.min=min;
+  if(max!==undefined)field.max=max;
+  return field;
+};
+
+/* ---------- self-check: the openings (selfTest runs every function in SELFTESTS, see js/core.js) ---------- */
+/* The door and window openings are framed and left open unless their option is on. The plywood door's pieces,
+   hinges, latch and building step are there only with "Add a plywood door"; the window only with "Show the window".
+   Neither option may change the framing or what check(p) says, so the bracing rule and every other check hold
+   either way: that is tried on every shed of SHED_SHAPES (js/selftest.js) and on the sheds of SHED_DOOR_SHAPES,
+   which put the door on each wall, make it a pair, and move the windows about. */
+const SHED_DOOR_SHAPES=[{dw:72},{dw:24,dh:60},{dwall:'back',doff:30},{dwall:'left'},{dwall:'right',wwall:'left'},{wn:0},
+  {wwall:'both',wn:4,ww:12},{roof:'lean',pitch:3,dwall:'left',dh:66},{roof:'lean',pitch:2,dwall:'back',wwall:'front',wn:2},{W:192,D:144,Hb:96,dw:72,dh:80,wn:8,wwall:'both'}];
+SELFTESTS.push(function shedOpenings(problems){
+  const shed=PRESETS.find(preset=>preset.name==='Shed');
+  if(!shed)return;
+  const defaults=presetDefaults(shed),close=.01;
+  /* everything one shed comes to that the two options may touch */
+  const look=vals=>{
+    const parts=buildShed(vals),named=name=>parts.filter(piece=>piece.name===name);
+    const hardware=shedHardware(vals),count=word=>hardware.filter(row=>word.test(row[0])).reduce((sum,row)=>sum+row[1],0);
+    const steps=shedSteps(vals),words=steps.map(step=>step.t).join(' ');
+    return{parts,doors:named('Shed door'),windows:named('Window'),framed:named('Header').length>0&&named('Trimmer stud').length>0,
+      framing:JSON.stringify(parts.filter(piece=>piece.name!=='Shed door'&&piece.name!=='Window')),
+      hinges:count(/T-hinges/i),hingeScrews:count(/screws.*for the hinge/i),latches:count(/latch/i),bolts:count(/barrel bolt/i),
+      doorStep:steps.some(step=>step.add.includes('Shed door')),windowStep:steps.some(step=>step.add.includes('Window')),
+      openWords:/left open/.test(words),notes:shedNotes(vals).join(' '),verdict:JSON.stringify(shedPlan(vals).problems)};
+  };
+  // the default choices: openings framed and left open, and nothing that belongs to a door
+  const open=look(defaults);
+  if(open.doors.length||open.windows.length)problems.push('shed: with its default choices the door and window openings must be left open');
+  if(!open.framed)problems.push('shed: an opening that is left open must still be framed (trimmer studs and a header)');
+  if(open.hinges||open.hingeScrews||open.latches||open.bolts||open.doorStep||open.windowStep)problems.push('shed: hinges, their screws, a latch, bolts, the door step or the window step are listed although neither is asked for');
+  if(!open.openWords||!/Also not included: a door and a window/.test(open.notes))problems.push('shed: the steps and the notes must say that the door and window openings are left open');
+  // each option alone
+  const doorOnly=look({...defaults,door:true}),windowOnly=look({...defaults,glass:true});
+  if(doorOnly.doors.length!==1||doorOnly.windows.length||!doorOnly.doorStep||doorOnly.windowStep)problems.push('shed: "Add a plywood door" alone must add the door and its step, and no window');
+  if(windowOnly.windows.length!==1||windowOnly.doors.length||windowOnly.hinges||windowOnly.latches||windowOnly.doorStep||!windowOnly.windowStep)problems.push('shed: "Show the window" alone must draw the window, and add nothing that belongs to a door');
+  if(!/not in the shopping list/.test(windowOnly.notes))problems.push('shed: with the window shown the notes must say that it is a bought one and what size to buy');
+  const closed=look({...defaults,door:true,glass:true});
+  if(closed.openWords)problems.push('shed: the steps say an opening is left open although the door and the windows are asked for');
+  if(/1x4/.test(shedDoorWords(shedPlan({...defaults,door:true}))))problems.push('shed: the door step asks for 1x4 boards that are in no list');
+  // the door step names the screws for both leaves of a hinge, and both kinds are on the hardware list
+  if(doorOnly.hingeScrews!==3*(SHED_HINGE.wallScrews+SHED_HINGE.doorScrews)||!/2 1\/2" exterior screws/.test(shedDoorWords(shedPlan({...defaults,door:true}))))problems.push('shed: the door step must say which screws hold the hinges, and the hardware list must have them');
+
+  // every shape, with the options off and on
+  for(const shape of SHED_SHAPES.concat(SHED_DOOR_SHAPES)){
+    const off={...defaults,...shape,door:false,glass:false},on={...off,door:true,glass:true},label='shed '+JSON.stringify(shape)+': ';
+    let bare,full;
+    try{bare=look(off);full=look(on);}
+    catch(e){problems.push(label+'it threw "'+e.message+'" with the door and window options');continue;}
+    if(bare.framing!==full.framing)problems.push(label+'the door or the window option changed the framing');
+    if(bare.verdict!==full.verdict)problems.push(label+'the door or the window option changed what check(p) says');
+    if(bare.doors.length||bare.windows.length||bare.hinges||bare.latches||bare.bolts)problems.push(label+'a door, a window or door hardware is there with both options off');
+    const plan=shedPlan(on),wall=Object.values(plan.walls).find(w=>w.ops.some(o=>o.kind==='door')),opening=wall.ops.find(o=>o.kind==='door');
+    const leaves=shedDoorLeaves(opening.u1-opening.u0);
+    if(full.doors.length!==leaves||plan.doorLeaves!==leaves)problems.push(label+`an opening ${fmt(opening.u1-opening.u0)} wide needs ${leaves} plywood door${leaves>1?'s':''}, not ${full.doors.length}`);
+    if(full.hinges!==3*leaves||full.latches!==1||full.bolts!==(leaves>1?2:0)||!full.doorStep)problems.push(label+'the door needs three hinges a door, one latch, two bolts for a pair, and its step');
+    if(full.windows.length!==plan.windowCount||full.windowStep!==plan.windowCount>0)problems.push(label+'"Show the window" must draw one window in each window opening, and the step that fits them');
+    // each door: cut from one sheet, inside its opening with the gap all round, its face level with the sheathing
+    const along=wall.alongX?0:2,through=wall.alongX?2:0,start=wall.alongX?wall.ox:wall.oz,inner=wall.alongX?wall.oz:wall.ox;
+    const face=wall.outer?inner+SHED.WALL+SHED.SHEATHING:inner-SHED.SHEATHING;
+    for(const door of full.doors){
+      const b=box(door);
+      if(Math.min(door.l,door.w)>SHED.DOOR_SHEET+close||Math.max(door.l,door.w)>96+close)problems.push(label+'a door is bigger than a sheet of plywood');
+      if(b.lo[along]<start+opening.u0+SHED.DOOR_GAP-close||b.hi[along]>start+opening.u1-SHED.DOOR_GAP+close||
+        Math.abs(b.lo[1]-(plan.F+SHED.DOOR_GAP))>close||Math.abs(b.hi[1]-(plan.F+opening.top-SHED.DOOR_GAP))>close)problems.push(label+'a door does not stand in its opening with the gap all round');
+      if(Math.abs((wall.outer?b.hi[through]:b.lo[through])-face)>close)problems.push(label+'the face of a door is not level with the outside of the wall sheathing, so a T-hinge cannot lie flat');
+      const hit=full.parts.find(piece=>piece!==door&&!tilted(piece)&&[0,1,2].every(k=>b.lo[k]<box(piece).hi[k]-close&&box(piece).lo[k]<b.hi[k]-close));
+      if(hit)problems.push(label+'a door runs into the '+hit.name);
+    }
+  }
+  // The structural check itself is tried with both options on by selfTest().structural, at every limit of the
+  // form and for both roof styles: they are `variants` of the Shed in js/presets.js, and must stay there.
+  const tried=(shed.variants||[]).filter(variant=>variant.door&&variant.glass).map(variant=>variant.roof||'gable');
+  if(!tried.includes('gable')||!tried.includes('lean'))problems.push('shed: its variants must try the plywood door and the windows shown on a gable and on a lean-to');
+});
+
+/* ---------- self-check: how the shed is fastened ---------- */
+/* A shed is nailed. Its joints list (SHED_JOINTS) must leave no pair of pieces with pocket screws, glue, dowels,
+   brads or brackets, the wall plates must be held to the floor by a fastener that reaches the floor frame (never
+   a short screw that ends in the plywood, or one driven up from under the floor), every nail the steps ask for
+   must be on the hardware list, and the roof steps, whose pieces are rotated and so have no joints, must carry
+   their own "Fasten with" lines. Tried on a gable, a lean-to and a large shed with the door and windows. */
+SELFTESTS.push(function shedFasteners(problems){
+  const shed=PRESETS.find(preset=>preset.name==='Shed');
+  if(!shed)return;
+  if(shed.joints!==SHED_JOINTS)problems.push('shed fasteners: the Shed preset must hand SHED_JOINTS to the program as its joints');
+  const named=(j,a,b)=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a);
+  for(const shape of[{},{roof:'lean',pitch:3},{W:192,D:144,Hb:96,dw:72,dh:80,wn:4,wwall:'both',door:true,glass:true}]){
+    const vals={...presetDefaults(shed),...shape},label='shed fasteners '+JSON.stringify(shape)+': ';
+    const plan=shedPlan(vals),parts=buildShed(vals);
+    parts.forEach((piece,index)=>{piece.id=index+1;});
+    const wrong=new Set();
+    for(const j of findJoints(parts)){
+      const own=SHED_JOINTS.find(([a,b])=>named(j,a,b)),type=own?own[2]:defaultType(j);
+      if(type==='none')continue;
+      const pair=j.a.name+' and '+j.b.name;
+      if(!['frame','toenail'].includes(type))wrong.add(`${pair} would get ${JTYPES[type][0].toLowerCase()}`);
+      if(named(j,'Bottom plate','Floor deck')&&jSpec(j,type).hw[0][0]!==FRAMING.LONG_SCREW)wrong.add('the bottom plates are not held to the floor with the long screws');
+    }
+    wrong.forEach(text=>problems.push(label+text));
+    const hardware=new Map(shedHardware(vals)),roof=shedRoofFasteners(vals,plan);
+    for(const item of[FRAMING.NAIL,FRAMING.SHEET_NAIL])if(!(hardware.get(item)>0))problems.push(label+'the hardware list has no '+item+' for the roof');
+    if(![...hardware.keys()].some(name=>/hanger nails/.test(name)))problems.push(label+'the hardware list has no nails for the metal hurricane ties');
+    if(![...hardware.keys()].some(name=>/^1\/2" plywood/.test(name)))problems.push(label+'the plywood for the wall above the drawn sheathing is not on the hardware list');
+    const steps=shedSteps(vals),words=steps.map(step=>step.t).join(' ');
+    for(const step of steps){
+      const rotated=step.add.filter(name=>['Rafter','Roof deck','Rake plate','Rafter tie','Gable stud'].includes(name));
+      if(rotated.length&&!(step.fasten||[]).length)problems.push(label+'the step that adds the '+rotated[0]+' has no "Fasten with" line of its own');
+    }
+    for(const wall of Object.values(plan.walls))if(!steps.some(step=>step.t.startsWith(wall.label[0].toUpperCase()+wall.label.slice(1)+':')))problems.push(label+'there is no step for the '+wall.label);
+    // each wall's step says how many studs it takes, and the four counts add up to the studs of the shed
+    const studsByWall=Object.values(plan.walls).map(wall=>shedWallCounts(wall,parts).Stud||0);
+    if(studsByWall.reduce((sum,count)=>sum+count,0)!==parts.filter(piece=>piece.name==='Stud').length)problems.push(label+'the studs counted wall by wall do not add up to the studs of the shed');
+    if(studsByWall.some(count=>!words.includes(`Its ${count} studs `)))problems.push(label+'a wall step does not say how many studs the wall takes');
+    if(!/starts [\d /"']+ from the left corner/.test(words))problems.push(label+'no step says where the door opening starts');
+    if(/pocket|glue/i.test(words))problems.push(label+'a step talks about pocket screws or glue');
+    if(/[Ss]crew the 3\/4" plywood floor/.test(words))problems.push(label+'the floor deck step says screw, and the floor deck is nailed');
+    if(!plan.lean&&!new RegExp(`with ${plan.tie.nails} nails at each end`).test(words)||(!plan.lean&&!roof.lines.tie[0].includes(plan.tie.nails+' × ')))problems.push(label+'the rafter tie sentence and its "Fasten with" line do not give the same number of nails');
+    if(/Sized by rule of thumb/.test(shedNotes(vals).join(' '))||shedNotes(vals).some(note=>note.split(/[.:;] /).some(sentence=>sentence.split(' ').length>45)))problems.push(label+'a note has a sentence of more than 45 words');
+  }
+});

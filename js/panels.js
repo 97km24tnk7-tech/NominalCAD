@@ -11,7 +11,7 @@ function renderParts(){
     return;
   }
   const rows=S.parts.slice(0,MAX_ROWS).map(p=>
-    `<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><span>${esc(M[p.mat].short)}</span><span class="num">${fmt(p.l)}</span></li>`).join('');
+    `<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><span title="${esc(M[p.mat].name)}">${esc(M[p.mat].brief||M[p.mat].short)}</span><span class="num">${fmt(p.l)}</span></li>`).join('');
   list.innerHTML=rows+(count>MAX_ROWS?`<li class="note">Showing the first ${MAX_ROWS} of ${count.toLocaleString()} pieces. Click any piece in the 3D view to select it.</li>`:'');
   // bring the selected row into view, so picking a piece in 3D also finds it in the list. The body of the panel
   // is what scrolls; the column headings stay at its top and cover that much of it.

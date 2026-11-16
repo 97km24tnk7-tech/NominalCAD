@@ -2,11 +2,11 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='3ea67a6';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='e47875b';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=3ea67a6">
+<link rel="stylesheet" href="css/style.css?v=e47875b">
 </head>
 <body data-tab="design">
 
@@ -52,6 +52,7 @@
   <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
   <symbol id="i-caret" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-verify" viewBox="0 0 24 24"><path d="M12 3.5l7 2.5v5.5c0 4.2-2.8 7.4-7 9-4.2-1.6-7-4.8-7-9V6z"/><path d="M8.8 12l2.4 2.4 4.2-4.6"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4L2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17v.3"/></symbol>
   <symbol id="i-screw" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M8 12h8M12 8v8"/></symbol>
   <symbol id="i-dim" viewBox="0 0 24 24"><path d="M4 6v12M20 6v12M4 12h16"/><path d="M7 9.5L4.5 12 7 14.5M17 9.5l2.5 2.5-2.5 2.5"/></symbol>
@@ -211,6 +212,7 @@
             <button class="mi" data-tool="connect"><i></i><span>Connect two pieces</span><kbd>C</kbd></button>
             <div class="msep"></div>
             <button class="mi" data-click="#bStyle"><i></i><span>Style, finish and difficulty&hellip;</span><kbd></kbd></button>
+            <button class="mi" data-cmd="check" title="Looks for pieces that are not held up, boards that reach too far between their supports, and anything that could tip or lean"><svg class="i"><use href="#i-verify"/></svg><span>Check my design&hellip;</span><kbd></kbd></button>
           </div>
         </div>
       </div>
@@ -302,7 +304,7 @@
 
     <div class="grp design-only">
       <div class="grp-b">
-        <button class="rb" id="bInstr" title="Opens tab 4: the shopping list, the cut list and the steps in order"><svg class="i l"><use href="#i-print"/></svg><span data-hosted="hide">Instructions<br>to print</span><span data-hosted="only">Build<br>instructions</span></button>
+        <button class="rb" id="bInstr" title="Opens the Build instructions tab: the shopping list, the cut list and the steps in order"><svg class="i l"><use href="#i-print"/></svg><span data-hosted="hide">Instructions<br>to print</span><span data-hosted="only">Build<br>instructions</span></button>
       </div>
       <div class="cap">Finish</div>
     </div>
@@ -357,6 +359,7 @@
     <button class="st link" id="stHidden" data-cmd="showAll" title="Some pieces are hidden. Click to show everything (Alt+H)."></button>
     <button class="st link" id="stNotes"></button>
     <button class="st warn" id="stWarn"></button>
+    <button class="st warn" id="stCheck" data-cmd="check" hidden></button>
     <div class="st design-only"><i>Show</i>
       <label class="tg" title="Show or hide the fastener dots"><input type="checkbox" id="showFast" checked><span><svg class="i xs"><use href="#i-screw"/></svg>Fasteners</span></label>
       <label class="tg" title="Show or hide the size lines"><input type="checkbox" id="showDims" checked><span><svg class="i xs"><use href="#i-dim"/></svg>Sizes</span></label>
@@ -383,6 +386,18 @@
     <button class="btn pri" id="bPGo">Create</button></div>
 </dialog>
 
+<dialog class="dlg wide" id="checkDlg">
+  <div class="dlg-h"><span>Check my design</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" id="checkSum"></p>
+    <div class="chk" id="checkList"></div>
+    <dl class="facts" id="checkFacts"></dl>
+  </div>
+  <div class="dlg-f"><label class="ck grow" title="Tick this when the finished piece will be screwed to the wall studs, so that it cannot tip or lean"><input type="checkbox" id="checkWall">It will be screwed to the wall studs</label>
+    <button class="btn" id="bCheckAgain">Check again</button>
+    <button class="btn pri" data-close>Close</button></div>
+</dialog>
+
 <dialog class="dlg wide" id="styleDlg">
   <div class="dlg-h"><span>Style, finish and difficulty</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b">
@@ -391,7 +406,7 @@
     <div class="frow"><label for="woodSel">Wood</label><select class="fld" id="woodSel" title="Sizes stay the same for every wood. Store boards are smaller than their names (a 2x4 is 1 1/2&quot; × 3 1/2&quot;). True rough-sawn boards from a sawmill are a full 2&quot; × 4&quot;, so measure yours and adjust if you use them."></select></div>
     <div class="frow"><label for="finSel">Finish</label><select class="fld" id="finSel" title="The 3D view, the steps and the shopping list all follow the finish you pick"></select></div>
   </div>
-  <div class="dlg-f"><span class="grow" title="Time is hands-on working time for one person and does not include glue or finish drying. Any fastener you picked by hand on the Fasteners tab is kept.">Skill, time and price are rough guides, not promises.</span>
+  <div class="dlg-f"><span class="grow" title="Time is hands-on working time for one person and does not include glue or finish drying. Any fastener you picked by hand is kept.">Skill, time and price are rough guides, not promises.</span>
     <button class="btn pri" data-close autofocus>Done</button></div>
 </dialog>
 
@@ -507,14 +522,15 @@
     <div class="frow"><label for="wordsFind">Find a word</label><input class="fld" id="wordsFind" type="search" placeholder="apron, pilot hole, flush..." autocomplete="off"></div>
     <div id="wordsList"></div>
   </div>
-  <div class="dlg-f"><span class="grow">On the pages, click any highlighted word for the same explanations.</span><button class="btn pri" data-close>Close</button></div>
+  <div class="dlg-f"><span class="grow"><span data-beginner>On the pages, click any highlighted word for the same explanations.</span><span data-expert>On the pages, click a highlighted fastener word to see how that joint is made.</span></span><button class="btn pri" data-close>Close</button></div>
 </dialog>
 
 <dialog class="dlg wide" id="helpDlg">
   <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b help">
     <div class="sec">The quick way</div>
-    <p>Click <b>Furniture presets</b> (the blue button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Then open the <b>Build instructions</b> tab for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
+    <p>Click <b>Furniture presets</b> (the dark button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Every size has a smallest and a largest value: a box turns red when a number is outside them, and a line says what it must be. If your numbers cannot work together, a warning box says what is wrong, why, and what to change, and nothing is built until they can.
+ Then open the <b>Build instructions</b> tab for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
     <p>New to woodworking? <button class="lnk" data-open-words>Woodworking words</button> explains every name the program uses for a piece (apron, cleat, slat) and shows how each joint is made, with a drawing. On the pages, a highlighted word can be clicked for the same thing.</p>
     <div class="sec">Where things are</div>
     <dl>
@@ -522,10 +538,11 @@
       <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, and turns on see-through, exploded view and the color key. A command that is gray needs something first, usually a selected piece.</dd>
       <dt>Panels</dt><dd>The <b>Pieces</b> list and the <b>Properties</b> of the selected piece float over the 3D view. Drag one by its title bar, roll it up with the dash, or hide it. The two buttons at the right edge of the view bring them back. Properties appears when a piece is selected.</dd>
       <dt>Status bar</dt><dd>The bar along the bottom says what to do next with the current tool and shows live sizes while you drag. It also has the overall size, the piece count, a warning when pieces overlap, the Fasteners and Sizes switches, and the Snap size.</dd>
-      <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The blue button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
-      <dt>Beginner and Expert</dt><dd>The switch at the top right. <b>Beginner</b> shows the three steps a first project needs, and the program picks every screw and joint for you. <b>Expert</b> adds a fourth tab, <b>Fasteners</b>: a table of every place two pieces meet, where you can change the screw or joint by hand. Nothing is missing in Beginner: the hardware to buy and which fastener goes where are on the other pages.</dd>
-      <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list tab, type the prices from your store and the total follows.</dd>
-      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
+      <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The dark button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
+      <dt>Beginner and Expert</dt><dd>The switch at the top right. <b>Beginner</b> shows the three steps a first project needs, and the program picks every screw and joint for you. <b>Expert</b> adds one more tab, <b>Fasteners</b>, after Design: a table of every place two pieces meet, where you can change the screw or joint by hand. Nothing is missing in Beginner: the hardware to buy and which fastener goes where are on the other pages.</dd>
+      <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list &amp; shopping tab, type the prices from your store and the total follows.</dd>
+      <dt>Check my design</dt><dd>In the <b>Tools</b> group, under <b>More</b> (or right-click empty space in the view). It looks for pieces that nothing holds up, boards too long for their load, and anything that could tip or lean over, and says what to change. Every preset passes it as it comes; run it after you change a design by hand or draw your own. These are rule-of-thumb checks, not an engineer's certification.</dd>
+      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
       <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
@@ -536,7 +553,7 @@
       <dt>Box select</dt><dd>Hold Shift and drag across empty space to select everything inside the box.</dd>
       <dt>Copy and mirror</dt><dd>In the Edit group of the ribbon: Duplicate, Copy in a row (evenly spaced copies) and Mirror (the matching other side). More has Duplicate and drag.</dd>
       <dt>Right-click</dt><dd>Right-click a piece for a menu of everything you can do to it. Right-click empty space for view options.</dd>
-      <dt>Hide and see through</dt><dd>H hides the selected pieces, Shift+H shows only them, Alt+H brings everything back. Alt+Z makes the wood see-through. Display, then Exploded view, pulls the pieces apart.</dd>
+      <dt>Hide and see through</dt><dd>H hides the selected pieces, Shift+H shows only them, Alt+H brings everything back. Alt+Z makes the wood see-through. Display, then Exploded view, pulls the pieces apart. <b>Show me</b>, beside a word under "Words used in this design" on the pages, shows where those pieces are: they turn blue and the rest goes see-through until you click.</dd>
       <dt>Groups</dt><dd>Select several pieces and press Ctrl+G. After that, clicking one selects them all. Ctrl+Shift+G ungroups.</dd>
       <dt>Overlaps</dt><dd>Pieces that occupy the same space turn red, and a warning appears in the status bar. Click the warning to select them.</dd>
       <dt>Change length</dt><dd>Click a piece and drag one of the blue handles on its ends, or type a size in the Properties panel.</dd>
@@ -563,39 +580,44 @@
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=3ea67a6"></script>
+<script src="three.min.js?v=e47875b"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=3ea67a6"></script>
-<script src="js/hosted.js?v=3ea67a6"></script>
-<script src="js/dialogs.js?v=3ea67a6"></script>
-<script src="js/orient.js?v=3ea67a6"></script>
-<script src="js/builders-furniture.js?v=3ea67a6"></script>
-<script src="js/builders-fish.js?v=3ea67a6"></script>
-<script src="js/builders-shed.js?v=3ea67a6"></script>
-<script src="js/presets.js?v=3ea67a6"></script>
-<script src="js/nightstand.js?v=3ea67a6"></script>
-<script src="js/state.js?v=3ea67a6"></script>
-<script src="js/joints.js?v=3ea67a6"></script>
-<script src="js/style.js?v=3ea67a6"></script>
-<script src="js/visibility.js?v=3ea67a6"></script>
-<script src="js/view3d.js?v=3ea67a6"></script>
-<script src="js/groups.js?v=3ea67a6"></script>
-<script src="js/tools.js?v=3ea67a6"></script>
-<script src="js/transform.js?v=3ea67a6"></script>
-<script src="js/panels.js?v=3ea67a6"></script>
-<script src="js/statusbar.js?v=3ea67a6"></script>
-<script src="js/plans.js?v=3ea67a6"></script>
-<script src="js/prices.js?v=3ea67a6"></script>
-<script src="js/layout.js?v=3ea67a6"></script>
-<script src="js/preview.js?v=3ea67a6"></script>
-<script src="js/app.js?v=3ea67a6"></script>
-<script src="js/level.js?v=3ea67a6"></script>
-<script src="js/glossary.js?v=3ea67a6"></script>
-<script src="js/jointhelp.js?v=3ea67a6"></script>
-<script src="js/wordlinks.js?v=3ea67a6"></script>
-<script src="js/transfer.js?v=3ea67a6"></script>
-<script src="js/menus.js?v=3ea67a6"></script>
-<script src="js/selftest.js?v=3ea67a6"></script>
+<script src="js/core.js?v=e47875b"></script>
+<script src="js/hosted.js?v=e47875b"></script>
+<script src="js/dialogs.js?v=e47875b"></script>
+<script src="js/orient.js?v=e47875b"></script>
+<script src="js/verify.js?v=e47875b"></script>
+<script src="js/builders-furniture.js?v=e47875b"></script>
+<script src="js/builders-fish.js?v=e47875b"></script>
+<script src="js/builders-shed.js?v=e47875b"></script>
+<script src="js/builders-storage.js?v=e47875b"></script>
+<script src="js/builders-outdoor.js?v=e47875b"></script>
+<script src="js/presets.js?v=e47875b"></script>
+<script src="js/nightstand.js?v=e47875b"></script>
+<script src="js/state.js?v=e47875b"></script>
+<script src="js/joints.js?v=e47875b"></script>
+<script src="js/framing.js?v=e47875b"></script>
+<script src="js/style.js?v=e47875b"></script>
+<script src="js/visibility.js?v=e47875b"></script>
+<script src="js/view3d.js?v=e47875b"></script>
+<script src="js/groups.js?v=e47875b"></script>
+<script src="js/tools.js?v=e47875b"></script>
+<script src="js/transform.js?v=e47875b"></script>
+<script src="js/panels.js?v=e47875b"></script>
+<script src="js/statusbar.js?v=e47875b"></script>
+<script src="js/plans.js?v=e47875b"></script>
+<script src="js/prices.js?v=e47875b"></script>
+<script src="js/layout.js?v=e47875b"></script>
+<script src="js/preview.js?v=e47875b"></script>
+<script src="js/checkui.js?v=e47875b"></script>
+<script src="js/app.js?v=e47875b"></script>
+<script src="js/level.js?v=e47875b"></script>
+<script src="js/glossary.js?v=e47875b"></script>
+<script src="js/jointhelp.js?v=e47875b"></script>
+<script src="js/wordlinks.js?v=e47875b"></script>
+<script src="js/transfer.js?v=e47875b"></script>
+<script src="js/menus.js?v=e47875b"></script>
+<script src="js/selftest.js?v=e47875b"></script>
 </body>
 </html>

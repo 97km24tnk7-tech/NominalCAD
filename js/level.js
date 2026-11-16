@@ -23,6 +23,7 @@ function setLevel(next){
    the switch, and number the tabs that are showing 1, 2, 3 (and 4). */
 function applyLevel(){
   document.body.dataset.level=level;
+  if(window.dressWordSpans)dressWordSpans();   // js/wordlinks.js: a woodworking word is a button in Beginner, plain text in Expert
   document.querySelectorAll('#levelSwitch button').forEach(button=>{
     const on=button.dataset.level===level;
     button.classList.toggle('on',on);

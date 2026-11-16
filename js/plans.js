@@ -142,12 +142,21 @@ function takePictures(full){
   resize();rebuildScene();updateCam();renderer.render(scene,camera);
   return out;
 }
+/* The tools a design needs. Only what its steps really use: clamps where something is glued or screwed (they hold
+   the pieces while you drill), sandpaper where a step sands (hasFinishStep in js/style.js), a staple gun where
+   the hardware list has something to staple. */
 function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.mat].kind==='sheet');
-  const L=['Tape measure, pencil and a square','Saw (a circular saw or miter saw)','Drill/driver with bits','Clamps','Sandpaper: 80, 120 and 180 grit','Safety glasses and hearing protection'];
+  const clamped=['screw','pocket','dowel','nail','glue','bracket'].some(type=>t.has(type));
+  const L=['Tape measure, pencil and a square','Saw (a circular saw or miter saw)','Drill/driver with bits'];
+  if(clamped)L.push('Clamps');
+  if(hasFinishStep())L.push('Sandpaper: '+sandpaperGrits());
+  L.push('Safety glasses and hearing protection');
+  if((S.hw||[]).some(([item])=>/landscape fabric/i.test(item)))L.push('Staple gun and staples');
   if(t.has('screw'))L.push('Drill bit for pilot holes (7/64" for pine, 1/8" for oak and other hard woods) and a countersink bit');
   if(t.has('pocket'))L.push('Pocket-hole jig');
   if(t.has('dowel'))L.push('Dowel jig and a mallet');
-  if(t.has('nail'))L.push('Brad nailer, or a hammer and nail set');
+  if(t.has('nail'))L.push('Brad nailer, or a hammer and a nail set (a small steel punch that sinks the head of a nail just below the surface)');
+  if(t.has('frame')||t.has('toenail'))L.push('Framing hammer (20 oz or so). A framing nailer is much faster if you can borrow or rent one');
   if(sheet)L.push('Straight-edge guide for cutting plywood (or have the store cut it)');
   if(S.notes&&S.notes.length)L.push('Level and shims');
   return L;}
@@ -170,8 +179,9 @@ document.addEventListener('click',e=>{
 /* the top of a sheet. On screen: the title and one line of facts. On paper: a title block like the one on a
    shop drawing (the style sheet shows one or the other). */
 function docHead(sheetName){
-  const b=bbox(S.parts),date=docDate(),toCut=S.parts.filter(p=>!isProp(p)).length;
-  const size=b?overallSize(b):'',style=toCut?STYLES[look().style][0]+' style':'';
+  // the size of what is built; a mattress or a tank that stands higher is said apart (builtSize in js/statusbar.js)
+  const built=builtSize(S.parts),b=built.box,date=docDate(),toCut=S.parts.filter(p=>!isProp(p)).length;
+  const size=b?overallSize(b)+(built.with?` (${built.with})`:''):'',style=toCut?STYLES[look().style][0]+' style':'';
   const facts=[size,toCut?plural(toCut,'piece')+' to cut':'',style,date].filter(Boolean).join(' · ');
   setPrintFooter();
   return`<h1>${esc(S.name)}: ${sheetName.toLowerCase()}</h1><div class="meta">${facts}</div>`+
@@ -213,7 +223,7 @@ function cutRows(){
     if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:angleOf(p),qty:0,names:new Set()});
     const g=groups.get(k);
     g.qty++;g.names.add(p.name);
-    pounds+=p.l*p.w*p.t*(M[p.mat].kind==='sheet'?.02:.017);
+    pounds+=p.l*p.w*p.t*WOOD_RULES.DENSITY;   // the same weight for wood as the structural check uses (js/verify.js)
   }
   const order=id=>MATS.findIndex(m=>m.id===id);
   const rows=[...groups.values()].sort((a,b)=>order(a.mat)-order(b.mat)||b.l-a.l);
@@ -225,7 +235,12 @@ function cutRows(){
 function cutListSection(list){
   const rows=list.rows.map(g=>{
     const m=M[g.mat],ripped=m.kind==='board'&&g.w<m.w-.01;
-    const note=[ripped?'Rip to '+fmt(g.w)+' wide':'',g.deg?`Sits at ${g.deg}°: cut the ends at an angle to fit`:''].filter(Boolean).join('. ');
+    // A board that sits at an angle may need its ends cut to fit. A design with steps of its own says exactly
+    // how (a rafter: slanted at the top, square at the bottom), so the note points there instead of guessing.
+    // A sheet that lies on a slope (a roof deck) is cut square: it gets no note.
+    const ownSteps=S.steps&&S.steps.length;
+    const angled=!g.deg||m.kind==='sheet'?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
+    const note=[ripped?'Rip to '+fmt(g.w)+' wide':'',angled].filter(Boolean).join('. ');
     return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
       `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td><td>${note}</td></tr>`;
   });
@@ -249,7 +264,8 @@ function diagramSection(list){
       buy.push({m,qty:boards.length,stock});
       const lengthChoices=STOCKS.map(s=>`<option value="${s}"${s===stock?' selected':''}>${s/12} ft</option>`).join('');
       // the board length is a choice on screen and plain words on paper (class "printonly")
-      h+=`<div class="buy">${boards.length} × ${esc(m.short)}, <select class="fld noprint" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select><span class="printonly">${stock/12} ft</span> long</div>`;
+      const wood=m.treated?'':WOOD_ROW_WORDS[look().wood]||'';   // "Cedar 2x6", as on the shopping list (js/prices.js)
+      h+=`<div class="buy">${boards.length} × ${esc((wood?wood+' ':'')+m.short)}, <select class="fld noprint" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select><span class="printonly">${stock/12} ft</span> long</div>`;
       if(tooLong.length)h+=`<p class="warn">${plural(tooLong.length,'piece')} ${tooLong.length>1?'are':'is'} longer than 16 ft and cannot be cut from one board.</p>`;
       boards.forEach((board,i)=>{
         const left=stock-board.used;
@@ -288,7 +304,10 @@ function diagramSection(list){
    picture with the new pieces in orange */
 function stepsSection(list,joints,shots){
   const own=S.steps&&S.steps.length;
-  const steps=own?S.steps:[CUT,{t:'Join the pieces as shown in the picture at the top, using the fastener table below. Start with the frame or the largest pieces, check for square as you go, and add tops and shelves last.',add:[]},FIN];
+  let steps=own?S.steps:[CUT,{t:'Join the pieces as shown in the picture at the top, using the fastener table below. Start with the frame or the largest pieces, check for square as you go, and add tops and shelves last.',add:[]},FIN];
+  // A preset that starts as bare wood (a shed, a garden bed) has no finishing step. Once the person picks a
+  // finish for it in Style & finish, the shopping list buys that finish, so the steps say how to put it on.
+  if(own&&look().finish!=='none'&&!steps.some(isFinishStep))steps=steps.concat([FIN]);
   const seen=new Set();
   let h=`<h2>Steps</h2><p class="hint">${own?'In each picture, the pieces added in that step are orange.':'This is a custom design, so the steps are general. Presets come with detailed steps and a picture for each one.'}</p>`;
   steps.forEach((step,i)=>{
@@ -305,12 +324,28 @@ function stepsSection(list,joints,shots){
       // three cells: how many, the letter (an empty cell for a tank or a mattress, which has none), the name
       return`<li><span class="qty">${qty} ×</span>${keyBox(letter)||'<span></span>'}<span>${esc(name)}${length?', '+length:''}</span></li>`;
     }).join('');
-    // the joints between a new piece and anything built so far
-    const fasteners=jointGroups(joints.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(added.has(j.a.name)||added.has(j.b.name))&&jType(j)!=='none'))
-      .map(g=>{
-        const types=new Set(g.js.map(jType));
-        return`<li>${esc(g.A[0])} to ${esc(g.B[0])}: ${types.size===1?esc(jSpec(g.js[0],[...types][0]).text)+' at each joint':'mixed, see the table below'}</li>`;
-      }).join('');
+    // The joints between a new piece and anything built so far. Two pieces can meet face to face in one place
+    // and end to face in another: lines that read the same are shown once. A step may add lines of its own
+    // (step.fasten) for joints the program cannot see, because rotated pieces (rafters, a roof deck) have none.
+    // When several pieces take the very same fastener to one other piece (every board of a wall frame to the
+    // plywood nailed over it), they share one line: "Stud, Top plate and Header to Wall sheathing: ...".
+    const byWords=new Map();
+    for(const g of jointGroups(joints.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(added.has(j.a.name)||added.has(j.b.name))&&jType(j)!=='none'))){
+      const types=new Set(g.js.map(jType)),spec=jSpec(g.js[0],[...types][0]);
+      // a fastener given by its spacing (nails through plywood) is not "at each joint"
+      const words=types.size===1?spec.text+(spec.bySpacing?'':' at each joint'):'mixed, see the table below';
+      if(!byWords.has(words))byWords.set(words,[]);
+      byWords.get(words).push([g.A[0],g.B[0]]);
+    }
+    const lines=new Set();
+    for(const[words,pairs]of byWords){
+      const shared=[pairs[0][0],pairs[0][1]].find(name=>pairs.every(pair=>pair.includes(name)));
+      const others=shared?[...new Set(pairs.map(pair=>pair[0]===shared?pair[1]:pair[0]))]:[];
+      if(others.length>2)lines.add(`${others.slice(0,-1).join(', ')} and ${others[others.length-1]} to ${shared}: ${words}`);
+      else for(const pair of pairs)lines.add(`${pair[0]} to ${pair[1]}: ${words}`);
+    }
+    for(const line of step.fasten||[])lines.add(line);
+    const fasteners=[...lines].map(line=>`<li>${esc(line)}</li>`).join('');
     h+=`<div class="step${shots[i]?'':' nopic'}"><div class="no">${i+1}</div><div><p>${esc(stepText(step))}</p>`+
       (pieces?`<div class="need pieces"><h4>Pieces</h4><ul>${pieces}</ul></div>`:'')+
       (fasteners?`<div class="need"><h4>Fasten with</h4><ul>${fasteners}</ul></div>`:'')+
@@ -321,10 +356,17 @@ function stepsSection(list,joints,shots){
 function fastenerSection(joints){
   const groups=jointGroups(joints).filter(g=>g.js.some(j=>jType(j)!=='none'));
   if(!groups.length)return'';
-  const rows=groups.map(g=>{
+  // one row for each pair of pieces and fastener: the same two pieces can meet in two ways (face to face here,
+  // end to face there) and still take the same fastener, and those are counted together
+  const merged=new Map();
+  for(const g of groups){
     const types=new Set(g.js.map(jType));
-    return`<tr><td>${esc(g.A[0])} to ${esc(g.B[0])}</td><td class="num">${g.js.length}</td><td>${types.size===1?esc(jSpec(g.js[0],[...types][0]).text):'Mixed: see the Fasteners tab (switch to Expert, top right)'}</td></tr>`;
-  });
+    const how=types.size===1?jSpec(g.js[0],[...types][0]).text:'Mixed: see the Fasteners tab (switch to Expert, top right)';
+    const key=g.A[0]+'|'+g.B[0]+'|'+how;
+    if(!merged.has(key))merged.set(key,{pair:`${g.A[0]} to ${g.B[0]}`,count:0,how});
+    merged.get(key).count+=g.js.length;
+  }
+  const rows=[...merged.values()].map(row=>`<tr><td>${esc(row.pair)}</td><td class="num">${row.count}</td><td>${esc(row.how)}</td></tr>`);
   return`<h2>Which fastener goes where</h2>`+docTable([['Join',''],['Joints','num'],['With, per joint','']],rows);
 }
 function renderCut(instr){
@@ -349,7 +391,7 @@ function renderCut(instr){
     // three drawings, two to a row; the fourth place says what the sizes measure
     const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');
     h+=`<h2>Views with sizes</h2><div class="views">${figures}`+
-      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
+      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(isProp)?', counting a fish tank or a mattress that is drawn':''}. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</p>`;
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
@@ -362,3 +404,57 @@ function renderCut(instr){
   page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)
   page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{S.stock[choice.dataset.stock]=+choice.value;commit();});
 }
+
+/* ---------- self-check: the steps and the lists under them say the same thing ----------
+   (selfTest runs every function in SELFTESTS, see js/core.js.) A beginner reads a step and then the list under
+   it, and builds what they say. So, for every preset as it comes:
+     - a way of fastening that a step names (pocket holes, L-brackets, glue) has its hardware on the lists;
+     - what the shopping list buys for finishing is used by a step, and a design that starts with a finish has
+       the finishing step;
+     - no "Fasten with" line is written for two pieces that only touch (the pairs that once had one are listed
+       in ONLY_TOUCH), and no step carries two lines for the same pair of pieces with two different fasteners. */
+const ONLY_TOUCH={
+  'Platform bed':[['Side rail','Slat'],['End rail','Slat'],['Cleat','Leg']],
+  'Garage shelves':[['Post','Shelf deck']],
+  'Workbench':[['Leg','Lower shelf']],
+  'Dining table':[['Top board','Top board']],
+  'Base cabinet with doors':[['Countertop','Side']],
+  'Planter box':[['Bottom slat','Long side'],['Corner post','Slat cleat']]
+};
+SELFTESTS.push(function stepsAgreeWithLists(problems){
+  for(const preset of PRESETS){
+    const vals=presetDefaults(preset);
+    let parts=[];
+    try{parts=preset.build(vals)||[];}catch(e){}
+    if(!parts.length)continue;
+    placePreset(preset,vals,parts,false);
+    const label=preset.name+': ',joints=findJoints(),hardware=hardwareTotals(joints);
+    const items=hardware.rows.map(row=>row[0]).join(' | '),steps=S.steps||[];
+    const words=steps.map(stepText).join(' ');
+    if(/pocket/i.test(words)&&!/pocket-hole screws/.test(items))problems.push(label+'a step fastens with pocket holes, and no pocket-hole screws are on the hardware list');
+    if(/L-bracket/i.test(words)&&!/L-brackets/.test(items)&&!/corner braces/i.test(items))problems.push(label+'a step offers L-brackets, and none are on the hardware list');
+    if(hardware.glue&&!/glue/i.test(words))problems.push(label+'wood glue is on the shopping list and no step glues anything');
+    const sands=/\bsand/i.test(words);
+    if(/Sandpaper/.test(items)&&!sands)problems.push(label+'sandpaper is on the shopping list and no step sands');
+    if(/Polyurethane|Paint|stain/.test(items)&&!steps.some(isFinishStep))problems.push(label+'a finish is on the shopping list and the steps have no finishing step');
+    if(/320 grit/.test(words)&&!/320/.test(items))problems.push(label+'the finishing step asks for 320 grit sandpaper that is not on the shopping list');
+    for(const[a,b]of ONLY_TOUCH[preset.name]||[]){
+      const fastened=joints.filter(j=>((j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a))&&jType(j)!=='none');
+      if(fastened.length)problems.push(`${label}a fastener is listed between the ${a} and the ${b}, which only touch`);
+    }
+  }
+  // the fish stand keeps the one joint between a post and a deck that is real: the top deck lies on the post tops
+  const stand=PRESETS.find(candidate=>candidate.name==='Single aquarium stand');
+  if(stand){
+    const vals=presetDefaults(stand);
+    placePreset(stand,vals,stand.build(vals),false);
+    const between=(a,b)=>findJoints().filter(j=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a));
+    const postDeck=between('Post','Shelf deck');
+    if(!postDeck.some(j=>jType(j)==='none')||!postDeck.some(j=>jType(j)==='screw'))problems.push('Single aquarium stand: the bottom deck only touches the posts and the top deck is screwed down onto them; the fastener list must say both');
+    if(between('Shelf deck','Upright').some(j=>jType(j)!=='none'))problems.push('Single aquarium stand: an upright cannot be screwed from under the deck it stands on');
+    if(/pocket/.test(hardwareTotals(findJoints()).rows.map(row=>row[0]).join(' ')))problems.push('Single aquarium stand: pocket-hole screws are on its list, and its steps use none');
+    const steps=S.steps,finish=steps.findIndex(isFinishStep),doors=steps.findIndex(step=>step.add.includes('Door'));
+    if(finish<0||doors<finish)problems.push('Single aquarium stand: the finish goes on before the doors are hung');
+    if(/Stack upward|above the feet/.test(steps.map(step=>step.t).join(' ')))problems.push('Single aquarium stand: its steps are still the ones written for a rack of many rows');
+  }
+});

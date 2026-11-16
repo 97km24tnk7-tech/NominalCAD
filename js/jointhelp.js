@@ -147,6 +147,45 @@ const JOINT_HELP={
       'No clamps? Heavy weights, tape pulled tight, or a few screws can do the squeezing.',
       'Wood glue does not set properly below about 50 degrees F, so glue in a warm room.',
       'For anything that stays outdoors or near water, buy wood glue marked water resistant or waterproof.']},
+  frame:{
+    title:'Framing nails',
+    what:'Thick nails 3 inches long, driven straight through one board into the next. This is how the frames of walls, floors and roofs are put together: it is fast, and a nail bends where a screw of the same size would snap. Plywood is nailed to a frame with shorter nails, close together.',
+    picture:jhSvg('Two nails through a flat board into the end of an upright board',
+      '<rect class="w2" x="118" y="52" width="44" height="100"/>'+
+      '<rect class="w" x="20" y="22" width="156" height="30"/>'+
+      '<path class="m brad" d="M130 22v66M150 22v66"/><path class="m" d="M125 19h10v3h-10zM145 19h10v3h-10z"/>'+
+      '<text class="t" x="26" y="41">through this piece</text>'+
+      '<text class="t" x="20" y="100">into the end</text><text class="t" x="20" y="111">of this one</text><path class="ld" d="M84 102h32"/>'+
+      '<path class="ld" d="M154 20l28-8"/><text class="t" x="185" y="12">head tight against the</text><text class="t" x="185" y="23">wood, not sunk into it</text>'+
+      '<path class="ld" d="M152 76h30"/><text class="t" x="185" y="74">half of the nail or more</text><text class="t" x="185" y="85">in the second piece</text>'),
+    need:['Hammer of about 20 ounces, or a framing nailer','The nails the list names: 3 inch nails (sold as 10d) for boards, 2-1/2 inch nails (sold as 8d) for plywood',
+      'Safety glasses'],
+    steps:['Mark where the second piece goes on the first one, so that you can see where to nail when it is covered.',
+      'Hold the two pieces where they go. A helper, a clamp or your foot keeps them from sliding.',
+      'Start each nail with a light tap, take your fingers away, then drive it home with full swings.',
+      'Stop when the head is tight against the wood. For plywood, drive a nail every 6 inches along the edges of the sheet and every 12 inches into the boards behind the rest of it.'],
+    tips:['Keep nails 3/4 inch or more from the end of a board, and do not put two in the same line of grain, or the board splits. Tapping the point of a nail flat with the hammer first also helps.',
+      'On plywood, keep nails 3/8 inch in from the edge of the sheet and do not sink the heads below the surface: a sunk head has cut through the top layers and holds much less.',
+      'A long screw can stand in for a nail where the list allows it, but an ordinary screw is brittle. For framing use screws sold as structural or construction screws.',
+      'Wear safety glasses. A nail struck off center can fly.']},
+  toenail:{
+    title:'Nails driven at an angle (toenailing)',
+    what:'When a board stands on another board that is already fixed in place, you cannot nail up through the lower one. So the nails go in at a slant, through the side of the standing board, near its foot, and down into the board under it.',
+    picture:jhSvg('An upright board standing on a flat board, held by two nails that slant in through its sides',
+      '<rect class="w" x="30" y="112" width="240" height="34"/>'+
+      '<rect class="w2" x="128" y="14" width="44" height="98"/>'+
+      '<path class="m brad" d="M112 72l34 56M188 72l-34 56"/><circle class="m" cx="112" cy="72" r="3"/><circle class="m" cx="188" cy="72" r="3"/>'+
+      '<text class="t" x="16" y="26">this piece stands</text><text class="t" x="16" y="37">on the other one</text><path class="ld" d="M98 30h28"/>'+
+      '<path class="ld" d="M192 70l22-14"/><text class="t" x="188" y="38">start about 1 inch up,</text><text class="t" x="188" y="49">slanted steeply down</text>'+
+      '<text class="t" x="40" y="134">one nail from each side</text>'),
+    need:['Hammer','The nails the list names (3 inch nails, sold as 10d)','Safety glasses'],
+    steps:['Stand the board on its mark. Put your foot or a block against the far side, because the first nail will push it along.',
+      'Start a nail in the side of the standing board, about 1 inch above its foot, pointing almost straight in. After two taps, tip it to slant steeply downward.',
+      'Drive it through the corner of the standing board and into the board under it.',
+      'Drive the next nail the same way from the opposite side. It pushes the board back onto its mark.'],
+    tips:['If the board has moved off its mark after the first nail, the nail from the other side brings it back. Check the mark before you drive the last one home.',
+      'A nail started too low splits the corner off the board. If that happens, start again 1/2 inch higher.',
+      'Where wind can lift the roof, a toenail alone is not enough at a rafter: add the metal tie the list names.']},
 };
 
 /* one card as HTML: what it is, the drawing, what you need, the steps, good to know */

@@ -300,6 +300,7 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .st.link svg{color:var(--n600)}
 .st.warn{background:var(--warn-bg);color:var(--warn)}
 .st.warn:hover{background:#ffe9a8}
+.st.warn.stop{color:var(--danger)} /* the count from Check my design, when something cannot work */
 .st:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
 .status .seg button,.status .tg>span{height:var(--h-st)}
 /* What belongs to one kind of tab only. design-only: the ribbon groups for building, and Show, Snap and the grid
@@ -371,6 +372,20 @@ textarea.fld.area.wrap{white-space:pre-wrap;word-break:break-all} /* one very lo
 .sum small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600)}
 .sum b{font-size:var(--fs-doc);line-height:19px;color:var(--n900);font-variant-numeric:tabular-nums}
 .pform-s .note{margin:6px 0 0;max-height:77px;overflow:auto}
+/* Findings of the structural check: under the presets form, and in the Check my design dialog (js/checkui.js).
+   One .chk-i for each finding; .stop = cannot work, .warn = marginal; a <button> one can be clicked. */
+.chk{display:flex;flex-direction:column}
+.chk:empty{display:none}
+.chk-i{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--s8);align-items:start;padding:var(--s6) var(--s8);border:0;border-top:1px solid var(--n200);background:none;font:inherit;color:var(--n800);text-align:left}
+.chk-i svg{margin-top:1px;color:var(--warn)}
+.chk-i.stop svg,.chk-i.stop b{color:var(--danger)}
+.chk-i.warn b{color:var(--warn)}
+.chk-i small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600);margin-top:var(--s2)}
+button.chk-i:hover{background:var(--n100)}
+button.chk-i:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
+.pform-s .chk{margin-top:var(--s6);max-height:132px;overflow:auto}
+#checkDlg .chk{margin:0 0 var(--s12);border-bottom:1px solid var(--n200)}
+
 #cutDlg,#copyDlg,#pasteDlg{width:520px}
 
 /* Style, finish and difficulty: three choices side by side, each with what it takes */

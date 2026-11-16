@@ -26,6 +26,50 @@ const TERM_GROUPS=[
 
 const TERMS=[
   /* ---- pieces: the more exact name first ---- */
+  /* Two-word names that would otherwise fall into a general entry further down (a "Door stile" is not a door,
+     a "Rafter tie" is not a rafter). Each is written from how its builder really makes it. */
+  {word:'Door stile',group:'parts',match:/\bdoor stile\b/i,
+    what:'An upright piece in the front of a wide cabinet, between two pairs of doors. It runs from the bottom shelf up to the frame above and helps hold that frame up, and the doors on each side of it are hinged to it.'},
+  {word:'Panel stud',group:'parts',match:/\bpanel stud\b/i,
+    what:'An upright 2x4 inside the end of a tall cabinet base, halfway between the front post and the back post. The thin side panel there is too big to cut from one sheet, so it is made in two halves, and both halves are nailed to this piece where they meet.'},
+  {word:'Filler block',group:'parts',match:/\bfiller block\b/i,
+    what:'A short block fastened to the outside of a rail in a tank rack, where a shelf frame is narrower than the rack is deep. It brings the frame out to the full depth at that spot, so the upright of the row above stands on solid wood.'},
+  {word:'Back rail',group:'parts',match:/\bback rail\b/i,
+    what:'A board standing on its edge across the back of a cabinet or bookshelf, right under the top. The screws that hold the piece to the wall go through it, and it helps keep the cabinet or bookshelf from leaning sideways.'},
+  {word:'Base rail',group:'parts',match:/\bbase rail\b/i,
+    what:'A board standing on its edge under the bottom panel of a cabinet or bookshelf, along the back. Together with the toe kick (the board under the front edge) it holds up the bottom panel so it cannot sag.'},
+  {word:'Cross rail',group:'parts',match:/\bcross rail\b/i,
+    what:'A board that runs across a table, desk or bench under the top, from one long apron to the other (the aprons are the boards on edge between the legs). The top rests on it and is fastened to it, so the top cannot sag in the middle.'},
+  {word:'Shelf rail',group:'parts',match:/\bshelf rail\b/i,
+    what:'A board that runs across under the lower shelf of a table or workbench, from one long stretcher to the other (the stretchers are the boards that join the legs near the floor). The shelf rests on it, so it cannot sag.'},
+  {word:'Slat cleat',group:'parts',match:/\bslat cleat\b/i,
+    what:'A thin strip screwed along the inside of each long wall of a planter, at the bottom. The bottom boards lie across on the two strips and are screwed down to them, which holds up the soil and holds the two walls together.'},
+  {word:'Cross tie',group:'parts',match:/\bcross tie\b/i,
+    what:'A board across a raised garden bed from one long side to the other, on its edge, with its top level with the top of the bed. Wet soil pushes the long sides outward, and the tie holds them together. You can plant right up to it and under it.'},
+  {word:'Middle post',group:'parts',match:/\bmiddle post\b/i,
+    what:'An extra upright piece screwed to the inside of a long side of a raised garden bed, partway along, opposite one on the other side. It joins the boards of that side to each other, and a board across the bed between the two posts stops the soil from pushing the sides outward.'},
+  {word:'Middle leg',group:'parts',match:/\bmiddle leg\b/i,
+    what:'An extra leg partway along each long wall of a long planter, screwed to the inside of the wall like the corner posts and reaching the ground. It holds up the middle of the wall and joins its boards together, so the soil cannot bow the wall outward.'},
+  {word:'Divider',group:'parts',match:/\bdivider\b/i,
+    what:'An upright board inside a wide bookshelf, standing on the floor like the two sides. It splits the width into shorter shelves, because a long shelf sags under a row of books.'},
+  {word:'Partition',group:'parts',match:/\bpartition\b/i,
+    what:'An upright panel in the middle of a wide cabinet, standing on the floor like the two sides. It holds up the middle of the cabinet, so no shelf has to reach the whole width and sag.'},
+  {word:'Trimmer stud',group:'shed',match:/\btrimmer stud\b/i,
+    what:'A shorter upright board on each side of a door or window opening, nailed to the full-height upright beside it. The header, which is the strong piece across the top of the opening, sits on top of the two trimmer studs.'},
+  {word:'Gable stud',group:'shed',match:/\bgable stud\b/i,
+    what:'A short upright board in the triangle of wall under a peaked roof, at each end of the shed. It stands on top of the end wall and its top is cut on a slant to fit under the roof. The one in the middle holds up the end of the board along the peak.'},
+  {word:'Rafter tie',group:'shed',match:/\brafter tie\b/i,
+    what:'A board laid level across the shed from the top of the front wall to the top of the back wall, nailed to the side of a pair of the sloping roof boards (the rafters). A peaked roof pushes the two walls apart, and the ties hold them together, so never leave one out. A roof with a single slope has none.'},
+  {word:'Ridge board',group:'shed',match:/\bridge board\b/i,
+    what:'The level board along the very top of a peaked roof, running the length of the shed. The top ends of the sloping roof boards (the rafters) are nailed to it from both sides, each one opposite its partner.'},
+  {word:'Rake plate',group:'shed',match:/\brake plate\b/i,
+    what:'The sloping board along the top of each side wall of a shed whose roof has a single slope. It is nailed across the tops of the upright boards of that wall, which get longer toward the high wall, and the last sloping roof board at each end lies on it.'},
+  {word:'Cap plate',group:'shed',match:/\bcap plate\b/i,
+    what:'A second board nailed flat on top of the board that runs along the top of a wall frame. At a corner it runs on over the end of the next wall, and that overlap ties the walls together. The sloping roof boards (the rafters) sit on it.'},
+  {word:'Blocking',group:'shed',match:/\bblocking\b/i,
+    what:'Short pieces of 2x4 nailed between the upright boards of a wall, on edge and flush with the outside. They go behind a level joint between two sheets of the plywood that covers the wall, so the edges of both sheets have wood to be nailed to.'},
+  {word:'Wall sheathing',group:'shed',match:/\bsheathing\b/i,
+    what:'The sheets of plywood nailed over the outside of the wall frames. They close the walls in, and they are what stops the shed from leaning over sideways, so each sheet is nailed all the way around its edges.'},
   {word:'Drawer front',group:'parts',match:/^drawer front$/i,
     what:'The face of a drawer that you see: a board screwed onto the front of the drawer box from inside the drawer. It covers the gap around the box and carries the handle.'},
   {word:'Drawer box',group:'parts',match:/^drawer (box|side|bottom)/i,
@@ -71,15 +115,20 @@ const TERMS=[
   {word:'Skid',group:'shed',match:/\bskid\b/i,
     what:'A heavy piece of lumber, such as a 4x4, laid on the ground or on blocks, that the whole shed sits on. Skids keep the floor off the dirt and make the shed easier to level. Use pressure-treated lumber, because ordinary wood rots where it touches the ground.'},
   {word:'Rafter',group:'shed',match:/\brafter\b/i,
-    what:'One of the sloping boards that hold up the roof, evenly spaced. On a roof with one slope, each rafter runs from the top of the low wall up to the top of the high wall. On a peaked roof, pairs of rafters lean together at the top.'},
+    what:'One of the sloping boards that hold up the roof, evenly spaced. On a roof with a single slope (a lean-to), each rafter runs from the top of the low back wall up to the top of the high front wall. On a peaked roof (a gable), rafters come in pairs: one from the front wall and one from the back wall, each nailed at its top end to the board that runs along the peak.'},
   {word:'Rim',group:'parts',match:/\brim\b/i,
     what:'A low strip around the edge of a tray. It keeps things from sliding off.'},
   {word:'Rail',group:'parts',match:/\brail\b/i,
     what:'A horizontal board in a frame. In a tank rack the rails run left to right and carry the weight of the tanks to the upright posts. In a cabinet the top rails tie the two sides together and the top is screwed to them. On a bed the side rails and end rails make the frame around the mattress.'},
   {word:'Corner post',group:'parts',match:/\bcorner post\b/i,
     what:'An upright piece inside each corner of a planter or garden bed. The side boards are screwed to it, and that is what holds the corner together.'},
-  {word:'Upright or post',group:'parts',match:/\b(upright|post)\b/i,
-    what:'A piece standing straight up that carries weight down to the floor. For a heavy load such as a fish tank, the weight should rest on top of it, not hang from screws driven into its side.'},
+  // "Post" by itself is the long corner piece of the garage shelves, the racks and the stands, whose frames ARE
+  // screwed to its side: the general entry below (weight rests on top, never on screws) would read as if those
+  // designs were built wrong.
+  {word:'Post',group:'parts',match:/^post$/i,
+    what:'An upright board at a corner or an end that runs the whole height of a shelf unit, a rack or a stand. The shelf frames are screwed to its side, and that holds the whole thing together and square. On shelves for boxes and tools the posts also carry the shelves down to the floor. Under fish tanks the weight rests on separate uprights that stand between the frames, wood on wood.'},
+  {word:'Upright',group:'parts',match:/\b(upright|post)\b/i,
+    what:'A piece standing straight up that carries weight down to the floor. Under a heavy load such as a fish tank, the frame above rests on top of it, wood on wood, so the weight does not hang from screws.'},
   {word:'Leg',group:'parts',match:/\bleg\b/i,
     what:'An upright piece that holds the furniture up off the floor. A center leg is an extra one in the middle so a long piece does not sag.'},
   {word:'Foot',group:'parts',match:/\bfoot\b/i,
@@ -125,7 +174,9 @@ const TERMS=[
   {word:'Countersink',group:'join',
     what:'A small cone-shaped hollow at the top of a pilot hole, so the head of the screw ends up level with the wood instead of sticking up.'},
   {word:'Driven at an angle',group:'join',
-    what:'A screw started in the side of one piece and slanted so it passes through the corner into the other piece. It is used where you cannot screw straight through.'},
+    what:'A screw or a nail started in the side of one piece and slanted so it passes through the corner into the other piece. It is used where you cannot fasten straight through. With nails this is called toenailing.'},
+  {word:'Framing nail',group:'join',
+    what:'A thick nail for the frames of walls, floors and roofs. The lists give the length and, in brackets, the old name stores still sell it by: a 3 inch nail is a "10d", a 2-1/2 inch nail an "8d". Common nails, with a flat head, are the kind to buy.'},
   {word:'Butt joint',group:'join',
     what:'The simplest joint there is: the end or edge of one piece pushed up against another piece and fastened with screws, nails or glue.'},
   {word:'Pocket hole',group:'join',
@@ -141,13 +192,17 @@ const TERMS=[
   {word:'Hinge',group:'join',
     what:'The metal joint a door or lid swings on. One half screws to the door or lid, the other to the cabinet or box.'},
   {word:'Overlay hinge',group:'join',
-    what:'A cabinet hinge that lets the door lie over the front edges of the cabinet instead of sitting inside the opening. Full overlay means the door covers the whole edge.'},
+    what:'A cabinet hinge that lets the door lie over the front edges of the cabinet instead of sitting inside the opening. Full overlay means the door covers the whole edge. One leaf screws to the back of the door, the other to the cabinet: to the inside of its side, or to the front edge of a post. The simplest kind just screws on. The kind with a round cup needs a large shallow hole drilled in the back of the door, and its package says exactly where.'},
   {word:'Pull and catch',group:'join',
-    what:'A pull is a handle for a door or drawer. A catch is a small magnet or clip inside the cabinet that holds the door shut.'},
+    what:'A pull is a handle for a door or drawer; it is held by a bolt or two through a hole you drill. A catch holds the door shut: a small magnet screwed inside the cabinet, under the top where the free side of the door closes, and a metal plate screwed to the back of the door where it meets the magnet.'},
   {word:'Drawer slide',group:'join',
     what:'A pair of metal runners, one for each side of a drawer. One half of each screws to the cabinet and the other half to the drawer, and the drawer rolls in and out on them.'},
   {word:'Wall stud and stud finder',group:'join',
     what:'Wall studs are the upright boards hidden inside a house wall. A stud finder is a small tool you slide along the wall that signals where they are, so your screws go into wood and not just drywall.'},
+  {word:'Nail set',group:'join',
+    what:'A small steel punch. Set its tip on the head of a nail and tap it with the hammer to sink the head just below the surface, where a little filler hides it.'},
+  {word:'Drip loop',group:'join',
+    what:'A low sag in an electric cord before it reaches the outlet. Water that runs along the cord drips off at the bottom of the sag instead of running into the outlet. Leave one on every cord near a fish tank.'},
   {word:'Racking',group:'join',
     what:'A frame leaning over sideways until its square corners become slanted, like a box folding flat. A back panel or a slanted brace stops it.'},
 
@@ -164,6 +219,8 @@ const TERMS=[
     what:'Moved in from an edge by a stated amount. "Set back 2 inches from the front" means 2 inches behind the front edge.'},
   {word:'Overhang',group:'measure',
     what:'How far one piece sticks out past the piece under it, like a table top past its legs.'},
+  {word:'Span',group:'measure',
+    what:'How far a board reaches from one support to the next with nothing under it. The longer the span, the more the board sags, so every size of board has a longest span it is good for under a given load.'},
   {word:'Clearance',group:'measure',
     what:'Empty space left on purpose so something can move or fit: around a drawer, above a fish tank for your hand, behind a door.'},
   {word:'Shim',group:'measure',
@@ -180,7 +237,11 @@ const TERMS=[
     what:'Level means perfectly horizontal, like the surface of still water. Plumb means perfectly straight up and down. A bubble level checks both.'},
   {word:'Roof pitch',group:'measure',
     what:'How steep a roof is, given as the inches it rises for every 12 inches measured level, not along the slope. "4 in 12" is a gentle slope, "12 in 12" is 45 degrees.'},
-  {word:'Rafter tie (hurricane tie)',group:'shed',
+  {word:'Bay',group:'measure',
+    what:'The space between two uprights of a bookshelf, a cabinet or a rack. A wide bookshelf with one divider has two bays.'},
+  {word:'Case',group:'measure',
+    what:'The box of a bookshelf or cabinet: its two sides, its top and its bottom, with whatever is fastened between them. The back and the doors go onto the case.'},
+  {word:'Hurricane tie',group:'shed',
     what:'A bent metal plate nailed to both a rafter and the top of the wall under it. It keeps wind from lifting the roof off.'},
 
   /* ---- lumber, sheets and finishing ---- */
@@ -192,6 +253,12 @@ const TERMS=[
     what:'Lumber soaked with a preservative so it does not rot outdoors or against the ground. Fasten it with screws marked exterior or for treated lumber, because plain steel screws rust away in it.'},
   {word:'Grain',group:'lumber',
     what:'The lines in wood, which run the length of a board. Wood is hard to break across the grain but splits easily along it, the way firewood does, which is why screws near an end need a pilot hole.'},
+  {word:'Face grain',group:'lumber',
+    what:'The lines on the face of a sheet of plywood. On a full sheet they run the long way. Plywood is about twice as stiff along those lines as across them, so a shelf or a top is cut with the lines running the way it has to reach.'},
+  {word:'Drip edge and underlayment',group:'lumber',
+    what:'Two things that go on a roof deck before the roofing. Underlayment is the roll of felt or plastic sheet laid over the plywood to keep it dry. Drip edge is a bent metal strip along the edges of the roof that sends water clear of the wood under it.'},
+  {word:'Rimless tank',group:'bought',
+    what:'A fish tank with no plastic frame around its bottom edge, so the glass itself stands on the stand. It needs a thin foam mat under it to even out any small bump.'},
   {word:'Hardware',group:'lumber',
     what:'Everything you buy that is not wood or finish: screws, nails, hinges, drawer slides, handles, brackets.'},
   {word:'Sandpaper grit',group:'lumber',
@@ -240,15 +307,16 @@ function wordsSection(){
     `<button class="lnk noprint" data-open-words>All woodworking words</button></p>`+
     `<dl class="terms">${rows}</dl></section>`;
 }
-/* Show me: go to the Design tab with every piece of that word selected and in view */
+/* Show me: go to the Design tab with every piece of that word picked out. The pieces are drawn solid and blue
+   and the rest of the design see-through (showSpotlight in js/visibility.js), because the pieces a beginner most
+   needs shown are the ones behind something else: a base rail, a cleat, the studs inside a sheathed wall.
+   Nothing gets selected, so nothing can be changed by accident. */
 function showTermPieces(term){
   const ids=S.parts.filter(part=>termFor(part.name)===term&&!hiddenIds.has(part.id)).map(part=>part.id);
   if(!ids.length)return toast('Those pieces are hidden. Use Display, then Show everything.');
   setTab('design');
-  sel=new Set(ids);
-  renderAll();
-  focusSel();
-  toast(`${ids.length} piece${ids.length>1?'s':''} selected: ${term.word.toLowerCase()}`);
+  showSpotlight(ids,term.word);
+  toast(`${term.word}: ${ids.length===1?'the piece':'the '+ids.length+' pieces'} in blue. Click anywhere to go back to normal.`);
 }
 
 /* ---------- in Properties: one line about the selected piece ---------- */
@@ -312,23 +380,34 @@ document.addEventListener('click',event=>{
 });
 
 SELFTESTS.push(function woodworkingWords(problems){
-  // every piece name any preset can produce (its defaults, and each choice of each option) must be explained
+  // Every piece name any preset can produce must be explained: at its defaults, with each choice of each option,
+  // and with each number at its smallest and largest (a wide bookshelf gets dividers, a long garden bed cross
+  // ties), each choice tried together with each limit.
   const unexplained=new Set();
   for(const preset of PRESETS){
     const defaults={};
     for(const field of preset.params)if(!field.head)defaults[field.k]=field.v;
-    const forms=[defaults];
+    const choices=[{}],limits=[{}];
     for(const field of preset.params){
-      if(field.opts)for(const option of field.opts)forms.push({...defaults,[field.k]:option[0]});
-      if(field.check)forms.push({...defaults,[field.k]:!field.v});
+      if(field.opts)for(const option of field.opts)choices.push({[field.k]:option[0]});
+      else if(field.check)choices.push({[field.k]:!field.v});
+      else if(field.k)for(const limit of[field.min,field.max])if(limit!==undefined)limits.push({[field.k]:limit});
     }
-    for(const form of forms){
+    for(const choice of choices)for(const limit of limits){
       let parts=[];
-      try{parts=preset.build(form);}catch(e){}
+      try{parts=preset.build({...defaults,...choice,...limit});}catch(e){}
       for(const part of parts)if(!termFor(part.name))unexplained.add(`${part.name} (${preset.name})`);
     }
   }
   if(unexplained.size)problems.push('words: no explanation in js/glossary.js for: '+[...unexplained].slice(0,12).join(', '));
+  // names that used to fall into a general entry must keep their own
+  for(const[name,word]of[['Door stile','Door stile'],['Panel stud','Panel stud'],['Rafter tie','Rafter tie'],['Ridge board','Ridge board'],
+    ['Trimmer stud','Trimmer stud'],['Gable stud','Gable stud'],['Back rail','Back rail'],['Base rail','Base rail'],['Cross rail','Cross rail'],
+    ['Shelf rail','Shelf rail'],['Slat cleat','Slat cleat'],['Middle post','Middle post'],['Middle leg','Middle leg'],['Stud','Stud'],
+    ['Rafter','Rafter'],['Door','Door'],['Shed door','Door'],['Rail','Rail'],['Top rail','Rail']]){
+    const found=termFor(name);
+    if(!found||found.word!==word)problems.push(`words: "${name}" is explained as "${found?found.word:'nothing'}", not as "${word}"`);
+  }
   for(const term of TERMS){
     if(!TERM_GROUPS.some(group=>group[0]===term.group))problems.push(`words: "${term.word}" is in no group`);
     if(!term.what||term.what.length<20||/undefined|NaN/.test(term.what))problems.push(`words: "${term.word}" has no real explanation`);
@@ -344,4 +423,21 @@ SELFTESTS.push(function woodworkingWords(problems){
   renderWords('apron');
   if(!/Apron/.test($('#wordsList').textContent))problems.push('words: finding "apron" in the Woodworking words window shows nothing');
   renderWords('');
+  // "Post" by itself has its own entry (the frames of the garage shelves hang on its side); one meaning per name
+  if(termFor('Post').word!=='Post'||termFor('Upright').word!=='Upright')problems.push('words: a post and an upright need entries of their own');
+  if(TERMS.filter(term=>/rafter tie/i.test(term.word)).length!==1)problems.push('words: two entries are called a rafter tie');
+  // Show me picks the pieces out without selecting them: the rest is drawn see-through, and one click puts it back
+  const keepParts=S.parts,keepSel=sel,keepTab=tab;
+  S.parts=[mk('Side','1x10',[.75,30,9.25],[0,0,0]),mk('Base rail','1x4',[20,3.5,.75],[.75,0,0]),mk('Toe kick','1x4',[20,3.5,.75],[.75,0,7])];
+  S.parts.forEach((part,index)=>{part.id=9000+index;});
+  showTermPieces(termFor('Base rail'));
+  const rail=meshes.get(9001),side=meshes.get(9000);
+  if(sel.size)problems.push('words: Show me selected the pieces, so Properties offers tools that change the design');
+  if(!spotlightIds||spotlightIds.size!==1||!rail||!side||rail.children[0].material.opacity<1||side.children[0].material.opacity>.3)problems.push('words: Show me does not draw its pieces solid and the rest see-through');
+  if(!/Show me/.test($('#status').textContent))problems.push('words: the status bar does not say how to leave Show me');
+  endSpotlight();
+  if(spotlightIds||meshes.get(9000).children[0].material.opacity<1)problems.push('words: the view does not go back to normal after Show me');
+  S.parts=keepParts;sel=keepSel;
+  setTab(keepTab);
+  renderAll();
 });

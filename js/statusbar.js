@@ -3,7 +3,8 @@
    Left    the prompt: what to do next with the current tool, and the live readout while something is being
            dragged, drawn, stretched or moved with M / R / S.
    Middle  facts about the design: overall size, piece count, fish tanks and their filled weight, hidden pieces,
-           notes, and a warning chip when pieces overlap (clicking it selects them).
+           notes, a warning chip when pieces overlap (clicking it selects them), and the count of problems the
+           last Check my design found (clicking it checks again; js/checkui.js draws it).
    Right   the Show switches and the Snap sizes. Those are ordinary form controls in index.html
            (#showFast, #showDims, #gridSel); this file only keeps the Snap buttons and the hidden select in step.
 
@@ -62,6 +63,7 @@ function renderPrompt(){
     if(!S.parts.length)p=[p[0],p[1],'Nothing to show yet. Go to 1 Design and pick a furniture preset, or add a piece.']; // an empty page has no prices to type and nothing to print
   }
   else if(explode)p=['i-display','Exploded view','Click any piece to put the design back together.'];
+  else if(spotlightIds)p=['i-display','Show me: '+esc(spotlightWord.toLowerCase()),`${spotlightIds.size===1?'This piece is':'These '+spotlightIds.size+' pieces are'} blue and everything else is see-through. Drag to look around; click anywhere or press Esc to go back to normal.`];
   else p=(TOOL_PROMPTS[tool]||TOOL_PROMPTS.select)();
   setPrompt(`<b>${p[1]}</b>${p[2]}`,p[0]);
 }
@@ -75,14 +77,28 @@ function setFact(id,html,title){
   el.innerHTML=html;
   if(title!==undefined)el.title=title;
 }
+/* The overall size of a design is the size of what gets built: the wooden pieces. A mattress or a fish tank that
+   is drawn for fit is bought, and counting it made a bed frame 14" off the floor read "23" tall". Where such a
+   thing reaches higher than the wood, that height is said apart: "14" tall (23" tall with the mattress)".
+   Returns {box, with}: the bounds to give as the size, and the extra words ('' when there are none). */
+function builtSize(parts){
+  const wood=bbox(parts.filter(p=>!isProp(p))),all=bbox(parts);
+  if(!wood||!all)return{box:all,with:''};
+  const loads=parts.filter(p=>p.mat==='tank'||p.mat==='mattress');
+  const top=Math.max(...loads.map(p=>box(p).hi[1]),-Infinity);
+  if(top<=wood.hi[1]+.01)return{box:wood,with:''};
+  const tanks=loads.filter(p=>p.mat==='tank').length;
+  const what=!tanks?'the mattress':tanks===1?'the tank':'the tanks';
+  return{box:wood,with:`${fmtFt(top-wood.lo[1])} tall with ${what}`};
+}
 function renderFacts(){
-  const count=S.parts.length,b=bbox(S.parts);
+  const count=S.parts.length,built=builtSize(S.parts),b=built.box;
 
   // overall size: long form on a wide window, short form on a narrow one (the style sheet shows one of the two)
   if(b){
     const w=fmtFt(b.hi[0]-b.lo[0]),d=fmtFt(b.hi[2]-b.lo[2]),h=fmtFt(b.hi[1]-b.lo[1]);
     setFact('#stSize',`<span class="long">${w} wide × ${d} deep × ${h} tall</span><span class="short">${w} × ${d} × ${h}</span>`,
-      `Overall size: ${w} wide × ${d} deep × ${h} tall`);
+      `Overall size of what you build: ${w} wide × ${d} deep × ${h} tall`+(built.with?` (${built.with})`:''));
   }else setFact('#stSize','');
 
   setFact('#stCount',count?`${count.toLocaleString()} piece${count===1?'':'s'}`:'No pieces yet');
@@ -101,7 +117,7 @@ function renderFacts(){
 
   const notes=S.notes||[];
   setFact('#stNotes',notes.length?`${icon('i-info')}${notes.length} note${notes.length>1?'s':''}`:'',
-    notes.length?`${notes[0]} Click to read the weight and safety notes on the Cut list tab.`:'');
+    notes.length?`${notes[0]} Click to read the weight and safety notes on the Cut list & shopping tab.`:'');
 
   // pieces that occupy the same space
   const clashes=findClashes();
@@ -110,6 +126,9 @@ function renderFacts(){
     setFact('#stWarn',`${icon('i-warn')}${ids.size} pieces overlap`,
       `${clashes[0][0].name} and ${clashes[0][1].name} are in the same space${more?`, and ${more} more pair${more>1?'s':''}`:''}. They are shown in red; move or shorten one. Click to select them.`);
   }else setFact('#stWarn','');
+
+  // what the last Check my design found (js/checkui.js)
+  renderCheckChip();
 }
 function renderStatus(){
   renderPrompt();

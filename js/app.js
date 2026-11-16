@@ -7,6 +7,7 @@ document.body.dataset.tab=tab; // the style sheet shows and hides things by tab 
 const TAB_PAGES={design:'#designPage',joints:'#jointsPage',cut:'#cutPage',instr:'#instrPage'};
 function setTab(t){
   tab=t;
+  if(t!=='design'){spotlightIds=null;spotlightWord='';}   // "Show me" (js/visibility.js) belongs to the 3D view
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
   document.body.dataset.tab=t; // the style sheet shows and hides things by tab
   if(t==='cut')renderCut();
@@ -190,22 +191,39 @@ function splitLabel(label){
   const found=String(label).match(/^(.*?)\s*\(([^()]*)\)\s*$/);
   return found?[found[1],found[2]]:[label,''];
 }
-/* one row of the form for one entry of a preset's params (see the notes at the bottom of presets.js) */
-function presetField(q){
+/* One row of the form for one entry of a preset's params (see the notes at the bottom of presets.js).
+   index is the entry's place in params; the row carries it as data-q so that a row with a show(p) rule can be
+   found again and shown or hidden (presetRowShown below). */
+function presetField(q,index){
+  const row=`data-q="${index}"`;
   if(q.head){
     const[title,remark]=splitLabel(q.head);
-    return`<div class="sec">${esc(title)}${remark?`<i>${esc(remark)}</i>`:''}</div>`;
+    return`<div class="sec" ${row}>${esc(title)}${remark?`<i>${esc(remark)}</i>`:''}</div>`;
   }
   const[label,remark]=splitLabel(q.label),id='pf-'+q.k,hint=remark?`<i>${esc(remark)}</i>`:'';
   if(q.opts){
     const options=q.opts.map(([value,text])=>`<option value="${value}"${value===q.v?' selected':''}>${esc(text)}</option>`).join('');
-    return`<div class="frow"><label for="${id}">${esc(label)} ${hint}</label><select class="fld" id="${id}" data-k="${q.k}">${options}</select></div>`;
+    return`<div class="frow" ${row}><label for="${id}">${esc(label)} ${hint}</label><select class="fld" id="${id}" data-k="${q.k}">${options}</select></div>`;
   }
   if(q.check){
-    return`<div class="frow"><label for="${id}">${esc(label)}</label><span class="ck"><input type="checkbox" id="${id}" data-k="${q.k}"${q.v?' checked':''}>${hint}</span></div>`;
+    return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><span class="ck"><input type="checkbox" id="${id}" data-k="${q.k}"${q.v?' checked':''}>${hint}</span></div>`;
   }
   const value=q.int||q.dec?q.v:fa(q.v);
-  return`<div class="frow"><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${value}">${hint}</div>`;
+  return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${value}">${hint}</div>`;
+}
+/* A row of the form may only make sense with some of the other choices: the Bookshelf's "Opening 3" box needs
+   three shelves and the choice to set the heights by hand. Such an entry of params carries show(p), which is
+   handed the values read so far (the rows above it) and says whether the row belongs on the form. Shows or
+   hides the row to match and returns the answer. A row without show(p) is always shown. */
+function presetRowShown(q,index,vals){
+  let shown=true;
+  if(q.show){
+    try{shown=!!q.show(vals);}
+    catch(e){shown=false;}
+  }
+  const row=$(`#presetForm [data-q="${index}"]`);
+  if(row)row.hidden=!shown;
+  return shown;
 }
 function choosePreset(index){
   curPreset=PRESETS[index];
@@ -216,7 +234,8 @@ function choosePreset(index){
     `<div class="pform-h"><h4>${esc(curPreset.name)}</h4><p>${esc(curPreset.desc)}</p></div>
      <div class="pview" id="presetPic" title="What these sizes build. It follows the numbers as you type."></div>
      <div class="pform-b">${firstHeading}${curPreset.params.map(presetField).join('')}</div>
-     <div class="pform-s"><div class="sum" id="presetSum"></div><p class="note" id="presetInfo"></p></div>`;
+     <div class="pform-s"><div class="sum" id="presetSum"></div><div class="chk" id="presetCheck"></div><p class="note" id="presetInfo"></p></div>`;
+  $('#bPGo').disabled=$('#bPAdd').disabled=false;
   $('#bPAdd').hidden=!S.parts.length;
   showPresetSummary();
 }
@@ -242,20 +261,41 @@ function presetFieldChanged(field){
     $(`#presetForm [data-k="${sizeChoice.k}"]`).value='custom';
   }
 }
-/* Reads the form. Returns {key: value}, or null when a size cannot be read; the boxes at fault turn red. */
+/* Reads the form. Returns {key: value}, or null when a size cannot be read or is outside the limits its preset
+   gives it (min and max on the field, see num() in builders-shed.js); the boxes at fault turn red and
+   presetFieldNote says in plain words what is wrong with the first one.
+   On the way it shows or hides the rows that have a show(p) rule. A hidden box is not judged: whatever was left
+   in it, the preset gets the value the box starts with, because the person cannot see it to put it right. */
+let presetFieldNote='';
+const CANNOT_READ='A size in red cannot be read. Type it like 36, 3 1/2 or 4\' 6.';
 function readVals(focusBad){
   const vals={};
   let firstBad=null;
-  for(const q of curPreset.params){
-    if(q.head)continue;
+  presetFieldNote='';
+  curPreset.params.forEach((q,index)=>{
+    const shown=presetRowShown(q,index,vals);
+    if(q.head)return;
     const el=$(`#presetForm [data-k="${q.k}"]`);
-    if(q.opts){vals[q.k]=el.value;continue;}
-    if(q.check){vals[q.k]=el.checked;continue;}
+    if(!shown){vals[q.k]=q.v;el.classList.remove('bad');return;}
+    if(q.opts){vals[q.k]=el.value;return;}
+    if(q.check){vals[q.k]=el.checked;return;}
     const v=q.int?parseInt(el.value,10):q.dec?parseFloat(el.value):parseLen(el.value);
-    const bad=isNaN(v)||v<0||v>1200;
+    const unreadable=isNaN(v)||v<0||v>1200;
+    // A box for a count (how many windows, how many shelves) takes a whole number and nothing else. "2.7" was
+    // once read as 2 without a word, so the box showed one number and the design was built with another.
+    const notWhole=!!q.int&&!unreadable&&!/^\d+(\.0*)?$/.test(el.value.trim());
+    const tooSmall=!unreadable&&q.min!==undefined&&v<q.min-1e-9,tooBig=!unreadable&&q.max!==undefined&&v>q.max+1e-9;
+    const bad=unreadable||notWhole||tooSmall||tooBig;
     el.classList.toggle('bad',bad);
-    if(bad)firstBad=firstBad||el;else vals[q.k]=v;
-  }
+    if(!bad){vals[q.k]=v;return;}
+    if(firstBad)return;
+    firstBad=el;
+    const show=size=>q.int||q.dec?String(size):fmt(size),name=splitLabel(q.label)[0];
+    presetFieldNote=unreadable?CANNOT_READ
+      :notWhole?`${name} must be a whole number, like ${v} or ${v+1}.`
+      :q.min!==undefined&&q.max!==undefined?`${name} must be between ${show(q.min)} and ${show(q.max)}.`
+      :tooSmall?`${name} cannot be less than ${show(q.min)}.`:`${name} cannot be more than ${show(q.max)}.`;
+  });
   if(!firstBad)return vals;
   if(focusBad){firstBad.focus();firstBad.select();}
   return null;
@@ -270,31 +310,49 @@ function assessParts(parts){
   }finally{S=keep;}
 }
 /* The live picture and summary of the chosen preset with the sizes typed so far: what it looks like, overall
-   size, pieces, lumber to buy and cost. When the sizes cannot be built, one message says why instead, the box
-   that was changed last turns red, and Create waits until something fits. */
+   size, pieces, lumber to buy and cost, and under them what the structural check (js/verify.js) and the preset's
+   own check(p) say about those sizes.
+     - A box that cannot be read, or is outside the limits of its field, turns red and one line says why.
+       Nothing is drawn, and Create waits until the box is put right.
+     - Sizes that cannot work ("stop") are listed in red with the reason and what to change; the box that was
+       changed last is marked. Create stays live: pressing it gives the same reasons in a message (presetGate).
+     - Sizes that work but are marginal ("warn") are listed in amber; Create asks before it builds. */
 function showPresetSummary(){
   clearTimeout(presetTimer);
   if(!curPreset)return;
-  const sum=$('#presetSum'),info=$('#presetInfo'),foot=$('#presetFoot'),picture=$('#presetPic'),vals=readVals(false);
-  const cannotBuild=message=>{
-    sum.innerHTML=`<span class="err">${esc(message)}</span>`;
+  const sum=$('#presetSum'),info=$('#presetInfo'),foot=$('#presetFoot'),found=$('#presetCheck'),picture=$('#presetPic');
+  const vals=readVals(false);
+  const say=message=>{sum.innerHTML=`<span class="err">${esc(message)}</span>`;};
+  foot.textContent='';
+  found.innerHTML='';
+  found.title='';
+  $('#bPGo').disabled=$('#bPAdd').disabled=!vals;
+  if(!vals){
+    say(presetFieldNote);
     info.textContent='';
     showPreview(picture,[]);
-    $('#bPGo').disabled=$('#bPAdd').disabled=true;
-  };
-  foot.textContent='';
-  if(!vals){cannotBuild('A size in red cannot be read. Type it like 36, 3 1/2 or 4\' 6.');return;}
-  const remark=curPreset.info?curPreset.info(vals):'',parts=curPreset.build(vals);
-  if(!parts.length){
-    // the preset's own remark says what is wrong and what to change; presets without one get the general sentence
-    cannotBuild(remark||'Nothing fits with these sizes. Try a wider or taller space.');
-    if(presetEdited&&presetEdited.isConnected&&presetEdited.type==='text')presetEdited.classList.add('bad');
     return;
   }
-  $('#bPGo').disabled=$('#bPAdd').disabled=false;
-  info.textContent=remark;
+  const remark=curPreset.info?curPreset.info(vals):'';
+  const check=checkPreset(curPreset,vals,null,{maxPieces:LIVE_CHECK_MAX_PIECES}),parts=check.parts;
+  found.innerHTML=findingsHtml(check.shown,false);   // the preset's own reasons alone when it refuses (checkPreset)
+  found.title=check.shown.length?'Create will '+(check.stops.length?'not build this until the red items are fixed.':'ask before building this.'):'';
   showPreview(picture,parts);
-  const b=bbox(parts),wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts);
+  const cannot=check.stops.length>0||!parts.length;
+  // the box that was typed in last is the one to look at first
+  if(cannot&&presetEdited&&presetEdited.isConnected&&presetEdited.type==='text')presetEdited.classList.add('bad');
+  if(!parts.length||check.stops.length){
+    // The reasons are in the list of findings. A preset with none (it builds nothing and has no check(p)) says
+    // why in its own remark; cannotBuildText is the one place that picks the words, here and in presetGate.
+    // Nothing is said about pieces, price or hours of work for a design that cannot be built: the picture
+    // stays, so the person sees what their numbers ask for, and the red box under it says what to change.
+    say(check.stops.length?'This cannot be built with these sizes. The box below says why.':cannotBuildText(curPreset,vals));
+    info.textContent='';
+    return;
+  }
+
+  info.textContent=remark;
+  const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts);   // the size of what is built, not of a tank or a mattress drawn on it
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
   sum.innerHTML=cell('Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
@@ -302,25 +360,33 @@ function showPresetSummary(){
   sum.title='Overall size is width × depth × height. The cost is a rough guess for the lumber only.';
   foot.textContent=rating?`${rating.level} · about ${rating.hours} hour${rating.hours>1?'s':''} of work`:'';
 }
-/* Create (add = false) or Add beside the current design (add = true) */
+/* Create (add = false) or Add beside the current design (add = true).
+   presetGate (js/checkui.js) stands in between: a design with a "stop" is not built and a box says why; one
+   with only "warn" items is built after Build anyway; a clean one is built at once. */
 function makePreset(add){
   if(!curPreset)return;
   const preset=curPreset,vals=readVals(true);
-  if(!vals)return;
-  const parts=preset.build(vals);
-  if(!parts.length){
-    // a preset that builds nothing says why in its own remark (too small, would tip over): show that, not a guess
-    const why=preset.info?preset.info(vals):'';
-    showMessage('This cannot be built',why||'Nothing fits with those sizes. Try a wider or taller space.');
-    return;
-  }
-  if(add||!S.parts.length){placePreset(preset,vals,parts,add);return;}
-  askConfirm('Replace the design on screen with this one? Undo (Ctrl+Z) brings the old design back.',
-    {title:'Replace the current design',action:'Replace'},()=>placePreset(preset,vals,parts,false));
+  if(!vals){showPresetSummary();return;} // the line under the form says what is wrong with the box in red
+  // One decision, not two: when a marginal design would also replace the one on screen, the gate's own question
+  // says so (replaceNote) and its "Build anyway" is the answer to both.
+  const replacing=!add&&S.parts.length>0;
+  const replaceNote=replacing?'Building it replaces the design on screen. Undo (Ctrl+Z) brings the old design back.':'';
+  presetGate(preset,vals,(parts,alreadyAsked)=>{
+    if(!replacing||alreadyAsked){placePreset(preset,vals,parts,add);return;}
+    askConfirm('Replace the design on screen with this one? Undo (Ctrl+Z) brings the old design back.',
+      {title:'Replace the current design',action:'Replace'},()=>placePreset(preset,vals,parts,false));
+  },replaceNote);
 }
 function placePreset(preset,vals,parts,add){
   const notes=preset.notes?preset.notes(vals):[];
   const stepsOf=preset.steps||STEPS[preset.name],steps=stepsOf?stepsOf(vals):[];
+  // What each piece is for, which pieces go on the wall and which hang on bought hardware: Check my design reads
+  // them later. They are kept for THIS placement, under a number that each of its pieces carries (piece.set), not
+  // for the whole project by piece name: a Bookshelf and a Workbench side by side both have a "Top", and only the
+  // Bookshelf is screwed to the wall. The marginal findings of the preset's own check(p) (a nightstand that a
+  // full open drawer nearly tips) are kept with it too, so that Check my design can repeat them.
+  const declared=presetOptions(preset,vals);
+  const ownWarnings=(preset.check?preset.check(vals)||[]:[]).filter(f=>f.level==='warn').map(f=>({text:f.text,fix:f.fix||''}));
   if(add){
     const b=bbox(S.parts),dx=b?b.hi[0]+8:0;
     parts.forEach(p=>p.pos[0]=r16(p.pos[0]+dx));
@@ -328,18 +394,34 @@ function placePreset(preset,vals,parts,add){
     S.steps=[]; // two designs side by side have no single order of steps; the instructions fall back to general ones
   }else{
     S.parts=[];S.joints={};S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
-    S.look={style:'std',wood:'pine',finish:'clear'};
+    // every design starts in the everyday style, in pine, with a clear coat, unless its preset says otherwise
+    // (look:{finish:'none'} on the outdoor presets, so nobody is told to buy polyurethane for a shed)
+    S.look={style:'std',wood:'pine',finish:'clear',...(preset.look||{})};
+    // nothing is declared for the project as a whole any more (projects saved by older versions still have
+    // these lists, and they are still read for pieces without a set)
+    S.uses={};S.wall=[];S.hung=[];S.wallFixed=false;S.sets={};
+    delete S.glue;
   }
+  // A preset whose steps never glue (2x4 garage shelving, a garden bed that stands in the wet) says glue:false,
+  // and the lists then leave wood glue out for its screwed joints (hardwareTotals in js/style.js). Beside a
+  // design that is glued, the glue stays on the list.
+  if(preset.glue===false&&(!add||S.glue===false))S.glue=false;
+  else delete S.glue;
+  const setNumber=S.nextSet=(S.nextSet||0)+1;
+  S.sets=S.sets||{};
+  S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings};
+  parts.forEach(p=>{p.set=setNumber;});
   if(preset.hw)S.hw=(S.hw||[]).concat(preset.hw(vals));
   sel=new Set();
   addParts(parts);
   // A preset can name the fastener between two kinds of piece itself, joints:[['Side','Top','glue']], where the
-  // suggestion worked out from the shapes alone would be wrong. It is kept like a choice made on the Joints tab.
+  // suggestion worked out from the shapes alone would be wrong. It is kept like a fastener chosen by hand.
   if(preset.joints){
     const own=new Set(parts);  // only this preset's pieces, so "Add beside" leaves the design already there alone
-    const named=(j,a,b)=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a);
-    for(const j of findJoints())if(own.has(j.a)&&own.has(j.b))
-      for(const[a,b,type]of preset.joints)if(named(j,a,b))S.joints[j.key]=type;
+    for(const j of findJoints())if(own.has(j.a)&&own.has(j.b)){
+      const type=namedJointType(j,preset.joints);   // js/joints.js: the first row of the list that fits
+      if(type)S.joints[j.key]=type;
+    }
   }
   try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
   $('#presetDlg').close();
@@ -371,6 +453,51 @@ $('#presetForm').onchange=e=>{if(!curPreset)return;presetEdited=e.target;presetF
 $('#bPGo').onclick=()=>makePreset(false);
 $('#bPAdd').onclick=()=>makePreset(true);
 $('#bPreset').onclick=openPresets;
+
+/* ---------- self-check: rows of a preset form that come and go (selfTest runs every function in SELFTESTS) ----------
+   Tried on a made-up preset, through the form itself: a row with show(p) is hidden until the rows above it say
+   it belongs, a hidden box is never judged and hands the preset the value it starts with, and a box that shows
+   is held to its limits like any other. */
+SELFTESTS.push(function presetRowsComeAndGo(problems){
+  const before=curPreset;
+  PRESETS.push({name:'Self-check rows',desc:'',build:p=>[mk('Board','1x4',[p.W||20,.75,3.5],[0,0,0])],
+    params:[num('W','Width',20,10,30),
+      {k:'count',label:'How many',v:2,int:1,min:0,max:8},
+      {k:'extra',label:'Extras',opts:[['no','None'],['yes','Some']],v:'no'},
+      {head:'Extra sizes',show:p=>p.extra==='yes'},
+      {...num('gap','Gap',2,1,5),show:p=>p.extra==='yes'}]});
+  try{
+    choosePreset(PRESETS.length-1);
+    const row=key=>$(`#presetForm [data-k="${key}"]`).closest('.frow'),head=$('#presetForm .sec[data-q="3"]');
+    // a box for a count takes a whole number: "2.7" is turned away in words, never read as 2 without a word
+    const count=$('#presetForm [data-k="count"]');
+    count.value='2.7';
+    if(readVals(false)!==null||!count.classList.contains('bad')||!/How many must be a whole number/.test(presetFieldNote))problems.push('preset form: 2.7 in a box for a whole number must be turned away in words: '+presetFieldNote);
+    count.value='3';
+    const whole=readVals(false);
+    if(!whole||whole.count!==3)problems.push('preset form: 3 in a box for a whole number must be read as 3');
+    const choice=$('#presetForm [data-k="extra"]'),gap=$('#presetForm [data-k="gap"]');
+    if(!row('gap').hidden||!head.hidden||row('W').hidden)problems.push('preset form: a row with show(p) must start hidden when its rule says so, and the other rows must show');
+    gap.value='99';                                   // out of limits, but nobody can see the box
+    const hiddenRead=readVals(false);
+    if(!hiddenRead||hiddenRead.gap!==2||gap.classList.contains('bad'))problems.push('preset form: a hidden box must not be judged, and must hand over the value it starts with');
+    choice.value='yes';
+    choice.dispatchEvent(new Event('change',{bubbles:true}));
+    if(row('gap').hidden||head.hidden)problems.push('preset form: the rows did not appear when the choice above them asked for them');
+    if(readVals(false)!==null||!/Gap must be between 1" and 5"/.test(presetFieldNote))problems.push('preset form: a box that shows must be held to its limits: '+presetFieldNote);
+    gap.value='3';
+    const shownRead=readVals(false);
+    if(!shownRead||shownRead.gap!==3)problems.push('preset form: a box that shows must be read');
+    choice.value='no';
+    choice.dispatchEvent(new Event('change',{bubbles:true}));
+    if(!row('gap').hidden||!head.hidden)problems.push('preset form: the rows did not go away again');
+  }finally{
+    PRESETS.pop();
+    // back to the form that was showing (unless that was another check's made-up preset, which is gone by now)
+    const was=PRESETS.indexOf(before);
+    if(was>=0)choosePreset(was);else showNoPreset();
+  }
+});
 
 /* ---------- boot ---------- */
 let saved=null;try{saved=localStorage.getItem('woodshop.autosave');}catch(e){}

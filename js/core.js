@@ -5,6 +5,20 @@ const MATS=[
  ['1x2',.75,1.5],['1x3',.75,2.5],['1x4',.75,3.5],['1x6',.75,5.5],['1x8',.75,7.25],['1x10',.75,9.25],['1x12',.75,11.25],
  ['2x2',1.5,1.5],['2x3',1.5,2.5],['2x4',1.5,3.5],['2x6',1.5,5.5],['2x8',1.5,7.25],['2x10',1.5,9.25],['2x12',1.5,11.25],['4x4',3.5,3.5]
 ].map(([id,t,w])=>({id,name:id+' board',short:id,kind:'board',t,w,color:id==='4x4'?0xd9b47c:0xe6c592}));
+/* Pressure-treated boards, for wood that lies on the ground or stands in the wet (the skids and the floor frame
+   of a shed). They are the same sizes as the plain boards, but they are bought as boards of their own, so they
+   are materials of their own: the cut list, the cutting diagrams and the shopping list then keep them apart
+   ("Pressure-treated 2x6, 10 ft long"). nom is the plain size each is named after; price is the built-in
+   estimate for an 8 ft board (see builtInPrice in js/prices.js). They stand after the plain boards, so that
+   anything that looks a board up by its size finds the plain one first. */
+const TREATED_SIZES=[['2x4',5.5],['2x6',9],['2x8',12.5],['4x4',14]];
+MATS.push(...TREATED_SIZES.map(([nom,price])=>{
+  const plain=MATS.find(m=>m.id===nom);
+  // brief: the name where there is only room for a few letters (the Pieces list)
+  return{id:'pt'+nom,name:'Pressure-treated '+nom+' board',short:'Pressure-treated '+nom,brief:'Treated '+nom,kind:'board',t:plain.t,w:plain.w,color:0xb7b587,nom,price,treated:true};
+}));
+/* the treated board of the same size as a plain one, or the plain one when there is none */
+const treatedMat=id=>MATS.some(m=>m.id==='pt'+id)?'pt'+id:id;
 MATS.push({id:'ply34',name:'3/4" plywood',short:'3/4" plywood',kind:'sheet',t:.75,color:0xcfa873},
           {id:'ply12',name:'1/2" plywood',short:'1/2" plywood',kind:'sheet',t:.5,color:0xc9a26e},
           {id:'ply14',name:'1/4" plywood',short:'1/4" plywood',kind:'sheet',t:.25,color:0xb99a6b},

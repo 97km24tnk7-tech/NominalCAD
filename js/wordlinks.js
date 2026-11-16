@@ -18,9 +18,11 @@
 
 const WORD_LINKS=[
   {re:/\bpocket[- ]hole screws?\b|\bpocket[- ]holes?\b|\bpocket screws?\b/i,joint:'pocket'},
-  {re:/\bwood screws?\b/i,joint:'screw'},
+  {re:/\bwood screws?\b|\bexterior screws?\b/i,joint:'screw'},
   {re:/\bdowels?\b/i,joint:'dowel'},
   {re:/\bbrad nails?\b|\bbrads\b/i,joint:'nail'},
+  {re:/\bframing nails?\b/i,joint:'frame'},
+  {re:/\btoenail(?:ed|ing|s)?\b/i,joint:'toenail'},
   {re:/\bL-brackets?\b/i,joint:'bracket'},
   {re:/\bwood glue and clamps\b|\bwood glue\b|\bglue only\b/i,joint:'glue'},
   {re:/\bdriven at an angle\b/i,word:'Driven at an angle'},
@@ -28,9 +30,23 @@ const WORD_LINKS=[
   {re:/\bpilot holes?\b/i,word:'Pilot hole'},
   {re:/\bcountersink\b/i,word:'Countersink'},
   {re:/\bflush\b/i,word:'Flush'},
-  {re:/\bsquare\b/i,word:'Square'},
+  // the tool, not the corner: "a square" in the tools list, "check each corner with a square" in a step
+  {re:/\b(?:a|the|carpenter's|framing|speed) square\b(?! (foot|feet|inch|inches|yard|corner)\b)/i,word:'Square (the tool)'},
+  {re:/\bsquare\b(?! (foot|feet|inch|inches|yard)\b)/i,word:'Square'},   // not "lb per square foot"
   {re:/\bset back\b/i,word:'Set back'},
-  {re:/\boverhangs?\b/i,word:'Overhang'},
+  {re:/\boverhang(?:s|ing)?\b/i,word:'Overhang'},
+  {re:/\bspans?\b/i,word:'Span'},
+  {re:/\b(?:8d|10d|16d)\b/,word:'Framing nail'},
+  {re:/\bplumb\b|\bwith a level\b|\bbubble level\b/i,word:'Level and plumb'},
+  {re:/\bbays?\b/i,word:'Bay'},
+  {re:/\bthe case\b/i,word:'Case'},
+  {re:/\bface grain\b|\bgrain of (?:the|its) (?:plywood )?face\b/i,word:'Face grain'},
+  {re:/\bnail set\b/i,word:'Nail set'},
+  {re:/\bdrip loop\b/i,word:'Drip loop'},
+  {re:/\bdrip edge\b|\bunderlayment\b/i,word:'Drip edge and underlayment'},
+  {re:/\brimless\b/i,word:'Rimless tank'},
+  {re:/\bhurricane ties?\b/i,word:'Hurricane tie'},
+  {re:/\bmagnetic (?:door )?catch(?:es)?\b|\b(?:door|drawer) pulls?\b|\bfor the pulls?\b/i,word:'Pull and catch'},
   {re:/\bclearance\b/i,word:'Clearance'},
   {re:/\bkerf\b/i,word:'Kerf'},
   {re:/\bon center\b/i,word:'On center'},
@@ -83,14 +99,30 @@ function linkWords(page){
       const span=document.createElement('span');
       span.className='term '+(link.joint?'joint':'word');
       span.dataset.link=index;
-      span.setAttribute('role','button');
-      span.tabIndex=0;
-      span.title=link.joint?'Click to see how this joint is made':'Click for what this means';
       span.textContent=matched.nodeValue;
       matched.replaceWith(span);
+      dressWordSpan(span);
       text=rest.nodeValue;
     }
   }
+}
+/* A wrapped word is a button only while it answers (termIsLive below): a joint word always, a woodworking word
+   in Beginner. In Expert a woodworking word is plain text, so it gets no tip, no button role and no place in
+   the Tab order. applyLevel (js/level.js) calls dressWordSpans when the level changes. */
+function dressWordSpan(span){
+  const joint=span.classList.contains('joint');
+  if(joint||level==='beginner'){
+    span.setAttribute('role','button');
+    span.tabIndex=0;
+    span.title=joint?'Click to see how this joint is made':'Click for what this means';
+  }else{
+    span.removeAttribute('role');
+    span.removeAttribute('tabindex');
+    span.removeAttribute('title');
+  }
+}
+function dressWordSpans(){
+  document.querySelectorAll('.page .term').forEach(dressWordSpan);
 }
 
 /* ---------- the card ---------- */

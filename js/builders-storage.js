@@ -1,0 +1,718 @@
+/* NominalCAD: the shelving, cabinet and box presets (Bookshelf, Garage shelves, Base cabinet with doors,
+   Wall shelf, Storage box / toy chest).
+
+   Every preset here has one "plan" function that turns the numbers typed in the form into every size, count and
+   position the design needs. Its builder, its steps, its notes, its hardware list and its own check(p) all read
+   that one plan, so they cannot disagree about what gets built.
+
+   THE PRESET RULE (README.md): each of these must pass the structural check in js/verify.js at its default
+   sizes and at every limit of its form. The plans below size things from the same tables the check uses
+   (USES, maxSpanFor, TIP_RULES), so a wider shelf gets a divider or another support instead of a sag.
+
+   To change a limit, change the ..._LIMITS table; the form in js/presets.js and the builder both read it. */
+'use strict';
+
+/* ---------- helpers shared with js/builders-outdoor.js ---------- */
+/* a size from the form, kept inside its limits [smallest, largest] and on the 1/16" grid */
+function sizeWithin(value,limits){
+  const size=Number.isFinite(+value)?+value:limits[0];
+  return r16(Math.min(limits[1],Math.max(limits[0],size)));
+}
+/* a whole number from the form, kept inside its limits */
+function countWithin(value,limits){
+  const count=Number.isFinite(+value)?Math.round(+value):limits[0];
+  return Math.min(limits[1],Math.max(limits[0],count));
+}
+/* The longest clear span, in inches, for a board or a sheet lying flat under the design load of a use
+   (a key of USES in js/verify.js). The load and the stiffness both grow with the width, so the width cancels. */
+function flatSpanLimit(thickness,isPlywood,useKey){
+  const width=12;
+  return maxSpanFor(sectionOf(width,thickness,isPlywood),USES[useKey].psf*width/144,useKey);
+}
+/* Splits the opening from start to end into the fewest equal bays that are each no wider than maxBay, leaving
+   room for an upright of the given thickness between bays. Returns [{x, len}]; the upright after bay k stands
+   at bays[k].x + bays[k].len. Everything lands on the 1/16" grid so the pieces touch exactly. */
+function splitIntoBays(start,end,uprightThickness,maxBay){
+  const inside=end-start;
+  let count=1;
+  while((inside-(count-1)*uprightThickness)/count>maxBay)count++;
+  const width=(inside-(count-1)*uprightThickness)/count,bays=[];
+  for(let k=0;k<count;k++){
+    const from=k===0?start:r16(start+k*(width+uprightThickness));
+    const to=k===count-1?end:r16(start+(k+1)*(width+uprightThickness))-uprightThickness;
+    bays.push({x:from,len:to-from});
+  }
+  return bays;
+}
+/* "1 divider" / "2 dividers" */
+const countOf=(count,word)=>count+' '+word+(count===1?'':'s');
+/* the step-by-step list without the names of pieces this build does not have (a bookshelf with no shelves) */
+function stepsForPieces(steps,parts){
+  const built=new Set(parts.map(piece=>piece.name));
+  return steps.map(step=>({t:step.t,add:step.add.filter(name=>built.has(name))}));
+}
+const STORAGE_CUT_STEP={t:'Cut every piece on the cut list and pencil its letter on it. Measure twice, cut once, and cut the longest pieces first.',add:[]};
+/* Boards that meet an upright from both sides at the same height: the first board covers the spot where a straight
+   screw into the second would have to go in, so the second gets the same two screws driven at an angle. The
+   fastener list counts two screws of that size for every such joint, so the words and the list agree. */
+const secondSideOfUpright=upright=>`Where two boards meet the ${upright} from both sides at the same height, screw through the ${upright} into the first one. That board then covers the spot where a straight screw into the second would go in. So glue the second board and fasten it with two of the same screws driven at an angle: start each one in the underside of the board, about 1" from its end, and slant it up into the ${upright}. Drill the pilot holes at the same slant.`;
+/* the same for a rail or a toe kick at a divider */
+const SECOND_RAIL_AT_UPRIGHT='the one in the first bay is screwed through the divider, and the one in the next bay gets its two screws driven at an angle through its end into the divider';
+const STORAGE_FINISH_STEP={t:'Sand everything: 80 grit, then 120, then 180, and round over the sharp edges. Wipe off the dust, then paint or stain, and finish with at least two coats of clear coat.',add:[]};
+
+/* ======================================================================================================
+   Bookshelf: two sides, fixed shelves, a toe kick and a base rail under the bottom, a thin plywood back.
+   A 3/4" board sags under a row of books once it spans more than about 33", so a wider case gets upright
+   dividers that stand on the floor like the sides. A case taller than 4 times its depth is fastened to the wall.
+   ====================================================================================================== */
+const BOOKSHELF_LIMITS={W:[12,72],H:[24,84],n:[0,8]};
+/* How close together shelves may be. Shelves between two sides are screwed from outside the case, so the only
+   limit is that a hand can still reach in. Shelves that meet a divider are fastened from underneath, and the
+   drill needs room. Closer than that cannot be built, so the form says why and builds nothing. */
+const BOOKSHELF_MIN_OPENING={plain:4,atDivider:6};
+const BOOKSHELF_USES={Top:'books',Bottom:'books',Shelf:'books','Toe kick':'books','Base rail':'books','Back rail':'none'};
+const SHEET_WIDTH=48;               // a sheet of plywood is 4 ft wide
+
+/* ---- the shelf openings ----
+   An opening is the clear space between two boards: the bottom board and the first shelf, two shelves, or the
+   last shelf and the top. A case with n shelves has n + 1 openings. The form offers two ways to space them
+   ("Shelf spacing"): evenly, or with the height of each opening set by hand. Set by hand there is one box for
+   each opening except the top one, bottom opening first (o1, o2, ... in the form). A box left at 0 means "not
+   set": those openings and the top one share what is left evenly, so the top opening always takes up the slack. */
+const shelvesWord=count=>count+(count===1?' shelf':' shelves');
+const BOOKSHELF_FLOOR_TOP=4.25;     // top face of the bottom board: it sits on a 3 1/2" toe kick and is 3/4" thick
+const BOOKSHELF_OPENING_BOXES=BOOKSHELF_LIMITS.n[1];                // one box for each shelf the form allows
+const BOOKSHELF_OPENING_LIMITS=[0,BOOKSHELF_LIMITS.H[1]-BOOKSHELF_FLOOR_TOP-.75]; // 0 = not set; no opening is taller than the inside of the tallest case
+/* the boxes of the form, bottom opening first; each shows only while its opening exists and heights are set by hand */
+function bookshelfOpeningFields(){
+  const fields=[];
+  for(let i=1;i<=BOOKSHELF_OPENING_BOXES;i++){
+    fields.push({...num('o'+i,i===1?'Opening 1 (bottom)':'Opening '+i,0,...BOOKSHELF_OPENING_LIMITS),
+      show:p=>p.spacing==='set'&&i<=p.n});
+  }
+  return fields;
+}
+/* The heights asked for, one for each opening below the top one, bottom first; 0 where none is set.
+   An empty list means evenly spaced. */
+function bookshelfAskedOpenings(p,shelves){
+  if(p.spacing!=='set')return[];
+  const asked=[];
+  for(let i=1;i<=shelves;i++){
+    const size=+p['o'+i];
+    asked.push(Number.isFinite(size)&&size>0?r16(size):0);
+  }
+  return asked;
+}
+/* The clear height of every opening, bottom to top.
+     asked       from bookshelfAskedOpenings
+     room        the clear height there is to share: the inside height less the thickness of the shelves
+     least       the lowest opening that can be built (BOOKSHELF_MIN_OPENING)
+     caseHeight  the height of the case, for the words
+   Returns {openings, custom, problems}. When the heights asked for cannot work, problems says why and what to
+   change (they become the preset's check(p)), and openings falls back to even spacing so that the picture still
+   shows a sensible case. */
+function bookshelfOpenings(asked,shelves,room,least,caseHeight){
+  const count=shelves+1,even=Array(count).fill(room/count);
+  const set=asked.filter(size=>size>0);
+  const stop=(text,fix)=>({openings:even,custom:false,problems:[{level:'stop',text,fix}]});
+  // too many shelves for the height: no choice of heights can work, and bookshelfCheck says so
+  if(!set.length||room/count<least-1e-6)return{openings:even,custom:false,problems:[]};
+  const tooLow=asked.findIndex(size=>size>0&&size<least-1e-6);
+  if(tooLow>=0){
+    const why=least>BOOKSHELF_MIN_OPENING.plain?'the shelves that meet a divider are fastened from underneath, and a drill needs that much room'
+      :'a hand cannot reach in to fasten, sand or paint it, and almost nothing fits in it';
+    return stop(`Opening ${tooLow+1}${tooLow?'':' (the bottom one)'} is set to ${fmt(asked[tooLow])}. An opening lower than ${fmt(least)} cannot be built here: ${why}.`,
+      `Make it ${fmt(least)} or more, or type 0 to let it share what is left.`);
+  }
+  // what is left over goes to the top opening, shared evenly with the openings that are not set
+  const used=set.reduce((sum,size)=>sum+size,0),free=count-set.length,each=(room-used)/free;
+  if(each<least-1e-6){
+    const others=free===1?'the top opening':`the ${free} openings that share what is left`;
+    const most=Math.floor((room-free*least)*16)/16;
+    return stop(`The ${set.length===1?'opening height you set is':'opening heights you set add up to'} ${fmt(used)}. A case ${fmt(caseHeight)} tall with ${shelvesWord(shelves)} has ${fmt(Math.floor(room*16)/16)} of clear height to share between its ${count} openings, so that leaves ${each>0?'only '+fmt(Math.floor(each*16)/16)+(free>1?' each':''):'nothing'} for ${others}, and an opening lower than ${fmt(least)} cannot be built.`,
+      `Lower the heights you set (together no more than ${fmt(most)}), make the case taller, or use fewer shelves.`);
+  }
+  // The openings that share come out the same to the 1/16", so the shelf marks are easy to measure; the few
+  // sixteenths that rounding leaves over go to the top opening, which takes what is left.
+  const share=Math.floor(each*16+1e-6)/16,top=room-used-(free-1)*share;
+  return{openings:asked.map(size=>size>0?size:share).concat([top]),custom:true,problems:[]};
+}
+
+function bookshelfPlan(p){
+  const T=.75;                       // every 1x board is 3/4" thick
+  const board=M[p.board]&&M[p.board].kind==='board'?p.board:'1x10',depth=M[board].w;
+  const W=sizeWithin(p.W,BOOKSHELF_LIMITS.W),H=sizeWithin(p.H,BOOKSHELF_LIMITS.H),shelves=countWithin(p.n,BOOKSHELF_LIMITS.n);
+  const back=!!p.back,backT=back?.25:0;
+  // How wide a bay may be. The structural check (js/verify.js) counts the board's own weight with the books, and
+  // measures a span to the middle of the upright a board runs over: the top of a case with dividers runs over
+  // them, so its span is up to one board thickness longer than the clear width of the bay. The bays are sized
+  // by that same measure, so the case never stops just short of its own rule (it once did, at 68" to 69" wide).
+  const reach=maxSpanFor(sectionOf(1,T,false),USES.books.psf/144+WOOD_RULES.DENSITY*T,'books');
+  const bays=splitIntoBays(T,W-T,T,W-2*T<=reach?reach:reach-T);
+  // The bottom board is 3 1/2" off the floor. The shelves share the height between it and the top evenly, unless
+  // the person set the height of the openings themselves ("Shelf spacing" in the form).
+  const floorTop=BOOKSHELF_FLOOR_TOP,topUnder=H-T;
+  const least=bays.length>1?BOOKSHELF_MIN_OPENING.atDivider:BOOKSHELF_MIN_OPENING.plain;
+  const room=topUnder-floorTop-shelves*T;
+  const spacing=bookshelfOpenings(bookshelfAskedOpenings(p,shelves),shelves,room,least,H);
+  const opening=Math.min(...spacing.openings);
+  const shelfY=[];
+  let under=floorTop;                // the underside of the next shelf: the opening below it, on top of what is below
+  for(let i=0;i<shelves;i++){
+    under+=spacing.openings[i];
+    shelfY.push(r16(under));
+    under+=T;
+  }
+  // The 1/4" back comes from sheets 4 ft wide. A case too big for one sheet gets its back in strips that meet
+  // on the middle of a divider.
+  const backPanels=[];
+  if(back){
+    const fitsOneSheet=Math.min(W,H-3.5)<=SHEET_WIDTH;
+    const seams=bays.slice(0,-1).map(bay=>bay.x+bay.len+T/2).concat([W]); // where a strip may end
+    let from=0;
+    seams.forEach((seam,k)=>{
+      const last=k===seams.length-1;
+      // end the strip here at the end of the case, or when going on to the next seam would make it wider than a sheet
+      if(last||(!fitsOneSheet&&seams[k+1]-from>SHEET_WIDTH)){
+        backPanels.push({x:from,len:seam-from});
+        from=seam;
+      }
+    });
+  }
+  const anchored=H>TIP_RULES.narrow*depth;                      // taller than 4 times its depth: it is fastened to the wall studs
+  // A rail under the top at the back of each bay. With no plywood back it is what keeps the case from leaning,
+  // and on a case that is fastened to the wall it is the solid wood the screws into the studs go through.
+  return{T,board,depth,W,H,shelves,back,backT,bays,dividers:bays.length-1,opening,shelfY,backPanels,anchored,
+    least,room,                      // the lowest opening that can be built here, and the clear height all openings share
+    openings:spacing.openings,customOpenings:spacing.custom,openingProblems:spacing.problems,
+    backRail:!back||anchored,studs:Math.max(1,Math.ceil(W/16))};
+}
+function buildBookshelf(p){
+  const s=bookshelfPlan(p),P=[],T=s.T,z=s.backT;
+  P.push(mk('Side',s.board,[T,s.H,s.depth],[0,0,z]),mk('Side',s.board,[T,s.H,s.depth],[s.W-T,0,z]));
+  P.push(mk('Top',s.board,[s.W-2*T,T,s.depth],[T,s.H-T,z]));
+  s.bays.forEach((bay,k)=>{
+    if(k>0)P.push(mk('Divider',s.board,[T,s.H-T,s.depth],[bay.x-T,0,z]));
+    P.push(mk('Bottom',s.board,[bay.len,T,s.depth],[bay.x,3.5,z]));
+    for(const y of s.shelfY)P.push(mk('Shelf',s.board,[bay.len,T,s.depth],[bay.x,y,z]));
+    P.push(mk('Toe kick','1x4',[bay.len,3.5,T],[bay.x,0,z+s.depth-1.75]));
+    P.push(mk('Base rail','1x4',[bay.len,3.5,T],[bay.x,0,z]));
+    if(s.backRail)P.push(mk('Back rail','1x4',[bay.len,3.5,T],[bay.x,s.H-T-3.5,z]));
+  });
+  for(const panel of s.backPanels)P.push(mk('Back panel','ply14',[panel.len,s.H-3.5,.25],[panel.x,3.5,0]));
+  return P;
+}
+function bookshelfCheck(p){
+  const s=bookshelfPlan(p),least=s.least;
+  // Too many shelves for the height: even spaced as tightly as they can be, the openings come out too low. No
+  // choice of opening heights can mend that, so this is said first, whichever way the shelves are spaced.
+  if(s.shelves&&s.room/(s.shelves+1)<least-1e-6){
+    const most=Math.floor((s.H-s.T-BOOKSHELF_FLOOR_TOP-least)/(least+s.T));
+    const why=s.dividers?`A case this wide has ${s.dividers>1?'dividers':'a divider'}, and the shelves that meet a divider are fastened from underneath: a drill needs about ${fmt(least)} of room to do that.`
+      :`A hand cannot reach into a space lower than about ${fmt(least)} to sand or paint it, and almost nothing fits on such a shelf.`;
+    return[{level:'stop',text:`${shelvesWord(s.shelves)} in a case ${fmt(s.H)} tall would be only ${fmt(Math.floor(s.room/(s.shelves+1)*16)/16)} apart. ${why}`,
+      fix:`Use ${most>0?most+' or fewer':'no'} shelves at this height, or make the case taller.`}];
+  }
+  return s.openingProblems;          // the opening heights set by hand cannot work: why, and what to change
+}
+/* the clear height of every opening as built, bottom to top, measured between the boards themselves */
+function bookshelfBuiltOpenings(s){
+  const boards=[BOOKSHELF_FLOOR_TOP-s.T].concat(s.shelfY,[s.H-s.T]);   // the underside of each board, bottom board to top
+  return boards.slice(1).map((under,i)=>under-(boards[i]+s.T));
+}
+function bookshelfInfo(p){
+  const s=bookshelfPlan(p),out=[];
+  // the clear height of every opening, so the person sees what their numbers (or even spacing) give
+  if(s.shelves&&!bookshelfCheck(p).length){
+    const heights=bookshelfBuiltOpenings(s);
+    if(s.customOpenings){
+      const shared=s.shelves+1-bookshelfAskedOpenings(p,s.shelves).filter(size=>size>0).length;
+      out.push(`Openings from the bottom up: ${heights.map(fmt).join(', ')}. ${shared>1?`The ${shared-1===1?'opening':shared-1+' openings'} left at 0 and the top one share what is left.`:'The top one takes what is left.'}`);
+    }else{
+      out.push(`Each of the ${heights.length} openings is ${fmt(heights[0])} tall`+
+        (p.spacing==='set'?': every box is at 0, so they share the height evenly. Type a height for the ones you want different.'
+          :'. To make them different, choose "Set the height of each opening" under Shelf spacing.'));
+    }
+  }
+  if(s.dividers)out.push(`A 3/4" shelf sags under books when it spans more than about ${fmt(Math.floor(flatSpanLimit(s.T,false,'books')))}, so this case gets ${countOf(s.dividers,'upright divider')}.`);
+  if(s.anchored)out.push('It is more than 4 times as tall as it is deep, so it must be screwed to the wall studs through the rail under its top.');
+  return out.join(' ');
+}
+function bookshelfNotes(p){
+  const s=bookshelfPlan(p),bay=Math.max(...s.bays.map(b=>b.len)),sqft=bay*s.depth/144;
+  const out=[`Each shelf is sized for a full row of books: about ${Math.round(USES.books.psf*sqft/5)*5} lb spread along it (40 lb per square foot). These are rule-of-thumb sizes, not an engineer's numbers.`];
+  if(s.dividers)out.push(`The ${s.dividers>1?'dividers stand':'divider stands'} on the floor like the sides and ${s.dividers>1?'keep':'keeps'} every shelf under ${fmt(Math.ceil(bay))} long, which is what stops the sag.`);
+  out.push(s.anchored?'This case is more than 4 times as tall as it is deep. Loaded with books it can be pulled over, so it must be screwed to the wall studs through the back rail under its top. Do not skip that step.'
+    :'It is low enough to stand on its own. If children may climb it, strap it to a wall stud anyway.');
+  if(!s.back)out.push('With no plywood back, the rails under the top and under the bottom keep the case from leaning sideways. It is less stiff than a case with a back: do not leave the rails out.');
+  return out;
+}
+function bookshelfHardware(p){
+  const s=bookshelfPlan(p);
+  return s.anchored?[['Wood screws, 3", through the back rail into the wall studs',2*s.studs]]:[];
+}
+function bookshelfSteps(p){
+  const s=bookshelfPlan(p),heights=s.shelfY.map(fmt),div=s.dividers;
+  const uprights=div?`the two sides and the ${div>1?div+' dividers':'divider'}`:'the two sides';
+  // shelves at heights set by hand: say what the clear openings come to, so the marks can be checked against them
+  const openings=s.customOpenings?` The shelves are not evenly spaced. The clear openings between the boards are, from the bottom up: ${bookshelfBuiltOpenings(s).map(fmt).join(', ')}.`:'';
+  const steps=[STORAGE_CUT_STEP,
+    {t:`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: bottom board 3 1/2"${heights.length?', shelves '+heights.join(', '):''}.`+openings+
+      (div?` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the top sits on ${div>1?'them':'it'}.`:''),add:['Side','Divider']},
+    {t:`Fasten the ${div?'bottom boards':'bottom board'}${heights.length?' and the shelves':''} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the marks, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
+      (div?' '+secondSideOfUpright('divider'):''),add:['Bottom','Shelf']},
+    {t:`Fasten the top between the sides, flush with their top ends, with glue and two screws through each side into its end${div?'. Then drive two screws down through it into the top of '+(div>1?'each divider':'the divider'):''}.`,add:['Top']},
+    {t:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Glue them, drive two screws through each ${div?'upright':'side'} into each of their ends, and screw down through the bottom board into them about every 8".`+
+      (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`,add:['Toe kick','Base rail']}];
+  if(s.backRail){
+    steps.push({t:`Fasten a back rail under the top at the back${div?' of each bay':''}, standing on edge. Glue it, drive two screws through each ${div?'upright':'side'} into each of its ends, and screw down through the top into it about every 8".`+
+      (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+
+      (s.back?'':' Together with the base rail'+(div?'s':'')+' it keeps the case (the box that the sides, the top and the bottom make) from leaning sideways.')+(s.anchored?' The screws into the wall studs will go through this rail.':''),add:['Back rail']});
+  }
+  if(s.back){
+    steps.push({t:'Lay the case (the box you have built so far) face down. Measure corner to corner both ways and nudge it until the two measurements match, then glue and nail the back on, with a nail about every 6" into the back edge of every board it lies against: the sides, the top, '+(div?'the bottom boards'+(heights.length?', the shelves':'')+' and the '+(div>1?'dividers':'divider'):heights.length?'the bottom board and the shelves':'and the bottom board')+'.'+
+      (s.backPanels.length>1?' The back is in '+s.backPanels.length+' strips; each seam lands on the middle of a divider.':'')+' Its top edge is flush with the top of the case and its bottom edge with the underside of the bottom board, so the base rail shows below it. The back is what stops the bookshelf from leaning sideways.',add:['Back panel']});
+  }
+  steps.push(STORAGE_FINISH_STEP,
+    {t:s.anchored?'Stand it against the wall, find the wall studs with a stud finder, and drive two 3" screws through the back rail under the top into every stud it crosses (at least one).'+
+        (s.W<32?' Studs are usually 16" apart, so a case this narrow may miss them where you first set it: slide it sideways until the rail crosses one.':'')+
+        ' If a baseboard holds the case off the wall, put a scrap of wood that thick behind the rail at each screw, so the screws do not pull the case out of square. This case is tall for its depth: do not load it before it is fastened.'
+      :'Stand it in place. It is low enough to stand on its own, but strap it to a wall stud if children may climb on it.',add:[]});
+  return stepsForPieces(steps,buildBookshelf(p));
+}
+
+/* ======================================================================================================
+   Garage shelves: 2x4 shelf frames (two rails, cross pieces at most 24" apart, an end rail across each end) with
+   1/2" plywood decks, hung on 2x4 posts. Each post sits in the pocket between a rail and an end rail and is
+   screwed to both, so the unit cannot lean left to right (the rails) or front to back (the end rails).
+   Long units get a middle pair of posts so the rails never span too far.
+   The lower decks have to fit between the posts. The top deck does not: it covers the whole top, full width
+   and full depth, and the posts stop under it (asked for by the owner, who saw four post tops showing at the
+   corners of the top shelf). So the posts are one deck thickness shorter than the unit, and the top deck
+   rests on the post tops as well as on the top frame.
+   ====================================================================================================== */
+const GARAGE_LIMITS={W:[24,96],D:[12,24],H:[24,84],n:[2,6]};
+const GARAGE_MIN_OPENING=6;         // clear height between shelves; lower than this a hand cannot reach to the back
+const GARAGE_CROSS_SPACING=24;      // cross pieces between the rails, center to center, at most
+const GARAGE_DECK=.5;               // the decks are 1/2" plywood
+const GARAGE_USES={'Shelf deck':'shelf','Top deck':'shelf',Rail:'shelf','End rail':'shelf','Cross piece':'shelf'};
+
+function garagePlan(p){
+  const W=sizeWithin(p.W,GARAGE_LIMITS.W),D=sizeWithin(p.D,GARAGE_LIMITS.D),H=sizeWithin(p.H,GARAGE_LIMITS.H);
+  const shelves=countWithin(p.n,GARAGE_LIMITS.n);
+  // the bottom frame is 4" off the floor, and the top of the top deck is the height asked for
+  const pitch=(H-8)/(shelves-1),levels=[];
+  for(let i=0;i<shelves;i++)levels.push(r16(4+i*pitch));
+  // posts: a pair at each end, and more pairs in between when a 2x4 rail would span too far under a loaded shelf
+  const railLoad=USES.shelf.psf*(D/2)/144;                      // lb per inch of rail: half the shelf each
+  const railSpan=maxSpanFor(sectionOf(1.5,3.5,false),railLoad,'shelf')*.9;
+  const firstToLast=W-3-3.5;                                    // from the left face of the first post to that of the last
+  let postBays=1;
+  while(firstToLast/postBays-3.5>railSpan)postBays++;
+  const postX=[];
+  for(let k=0;k<=postBays;k++)postX.push(r16(1.5+firstToLast*k/postBays));
+  // cross pieces between the rails
+  const spaces=Math.ceil((W-1.5)/GARAGE_CROSS_SPACING),crossX=[];
+  for(let k=1;k<spaces;k++)crossX.push(r16((W-1.5)*k/spaces));
+  return{W,D,H,shelves,pitch,opening:pitch-4,levels,postX,crossX,crossGap:(W-1.5)/spaces,
+    loadPerShelf:Math.floor(USES.shelf.psf*W*(D-3)/144/10)*10,
+    anchored:H>TIP_RULES.narrow*D,
+    wallBraces:Math.max(2,Math.ceil(W/32))};                    // corner braces that hold it to the wall studs
+}
+function buildGarageShelves(p){
+  const s=garagePlan(p),P=[],{W,D,H}=s;
+  // the posts stop under the top deck
+  for(const x of s.postX)for(const z of[0,D-1.5])P.push(mk('Post','2x4',[3.5,H-GARAGE_DECK,1.5],[x,0,z]));
+  s.levels.forEach((y,level)=>{
+    P.push(mk('End rail','2x4',[1.5,3.5,D],[0,y,0]),mk('End rail','2x4',[1.5,3.5,D],[W-1.5,y,0]));
+    P.push(mk('Rail','2x4',[W-3,3.5,1.5],[1.5,y,1.5]),mk('Rail','2x4',[W-3,3.5,1.5],[1.5,y,D-3]));
+    for(const x of s.crossX)P.push(mk('Cross piece','2x4',[1.5,3.5,D-6],[x,y,3]));
+    // a lower deck fits between the posts; the top deck covers the whole top, post tops and all
+    if(level<s.levels.length-1)P.push(mk('Shelf deck','ply12',[W,GARAGE_DECK,D-3],[0,y+3.5,1.5]));
+    else P.push(mk('Top deck','ply12',[W,GARAGE_DECK,D],[0,y+3.5,0]));
+  });
+  return P;
+}
+function garageCheck(p){
+  const s=garagePlan(p);
+  if(s.opening<GARAGE_MIN_OPENING-1e-6){
+    const most=Math.floor((s.H-8)/(GARAGE_MIN_OPENING+4))+1;
+    return[{level:'stop',text:`${s.shelves} shelves in a unit ${fmt(s.H)} tall would leave ${s.opening>0?'only '+fmt(Math.floor(s.opening*16)/16)+' of':'no'} clear height between them, because each shelf frame is 4" thick. A hand cannot reach to the back of a space lower than about ${fmt(GARAGE_MIN_OPENING)}, and almost nothing fits in it.`,
+      fix:most>=2?`Use ${most===2?'2':most+' or fewer'} shelves at this height, or make the unit taller.`:`Make the unit at least ${fmt(GARAGE_MIN_OPENING+12)} tall.`}];
+  }
+  return[];
+}
+function garageInfo(p){
+  const s=garagePlan(p),out=[`Each shelf is sized for about ${s.loadPerShelf} lb spread evenly.`];
+  if(s.postX.length>2)out.push('At this width it gets a middle pair of posts so the rails do not sag.');
+  if(s.anchored)out.push('It is more than 4 times as tall as it is deep, so it must be screwed to the wall studs.');
+  return out.join(' ');
+}
+function garageNotes(p){
+  const s=garagePlan(p);
+  return[`Each shelf is sized for about ${s.loadPerShelf} lb spread evenly over it (50 lb per square foot). Keep the heaviest things on the bottom shelf. These are rule-of-thumb sizes, not an engineer's numbers.`,
+    'Cut the plywood decks with the grain of the face running the long way, across the cross pieces. Plywood is about twice as stiff that way.',
+    s.anchored?'This unit is more than 4 times as tall as it is deep. It must be fastened to the wall studs before you load it; the last step says how.'
+      :'It stands on its own, but fasten it to the wall studs if anyone might climb it or if the floor slopes. '+garageWallHow(s)+
+        ` The braces are extra, so they are not in the shopping list: buy ${s.wallBraces} corner braces and a few 1 5/8" screws if you do this.`,
+    'It is left as bare wood, sanded so it does not give splinters. To paint or seal it, pick a finish under Style & finish and the lists and the steps follow.'];
+}
+/* Fasteners the garage shelves name themselves: a lower deck is cut to fit between the posts and only touches them. */
+const GARAGE_JOINTS=[['Post','Shelf deck','none']];
+function garageHardware(p){
+  const s=garagePlan(p);
+  // Only what the joints do not already count. The screws that hold the frames, posts and decks together are
+  // worked out from the joints, like in every other design (hardwareTotals in js/style.js); listing them here
+  // as well put them on the shopping list twice and charged for them twice.
+  // The unit is held to the wall by corner braces on top of the top shelf: the back rail is 1 1/2" off the wall
+  // (the posts stand between), so no screw can go straight through it into a stud.
+  const braces=s.anchored?s.wallBraces:0;
+  return[['Corner braces (L-brackets), 4", to hold the unit to the wall',braces],
+    ['Screws, 1 5/8" (corner braces down into the top shelf)',2*braces],
+    ['Wood screws, 3" (corner braces into the wall studs)',2*braces]].filter(row=>row[1]>0);
+}
+/* How to hold the unit to the wall: said in the steps when it must be done, and in the notes when it is optional. */
+function garageWallHow(s){
+  return`Find the wall studs with a stud finder. Set ${s.wallBraces} corner braces (4" L-brackets) on top of the top shelf against the wall, each at a stud${s.W<34?' (slide the unit sideways until it crosses two studs; they are usually 16" apart)':', spread along the unit'}. `+
+    'Screw the half of each brace that lies on the shelf down through the plywood into the back rail with 1 5/8" screws. The rail starts 1 1/2" from the wall, so use the holes that are over it. Screw the half that stands against the wall into the stud with 3" screws.';
+}
+function garageSteps(p){
+  const s=garagePlan(p),heights=s.levels.map(fmt),middle=s.postX.length-2;
+  const steps=[STORAGE_CUT_STEP,
+    {t:`Build ${s.shelves} shelf frames, all alike. For each one, stand two rails on edge, ${fmt(s.D-6)} apart`+
+      (s.crossX.length===1?', and fit the cross piece between them at the middle of their length':s.crossX.length?`, and fit the ${s.crossX.length} cross pieces between them, spaced evenly: about ${fmt(Math.round(s.crossGap))} from the middle of one to the middle of the next, and the same from each end of the rails`:'')+
+      (s.crossX.length?'. Drive two 3" screws through each rail into each end of a cross piece':'')+
+      `. Then lay an end rail across each end of the frame and drive two 3" screws through it into the end of each rail. The end rail is 3" longer than the frame is deep: let it stick out 1 1/2" past the rail at the front and at the back. Those two notches are where the posts go.`,add:['Rail','Cross piece','End rail']},
+    {t:`Screw a plywood deck onto ${s.shelves>2?'every frame except one':'one of the two frames'}, with a 1 1/4" screw about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}. Its long edges sit flush with the outside faces of the rails and its ends flush with the end rails, so the notches for the posts stay open. The frame left bare is the top one: its deck is bigger and goes on last.`,add:['Shelf deck']},
+    {t:`Lay all ${countOf(2*s.postX.length,'post')} side by side with their bottom ends lined up and mark the underside of each shelf frame across them, measured from the bottom end: ${heights.join(', ')}. The bare top frame goes at the last mark, which puts its top flush with the top ends of the posts. Get a helper, or cut scrap blocks to hold the spacing. Stand the shelf frames on their front edges on the floor, lay the ${countOf(s.postX.length,'back post')} on top of them at the marks, each corner post tight in its notch${middle?', the middle post'+(middle>1?'s spaced evenly':' centered')+' on the rail':''}, and drive two 2 1/2" screws down through each post into the back rail of every frame. (A 3" screw would come out the far side.)${middle?' Where a middle post covers the screws that hold a cross piece, keep its screws clear of them.':''} Then, at every frame, drive two 3" screws through the end rail into the edge of the corner post. These screws are what holds every shelf up, so do not leave any out.`,add:['Post']},
+    {t:'Turn the unit over so it lies on the posts you just fastened, and fasten the front posts the same way. Stand it up. The end rails are what stop it from leaning front to back, so do not leave out their screws into the posts.',add:[]},
+    {t:`Lay the top deck on. It is the full size of the unit, so it covers the top ends of the posts and sits flush with the outside of the unit all the way round. Screw it down with 1 1/4" screws, about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}, and two into the top end of each post.`,add:['Top deck']},
+    STORAGE_FINISH_STEP,
+    {t:s.anchored?'Stand it against the wall. This unit is tall for its depth, so it must be held to the wall before it is loaded. '+garageWallHow(s)+' Keep the heaviest things on the bottom shelf.'
+      :'Stand it in place and keep the heaviest things on the bottom shelf. Fasten it to the wall studs if anyone might climb on it (the notes say how).',add:[]}];
+  return stepsForPieces(steps,buildGarageShelves(p));
+}
+
+/* ======================================================================================================
+   Base cabinet with doors: 3/4" plywood sides, a bottom on a toe kick and a base rail, two top rails, a back
+   rail for the screws into the wall, a shelf, a 1/4" back, a countertop and overlay doors. A 3/4" plywood shelf sags under a garage load once it
+   spans more than about 30", so a wider cabinet gets a partition that stands on the floor like the sides.
+   ====================================================================================================== */
+const CABINET_LIMITS={W:[12,48],D:[12,30],H:[24,42]};
+const CABINET_ONE_DOOR_BELOW=21;    // narrower than this, one door; from here up, a pair
+const CABINET_USES={Side:'none',Partition:'none',Bottom:'shelf',Shelf:'shelf',Countertop:'tableTop','Top rail':'tableTop','Toe kick':'shelf','Base rail':'shelf','Back rail':'none',Door:'door'};
+/* Fasteners the cabinet names itself: the countertop is screwed from below through the top rails, and only rests
+   on the top edges of the sides (a screw there would have to go down through the face of the countertop). */
+const CABINET_JOINTS=[['Countertop','Side','none'],['Countertop','Partition','none']];
+
+function cabinetPlan(p){
+  const T=.75;
+  const W=sizeWithin(p.W,CABINET_LIMITS.W),D=sizeWithin(p.D,CABINET_LIMITS.D),H=sizeWithin(p.H,CABINET_LIMITS.H);
+  const bays=splitIntoBays(T,W-T,T,flatSpanLimit(T,true,'shelf')*.98);
+  return{T,W,D,H,bays,partitions:bays.length-1,doors:W<CABINET_ONE_DOOR_BELOW?1:2,
+    studs:Math.max(1,Math.ceil(W/16)),   // wall studs the back rail can reach
+    shelfY:r16(4.25+(H-5)/2-.375)};   // halfway between the bottom and the top rails
+}
+function buildCabinet(p){
+  const s=cabinetPlan(p),{T,W,D,H}=s;
+  const P=[mk('Side','ply34',[T,H,D],[0,0,0]),mk('Side','ply34',[T,H,D],[W-T,0,0])];
+  s.bays.forEach((bay,k)=>{
+    if(k>0)P.push(mk('Partition','ply34',[T,H-T,D],[bay.x-T,0,0]));
+    P.push(mk('Bottom','ply34',[bay.len,T,D],[bay.x,3.5,0]),
+      mk('Toe kick','ply34',[bay.len,3.5,T],[bay.x,0,D-3]),
+      mk('Base rail','ply34',[bay.len,3.5,T],[bay.x,0,0]),
+      mk('Shelf','ply34',[bay.len,T,D-1],[bay.x,s.shelfY,0]),
+      // on edge under the back top rail: the solid wood the screws into the wall studs go through. An empty
+      // cabinet with its doors swung open is front-heavy, so it is held to the wall like a kitchen cabinet.
+      mk('Back rail','ply34',[bay.len,3.5,T],[bay.x,H-T-3.5,0]));
+  });
+  P.push(mk('Top rail','ply34',[W-2*T,T,3.5],[T,H-T,0]),mk('Top rail','ply34',[W-2*T,T,3.5],[T,H-T,D-3.5]),
+    mk('Back panel','ply14',[W,H-3.5,.25],[0,3.5,-.25]),
+    mk('Countertop','ply34',[W+1,T,D+1],[-.5,H,0]));
+  if(s.doors===1)P.push(mk('Door','ply34',[W-.25,H-4,T],[.125,3.75,D]));
+  else{
+    const doorWidth=(W-.375)/2;
+    P.push(mk('Door','ply34',[doorWidth,H-4,T],[.125,3.75,D]),mk('Door','ply34',[doorWidth,H-4,T],[W/2+.0625,3.75,D]));
+  }
+  return P;
+}
+function cabinetInfo(p){
+  const s=cabinetPlan(p);
+  return s.partitions?`A 3/4" plywood shelf sags under a garage load when it spans more than about ${fmt(Math.floor(flatSpanLimit(s.T,true,'shelf')))}, so this cabinet gets a partition in the middle.`:'';
+}
+function cabinetNotes(p){
+  const s=cabinetPlan(p),bay=Math.max(...s.bays.map(b=>b.len));
+  return[`The shelf and the bottom are sized for about ${Math.round(USES.shelf.psf*bay*(s.D-1)/144/5)*5} lb each${s.partitions?' on each side of the partition':''}, spread evenly (50 lb per square foot), and the countertop for the same. It is a countertop, not a workbench for pounding on. These are rule-of-thumb sizes, not an engineer's numbers.`,
+    'Screw the cabinet to the wall through the back rail, as the last step says. Empty, with the doors swung open, it is front-heavy, and a child pulling on a door could tip it.',
+    'Paint or seal every plywood edge in a garage or a laundry room so damp cannot soak in.'];
+}
+function cabinetHardware(p){
+  const s=cabinetPlan(p),doors=s.doors;
+  return[['Cabinet hinges, full overlay',2*doors],['Door pulls',doors],['Magnetic door catches',doors],
+    ['Wood screws, 3", through the back rail into the wall studs',2*s.studs]];
+}
+function cabinetSteps(p){
+  const s=cabinetPlan(p),part=s.partitions;
+  const steps=[STORAGE_CUT_STEP,
+    {t:`Mark the underside of the bottom (3 1/2" from the bottom end) and of the shelf (${fmt(s.shelfY)}) on the inside of both sides${part?' and on both faces of the partition':''}. Fasten ${part?'a bottom panel between each side and the partition':'the bottom between the two sides'}, flush with the back edges. Glue every joint, drill pilot holes and screw through the ${part?'side or the partition':'sides'} into its ends, about every 8".`+
+      (part?' The partition stands on the floor like the sides and is 3/4" shorter, because the top rails sit on it. '+secondSideOfUpright('partition'):''),add:['Side','Partition','Bottom']},
+    {t:`Under ${part?'each bottom panel':'the bottom'}, fasten a toe kick set back 2 1/4" from the front and a base rail flush with the back. Glue them, drive two screws through each side into each of their ends, and screw down through the bottom into them about every 8".`+
+      (part?' At the partition, the one in the first bay is screwed through the partition, and the one in the next bay gets its two screws driven at an angle through its end into the partition.':'')+` They carry the bottom${part?' panels':''}.`,add:['Toe kick','Base rail']},
+    {t:`Fasten the two top rails between the sides, lying flat and flush with the top, one at the front and one at the back, with glue and two screws through each side into each end${part?'. Then screw down through them into the top of the partition':''}.`,add:['Top rail']},
+    {t:`Under the back top rail, fasten ${part?'a back rail in each bay':'the back rail'}, standing on edge and flush with the back. Glue it, drive two screws through each side into each of its ends, and screw down through the top rail into it about every 8".`+
+      (part?' At the partition, do as you did with the base rails.':'')+' The screws that hold the cabinet to the wall will go through this rail.',add:['Back rail']},
+    {t:`Fasten ${part?'a shelf in each bay':'the shelf'} at the marks, with glue and a screw about every 8" through the sides into its ends${part?' (and at the partition, the second shelf the same way as the second bottom panel)':''}. It sits flush with the back and 1" back from the front, so the doors can close.`,add:['Shelf']},
+    {t:'Lay the cabinet face down. Measure corner to corner both ways and nudge the cabinet until the two measurements match, then glue and nail the back panel on, with a nail about every 6" into every edge it lies against. The back keeps the cabinet square.',add:['Back panel']},
+    {t:'Set the countertop on so it overhangs 1/2" on each side and 1" at the front. Screw up through the two top rails into it with 1 1/4" screws, about every 8": they hold without coming through the top.',add:['Countertop']},
+    STORAGE_FINISH_STEP,   // before the doors: a door is finished lying flat, and no hinge or pull gets finish on it
+    {t:(s.doors===1?'Hang the door, on whichever side suits the room, on two full overlay hinges. ':'Hang the two doors, one hinged on each side of the cabinet, on two full overlay hinges each. ')+
+      'Buy the kind that simply screws on; the kind with a round cup needs a large hole drilled in the door, which its own instruction sheet explains. '+
+      'Lay a door face down and screw the hinges to its back along the hinged side, one 3" below the top edge and one 3" above the bottom edge. '+
+      'Hold the door against the front of the cabinet with its top edge 1/4" below the countertop and its hinged side 1/8" in from the outside of the cabinet side, and screw the hinges to the inside of that side. '+
+      (s.doors===1?'':'Hang the second door the same way: the two meet in the middle with a gap of 1/8". ')+
+      `Screw a magnetic catch under the front top rail where the free side of ${s.doors===1?'the door':'each door'} closes, and its metal plate to the back of the door. Then drill for the ${s.doors===1?'pull':'pulls'} and screw ${s.doors===1?'it':'them'} on.`,add:['Door']},
+    {t:`Set the cabinet against the wall, find the wall studs with a stud finder, and drive two 3" screws through the back rail into every stud it crosses (at least one)${s.W<32?'. Studs are usually 16" apart, so slide a narrow cabinet sideways until its rail crosses one':''}. If a baseboard holds the cabinet off the wall, put a scrap of wood that thick behind the rail at each screw. Do this before you load it: with the doors open an empty cabinet is front-heavy.`,add:[]}];
+  return stepsForPieces(steps,buildCabinet(p));
+}
+
+/* ======================================================================================================
+   Wall shelf: a board on a 1x4 cleat that is screwed into the wall studs, with supports under it. The cleat
+   carries the back edge; the supports, screwed to the cleat and to the shelf, carry the front. A longer shelf
+   gets more supports so the board never spans more than about 32" between them.
+   ====================================================================================================== */
+const WALL_SHELF_LIMITS={L:[16,96],up:[12,84]};
+const WALL_SHELF_INSET=4;           // the end supports sit this far in from the ends of the shelf
+const WALL_SHELF_USES={Shelf:'shelf',Support:'shelf','Wall cleat':'shelf'};
+const WALL_SHELF_ON_WALL=['Wall cleat'];
+
+function wallShelfPlan(p){
+  const board=M[p.board]&&M[p.board].kind==='board'?p.board:'1x8',depth=M[board].w;
+  const L=sizeWithin(p.L,WALL_SHELF_LIMITS.L),up=sizeWithin(p.up,WALL_SHELF_LIMITS.up);
+  const maxGap=Math.min(32,flatSpanLimit(.75,false,'shelf')*.95);
+  const run=L-2*WALL_SHELF_INSET-.75;                            // from the first support to the last
+  const count=Math.max(2,Math.ceil(run/(maxGap+.75))+1),supportX=[];
+  for(let k=0;k<count;k++)supportX.push(r16(WALL_SHELF_INSET+run*k/(count-1)));
+  return{board,depth,L,up,supportX,studs:Math.max(1,Math.ceil(L/16)),
+    load:Math.round(USES.shelf.psf*L*depth/144/5)*5};
+}
+function buildWallShelf(p){
+  const s=wallShelfPlan(p);
+  const P=[mk('Wall cleat','1x4',[s.L,3.5,.75],[0,s.up,0]),mk('Shelf',s.board,[s.L,.75,s.depth],[0,s.up+3.5,0])];
+  for(const x of s.supportX)P.push(mk('Support','1x4',[.75,3.5,s.depth-1.5],[x,s.up,.75]));
+  return P;
+}
+function wallShelfInfo(p){
+  const s=wallShelfPlan(p);
+  return`Sized for about ${s.load} lb spread evenly, with the cleat screwed into wall studs.`+(s.supportX.length>2?` At this length it gets ${s.supportX.length} supports.`:'');
+}
+function wallShelfNotes(p){
+  const s=wallShelfPlan(p);
+  return[`The shelf is sized for about ${s.load} lb spread evenly (50 lb per square foot), and only when the cleat is screwed into wall studs. Drywall anchors alone will not hold a loaded shelf. These are rule-of-thumb sizes, not an engineer's numbers.`,
+    s.L<32?'Studs are usually 16" apart, so a shelf this short may cross only one. Put two screws into that stud and a heavy-duty toggle bolt near each end of the cleat.'
+      :'Studs are usually 16" apart. Put two screws into every stud the cleat crosses.'];
+}
+function wallShelfHardware(p){
+  const s=wallShelfPlan(p);
+  return[['Wood screws, 3", into the wall studs',2*s.studs]].concat(s.L<32?[['Heavy-duty toggle bolts',2]]:[]);
+}
+function wallShelfSteps(p){
+  const s=wallShelfPlan(p),n=s.supportX.length;
+  return[STORAGE_CUT_STEP,
+    {t:'Glue and screw the shelf onto the top edge of the wall cleat, flush along the back, with a screw every 8".',add:['Wall cleat','Shelf']},
+    {t:`Fasten the ${n} supports under the shelf, tight against the cleat: one ${fmt(WALL_SHELF_INSET)} in from each end${n>2?' and the rest spaced evenly between them':''}. Drive two screws in through the back of the cleat into the end of each support and two down through the shelf into it. The supports are what hold the front of the shelf up.`,add:['Support']},
+    STORAGE_FINISH_STEP,
+    {t:`Find the wall studs with a stud finder. Hold the shelf level with its top ${fmt(s.up+4.25)} above the floor and drive two 3" screws through the cleat into every stud it crosses.`+
+      (s.L<32?' If it crosses only one stud, add a heavy-duty toggle bolt through the cleat near each end.':'')+' Do not rely on plastic drywall anchors for a loaded shelf.',add:[]}];
+}
+
+/* ======================================================================================================
+   Storage box / toy chest: a plywood box whose bottom sits inside the four walls on the floor, with a lid
+   that rests on the walls. People sit on toy chests, so the lid is sized as a seat: a 1/2" box whose lid would
+   span too far for a person gets a 3/4" lid.
+   ====================================================================================================== */
+const STORAGE_BOX_LIMITS={W:[12,48],D:[10,24],H:[8,24]};
+const STORAGE_BOX_USES={Lid:'lid',Bottom:'general',Front:'none',Back:'none',Side:'none'};
+
+function storageBoxPlan(p){
+  const ply=M[p.ply]&&M[p.ply].kind==='sheet'&&M[p.ply].t>=.5?p.ply:'ply34',t=M[ply].t;
+  const W=sizeWithin(p.W,STORAGE_BOX_LIMITS.W),D=sizeWithin(p.D,STORAGE_BOX_LIMITS.D),H=sizeWithin(p.H,STORAGE_BOX_LIMITS.H);
+  // The lid is held along all four walls, so it only has to make the shorter distance. Somebody will sit on it,
+  // so when the chosen plywood cannot carry a person that far the lid is cut from 3/4" plywood instead.
+  const lidSpan=Math.min(W,D)-2*t;
+  const lidPly=lidSpan>flatSpanLimit(t,true,'seat')*.98?'ply34':ply;
+  return{ply,t,W,D,H,lid:!!p.lid,lidSpan,lidPly,lidT:M[lidPly].t,thickerLid:lidPly!==ply};
+}
+function buildStorageBox(p){
+  const s=storageBoxPlan(p),{ply,t,W,D,H}=s;
+  const P=[mk('Front',ply,[W,H,t],[0,0,D-t]),mk('Back',ply,[W,H,t],[0,0,0]),
+    mk('Side',ply,[t,H,D-2*t],[0,0,t]),mk('Side',ply,[t,H,D-2*t],[W-t,0,t]),
+    mk('Bottom',ply,[W-2*t,t,D-2*t],[t,0,t])];
+  if(s.lid)P.push(mk('Lid',s.lidPly,[W,s.lidT,D],[0,H,0]));
+  return P;
+}
+function storageBoxInfo(p){
+  const s=storageBoxPlan(p);
+  return s.lid&&s.thickerLid?`The lid is cut from 3/4" plywood: a ${fmt(s.t)} lid ${fmt(s.lidSpan)} across would crack if someone sat on it.`:'';
+}
+function storageBoxNotes(p){
+  const s=storageBoxPlan(p);
+  if(!s.lid)return[];
+  return[(s.thickerLid?'The lid is cut from 3/4" plywood, because a thinner lid this wide would crack if someone sat on it. ':'')+'The lid is stiff enough for someone to sit on. Do not stand on it.',
+    'For a toy chest, fit a soft-close lid support so the lid cannot slam on fingers, and leave a finger gap or drill air holes so a child cannot be shut inside.'];
+}
+function storageBoxHardware(p){
+  return storageBoxPlan(p).lid?[['Hinges, 2 1/2", for the lid',2],['Soft-close lid support',1]]:[];
+}
+function storageBoxSteps(p){
+  const s=storageBoxPlan(p);
+  const steps=[STORAGE_CUT_STEP,
+    {t:'Fasten the two sides between the front and the back. Glue each joint, drill pilot holes and screw through the front and the back into the side edges, a screw every 6".',add:['Front','Back','Side']},
+    {t:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".',add:['Bottom']},
+    {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit a soft-close lid support inside so it cannot slam on fingers.',add:['Lid']},
+    STORAGE_FINISH_STEP];
+  return stepsForPieces(s.lid?steps:steps.filter(step=>!step.add.includes('Lid')),buildStorageBox(p));
+}
+
+/* ---------- self-checks for this file (selfTest runs every function in SELFTESTS, see js/core.js) ---------- */
+/* Garage shelves: the top deck covers the whole top and the posts stop under it; every lower deck fits between
+   the posts. Tried at the default sizes and at each limit. */
+SELFTESTS.push(function garageTopDeck(problems){
+  const near=(a,b)=>Math.abs(a-b)<.01;
+  const L=GARAGE_LIMITS;
+  const shapes=[{},{W:L.W[0]},{W:L.W[1]},{D:L.D[0]},{D:L.D[1]},{H:L.H[0],n:L.n[0]},{H:L.H[1]},{n:L.n[0]},{n:L.n[1]},
+    {W:L.W[1],D:L.D[1],H:L.H[1],n:L.n[1]},{W:L.W[0],D:L.D[0],H:L.H[1]}];
+  for(const shape of shapes){
+    const vals={W:48,D:18,H:72,n:4,...shape},label='garage shelves '+JSON.stringify(shape)+': ';
+    const parts=buildGarageShelves(vals),tops=parts.filter(piece=>piece.name==='Top deck');
+    if(tops.length!==1){problems.push(label+'there must be exactly one top deck');continue;}
+    const top=box(tops[0]),posts=parts.filter(piece=>piece.name==='Post').map(box);
+    if(!near(top.lo[0],0)||!near(top.hi[0],vals.W)||!near(top.lo[2],0)||!near(top.hi[2],vals.D)||!near(top.hi[1],vals.H))problems.push(label+'the top deck does not cover the whole top');
+    if(posts.some(post=>!near(post.hi[1],top.lo[1])))problems.push(label+'the posts do not stop under the top deck');
+    // the deck rests on the top frame as well as on the post tops
+    const frame=parts.filter(piece=>piece.name==='Rail'||piece.name==='End rail').map(box).filter(rail=>near(rail.hi[1],top.lo[1]));
+    if(frame.length!==4)problems.push(label+'the top deck does not rest on the two rails and two end rails of the top frame');
+    const lower=parts.filter(piece=>piece.name==='Shelf deck').map(box);
+    if(lower.length!==vals.n-1)problems.push(label+'every frame below the top one needs a deck that fits between the posts');
+    if(lower.some(deck=>posts.some(post=>[0,1,2].every(k=>deck.lo[k]<post.hi[k]-.01&&post.lo[k]<deck.hi[k]-.01))))problems.push(label+'a lower deck runs into a post');
+    // one full sheet is enough for the top deck, and the words follow the pieces
+    if(Math.min(vals.W,vals.D)>SHEET_WIDTH||Math.max(vals.W,vals.D)>96)problems.push(label+'the top deck cannot be cut from one sheet of plywood');
+    const steps=garageSteps(vals),topStep=steps.find(step=>step.add.includes('Top deck')),postStep=steps.findIndex(step=>step.add.includes('Post'));
+    if(!topStep||steps.indexOf(topStep)<postStep)problems.push(label+'the top deck needs its own step, after the posts are on');
+  }
+});
+/* No preset may have a top like the one the owner pointed at on the Garage shelves: a plywood deck fitted between
+   posts whose top ends show beside it. Wherever a preset has decks and posts, the highest deck must lie over the
+   top end of every post that reaches up to it. Tried on every preset at its default sizes and with every choice
+   of each option of its form (a list of choices, or a tick box); today that is the Garage shelves and the three
+   fish tank presets, and a new preset with decks on posts is covered without anyone adding it here. */
+SELFTESTS.push(function noPostBesideTheTopDeck(problems){
+  for(const preset of PRESETS){
+    const defaults=presetDefaults(preset),tries=[defaults];
+    for(const q of preset.params){
+      if(q.opts)for(const[value]of q.opts)tries.push({...defaults,[q.k]:value});
+      else if(q.check)tries.push({...defaults,[q.k]:!q.v});
+    }
+    const seen=new Set();
+    for(const vals of tries){
+      let parts=[];
+      try{parts=preset.build(vals)||[];}
+      catch(e){continue;}               // choices the preset refuses are judged by its check(p), not here
+      const decks=parts.filter(piece=>/deck$/i.test(piece.name)&&!tilted(piece)).map(box),posts=parts.filter(piece=>piece.name==='Post').map(box);
+      if(!decks.length||!posts.length)continue;
+      const topOfDecks=Math.max(...decks.map(deck=>deck.hi[1]));
+      const topDecks=decks.filter(deck=>deck.hi[1]>topOfDecks-.01);
+      // a post that comes up to the top deck (or past it) must have that deck over its whole top end
+      const covered=post=>topDecks.some(deck=>Math.abs(deck.lo[1]-post.hi[1])<.01&&[0,2].every(k=>deck.lo[k]<=post.lo[k]+.01&&deck.hi[k]>=post.hi[k]-.01));
+      const poking=posts.filter(post=>post.hi[1]>topDecks[0].lo[1]-.01&&!covered(post));
+      const said=`${preset.name}: ${poking.length} post${poking.length===1?'':'s'} show beside the top deck instead of stopping under it`;
+      if(poking.length&&!seen.has(said)){seen.add(said);problems.push(said);}
+    }
+  }
+});
+/* Bookshelf: the clear height of each opening can be set ("Shelf spacing" in the form). Evenly spaced unless
+   the person chooses to set them; heights set are used from the bottom up, a box left at 0 shares what is left,
+   and the top opening always takes up the slack. Heights that cannot work are refused with the reason and the
+   fix, never built wrong. Then the sweep: cases at the corners of the form's limits, with the openings set as
+   unevenly as they can be, must still pass the structural check with nothing to report. */
+SELFTESTS.push(function bookshelfShelfOpenings(problems){
+  const preset=PRESETS.find(candidate=>candidate.name==='Bookshelf');
+  if(!preset)return;
+  const base={...presetDefaults(preset),W:32,H:48,board:'1x10',n:3,back:true},near=(a,b)=>Math.abs(a-b)<.07;
+  const setTo=(heights,more)=>({...base,...more,spacing:'set',...Object.fromEntries(heights.map((height,i)=>['o'+(i+1),height]))});
+  // the clear heights a build really has, bottom to top, measured on the pieces themselves (the first bay)
+  const built=vals=>{
+    const parts=buildBookshelf(vals),level=name=>parts.filter(piece=>piece.name===name).map(box);
+    const boards=level('Bottom').slice(0,1).concat(level('Shelf').filter(shelf=>near(shelf.lo[0],.75)),level('Top')).sort((a,b)=>a.lo[1]-b.lo[1]);
+    return boards.slice(1).map((board,i)=>board.lo[1]-boards[i].hi[1]);
+  };
+  const said=heights=>heights.map(fmt).join(', ');
+
+  // the form: the choice, and one box with limits for each shelf the form allows, shown only for the openings there are
+  const boxes=preset.params.filter(q=>/^o\d+$/.test(q.k||''));
+  if(!preset.params.some(q=>q.k==='spacing'&&q.v==='even'))problems.push('bookshelf: the form must offer Shelf spacing, evenly spaced to start with');
+  if(boxes.length!==BOOKSHELF_LIMITS.n[1]||boxes.some(q=>q.min!==0||!(q.max>0)||q.v!==0||typeof q.show!=='function'))problems.push('bookshelf: the form needs one opening box for each shelf it allows, each with limits and starting at 0');
+  else if(boxes.filter(q=>q.show({spacing:'set',n:3})).length!==3||boxes.some(q=>q.show({spacing:'even',n:3})))problems.push('bookshelf: with 3 shelves and the heights set by hand the form must show 3 opening boxes, and none when evenly spaced');
+
+  // evenly spaced: by default, and when every box is left at 0; boxes do nothing while the choice is "evenly spaced"
+  const even=built(base);
+  if(even.length!==4||!even.every(height=>near(height,even[0])))problems.push('bookshelf: evenly spaced shelves are not evenly spaced: '+said(even));
+  if(said(built(setTo([0,0,0])))!==said(even))problems.push('bookshelf: with every opening box at 0 the shelves must be evenly spaced');
+  if(said(built({...setTo([14,8]),spacing:'even'}))!==said(even))problems.push('bookshelf: opening heights must do nothing while Shelf spacing is "Evenly spaced"');
+
+  // heights set from the bottom up; what is left is shared by the boxes at 0 and the top opening
+  const cases=[[[14,8],[14,8,null,null]],[[14,8,6],[14,8,6,12.75]],[[0,0,12],[null,null,12,null]],[[10.5],[10.5,null,null,null]]];
+  for(const[heights,want]of cases){
+    // the openings left to share are the same to the 1/16"; the top one takes what is left, a few sixteenths more at most
+    const vals=setTo(heights),got=built(vals),free=got.filter((height,i)=>want[i]===null),top=got[got.length-1];
+    const shared=free.slice(0,-1).every(height=>Math.abs(height-free[0])<.001)&&top>=free[0]-.001&&top-free[0]<free.length/16;
+    const right=want.every((height,i)=>height===null||near(got[i],height))&&(want[want.length-1]!==null||shared)&&near(got.reduce((sum,height)=>sum+height,0),even[0]*4);
+    if(!right||bookshelfCheck(vals).length)problems.push(`bookshelf: openings set to ${heights.join(', ')} came out as ${said(got)}`);
+    if(!bookshelfInfo(vals).includes(said(got)))problems.push(`bookshelf: the remark under the form does not give the openings ${said(got)}`);
+    const marks=bookshelfSteps(vals).map(step=>step.t).join(' ');
+    if(!marks.includes(said(got)))problems.push(`bookshelf: the steps do not give the openings ${said(got)}`);
+  }
+  if(/not evenly spaced/.test(bookshelfSteps(base).map(step=>step.t).join(' ')))problems.push('bookshelf: the steps of an evenly spaced case say the shelves are not evenly spaced');
+  // a box above the last shelf belongs to no opening and is passed over
+  if(said(built(setTo([14,8,0,30,30])))!==said(built(setTo([14,8]))))problems.push('bookshelf: an opening box above the last shelf must be passed over');
+
+  // what cannot work is refused in plain words, with what to change
+  const refusals=[[[2,10],{},/Opening 1 \(the bottom one\) is set to 2"/],[[12,3],{},/Opening 2 is set to 3"/],[[20,20],{},/add up to 40"/],
+    [[36],{},/you set is 36"/],[[14,5],{W:72},/meet a divider/],[[10,10],{H:30},/add up to 20"/],[[79],{H:84,n:1},/nothing|only/],
+    [[6,6,6],{H:24,n:4},/4 shelves in a case 24" tall would be only/],[[],{n:8,H:36,spacing:'even'},/8 shelves in a case 36" tall/]];
+  for(const[heights,more,why]of refusals){
+    const vals={...setTo(heights,more),...(more.spacing?{spacing:more.spacing}:{})},found=bookshelfCheck(vals);
+    if(found.length!==1||found[0].level!=='stop'||!why.test(found[0].text)||!found[0].fix)problems.push(`bookshelf: openings set to ${heights.join(', ')||'nothing'} with ${JSON.stringify(more)} must be refused with the reason and the fix, and got: ${found.map(f=>f.text).join(' / ')||'no refusal'}`);
+    // a refused form still draws a sensible case: the shelves fall back to even spacing
+    const fallback=built(vals);
+    if(!fallback.every(height=>near(height,fallback[0])))problems.push(`bookshelf: a refused set of openings (${heights.join(', ')}) must fall back to even spacing in the picture`);
+  }
+
+  // the sweep: narrowest and widest (which has dividers), shortest and tallest, few and many shelves, and the
+  // openings as uneven as the case allows: all the slack in the top opening, then all of it in the bottom one
+  for(const W of BOOKSHELF_LIMITS.W)for(const H of BOOKSHELF_LIMITS.H)for(const n of[1,3,BOOKSHELF_LIMITS.n[1]])for(const back of[true,false]){
+    const plan=bookshelfPlan({...base,W,H,n,back}),least=plan.least;
+    if(plan.room/(n+1)<least)continue;                       // too many shelves for this height: refused, tried above
+    const slack=Math.floor((plan.room-(n+1)*least)*16)/16;
+    for(const heights of[Array(n).fill(least),[least+slack].concat(Array(n-1).fill(least))]){
+      const vals=setTo(heights,{W,H,n,back}),label=`bookshelf ${W}" wide, ${H}" tall, ${n} shelves${back?'':', no back'}, openings ${heights.join(', ')}: `;
+      const check=checkPreset(preset,vals),got=built(vals);
+      if(check.problems.length)problems.push(label+check.problems[0].text);
+      if(heights.some((height,i)=>!near(got[i],height))||got.some(height=>height<least-.07))problems.push(label+'built as '+said(got));
+      const shelves=check.parts.filter(piece=>piece.name==='Shelf').length;
+      if(shelves!==n*plan.bays.length)problems.push(label+`${shelves} shelves were built, not ${n} in each of the ${plan.bays.length} bays`);
+    }
+  }
+
+  // Every width, not only the two limits: the case adds a divider where a board would sag, and the structural
+  // check must have nothing to say just below and just above each width where it does (at 68 1/4" wide it once
+  // left the top 3/8" over its own rule). Each shelf board, with no shelf inside and with as many as fit.
+  for(const board of['1x8','1x10','1x12'])for(const n of[0,BOOKSHELF_LIMITS.n[1]]){
+    for(let W=BOOKSHELF_LIMITS.W[0];W<=BOOKSHELF_LIMITS.W[1];W+=.75){
+      const check=checkPreset(preset,{...base,W,H:BOOKSHELF_LIMITS.H[1],board,n});
+      if(check.problems.length){
+        problems.push(`bookshelf ${fmt(W)} wide with ${board} boards and ${n} shelves: ${check.problems[0].text}`);
+        break;
+      }
+    }
+  }
+});

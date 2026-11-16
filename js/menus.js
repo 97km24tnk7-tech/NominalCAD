@@ -37,6 +37,7 @@ const COMMANDS={
   hide:()=>hideSel(),isolate:()=>isolateSel(),showAll:()=>showAll(),focus:()=>focusSel(),
   xray:()=>toggleXray(),explode:()=>setExplode(explode?0:.55),
   fit:()=>fit('fit'),preset:()=>$('#bPreset').click(),draw:()=>setTool('draw'),
+  check:()=>checkDesign(), // "will it stand?": js/checkui.js shows what js/verify.js finds
   help:()=>$('#helpDlg').showModal(),
   updatePrices:()=>updatePricesClicked(),priceBook:()=>openPriceBook(),pastePrices:()=>openPastePrices(), // js/prices.js
 };
@@ -172,6 +173,7 @@ const CTX_SEL=[['move','Move','M','i-move'],['rotate','Rotate','R','i-rotate'],[
   ['group','Group','Ctrl+G'],['ungroup','Ungroup','Ctrl+Shift+G'],['similar','Select all pieces like this','Shift+G'],null,
   ['hide','Hide','H','i-hide'],['isolate','Show only these','Shift+H'],['focus','Zoom to these','F'],null,['remove','Delete','Del','i-delete']];
 const CTX_NONE=[['preset','Furniture preset…','','i-presets'],['draw','Draw a board','D','i-draw'],null,
+  ['check','Check my design…','','i-verify'],null,
   ['showAll','Show everything','Alt+H'],['fit','Fit everything on screen','Home','i-fit'],['xray','See-through view','Alt+Z'],['explode','Exploded view','']];
 function openContext(x,y,hitId){
   if(tab!=='design'||modal)return;

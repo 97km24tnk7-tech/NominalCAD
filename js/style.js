@@ -9,15 +9,37 @@ const STYLES={rustic:['Rustic / rough','Construction lumber, screws left showing
  std:['Everyday','Clean and sturdy. Screws where they are easy, pocket holes where they hide. A normal sanding and finish.'],
  fine:['Fine furniture','No fasteners showing: pocket holes and glue, holes filled, sanded smooth to 220 grit. Takes the most time and care.']};
 const look=()=>S.look||(S.look={style:'std',wood:'pine',finish:'clear'});
-function partColor(p){const m=M[p.mat];if(m.kind==='prop')return m.color;const L=look(),c=new THREE.Color(WOODS[L.wood][1]),f=FINISHES[L.finish];
+function partColor(p){const m=M[p.mat];if(m.kind==='prop')return m.color;const L=look(),c=new THREE.Color(WOODS[m.treated?'pt':L.wood][1]),f=FINISHES[L.finish]; // a pressure-treated board keeps its own greenish color
   if(m.kind==='sheet')c.multiplyScalar(.93);else if(m.id==='4x4')c.multiplyScalar(.96);
   if(f[2]===1)c.lerp(new THREE.Color(f[1]),.72);else if(f[2]===2)c.set(f[1]);
   return c.getHex();}
-function styleType(t,j){const s=look().style; // the style nudges the suggested fastener; a choice made by hand always wins
+function styleType(t,j,style){const s=style||look().style; // the style nudges the suggested fastener; a choice made by hand always wins (js/verify.js passes the style itself)
   if(s==='rustic'&&(t==='pocket'||t==='dowel'))return'screw';
   if(s==='fine'&&t==='screw'&&!(j.fa==='face'&&j.fb==='face'))return'pocket';
   return t;}
-function finText(){const L=look(),f=FINISHES[L.finish],out=L.wood==='cedar'||L.wood==='pt',coats=L.style==='fine'?'three':'two';
+/* Wood for outdoors: cedar or pressure-treated. Screws in it are bought as exterior screws (plain steel rusts away
+   in treated lumber), and a finish for it is an exterior one. */
+const outdoorWood=()=>look().wood==='cedar'||look().wood==='pt';
+const screwKind=()=>outdoorWood()?'exterior screws':'wood screws';
+/* Does this design get a finishing step? A design with general steps does. A preset's own steps do when one of
+   them is the finishing step, or when the design has a finish to put on: stepsSection (js/plans.js) then adds
+   the step, so a shed that the person chose to paint is told how. A bare garden bed or shed is not sanded,
+   and the lists below do not ask for sandpaper for it. */
+const isFinishStep=step=>step.t===FIN.t;
+function hasFinishStep(){
+  const own=S.steps&&S.steps.length;
+  return!own||S.steps.some(isFinishStep)||look().finish!=='none';
+}
+/* The sandpaper to buy, as the tools list and the shopping list name it: "80, 120 and 180 grit". The grits follow
+   the style, and the 320 grit that the finishing step asks for between coats is there whenever the finish has coats. */
+function sandpaperGrits(){
+  const L=look(),f=FINISHES[L.finish];
+  const grits=L.style==='rustic'?['80']:L.style==='fine'?['120','180','220','320']:['80','120','180'];
+  const betweenCoats=L.finish==='clear'||f[2]===1;
+  if(betweenCoats&&!grits.includes('320'))grits.push('320');
+  return(grits.length>1?grits.slice(0,-1).join(', ')+' and ':'')+grits[grits.length-1]+' grit';
+}
+function finText(){const L=look(),f=FINISHES[L.finish],out=outdoorWood(),coats=L.style==='fine'?'three':'two';
   const sand=L.style==='rustic'?'Knock off splinters and sharp corners with 80-grit sandpaper. Rough is fine for this look.'
     :L.style==='fine'?'Fill every screw hole and gap with wood filler and let it dry. Sand with the grain using 120, then 180, then 220 grit, wipe with a damp cloth to raise the grain, and sand with 220 once more. Round over the sharp edges slightly.'
     :'Sand everything: 80 grit, then 120, then 180, and round over the sharp edges. Wipe off the dust.';
@@ -30,7 +52,8 @@ const stepText=st=>st.t===FIN.t?finText():st.t;
 const surfaceSqFt=()=>S.parts.reduce((a,p)=>isProp(p)?a:a+2*(p.l*p.w+p.l*p.t+p.w*p.t)/144,0);
 function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceSqFt();if(!a)return rows;
   const qt=c=>Math.max(1,Math.ceil(a*c/100)); // a quart covers about 100 sq ft per coat
-  rows.push([`Sandpaper, ${L.style==='rustic'?'80 grit':L.style==='fine'?'120, 180, 220 and 320 grit':'80, 120 and 180 grit'} (packs)`,1]);
+  if(!hasFinishStep())return rows;                 // no step sands or finishes it: nothing to buy for that
+  rows.push([`Sandpaper, ${sandpaperGrits()} (packs)`,1]);
   if(L.style==='fine')rows.push(['Wood filler, small tub',1]);
   if(f[2]===1)rows.push(['Pre-stain wood conditioner, quarts',qt(1)],['Wood stain, quarts',qt(1)]);
   if(f[2]===2)rows.push(['Primer, quarts',qt(1)],['Paint, quarts',qt(2)]);
@@ -42,7 +65,7 @@ function assess(lk){ // how hard, how long and how much, for a given style / woo
   try{const js=findJoints(),ts={},ps=S.parts.filter(p=>!isProp(p)),n=ps.length,f=FINISHES[lk.finish],area=surfaceSqFt();
     js.forEach(j=>{const t=jType(j);ts[t]=(ts[t]||0)+1;});
     const sc=1+(n>25?.5:0)+(n>60?.5:0)+(ps.some(p=>M[p.mat].kind==='sheet')?.5:0)+(ts.pocket?.5:0)+(ts.dowel?1:0)+(ps.some(tilted)?1:0)+WOODS[lk.wood][3]*.5+(f[2]===1?.5:0)+(lk.style==='fine'?1:lk.style==='rustic'?-.5:0);
-    const mins=n*4+(ts.screw||0)*3+(ts.pocket||0)*6+(ts.dowel||0)*12+(ts.nail||0)*2+(ts.bracket||0)*5+(ts.glue||0)*5+area*(lk.style==='rustic'?.5:lk.style==='fine'?3:1.5)+area*(lk.finish==='none'?0:f[2]?2.5:1.5);
+    const mins=n*4+(ts.screw||0)*3+(ts.pocket||0)*6+(ts.dowel||0)*12+(ts.nail||0)*2+(ts.frame||0)*2+(ts.toenail||0)*3+(ts.bracket||0)*5+(ts.glue||0)*5+area*(lk.style==='rustic'?.5:lk.style==='fine'?3:1.5)+area*(lk.finish==='none'?0:f[2]?2.5:1.5);
     return{level:sc<2?'Beginner: a good first project':sc<3?'Beginner with patience':sc<4?'Some experience helps':'Experienced builder',hours:Math.max(1,Math.round(mins/60)),cost:lumberCost(),tools:toolList(js).length,pocket:!!ts.pocket};
   }finally{S.look=keep;}}
 /* The Style, finish and difficulty dialog (#styleDlg): one choice per style with what it takes for THIS design
@@ -66,6 +89,7 @@ function renderStyle(){
 }
 const jType=j=>S.joints[j.key]||styleType(defaultType(j),j);
 function jSpec(j,type){
+  if(type==='frame'||type==='toenail')return framingSpec(j,type);   // nails for framing: js/framing.js
   const long=Math.max(j.ru[1]-j.ru[0],j.rv[1]-j.rv[0]),th=thruPart(j);
   const dT=th?(th==='a'?j.da:j.db):null,dO=th?(th==='a'?j.db:j.da):null;
   const hw=[];let text='',n=0,glue=false;
@@ -75,7 +99,8 @@ function jSpec(j,type){
   const stopShort=th?dT+dO-.125-.13:0;
   if(type==='screw'){n=Math.max(2,Math.ceil(long/8));
     const len=th?pickLE(SCREWS,Math.min(dT+Math.min(1.5,Math.max(.75,dT*1.2)),stopShort)):SCREWS[4];
-    text=`${n} × #8 × ${len[1]} wood screws`+(th?'':' driven at an angle');hw.push([`#8 × ${len[1]} wood screws`,n]);glue=true;}
+    const screws=`#8 × ${len[1]} ${screwKind()}`;   // exterior screws in cedar and pressure-treated lumber
+    text=`${n} × ${screws}`+(th?'':' driven at an angle');hw.push([screws,n]);glue=true;}
   else if(type==='pocket'){n=long<2?1:Math.max(2,Math.ceil(long/6));
     const hp=th?(th==='a'?j.b:j.a):(j.fa==='end'?j.a:j.fb==='end'?j.b:(j.a.t<=j.b.t?j.a:j.b)),t=hp.t;
     const len=t<=.55?'1"':t<=.8?'1-1/4"':t<=1.1?'1-1/2"':'2-1/2"';
@@ -91,8 +116,14 @@ function jSpec(j,type){
   else text='No fastener: the pieces only touch';
   return{text,hw,n,glue};
 }
+/* Everything to buy that is not lumber: what the joints take, what the preset lists itself, and the finishing
+   supplies. Glue: a joint that is glued (glue, brads, dowels) always asks for it. A screwed joint is stronger
+   with glue, so it asks for it too, unless the design is put together dry (S.glue === false: a preset whose
+   steps never glue says glue:false, see placePreset in js/app.js). */
 function hardwareTotals(js){const m=new Map();let glue=false;
-  for(const j of js){const sp=jSpec(j,jType(j));glue=glue||sp.glue;for(const[k,q]of sp.hw)m.set(k,(m.get(k)||0)+q);}
+  for(const j of js){const type=jType(j),sp=jSpec(j,type);
+    if(sp.glue&&(type!=='screw'||S.glue!==false))glue=true;
+    for(const[k,q]of sp.hw)m.set(k,(m.get(k)||0)+q);}
   for(const[k,q]of S.hw||[])m.set(k,(m.get(k)||0)+q);
   for(const[k,q]of finishSupplies())m.set(k,q);
   return{rows:[...m.entries()].sort(),glue};}

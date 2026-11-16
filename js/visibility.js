@@ -17,3 +17,48 @@ function findClashes(){ // pairs of square-set wooden pieces that occupy the sam
   const B=ps.map(p=>{const s=size(p);return{p,lo:p.pos,hi:p.pos.map((v,i)=>v+s[i])};}),out=[];
   for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++)if([0,1,2].every(k=>B[i].lo[k]<B[j].hi[k]-.06&&B[j].lo[k]<B[i].hi[k]-.06))out.push([B[i].p,B[j].p]);
   return out;}
+
+/* ---------- "Show me" ----------
+   Words used in this design, Show me (js/glossary.js): the pieces of that word are drawn solid, in the selection
+   color, and everything else nearly clear, so that a piece that sits behind others (a base rail behind a toe
+   kick, a stud inside a sheathed wall) can be found. Nothing is selected while it shows: no move arrows cover
+   the pieces, and Properties does not offer a tool that would change the design. A click (in the view: a
+   click without a drag, so the view can still be turned), Esc, or leaving the Design tab puts the view back. rebuildScene (js/view3d.js) reads spotlightIds;
+   renderPrompt (js/statusbar.js) says what is going on. */
+let spotlightIds=null,spotlightWord='';
+function showSpotlight(ids,word){
+  sel=new Set();
+  spotlightIds=new Set(ids);
+  spotlightWord=word;
+  renderAll();
+  // look at those pieces, from far enough away to see where in the design they are
+  const shown=bbox(S.parts.filter(part=>spotlightIds.has(part.id))),all=bbox(S.parts);
+  if(shown&&all){
+    const span=b=>Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2]);
+    cam.target.set((shown.lo[0]+shown.hi[0])/2,(shown.lo[1]+shown.hi[1])/2,(shown.lo[2]+shown.hi[2])/2);
+    cam.r=Math.max(30,span(shown)*1.8,span(all)*.9);
+    updateCam();
+    draw();
+  }
+}
+function endSpotlight(){
+  if(!spotlightIds)return false;
+  spotlightIds=null;
+  spotlightWord='';
+  rebuildScene();
+  renderStatus();
+  return true;
+}
+// Dragging in the view turns it, and that must not end the show: there only a click without a drag does.
+let spotlightPress=null;
+document.addEventListener('pointerdown',event=>{
+  if(!spotlightIds)return;
+  if(event.target.closest&&event.target.closest('#cvWrap canvas'))spotlightPress=[event.clientX,event.clientY];
+  else endSpotlight();
+},true);
+document.addEventListener('pointerup',event=>{
+  const press=spotlightPress;
+  spotlightPress=null;
+  if(press&&Math.hypot(event.clientX-press[0],event.clientY-press[1])<4)endSpotlight();
+},true);
+document.addEventListener('keydown',event=>{if(event.key==='Escape')endSpotlight();},true);
