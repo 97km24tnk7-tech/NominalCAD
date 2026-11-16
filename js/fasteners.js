@@ -672,6 +672,8 @@ function layoutAsLaidOut(link){
   }
   else{
     list=fastenerLayout(j,link.type);
+    // two boards screwed through one upright from its two sides: the second is moved or angled (js/fastenerreach.js)
+    if(typeof drivableLayout==='function')list=drivableLayout(link,list);
     if(list.loose)layoutCarry.delete(link.key);
     else layoutCarry.set(link.key,{type:link.type,a:j.a,b:j.b,nameA:j.a.name,nameB:j.b.name,thickA:j.a.t,thickB:j.b.t,
       ru0:j.ru[0],ru1:j.ru[1],rv0:j.rv[0],rv1:j.rv[1],k:j.k,plane:j.plane,da:j.da,db:j.db,fa:j.fa,fb:j.fb,frame:j.frame?j.frame.id:'',list});
@@ -751,7 +753,8 @@ function settledLayouts(){
     const list=layoutAsLaidOut(link),f=list[0];
     if(!f)return 9;
     const intoFace=f.into===link.joint.a?link.joint.fa:link.joint.fb;
-    const group=f.kind==='pocket'?0:M[f.through.mat].kind==='sheet'?3:intoFace==='end'?1:2;
+    // screws angled by drivableLayout (js/fastenerreach.js) cannot move, so they go first and the others make way
+    const group=f.angledAt?-1:f.kind==='pocket'?0:M[f.through.mat].kind==='sheet'?3:intoFace==='end'?1:2;
     return group*3+[1,2,0][link.joint.k];
   };
   const ranked=links.map(link=>({link,rank:rank(link)})).sort((a,b)=>a.rank-b.rank||(a.link.key<b.link.key?-1:1));

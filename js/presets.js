@@ -113,17 +113,22 @@ const PRESETS=[
  {name:'Bookshelf',spec:'Fixed shelves, thin back',desc:'Sides, fixed shelves, toe kick and a thin plywood back. Wide ones get upright dividers so the shelves cannot sag.',
   params:[num('W','Width',32,...BOOKSHELF_LIMITS.W),num('H','Height',48,...BOOKSHELF_LIMITS.H),
    {k:'board',label:'Shelf depth',opts:[['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x10'},
-   {k:'n',label:'Shelves inside',v:3,int:1,min:BOOKSHELF_LIMITS.n[0],max:BOOKSHELF_LIMITS.n[1]},
    {k:'back',label:'Plywood back',check:1,v:true},
-   // The owner: "bookshelves need a shelf height also". Evenly spaced to start with; "Set the height of each
-   // opening" shows one box for each opening below the top one, bottom opening first (bookshelfOpeningFields in
-   // js/builders-storage.js). The top opening takes what is left.
-   {k:'spacing',label:'Shelf spacing',opts:[['even','Evenly spaced'],['set','Set the height of each opening']],v:'even'},
+   // The owner: "bookshelves need a shelf height also" and "make sure book shelves are able to have a desired
+   // shelf spacing". Evenly spaced to start with (a number of shelves); "At a spacing I choose" fits as many
+   // shelves as the height allows at the opening typed, and what is left goes to the top or the bottom opening
+   // (bookshelfFitAtSpacing); "Set the height of each opening" shows one box for each opening below the top one,
+   // bottom opening first (bookshelfOpeningFields in js/builders-storage.js). The top opening takes what is left.
+   {k:'spacing',label:'Shelf spacing',opts:[['even','Evenly spaced'],['gap','At a spacing I choose'],['set','Set the height of each opening']],v:'even'},
+   {k:'n',label:'Shelves inside',v:3,int:1,min:BOOKSHELF_LIMITS.n[0],max:BOOKSHELF_LIMITS.n[1],show:p=>p.spacing!=='gap'},
+   {...num('gap','Opening between shelves (clear height)',BOOKSHELF_SPACING_USUAL,...BOOKSHELF_SPACING_LIMITS),show:p=>p.spacing==='gap'},
+   {k:'extra',label:'What is left goes to',opts:[['top','The top opening'],['bottom','The bottom opening']],v:'top',show:p=>p.spacing==='gap'},
    {head:'Height of each opening (bottom first; 0 = share what is left)',show:p=>p.spacing==='set'&&p.n>=1},
    ...bookshelfOpeningFields()],
   build:buildBookshelf,steps:bookshelfSteps,info:bookshelfInfo,notes:bookshelfNotes,hw:bookshelfHardware,check:bookshelfCheck,
   // variants: the structural list also tries shelves at uneven heights, at every limit of the form
-  uses:BOOKSHELF_USES,wall:p=>bookshelfPlan(p).anchored,joints:BOOKSHELF_JOINTS,variants:[{spacing:'set',o1:14,o2:8},{spacing:'set',o1:4,o2:0,o3:6}]},
+  uses:BOOKSHELF_USES,wall:p=>bookshelfPlan(p).anchored,joints:BOOKSHELF_JOINTS,variants:[{spacing:'set',o1:14,o2:8},{spacing:'set',o1:4,o2:0,o3:6},
+    {spacing:'gap',gap:BOOKSHELF_SPACING_LIMITS[0]},{spacing:'gap',gap:BOOKSHELF_SPACING_LIMITS[1],extra:'bottom'}]},
  /* The tables, desks and benches below are all made by tablePreset (js/builders-furniture.js): what each is made of
     is one row of TABLE_KINDS there, and the plan adds cross rails and deeper aprons as the sizes typed here need them. */
  tablePreset('Dining table','4x4 legs, 2x4 aprons, 2x6 plank top on cross rails.',

@@ -146,10 +146,72 @@ function bookshelfOpenings(asked,shelves,room,least,caseHeight){
   return{openings:asked.map(size=>size>0?size:share).concat([top]),custom:true,problems:[]};
 }
 
+/* ---- shelves at a spacing the person types ("Shelf spacing": "At a spacing I choose") ----
+   The owner: "make sure book shelves are able to have a desired shelf spacing". The person types the clear
+   opening they want between shelves (12" say); the case gets as many shelves as its height allows with every
+   opening exactly that, and what is left over goes to one opening, the top or the bottom one (p.extra). That
+   opening is never lower than the smallest spacing (7") nor than the lowest that can be built
+   (BOOKSHELF_MIN_OPENING), so it may come out taller than the others: a shelf that would leave less is left out.
+   The spacing is the clear opening, from the top of one board to the underside of the next, and the form and the
+   remark say so. The limits are the reference sheet's (design/reference/01-case-furniture.md, 2f and 4):
+   openings of 7" to 15" clear, 11" usual. */
+const BOOKSHELF_SPACING_LIMITS=[7,15];
+const BOOKSHELF_SPACING_USUAL=11;
+/* What fits: {gap, shelves, leftover, at ('top' | 'bottom'), openings (bottom to top), more (how many the
+   height had room for before the form's most, BOOKSHELF_LIMITS.n), lowest (the least the leftover opening may
+   be), alike (the leftover came out the same as the others), evenAt (the case heights just below and just above
+   this one, within the form's limits, at which every opening comes out the same)}.
+     inside  the clear height between the bottom board and the top
+     least   the lowest opening that can be built here
+     T       the thickness of a shelf */
+function bookshelfFitAtSpacing(p,inside,least,T){
+  const gap=sizeWithin(p.gap,BOOKSHELF_SPACING_LIMITS),at=p.extra==='bottom'?'bottom':'top';
+  // The opening that takes what is left is a shelf space like the others: never lower than the smallest spacing
+  // the reference sheet gives (7"), so that it is not a slot nobody can use (a 48" case at 9" once got a 4" top
+  // opening), and never lower than what can be built here.
+  const lowest=Math.max(least,BOOKSHELF_SPACING_LIMITS[0]);
+  const room=Math.floor((inside-lowest)/(gap+T)+1e-6);                 // shelves the height has room for
+  const shelves=Math.max(0,Math.min(BOOKSHELF_LIMITS.n[1],room));
+  const leftover=r16(inside-shelves*(gap+T));
+  const even=Array(shelves).fill(gap);
+  // the case heights nearest this one at which every opening comes out the same (the leftover one too)
+  const H=inside+BOOKSHELF_FLOOR_TOP+T,caseFor=count=>r16(H-inside+(count+1)*gap+count*T);
+  const evenHeights=[];
+  for(let count=0;count<=BOOKSHELF_LIMITS.n[1];count++){
+    const height=caseFor(count);
+    if(height>=BOOKSHELF_LIMITS.H[0]&&height<=BOOKSHELF_LIMITS.H[1])evenHeights.push(height);
+  }
+  const below=evenHeights.filter(height=>height<H-1e-6).pop(),above=evenHeights.find(height=>height>H+1e-6);
+  return{gap,shelves,leftover,at,lowest,more:Math.max(shelves,room),
+    alike:Math.abs(leftover-gap)<1/32,evenAt:[below,above].filter(height=>height!==undefined),
+    openings:at==='bottom'?[leftover].concat(even):even.concat([leftover])};
+}
+/* The remark under the form for shelves at a chosen spacing: how many shelves that makes, the opening that takes
+   what is left, and what fits at which spacing (the reference sheet's spacings by item). Sizes read as the
+   boxes show them (typedLen, js/core.js). */
+function bookshelfSpacingWords(s){
+  const{gap,shelves,leftover,at,more,lowest,alike,evenAt}=s.fit,most=BOOKSHELF_LIMITS.n[1];
+  // what the spacing measures, said once: the clear space a book stands in
+  const clear=`${typedLen(gap)} clear between shelves (from the top of one board to the underside of the next)`;
+  let fits;
+  if(!shelves){
+    fits=`No shelf fits at ${clear} in a case ${typedLen(s.H)} tall: the opening left above or below it would be lower than ${typedLen(lowest)}. The case has one opening of ${typedLen(leftover)}.`;
+  }else if(alike){
+    fits=`At ${clear}, ${shelvesWord(shelves)} ${shelves===1?'fits':'fit'} in a case ${typedLen(s.H)} tall, and all ${shelves+1} openings come out ${typedLen(gap)}.`;
+  }else{
+    fits=`At ${clear}, ${shelvesWord(shelves)} ${shelves===1?'fits':'fit'} in a case ${typedLen(s.H)} tall: `+
+      `${shelves===1?'one opening':shelves+' openings'} of ${typedLen(gap)}, and the ${at} opening takes what is left, ${typedLen(leftover)}.`+
+      (more>shelves?` The height has room for ${more}, but this form makes ${most} at most, so the ${at} opening is the taller one.`:'');
+  }
+  // the case heights at which the leftover comes out the same as the rest
+  if(!alike&&evenAt.length)fits+=` For openings all the same, make the case ${evenAt.map(height=>typedLen(height)).join(' or ')} tall.`;
+  return fits+` Most books fit in ${typedLen(10)} to ${typedLen(12)} (paperbacks ${typedLen(8)}); binders, record albums and large books want ${typedLen(13)} to ${typedLen(15)}.`;
+}
+
 function bookshelfPlan(p){
   const T=.75;                       // every 1x board is 3/4" thick
   const board=M[p.board]&&M[p.board].kind==='board'?p.board:'1x10',depth=M[board].w;
-  const W=sizeWithin(p.W,BOOKSHELF_LIMITS.W),H=sizeWithin(p.H,BOOKSHELF_LIMITS.H),shelves=countWithin(p.n,BOOKSHELF_LIMITS.n);
+  const W=sizeWithin(p.W,BOOKSHELF_LIMITS.W),H=sizeWithin(p.H,BOOKSHELF_LIMITS.H);
   const back=!!p.back,backT=back?.25:0;
   // How wide a bay may be. The structural check (js/verify.js) counts the board's own weight with the books, and
   // measures a span to the middle of the upright a board runs over: the top of a case with dividers runs over
@@ -161,8 +223,12 @@ function bookshelfPlan(p){
   // the person set the height of the openings themselves ("Shelf spacing" in the form).
   const floorTop=BOOKSHELF_FLOOR_TOP,topUnder=H-T;
   const least=bays.length>1?BOOKSHELF_MIN_OPENING.atDivider:BOOKSHELF_MIN_OPENING.plain;
+  // At a spacing the person chose, the height decides how many shelves there are; otherwise the form does.
+  const fit=p.spacing==='gap'?bookshelfFitAtSpacing(p,topUnder-floorTop,least,T):null;
+  const shelves=fit?fit.shelves:countWithin(p.n,BOOKSHELF_LIMITS.n);
   const room=topUnder-floorTop-shelves*T;
-  const spacing=bookshelfOpenings(bookshelfAskedOpenings(p,shelves),shelves,room,least,H);
+  const spacing=fit?{openings:fit.openings,custom:true,problems:[]}
+    :bookshelfOpenings(bookshelfAskedOpenings(p,shelves),shelves,room,least,H);
   const opening=Math.min(...spacing.openings);
   const shelfY=[];
   let under=floorTop;                // the underside of the next shelf: the opening below it, on top of what is below
@@ -192,6 +258,7 @@ function bookshelfPlan(p){
   // and on a case that is fastened to the wall it is the solid wood the screws into the studs go through.
   return{T,board,depth,W,H,shelves,back,backT,bays,dividers:bays.length-1,opening,shelfY,backPanels,anchored,
     least,room,                      // the lowest opening that can be built here, and the clear height all openings share
+    fit,                             // shelves at a spacing the person chose (bookshelfFitAtSpacing), or null
     openings:spacing.openings,customOpenings:spacing.custom,openingProblems:spacing.problems,
     backRail:!back||anchored,studs:Math.max(1,Math.ceil(W/16))};
 }
@@ -230,8 +297,10 @@ function bookshelfBuiltOpenings(s){
 }
 function bookshelfInfo(p){
   const s=bookshelfPlan(p),out=[];
+  // at a spacing the person chose: how many shelves that makes, and the opening that takes what is left
+  if(s.fit)out.push(bookshelfSpacingWords(s));
   // the clear height of every opening, so the person sees what their numbers (or even spacing) give
-  if(s.shelves&&!bookshelfCheck(p).length){
+  else if(s.shelves&&!bookshelfCheck(p).length){
     const heights=bookshelfBuiltOpenings(s);
     if(s.customOpenings){
       const shared=s.shelves+1-bookshelfAskedOpenings(p,s.shelves).filter(size=>size>0).length;
@@ -240,7 +309,7 @@ function bookshelfInfo(p){
     }else{
       out.push(`Each of the ${heights.length} openings is ${typedLen(heights[0])} tall`+
         (p.spacing==='set'?': every box is at 0, so they share the height evenly. Type a height for the ones you want different.'
-          :'. To make them different, choose "Set the height of each opening" under Shelf spacing.'));
+          :'. Under Shelf spacing, "At a spacing I choose" fits the shelves to the opening you type, and "Set the height of each opening" sets them one by one.'));
     }
   }
   if(s.dividers)out.push(`A 3/4" shelf sags under books when it spans more than about ${fmt(Math.floor(flatSpanLimit(s.T,false,'books')))}, so this case gets ${countOf(s.dividers,'upright divider')}.`);
@@ -264,7 +333,8 @@ function bookshelfSteps(p){
   const s=bookshelfPlan(p),heights=s.shelfY.map(fmt),div=s.dividers;
   const uprights=div?`the two sides and the ${div>1?div+' dividers':'divider'}`:'the two sides';
   // shelves at heights set by hand: say what the clear openings come to, so the marks can be checked against them
-  const openings=s.customOpenings?` The shelves are not evenly spaced. The clear openings between the boards are, from the bottom up: ${bookshelfBuiltOpenings(s).map(fmt).join(', ')}.`:'';
+  const openings=s.fit&&s.shelves?` Every opening between the boards is ${fmt(s.fit.gap)} clear${s.fit.alike?'':`, except the ${s.fit.at} one, which is ${fmt(s.fit.leftover)}`}. From the bottom up: ${bookshelfBuiltOpenings(s).map(fmt).join(', ')}.`
+    :s.customOpenings&&!s.fit?` The shelves are not evenly spaced. The clear openings between the boards are, from the bottom up: ${bookshelfBuiltOpenings(s).map(fmt).join(', ')}.`:'';
   const steps=[STORAGE_CUT_STEP,
     {t:`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: bottom board 3 1/2"${heights.length?', shelves '+heights.join(', '):''}.`+openings+
       (div?` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the top sits on ${div>1?'them':'it'}.`:''),add:['Side','Divider']},
@@ -750,5 +820,79 @@ SELFTESTS.push(function bookshelfShelfOpenings(problems){
         break;
       }
     }
+  }
+});
+
+/* Self-check of "At a spacing I choose": for every height from the shortest case to the tallest and every spacing
+   from the smallest to the largest (each inch of both, and some odd sixteenths), with one bay and with dividers, the
+   leftover at the top and at the bottom: every opening but the leftover one is the spacing to 1/16", the leftover
+   is where it was asked and never lower than the lowest opening that can be built, the boards do not overlap,
+   no shelf more would have fitted, and the remark and the steps say what was built. At the corners the preset
+   rule's structural check has nothing to say. And "Evenly spaced" and "Set the height of each opening" still
+   build what they built before this choice was added (the shelf heights below were read from the program then). */
+SELFTESTS.push(function bookshelfSpacingFits(problems){
+  const preset=PRESETS.find(candidate=>candidate.name==='Bookshelf');
+  if(!preset)return;
+  const wrong=text=>{if(problems.length<60)problems.push('bookshelf spacing: '+text);};
+  const base={...presetDefaults(preset),board:'1x10',back:true};
+  const on16=(a,b)=>Math.abs(a-b)<1/32;
+  // the form: the choice, the spacing box with the reference sheet's limits, shown only with that choice
+  const field=key=>preset.params.find(q=>q.k===key);
+  const spacing=field('spacing'),gap=field('gap'),extra=field('extra'),count=field('n');
+  if(!spacing||!spacing.opts.some(([value])=>value==='gap')||spacing.v!=='even')wrong('the form must offer "At a spacing I choose", with evenly spaced to start with');
+  if(!gap||gap.min!==BOOKSHELF_SPACING_LIMITS[0]||gap.max!==BOOKSHELF_SPACING_LIMITS[1]||!gap.show||gap.show({spacing:'even'})||!gap.show({spacing:'gap'}))wrong('the spacing box needs its limits and must show only with "At a spacing I choose"');
+  // a beginner must be told what the spacing measures: the clear space, not shelf top to shelf top
+  if(gap&&!/clear/.test(gap.label))wrong(`the spacing box does not say that it is the clear opening: "${gap.label}"`);
+  if(!/top of one board to the underside of the next/.test(bookshelfInfo({...base,spacing:'gap',gap:11})))wrong('the remark does not say what the spacing measures');
+  if(!extra||!extra.show||extra.show({spacing:'set'})||!extra.show({spacing:'gap'}))wrong('the choice of where the leftover goes must show only with "At a spacing I choose"');
+  if(!count||!count.show||count.show({spacing:'gap'})||!count.show({spacing:'even'}))wrong('the number of shelves must be hidden while the height decides it');
+  // the clear openings as built, bottom to top, measured between the boards of the first bay
+  const builtOpenings=vals=>{
+    const parts=buildBookshelf(vals),left=Math.min(...parts.filter(piece=>piece.name==='Bottom').map(piece=>piece.pos[0]));
+    const boards=parts.filter(piece=>['Bottom','Shelf','Top'].includes(piece.name)&&(piece.name==='Top'||Math.abs(piece.pos[0]-left)<.01)).map(box).sort((a,b)=>a.lo[1]-b.lo[1]);
+    return boards.slice(1).map((board,i)=>board.lo[1]-boards[i].hi[1]);
+  };
+  const heights=[];
+  for(let H=BOOKSHELF_LIMITS.H[0];H<=BOOKSHELF_LIMITS.H[1];H+=1)heights.push(H);
+  heights.push(47+13/16,60+1/16,83+15/16);
+  const spacings=[];
+  for(let g=BOOKSHELF_SPACING_LIMITS[0];g<=BOOKSHELF_SPACING_LIMITS[1];g+=1)spacings.push(g);
+  spacings.push(9+3/16,12+15/16);
+  for(const W of[32,BOOKSHELF_LIMITS.W[1]])for(const H of heights)for(const g of spacings)for(const at of['top','bottom']){
+    const vals={...base,W,H,spacing:'gap',gap:g,extra:at},plan=bookshelfPlan(vals),label=`${W}" wide, ${fmt(H)} tall, ${fmt(g)} apart, leftover at the ${at}: `;
+    const got=builtOpenings(vals),n=plan.shelves,leftAt=at==='top'?got.length-1:0;
+    if(got.length!==n+1){wrong(label+`${got.length} openings for ${n} shelves`);continue;}
+    if(got.some((height,i)=>i!==leftAt&&!on16(height,g)))wrong(label+'openings built as '+got.map(fmt).join(', '));
+    if(got.some(height=>height<=0))wrong(label+'boards overlap');
+    const lowest=Math.max(plan.least,BOOKSHELF_SPACING_LIMITS[0]);   // never a slot lower than the smallest spacing
+    if(plan.fit.lowest!==lowest)wrong(label+`the leftover opening may be as low as ${fmt(plan.fit.lowest)}, not ${fmt(lowest)}`);
+    if(got[leftAt]<lowest-1/32)wrong(label+`the leftover opening is ${fmt(got[leftAt])}, lower than ${fmt(lowest)}`);
+    if(n<BOOKSHELF_LIMITS.n[1]&&got[leftAt]>=g+plan.T+lowest-1/32)wrong(label+`one more shelf would have fitted (leftover ${fmt(got[leftAt])})`);
+    // the heights offered for openings all the same really give them
+    for(const height of plan.fit.evenAt){
+      const at={...vals,H:height},even=builtOpenings(at);
+      if(height<BOOKSHELF_LIMITS.H[0]||height>BOOKSHELF_LIMITS.H[1]||even.some(opening=>!on16(opening,g)))wrong(label+`the case height offered for openings all the same, ${fmt(height)}, builds ${even.map(fmt).join(', ')}`);
+    }
+    if(bookshelfCheck(vals).length)wrong(label+'refused: '+bookshelfCheck(vals)[0].text);
+    const said=bookshelfInfo(vals);
+    if(!said.includes(n?`${shelvesWord(n)} ${n===1?'fits':'fit'}`:'No shelf fits')||!said.includes(typedLen(r16(got[leftAt]))))wrong(label+'the remark does not say how many shelves and the leftover: '+said);
+    if(n){
+      const steps=bookshelfSteps(vals).map(step=>step.t).join(' ');
+      if(!steps.includes(got.map(fmt).join(', ')))wrong(label+'the steps do not give the openings '+got.map(fmt).join(', '));
+    }
+  }
+  // the preset rule at the corners: narrowest and widest, shortest and tallest, smallest and largest spacing
+  for(const W of BOOKSHELF_LIMITS.W)for(const H of BOOKSHELF_LIMITS.H)for(const g of BOOKSHELF_SPACING_LIMITS)for(const at of['top','bottom'])for(const back of[true,false]){
+    const check=checkPreset(preset,{...base,W,H,back,spacing:'gap',gap:g,extra:at});
+    if(check.problems.length)wrong(`${W}" wide, ${H}" tall, ${g}" apart${back?'':', no back'}: ${check.problems[0].text}`);
+  }
+  // evenly spaced and set by hand: the shelf heights the program built before this choice existed
+  const before=[[{W:32,H:48,n:3},[14.4375,25.375,36.3125]],[{W:12,H:24,n:1},[13.375]],
+    [{W:72,H:84,n:8},[12.375,21.25,30.0625,38.9375,47.8125,56.6875,65.5,74.375]],[{W:40,H:61.5,n:5},[13.0625,22.5625,32.125,41.6875,51.1875]],
+    [{W:32,H:48,n:3,spacing:'set',o1:14,o2:8},[18.25,27,37.125]],[{W:72,H:84,n:4,spacing:'set',o1:9,o2:0,o3:13.5},[13.25,31.8125,46.0625,64.625]],
+    [{W:12,H:30,n:2,spacing:'set',o1:4},[8.25,18.75]],[{W:40,H:84,n:8,spacing:'set',o1:6,o2:6,o3:6,o4:6,o5:6,o6:6,o7:6},[10.25,17,23.75,30.5,37.25,44,50.75,67]]];
+  for(const[vals,shelfY]of before){
+    const now=bookshelfPlan({...base,spacing:'even',...vals}).shelfY;
+    if(now.length!==shelfY.length||now.some((y,i)=>Math.abs(y-shelfY[i])>1e-9))wrong(`${JSON.stringify(vals)} now puts the shelves at ${now.join(', ')}, before at ${shelfY.join(', ')}`);
   }
 });

@@ -560,6 +560,20 @@ function faceWords(piece,out,withDirection){
   const inward=high===(middle[axis]>(b.lo[axis]+b.hi[axis])/2);
   return`${inward?'inside':'outside'} face`+(withDirection?` (the one that faces the ${DIRECTION_ENDS[axis][high?1:0]})`:` (the one that faces ${inward?'the middle of the design':'out'})`);
 }
+/* Screws driven at an angle start on one side of their piece or on both in turn (rule 7 in js/fasteners.js); a
+   board screwed at an angle into an upright that is covered on its other side starts them all on its hidden side
+   (js/fastenerreach.js). The words for that: ', all from its underside', or ', from both sides in turn'. */
+function angledFromWords(all){
+  const faces=new Set();
+  for(const facts of all)for(const f of facts.layout){
+    if(!f.toe)continue;
+    const k=facts.joint.k,s=[0,1,2].filter(axis=>axis!==k).reduce((best,axis)=>Math.abs(f.dir[axis])>Math.abs(f.dir[best])?axis:best);
+    const out=[0,0,0];
+    out[s]=f.dir[s]>0?-1:1;
+    faces.add(faceWords(f.through,out,false));
+  }
+  return faces.size===1&&all.some(facts=>facts.layout.length>1)?`, all from its ${[...faces][0]}`:', from both sides in turn';
+}
 /* 'Stud (F)'; 'Shelf deck (F, G)' for pieces of one name in two or three sizes; the bare name for more sizes */
 function namedLabel(pieces,letterOf){
   const letters=[...new Set(pieces.map(letterOf).filter(Boolean))].sort();
@@ -656,7 +670,7 @@ function fastenLine(links,letterOf){
   if(sample.how==='plate'){
     const plates=listWords([...new Set(all.map(facts=>facts.through.name))].map(name=>namedLabel(all.filter(facts=>facts.through.name===name).map(facts=>facts.through),letterOf)));
     const under=[...new Set(all.flatMap(facts=>(facts.f.also||[]).map(piece=>piece.name)))];
-    group.line=`${capital(fastenerPhrase(total,spec.hw[0][0]))}, about every ${FRAMING.PLATE_SCREW_EVERY}", down through the ${plates} and the ${byPlaces[0].intos[0].name} into ${under.length?'the '+listWords(under)+' under it':'the framing under it'}. Put each one where a joist or a rim joist is under the plywood.`;
+    group.line=`${capital(fastenerPhrase(total,spec.hw[0][0]))}, about every ${FRAMING.PLATE_SCREW_EVERY}", down through the ${plates} and the ${byPlaces[0].intos[0].name} into ${under.length?'the '+listWords(under)+' under it':'the framing under it'}. Put each one where a joist or a rim joist is under the plywood${all.some(facts=>facts.layout.some(f=>f.clearHead))?', and not under a stud: the wall stands on the plate before these go in, so move a screw that would land under one along the plate until it is clear':''}.`;
     group.sample.rule={plate:true};
     return group;
   }
@@ -667,7 +681,7 @@ function fastenLine(links,letterOf){
     const how=f.kind==='pocket'?'Each is driven from a pocket hole in the piece named first, into the piece named second'
       :f.kind==='dowel'?'Half of each goes in the piece named first, half in the piece named second'
       :f.kind==='bracket'?'Each holds the piece named first to the piece named second, with 4 short screws ('+bracketScrewWords(spec)+')'
-      :f.toe?`Each is driven at an angle through the ${spec.drive?'side':'end'} of the piece named first, into the piece named second`
+      :f.toe?`Each is driven at an angle through the ${spec.drive?'side':faceSaid(sample.joint,f.through)==='face'?'edge':'end'} of the piece named first, into the piece named second`
       :'Each goes through the piece named first into the piece named second';
     const list=byPlaces.map(pair=>{
       const[through,into]=pieceWords(pair,false);
@@ -675,7 +689,7 @@ function fastenLine(links,letterOf){
     }).join('; ');
     group.line=`${count}: ${share}. ${how}: ${list}.`+tail();
     group.sample.rule={free:true,gap:null};   // the words give no marks for these: the marking view shows where they sit, with no sizes
-    if(f.toe)group.where='Start each one about an inch back from the joint and slant it toward the joint, from both sides in turn.';
+    if(f.toe)group.where=`Start each one about an inch back from the joint and slant it toward the joint${angledFromWords(all)}.`;
     else if(f.kind!=='pocket'&&f.kind!=='bracket')group.where='Keep them at least 3/4" from the ends of each joint, so the wood does not split. The close-up shows one of these joints.';
     return group;
   }
@@ -696,7 +710,7 @@ function fastenLine(links,letterOf){
   }else if(f.kind==='bracket'){
     line=`${capital(count)}, ${f.flat?'flat across the seam between':'in the inside corner between'} ${through} and ${intoPlain}, each with 4 short screws (${bracketScrewWords(spec)}). Put the brackets on the hidden side, inside the corner.`+atEach;
   }else if(f.toe){
-    line=`${capital(count)}, driven at an angle through the ${spec.drive?'side':'end'} of ${through} into ${intoPlain}${sample.layout.length>1?', from both sides in turn':''}.`+atEach;
+    line=`${capital(count)}, driven at an angle through the ${spec.drive?'side':faceSaid(sample.joint,f.through)==='face'?'edge':'end'} of ${through} into ${intoPlain}${sample.layout.length>1?angledFromWords(all):''}.`+atEach;
   }else{
     line=`${capital(count)}${f.kind==='brad'?', and glue':''}, through ${through} into ${into}.`+atEach;
   }
