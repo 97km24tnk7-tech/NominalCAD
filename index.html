@@ -2,12 +2,12 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='f5944ee';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='40ae483';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=f5944ee">
-<link rel="stylesheet" href="css/catalog.css?v=f5944ee">
+<link rel="stylesheet" href="css/style.css?v=40ae483">
+<link rel="stylesheet" href="css/catalog.css?v=40ae483">
 </head>
 <body data-tab="design">
 
@@ -627,7 +627,7 @@
       <dt>Build step by step</dt><dd>In the <b>Finish</b> group. The 3D view then shows the design as it stands after each step: what is built so far, the pieces of this step in orange, and the fasteners of this step in dark blue, right through the wood. A panel shows the words of the step and what you need for it. <b>Back</b> and <b>Next</b>, or the left and right arrow keys, move through the steps; Esc leaves and puts the view back as it was. The steps always follow the design: change, add or delete a piece and they are worked out again, here and on the Build instructions page. A design you drew yourself gets a suggested order.</dd>
       <dt>Check my design</dt><dd>In the <b>Tools</b> group, under <b>More</b> (or right-click empty space in the view). It looks for pieces that nothing holds up, boards too long for their load, and anything that could tip or lean over, and says what to change. Every preset passes it as it comes; run it after you change a design by hand or draw your own. These are rule-of-thumb checks, not an engineer's certification.</dd>
       <dt>Long fish tank walls</dt><dd>A fish tank wall (or cabinet stand) longer than the longest board you can haul is still built as one wall: the rails of each row are made of pieces joined end to end over a pair of uprights (one upright when they are 4x4s), with a cross piece just inside each rail end, the two cross pieces screwed to each other, and the plywood deck running across the joint, and there are posts at the two ends only, so the tanks stay evenly spaced. The pieces are as even as the bays allow. <b>Build it as</b> in the preset's form can make it separate sections you can carry instead, each with its own posts; they are stood side by side where the rack goes and screwed together through the posts that meet, with no glue, so they come apart again. Either way every upright stands on one piece of deck, so it gets one set of pocket screws. These are rule-of-thumb checks, not an engineer's certification.</dd>
-      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and       <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; apart from counting visits on the public site (see Counting visits, below), it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
+      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; apart from counting visits on the public site (see Counting visits, below), it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
       <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
@@ -651,6 +651,15 @@
       <dt>Measure</dt><dd>Ctrl + click two pieces. The Properties panel shows the gap between them.</dd>
       <dt>Import a cut list</dt><dd>Found a free plan online? Import a cut list, in the Add group, takes its pieces one per line and lays them on the floor beside your design.</dd>
       <dt>Look around</dt><dd>Drag empty space to turn the view, right-drag to slide it, scroll to zoom. Fit view, Front, Side and Top are in the View group.</dd>
+    </dl>
+    <div class="sec">Reading a close-up</div>
+    <dl>
+      <dt>Two pictures</dt><dd>Under each step of the <b>Build instructions</b>, every numbered line has a close-up made of two pictures. <b>How it goes in</b>, on the left, shows the two pieces of one joint at a slant, with the screw or nail in dark blue going through the first piece into the second. <b>Where to mark</b>, on the right, shows the face you mark, drill or nail on, seen straight on, with every size of the line. Click a picture to see it large; click again or press Esc to close it.</dd>
+      <dt>How it is seen</dt><dd>The line under the title says how you look at the piece: "seen from the back", "seen from the left (from inside)", "underside, seen from below". Left and right in the picture and in the words are as you see the piece that way. Seen from the back, the left end is the one on your left as you stand behind it.</dd>
+      <dt>The heavy line</dt><dd>The edge or end every size is measured from is drawn heavy and named beside it, such as <b>top end of Back panel (H)</b>, or with a slanted line and a dot that point to it. Put your tape on that edge. When the words say "from the nearest edge", the name says so too (<b>the edge nearest the screws</b>): at the other places of the line it may be the other edge. A heavy dashed line is an edge of the piece behind, which you cannot see from where you mark: set that piece in place, or mark where it will sit, first.</dd>
+      <dt>A size</dt><dd>Each size runs between two thin lines that come off what it measures: an edge of the piece, or the middle of a fastener. The middle of a fastener is a small circle with a cross. The number sits on its own size line; when it does not fit, it is written just past the end of its line. Sizes in one row follow each other: the first from the heavy edge to the first fastener, then from fastener to fastener. <b>3 spaces at 4 5/8"</b> means three equal gaps of 4 5/8" between four fasteners. Pocket holes whose places the words give one by one (a row kept clear of a rail or of the holes at the ends of an apron, or the holes for a top board that crosses only part of a rail) are each measured from the one heavy end instead: the sizes are stacked, one row for each hole, and every one starts at that end.</dd>
+      <dt>Dashed and broken</dt><dd>A dashed outline is the piece behind, which you cannot see from where you mark (the rail the nails go into). A dash-dot line is its middle: a row of nails on it lands in the middle of that piece. A zig-zag across a piece means it goes on past the picture; the line under the picture then gives the count of the row. Two zig-zags with white between them mean a length is left out in the middle, so the picture can show the ends large: a size across them still gives the whole distance.</dd>
+      <dt>Pencil marks</dt><dd>A step that asks you to mark shelf heights shows the marks on its picture, and their heights in a flat picture of its own, "The pencil marks". Each height is measured up from the bottom end, which has a small circle; the number is at the tick of its own mark. The X is on the side of the mark the piece sits on.</dd>
     </dl>
     <div class="sec">Typing sizes</div>
     <dl>
@@ -683,71 +692,72 @@
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=f5944ee"></script>
+<script src="three.min.js?v=40ae483"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=f5944ee"></script>
-<script src="js/hosted.js?v=f5944ee"></script>
-<script src="js/dialogs.js?v=f5944ee"></script>
-<script src="js/lengthboxes.js?v=f5944ee"></script>
-<script src="js/orient.js?v=f5944ee"></script>
-<script src="js/verify.js?v=f5944ee"></script>
-<script src="js/builders-furniture.js?v=f5944ee"></script>
-<script src="js/builders-fish.js?v=f5944ee"></script>
-<script src="js/rackjoints.js?v=f5944ee"></script>
-<script src="js/builders-shed.js?v=f5944ee"></script>
-<script src="js/builders-storage.js?v=f5944ee"></script>
-<script src="js/builders-outdoor.js?v=f5944ee"></script>
-<script src="js/presets.js?v=f5944ee"></script>
-<script src="js/drawers.js?v=f5944ee"></script>
-<script src="js/nightstand.js?v=f5944ee"></script>
-<script src="js/state.js?v=f5944ee"></script>
-<script src="js/joints.js?v=f5944ee"></script>
-<script src="js/neighbors.js?v=f5944ee"></script>
-<script src="js/framing.js?v=f5944ee"></script>
-<script src="js/style.js?v=f5944ee"></script>
-<script src="js/fasteners.js?v=f5944ee"></script>
-<script src="js/fastenerroom.js?v=f5944ee"></script>
-<script src="js/visibility.js?v=f5944ee"></script>
-<script src="js/view3d.js?v=f5944ee"></script>
-<script src="js/viewmodes.js?v=f5944ee"></script>
-<script src="js/groups.js?v=f5944ee"></script>
-<script src="js/connections.js?v=f5944ee"></script>
-<script src="js/components.js?v=f5944ee"></script>
-<script src="js/hardware.js?v=f5944ee"></script>
-<script src="js/holds.js?v=f5944ee"></script>
-<script src="js/hardwareshapes.js?v=f5944ee"></script>
-<script src="js/copies.js?v=f5944ee"></script>
-<script src="js/tools.js?v=f5944ee"></script>
-<script src="js/transform.js?v=f5944ee"></script>
-<script src="js/panels.js?v=f5944ee"></script>
-<script src="js/piecetree.js?v=f5944ee"></script>
-<script src="js/unfasten.js?v=f5944ee"></script>
-<script src="js/statusbar.js?v=f5944ee"></script>
-<script src="js/viewpick.js?v=f5944ee"></script>
-<script src="js/fastenerview.js?v=f5944ee"></script>
-<script src="js/showfaces.js?v=f5944ee"></script>
-<script src="js/motion.js?v=f5944ee"></script>
-<script src="js/hanging.js?v=f5944ee"></script>
-<script src="js/hardwaretool.js?v=f5944ee"></script>
-<script src="js/drawertool.js?v=f5944ee"></script>
-<script src="js/plans.js?v=f5944ee"></script>
-<script src="js/buildsteps.js?v=f5944ee"></script>
-<script src="js/steppictures.js?v=f5944ee"></script>
-<script src="js/stepmode.js?v=f5944ee"></script>
-<script src="js/prices.js?v=f5944ee"></script>
-<script src="js/layout.js?v=f5944ee"></script>
-<script src="js/preview.js?v=f5944ee"></script>
-<script src="js/checkui.js?v=f5944ee"></script>
-<script src="js/catalog.js?v=f5944ee"></script>
-<script src="js/app.js?v=f5944ee"></script>
-<script src="js/level.js?v=f5944ee"></script>
-<script src="js/glossary.js?v=f5944ee"></script>
-<script src="js/jointhelp.js?v=f5944ee"></script>
-<script src="js/wordlinks.js?v=f5944ee"></script>
-<script src="js/transfer.js?v=f5944ee"></script>
-<script src="js/menus.js?v=f5944ee"></script>
-<script src="js/selftest.js?v=f5944ee"></script>
-<script src="js/visits.js?v=f5944ee"></script>
+<script src="js/core.js?v=40ae483"></script>
+<script src="js/hosted.js?v=40ae483"></script>
+<script src="js/dialogs.js?v=40ae483"></script>
+<script src="js/lengthboxes.js?v=40ae483"></script>
+<script src="js/orient.js?v=40ae483"></script>
+<script src="js/verify.js?v=40ae483"></script>
+<script src="js/builders-furniture.js?v=40ae483"></script>
+<script src="js/builders-fish.js?v=40ae483"></script>
+<script src="js/rackjoints.js?v=40ae483"></script>
+<script src="js/builders-shed.js?v=40ae483"></script>
+<script src="js/builders-storage.js?v=40ae483"></script>
+<script src="js/builders-outdoor.js?v=40ae483"></script>
+<script src="js/presets.js?v=40ae483"></script>
+<script src="js/drawers.js?v=40ae483"></script>
+<script src="js/nightstand.js?v=40ae483"></script>
+<script src="js/state.js?v=40ae483"></script>
+<script src="js/joints.js?v=40ae483"></script>
+<script src="js/neighbors.js?v=40ae483"></script>
+<script src="js/framing.js?v=40ae483"></script>
+<script src="js/style.js?v=40ae483"></script>
+<script src="js/fasteners.js?v=40ae483"></script>
+<script src="js/fastenerroom.js?v=40ae483"></script>
+<script src="js/visibility.js?v=40ae483"></script>
+<script src="js/view3d.js?v=40ae483"></script>
+<script src="js/viewmodes.js?v=40ae483"></script>
+<script src="js/groups.js?v=40ae483"></script>
+<script src="js/connections.js?v=40ae483"></script>
+<script src="js/components.js?v=40ae483"></script>
+<script src="js/hardware.js?v=40ae483"></script>
+<script src="js/holds.js?v=40ae483"></script>
+<script src="js/hardwareshapes.js?v=40ae483"></script>
+<script src="js/copies.js?v=40ae483"></script>
+<script src="js/tools.js?v=40ae483"></script>
+<script src="js/transform.js?v=40ae483"></script>
+<script src="js/panels.js?v=40ae483"></script>
+<script src="js/piecetree.js?v=40ae483"></script>
+<script src="js/unfasten.js?v=40ae483"></script>
+<script src="js/statusbar.js?v=40ae483"></script>
+<script src="js/viewpick.js?v=40ae483"></script>
+<script src="js/fastenerview.js?v=40ae483"></script>
+<script src="js/showfaces.js?v=40ae483"></script>
+<script src="js/motion.js?v=40ae483"></script>
+<script src="js/hanging.js?v=40ae483"></script>
+<script src="js/hardwaretool.js?v=40ae483"></script>
+<script src="js/drawertool.js?v=40ae483"></script>
+<script src="js/plans.js?v=40ae483"></script>
+<script src="js/buildsteps.js?v=40ae483"></script>
+<script src="js/markingview.js?v=40ae483"></script>
+<script src="js/steppictures.js?v=40ae483"></script>
+<script src="js/stepmode.js?v=40ae483"></script>
+<script src="js/prices.js?v=40ae483"></script>
+<script src="js/layout.js?v=40ae483"></script>
+<script src="js/preview.js?v=40ae483"></script>
+<script src="js/checkui.js?v=40ae483"></script>
+<script src="js/catalog.js?v=40ae483"></script>
+<script src="js/app.js?v=40ae483"></script>
+<script src="js/level.js?v=40ae483"></script>
+<script src="js/glossary.js?v=40ae483"></script>
+<script src="js/jointhelp.js?v=40ae483"></script>
+<script src="js/wordlinks.js?v=40ae483"></script>
+<script src="js/transfer.js?v=40ae483"></script>
+<script src="js/menus.js?v=40ae483"></script>
+<script src="js/selftest.js?v=40ae483"></script>
+<script src="js/visits.js?v=40ae483"></script>
 </body>
 </html>

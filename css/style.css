@@ -534,7 +534,12 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
 #picZoom[hidden]{display:none}
 #picZoom figure{margin:0;max-width:94vw}
 #picZoom img{display:block;max-width:94vw;max-height:86vh;background:#fff;border:1px solid var(--n400)}
-#picZoom figcaption{margin-top:6px;color:#fff;font-size:var(--fs);line-height:17px}
+/* the bar under an opened picture: the line number in its circle and the caption, and how to close it at the right */
+#picZoom figcaption{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:6px;color:#fff;font-size:var(--fs);line-height:17px}
+#picZoom .zcap{display:flex;align-items:center;gap:6px}
+#picZoom .zclose{flex:none;color:#d5dade}
+/* where the line says the fasteners go, under the bar of an opened close-up */
+#picZoom .zwhere{margin:4px 0 0;max-width:94vw;color:#e8ebee;font-size:var(--fs);line-height:17px}
 /* the preset's own words for a step that was written again after an edit */
 .step .was{padding-left:8px;border-left:2px solid var(--n300);font-size:var(--fs-s);line-height:15px;color:var(--n600)}
 .need{margin:0 0 8px;font-size:var(--fs);line-height:18px}
@@ -553,6 +558,12 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
 .need.fasten li,.closeups figcaption{display:grid;grid-template-columns:18px minmax(0,1fr);gap:0 7px;align-items:start}
 .need.fasten li,.need.hw li{margin-bottom:5px}
 .closeups{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-top:6px}
+/* a close-up of a joint is a pair, across the whole width: how it goes in (3D) and where to mark (flat, with sizes) */
+.closeups figure.pair{grid-column:1/-1}
+.closeups .halves{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+/* the pencil marks of a marking step, drawn square to the face, under the words and the step picture */
+.markviews{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-top:6px}
+.markviews figcaption{margin-top:3px}
 
 /* ---------- 12a. Build step by step (js/stepmode.js) ----------
    the words of one step, down the right side of the 3D view. Properties, which is at home in that corner, moves
@@ -718,6 +729,9 @@ body[data-stepmode] #stHidden{display:none}
   .step .was{border-left-color:#999}
   .bal{border-color:#000;color:#000}
   .step{grid-template-columns:30px minmax(0,1fr) 250px}
+  /* close-ups and marking views across the whole width of the paper, so their numbers can be read */
+  .closeups,.markviews{grid-column:1/-1}
+  .closeups figure{break-inside:avoid}
   .buy{break-after:avoid}
   .step{border-top-color:#999}
   .lead img,.views img,.doc img.wide,.step img{border-color:#999}

@@ -9,14 +9,19 @@
                         pale, later ones left out. THIS STEP'S fasteners are drawn in dark blue on top of the wood
                         (so they show through it), thick enough to see at this size, and each "Fasten with" line
                         has a numbered balloon that points at one of its joints.
-     close-ups          one for each different kind of connection in the step (never more than CLOSEUPS_MAX): a
-                        flat-on view near one joint with only its two pieces, see-through, the fasteners at
-                        their real size passing through one piece into the other, both pieces and the fastener
-                        labelled, and size lines for where the fasteners go. The size lines are the very
-                        distances the words of the line give (fastenerPlaces, js/buildsteps.js).
-   Labels, balloons and size lines are drawn in 2D over the 3D picture, so they are sharp and always the same size.
+     close-ups          one for each different kind of connection in the step (never more than CLOSEUPS_MAX), as a
+                        pair: "How it goes in" (src), a slanted view near one joint with only its two pieces, the
+                        fasteners at their real size passing through one piece into the other, both pieces and
+                        the fastener labelled, and no sizes; and "Where to mark" (mark), the marking view of
+                        js/markingview.js: the face that is marked, seen square on, with every size of the line
+                        drawn at its true length from the edge the words measure it from.
+     pencil marks       a marking step draws its pencil lines on the step picture; their heights are in a marking
+                        view of their own (markView)
+   Labels and balloons are drawn in 2D over the 3D picture, so they are sharp and always the same size.
 
-     stepPictures(plan)                 [{src, closeups: [{src, no, caption}], drawn, total}], one entry per step
+     stepPictures(plan)                 [{src, closeups: [{src, mark, no, caption, words}], markView, drawn, total}], one entry
+                                        per step; mark and markView.src are keys of marking views drawn when they are
+                                        seen (markingSource, js/markingview.js)
      fastenerMarkers(fasteners, look)   a THREE.Group that draws these fasteners; Build step by step uses it too */
 'use strict';
 
@@ -159,8 +164,10 @@ function drawBalloons(pen,balloons,avoid){
    (a door may be drawn open, the design pulled apart). With more than PIECE_TAGS_MAX pieces only the first piece
    of each letter gets one, so a wall of studs does not disappear under its tags. */
 const PIECE_TAGS_MAX=24;
-function drawPieceLetters(pen,pieces,letterOf){
-  const{ctx,point}=pen,seen=new Set(),spot=new THREE.Vector3();
+/* avoid: rectangles a tag must keep off (the pencil marks of a marking step); a tag that would sit on one is moved
+   along the piece, up or down first, until it is clear. Returns the rectangles of the tags. */
+function drawPieceLetters(pen,pieces,letterOf,avoid){
+  const{ctx,point}=pen,seen=new Set(),spot=new THREE.Vector3(),placed=[];
   ctx.font=`600 20px ${PICTURE_FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
   for(const piece of pieces){
     const letter=letterOf(piece),g=meshes.get(piece.id);
@@ -168,11 +175,16 @@ function drawPieceLetters(pen,pieces,letterOf){
     seen.add(letter);
     g.updateMatrixWorld(true);
     g.getWorldPosition(spot);
-    const at=point([spot.x,spot.y,spot.z]),wide=ctx.measureText(letter).width+10;
+    const middle=point([spot.x,spot.y,spot.z]),wide=ctx.measureText(letter).width+10;
+    const hits=at=>(avoid||[]).some(rect=>at[0]-wide/2<rect.x+rect.w+3&&at[0]+wide/2>rect.x-3&&at[1]-12<rect.y+rect.h+3&&at[1]+12>rect.y-3);
+    const moves=[[0,0],[0,-30],[0,30],[0,-60],[0,60],[0,-90],[0,90],[-30,0],[30,0]];
+    const at=moves.map(([dx,dy])=>[middle[0]+dx,middle[1]+dy]).find(candidate=>!hits(candidate))||middle;
+    placed.push({x:at[0]-wide/2,y:at[1]-12,w:wide,h:24});
     ctx.fillStyle='rgba(255,255,255,.92)';ctx.fillRect(at[0]-wide/2,at[1]-12,wide,24);
     ctx.strokeStyle=STEP_COL.ink;ctx.lineWidth=1.2;ctx.strokeRect(at[0]-wide/2,at[1]-12,wide,24);
     ctx.fillStyle=STEP_COL.ink;ctx.fillText(letter,at[0],at[1]+1);
   }
+  return placed;
 }
 
 /* ---------- pencil marks of a marking step ---------- */
@@ -203,24 +215,18 @@ function markingLines(step,fresh){
   }
   return lines;
 }
-/* the marks as dark pencil lines; the heights are written beside the piece that is drawn furthest to the left,
-   outside it, so they never cover the wood of the other piece */
+/* The marks as dark pencil lines. Their heights are NOT written here: this picture is seen at a slant, where a
+   height cannot be drawn at its true length. They are in the marking view under the picture (marksMarkPlan,
+   js/markingview.js), drawn square to the face. Returns the rectangles the letter tags and the balloons must keep
+   off: the box round each pencil line. */
 function drawMarks(pen,lines){
-  const written=[];   // the rectangles of the heights, returned so that the balloons keep off them
-  if(!lines.length)return written;
-  const{ctx,point}=pen;
-  const onScreen=lines.map(line=>({...line,a:point(line.from),b:point(line.to)}));
-  for(const line of onScreen)inkLine(ctx,line.a,line.b,3);
-  const leftOf=line=>Math.min(line.a[0],line.b[0]);
-  const labelled=onScreen.reduce((best,line)=>!best||leftOf(line)<leftOf(best)?line:best,null).piece;
-  for(const line of onScreen.filter(candidate=>candidate.piece===labelled)){
-    const end=line.a[0]<line.b[0]?line.a:line.b;
-    const size=textBox(ctx,[{text:line.text,size:24,bold:true}],[0,0],true);
-    const at=[Math.max(2,end[0]-size.w-14),end[1]-size.h/2];
-    inkLine(ctx,[at[0]+size.w,end[1]],end,1.5);
-    written.push(textBox(ctx,[{text:line.text,size:24,bold:true}],at));
+  const{ctx,point}=pen,boxes=[];
+  for(const line of lines){
+    const a=point(line.from),b=point(line.to);
+    inkLine(ctx,a,b,3);
+    boxes.push({x:Math.min(a[0],b[0])-2,y:Math.min(a[1],b[1])-2,w:Math.abs(a[0]-b[0])+4,h:Math.abs(a[1]-b[1])+4});
   }
-  return written;
+  return boxes;
 }
 
 /* ---------- the close-up of one joint ---------- */
@@ -282,7 +288,8 @@ function closeupPicture(step,group,fresh){
   eye.lookAt(center[0],center[1],center[2]);
   eye.updateMatrixWorld();
 
-  // only the pieces of this joint, see-through
+  // only the pieces of this joint, see-through enough for the fastener to show inside, solid enough for their
+  // edges to be found (the owner's tester could not find the edges at 42%)
   const shown=new Set([f0.through.id,f0.into.id,...(f0.also||[]).map(p=>p.id)]),touched=[];
   for(const p of S.parts){
     const g=meshes.get(p.id);
@@ -293,8 +300,8 @@ function closeupPicture(step,group,fresh){
     const faces=g.children[0].material,lines=g.children[1].material;
     touched.push({faces,lines,color:faces.color.getHex(),opacity:lines.opacity});
     faces.color.setHex(fresh.has(p.id)?STEP_COL.added:STEP_COL.earlier);
-    faces.transparent=true;faces.opacity=.42;faces.depthWrite=false;faces.needsUpdate=true;
-    lines.opacity=.9;
+    faces.transparent=true;faces.opacity=.64;faces.depthWrite=false;faces.needsUpdate=true;
+    lines.opacity=1;
   }
   const markers=fastenerMarkers(layout,{color:STEP_COL.fastener,minRadius:CLOSEUP_MIN_RADIUS,onTop:true,real:true});
   scene.add(markers);
@@ -352,7 +359,26 @@ function hardwareCloseupPlan(row){
     // a little more of the door than the size lines reach, so the hole is not drawn in a corner of the picture
     const intoDoor=first.slice();
     intoDoor[cross.axis]+=inward*3;intoDoor[along.axis]+=(along.side?-1:1)*2;
-    return{show:[host.id],items:[],eye:towardFace(.25),seen:'the back of the door, as it lies face down',extra:[intoDoor],
+    /* How it goes on: the door and the cabinet side it hangs on, seen at a slant from inside the cabinet (from
+       the back of the door, off toward the middle of the cabinet, a little from above), with the hinge on them:
+       its cup in the door, its plate on the side */
+    const side=item.to!=null?byId(item.to):null;
+    void towardFace;
+    const eye=[0,0,0];eye[back]=backSign*.75;eye[cross.axis]=inward*.5;eye[1]+=.4;
+    const hinge=hardwarePose(item).at,hingeAt=[hinge.x,hinge.y,hinge.z];
+    const labels=[
+      {at:intoDoor,lines:[{text:pieceLabel(host,buildPlan().letterOf),size:30,bold:true},{text:'the cup hole is drilled in its back',size:23}]},
+      {at:hingeAt,lines:[{text:'Cup hinge',size:27,bold:true},{text:'its cup sits in the hole',size:23}]},
+    ];
+    const extra=[intoDoor];
+    if(side){
+      // a point on the inside face of the side, beside the hinge: where its mounting plate is screwed
+      const sideBox=plainBox(side),onSide=hingeAt.map((v,k)=>Math.max(sideBox.lo[k]+.2,Math.min(sideBox.hi[k]-.2,v)));
+      onSide[along.axis]=Math.max(sideBox.lo[along.axis]+.2,Math.min(sideBox.hi[along.axis]-.2,hingeAt[along.axis]+(along.side?-1.5:1.5)));
+      labels.push({at:onSide,lines:[{text:pieceLabel(side,buildPlan().letterOf),size:30,bold:true},{text:'the hinge plate screws to its inside face',size:23}]});
+      extra.push(onSide);
+    }
+    return{show:[host.id].concat(side?[side.id]:[]),items:[],eye,labels,seen:`the back of the door and the ${side?side.name:'cabinet'} it hangs on`,extra,
       dims:[{from:toEdge,to:first,text:fmt(CUP_HOLE.fromEdge)}].concat(along.centered?[]:[{from:toEnd,to:first,text:fmt(r16(along.distance))}]),
       circles:holes.map(at=>({at,axis:faceAxis,radius:CUP_HOLE.wide/2}))};
   }
@@ -369,7 +395,17 @@ function hardwareCloseupPlan(row){
     const toEdge=holes[0].slice(),toEnd=holes[0].slice();
     toEdge[crossAxis]=fromHigh?hostBox.hi[crossAxis]:hostBox.lo[crossAxis];
     toEnd[alongAxis]=nearHighEnd?hostBox.hi[alongAxis]:hostBox.lo[alongAxis];
-    return{show:[host.id],items:[],eye:towardFace(.3),seen:`the front of the ${host.name}, before the pull goes on`,
+    // (the picture shows the pull on the front, so the band says just that)
+    const pullAt=hardwarePose(item).at;
+    // (the door is named at a point of its front a little beside the pull, which is in the picture)
+    const besidePull=[pullAt.x,pullAt.y,pullAt.z];
+    besidePull[faceAxis]=face;
+    besidePull[crossAxis]=Math.max(hostBox.lo[crossAxis]+.5,Math.min(hostBox.hi[crossAxis]-.5,besidePull[crossAxis]+(fromHigh?-1:1)*2.5));
+    const pullLabels=[
+      {at:besidePull,lines:[{text:pieceLabel(host,buildPlan().letterOf),size:30,bold:true},{text:'the front face',size:23}]},
+      {at:[pullAt.x,pullAt.y,pullAt.z],lines:[{text:'Pull',size:27,bold:true},{text:'over its two holes',size:23}]},
+    ];
+    return{show:[host.id],items:[],eye:(()=>{const eye=towardFace(.3);eye[alongAxis]+=.35;return eye;})(),labels:pullLabels,seen:`the front of the ${host.name}`,
       dims:[{from:toEdge,to:holes[0],text:fmt(r16(fromHigh?high:low))},{from:toEnd,to:holes[0],text:fmt(r16(Math.abs(toEnd[alongAxis]-holes[0][alongAxis])))},
         {from:holes[0],to:holes[1],text:fmt(item.size)}],
       circles:holes.map(at=>({at,axis:faceAxis,radius:3/32}))};
@@ -405,7 +441,15 @@ function hardwareCloseupPlan(row){
       const x=front.edge-front.outward*(1.5+index*3.5);
       dims.push({from:point({[inner]:insideFace,1:base,[travel]:x}),to:point({[inner]:insideFace,1:height,[travel]:x}),text:fmt(r16(height-base))});
     });
-    return{show,items:mine.map(other=>other.id),seen:`the inside face of the cabinet ${side.name}`,eye:(()=>{const eye=[0,0,0];eye[inner]=insideSign*.8;eye[travel]=hardwareFrontEdge(side,travel).outward*.55;eye[1]=.3;return eye;})(),dims,circles:[]};
+    // what is what: the side, and the first of the strips on it
+    const firstAt=hardwarePose(mine[0]).at,frontEdge=hardwareFrontEdge(side,travel);
+    const onFace=point({[inner]:insideFace,1:Math.max(sideBox.lo[1]+1,Math.min(sideBox.hi[1]-1,firstAt.y+3)),[travel]:frontEdge.edge-frontEdge.outward*2});
+    const stripName=row.kind==='slide'?'Drawer slide':row.kind==='runner'?'Runner':'Kicker';
+    const labels=[
+      {at:onFace,lines:[{text:pieceLabel(side,buildPlan().letterOf),size:30,bold:true},{text:'its inside face',size:23}]},
+      {at:[firstAt.x,firstAt.y,firstAt.z],lines:[{text:stripName,size:27,bold:true},{text:row.kind==='slide'?'the cabinet half, screwed to the side':'screwed to the side',size:23}]},
+    ];
+    return{show,items:mine.map(other=>other.id),labels,seen:`the inside face of the cabinet ${side.name}`,eye:(()=>{const eye=[0,0,0];eye[inner]=insideSign*.8;eye[travel]=hardwareFrontEdge(side,travel).outward*.55;eye[1]=.3;return eye;})(),dims,circles:[]};
   }
   return null;
 }
@@ -428,8 +472,8 @@ function hardwareCloseupPicture(row,fresh){
   const length=Math.hypot(...plan.eye);
   eye.position.set(...center.map((v,k)=>v+plan.eye[k]/length*600));
   eye.up.set(0,1,0);eye.lookAt(center[0],center[1],center[2]);eye.updateMatrixWorld();
-  // only the pieces of the close-up, and the hardware of this line on them
-  const shown=new Set(plan.show),items=new Set(plan.items),kept=[];
+  // only the pieces of the close-up, and the hardware of this line on them (how it goes on; where is the marking view)
+  const shown=new Set(plan.show),items=new Set(row.items.filter(item=>shown.has(item.on)||shown.has(item.to)).map(item=>item.id)),kept=[];
   for(const p of S.parts){
     const g=meshes.get(p.id);
     if(!g)continue;
@@ -444,44 +488,12 @@ function hardwareCloseupPicture(row,fresh){
   for(const[mesh,visible]of hardwareKept)mesh.visible=visible;
   return src;
 }
-/* the circles of the holes and the size lines of a hardware close-up, each number beside its line, clear of the rest */
+/* what a hardware close-up is, in the band across its top, and labels for the pieces and the hardware (the door,
+   the hinge cup, the side it hangs on); its sizes are in the marking view beside it */
 function drawHardwareCloseup(pen,plan,row){
-  const{ctx,point,width,height}=pen,taken=[];
-  for(const circle of plan.circles){
-    const around=[];
-    for(let i=0;i<=32;i++){
-      const angle=i/32*Math.PI*2,p=circle.at.slice(),[a,b]=[0,1,2].filter(k=>k!==circle.axis);
-      p[a]+=Math.cos(angle)*circle.radius;p[b]+=Math.sin(angle)*circle.radius;
-      around.push(point(p));
-    }
-    ctx.strokeStyle=STEP_COL.paper;ctx.lineWidth=5;ctx.beginPath();around.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke();
-    ctx.strokeStyle=STEP_COL.ink;ctx.lineWidth=2.5;ctx.stroke();
-    inkDot(ctx,point(circle.at),3);
-    const xs=around.map(q=>q[0]),ys=around.map(q=>q[1]);
-    taken.push({x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)});   // no number over a hole
-  }
-  taken.push({x:10,y:10,w:360,h:80});   // the title in the corner
-  const overlaps=rect=>taken.some(other=>rect.x<other.x+other.w+4&&rect.x+rect.w+4>other.x&&rect.y<other.y+other.h+4&&rect.y+rect.h+4>other.y);
-  for(const dim of plan.dims){
-    const a=point(dim.from),b=point(dim.to),long=Math.hypot(b[0]-a[0],b[1]-a[1]);
-    if(long<6)continue;
-    const along=[(b[0]-a[0])/long,(b[1]-a[1])/long],across=[-along[1],along[0]];
-    inkLine(ctx,a,b,2);
-    for(const end of[a,b])inkLine(ctx,[end[0]-across[0]*8,end[1]-across[1]*8],[end[0]+across[0]*8,end[1]+across[1]*8],2);
-    const lines=[{text:dim.text,size:27,bold:true}],size=textBox(ctx,lines,[0,0],true);
-    let rect=null;
-    for(const sideways of[1,-1,2.4,-2.4]){
-      const middle=[(a[0]+b[0])/2+across[0]*sideways*(size.h/2+12),(a[1]+b[1])/2+across[1]*sideways*(size.h/2+12)];
-      const tried={x:Math.max(2,Math.min(width-size.w-2,middle[0]-size.w/2)),y:Math.max(2,Math.min(height-size.h-2,middle[1]-size.h/2)),w:size.w,h:size.h};
-      if(!rect)rect=tried;
-      if(!overlaps(tried)){rect=tried;break;}
-    }
-    taken.push(rect);
-    textBox(ctx,lines,[rect.x,rect.y]);
-  }
-  // what the picture is, in the top left corner
+  if(plan.labels&&plan.labels.length)drawCornerLabels(pen,plan.labels.map(label=>({target:pen.point(label.at),lines:label.lines})));
   const title=HARDWARE[row.kind]?HARDWARE[row.kind].name:'Hardware';
-  textBox(ctx,[{text:title,size:27,bold:true},{text:`line ${row.no}: ${plan.seen}`,size:23}],[10,10]);
+  drawPictureBand(pen.ctx,pen.width,'How it goes on',`${title.replace(/ \(.*\)$/,'')}, on ${plan.seen}`);
 }
 
 /* what the fastener does to a piece, for the small line under its name */
@@ -492,9 +504,55 @@ function roleWords(f,isThrough){
   if(f.kind==='pocket')return isThrough?'the pocket holes are drilled in this':'the screw goes into this';
   return isThrough?`the ${what} goes through this`:`the ${what} goes into this`;
 }
+/* The 3D close-up shows HOW the fastener goes in: through which piece, into which, and at what slant. WHERE it goes,
+   with every size, is the marking view beside it (js/markingview.js), drawn square to the face so no size is
+   foreshortened: the slanted view carries no sizes. A band across the top says which picture this is. */
+const CLOSEUP_BAND=46;
+function drawPictureBand(ctx,width,title,line){
+  ctx.fillStyle=STEP_COL.paper;ctx.fillRect(0,0,width,CLOSEUP_BAND);
+  ctx.strokeStyle='#b8bec5';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(10,CLOSEUP_BAND-.5);ctx.lineTo(width-10,CLOSEUP_BAND-.5);ctx.stroke();
+  ctx.fillStyle=STEP_COL.ink;ctx.textBaseline='middle';ctx.textAlign='left';
+  ctx.font=`600 26px ${PICTURE_FONT}`;ctx.fillText(title,14,CLOSEUP_BAND/2+1);
+  if(line){
+    const titleWide=ctx.measureText(title).width;
+    let size=21;
+    ctx.font=`400 ${size}px ${PICTURE_FONT}`;
+    while(size>14&&14+titleWide+14+ctx.measureText(line).width>width-14){size--;ctx.font=`400 ${size}px ${PICTURE_FONT}`;}
+    ctx.fillText(line,14+titleWide+14,CLOSEUP_BAND/2+2);
+  }
+}
+/* Labels in the corners of a close-up (under its band), each with a line and a dot to what it names: the
+   corners are given out so that the lines are shortest in all. labels: [{target: [x, y] in picture pixels, lines:
+   [{text, size, bold}]}] (four at most). */
+function drawCornerLabels(pen,labels){
+  const{ctx,width,height}=pen;
+  for(const label of labels)label.size=textBox(ctx,label.lines,[0,0],true);
+  const corner=(index,size)=>({x:index%2?width-size.w-10:10,y:index>1?height-size.h-10:CLOSEUP_BAND+8,w:size.w,h:size.h});
+  let best=null;
+  const tryCorners=(picks,cost)=>{
+    if(picks.length===labels.length){
+      if(!best||cost<best.cost)best={cost,picks:picks.slice()};
+      return;
+    }
+    const label=labels[picks.length];
+    for(let slot=0;slot<4;slot++){
+      if(picks.includes(slot))continue;
+      const from=nearestOnRect(corner(slot,label.size),label.target);
+      tryCorners(picks.concat(slot),cost+Math.hypot(from[0]-label.target[0],from[1]-label.target[1]));
+    }
+  };
+  tryCorners([],0);
+  labels.forEach((label,index)=>{label.rect=corner(best.picks[index],label.size);});
+  for(const label of labels){
+    inkLine(ctx,nearestOnRect(label.rect,label.target),label.target,2);
+    inkDot(ctx,label.target,5);
+  }
+  for(const label of labels)textBox(ctx,label.lines,[label.rect.x,label.rect.y]);
+}
 function drawCloseupLabels(pen,group,shape,center,reach){
-  const{ctx,point,width,height}=pen,{layout,dims,link}=group.sample,f0=layout[0];
+  const{ctx,point,width,height}=pen,{layout,link}=group.sample,f0=layout[0];
   const letterOf=buildPlan().letterOf,taken=[];   // taken: the rectangles that already hold text
+  void link;
   const overlaps=rect=>taken.some(other=>rect.x<other.x+other.w+4&&rect.x+rect.w+4>other.x&&rect.y<other.y+other.h+4&&rect.y+rect.h+4>other.y);
   /* three labels in the corners of the picture, each with a line to what it names. They take the corners that
      keep the lines shortest. */
@@ -516,78 +574,11 @@ function drawCloseupLabels(pen,group,shape,center,reach){
     const mouth=layout[0].pocket.mouth,underneath=f0.pocket.out[1]<-.5;
     labels.push({target:point(mouth),lines:[{text:'Drill the pocket holes here',size:27,bold:true},{text:underneath?'on the underside (seen from below)':'on this face: the inside face',size:23}]});
   }
-  for(const label of labels)label.size=textBox(ctx,label.lines,[0,0],true);
-  const corner=(index,size)=>({x:index%2?width-size.w-10:10,y:index>1?height-size.h-10:10,w:size.w,h:size.h});
-  // each label takes a corner of its own: the choice that keeps the lines to what they name shortest
-  let best=null;
-  const tryCorners=(picks,cost)=>{
-    if(picks.length===labels.length){
-      if(!best||cost<best.cost)best={cost,picks:picks.slice()};
-      return;
-    }
-    const label=labels[picks.length];
-    for(let slot=0;slot<4;slot++){
-      if(picks.includes(slot))continue;
-      const from=nearestOnRect(corner(slot,label.size),label.target);
-      tryCorners(picks.concat(slot),cost+Math.hypot(from[0]-label.target[0],from[1]-label.target[1]));
-    }
-  };
-  tryCorners([],0);
-  labels.forEach((label,index)=>{
-    label.rect=corner(best.picks[index],label.size);
-    taken.push(label.rect);
-  });
-  // no text over a fastener either
-  for(const f of layout){
-    const head=point(f.pos),tip=point(pointPlus(f.pos,f.dir,f.len));
-    taken.push({x:Math.min(head[0],tip[0])-5,y:Math.min(head[1],tip[1])-5,w:Math.abs(head[0]-tip[0])+10,h:Math.abs(head[1]-tip[1])+10});
-  }
-  /* the size lines. A line that runs out of the picture (20" to the end of a top) is drawn as far as the edge,
-     and its label says where it leads. Each label sits beside its line, where no other text is. */
-  const sizes=[];
-  for(const dim of dims){
-    const a=point(dim.from),b=point(dim.to),long=Math.hypot(b[0]-a[0],b[1]-a[1]);
-    const inches=Math.hypot(dim.to[0]-dim.from[0],dim.to[1]-dim.from[1],dim.to[2]-dim.from[2]);
-    if(long<10||inches<.05)continue;
-    const inPicture=p=>p[0]>=6&&p[0]<=width-6&&p[1]>=6&&p[1]<=height-6;
-    // dim.to is at the fastener and always in the picture; dim.from may be far outside it
-    let start=a,cut=false;
-    if(!inPicture(a)){
-      let share=1;
-      for(let step=0;step<40&&!inPicture([b[0]+(a[0]-b[0])*share,b[1]+(a[1]-b[1])*share]);step++)share-=.025;
-      start=[b[0]+(a[0]-b[0])*share,b[1]+(a[1]-b[1])*share];
-      cut=true;
-    }
-    const shown=Math.hypot(b[0]-start[0],b[1]-start[1]),along=[(b[0]-start[0])/shown,(b[1]-start[1])/shown],across=[-along[1],along[0]];
-    const said=dim.inches!==undefined?dim.inches:r16(inches);   // the number the words of the line give
-    const lines=[{text:fmt(said)+(cut?` from the ${dim.word||'edge'}`:''),size:27,bold:true}],size=textBox(ctx,lines,[0,0],true);
-    // beside the middle of the line, on either side, then slid along it, until the text is clear of the rest
-    let rect=null;
-    for(const slide of[0,.3,-.3,.6,-.6]){
-      for(const sideways of[1,-1,2.2,-2.2]){
-        const middle=[(start[0]+b[0])/2+along[0]*shown*slide+across[0]*sideways*(size.h/2+12),(start[1]+b[1])/2+along[1]*shown*slide+across[1]*sideways*(size.h/2+12)];
-        const tried={x:Math.max(2,Math.min(width-size.w-2,middle[0]-size.w/2)),y:Math.max(2,Math.min(height-size.h-2,middle[1]-size.h/2)),w:size.w,h:size.h};
-        if(!rect)rect=tried;
-        if(!overlaps(tried)){rect=tried;break;}
-      }
-      if(!overlaps(rect))break;
-    }
-    taken.push(rect);
-    sizes.push({start,end:b,across,cut,lines,rect});
-  }
-  for(const size of sizes){
-    // a label that had to move away from its line is tied to it with a thin line
-    const middle=[(size.start[0]+size.end[0])/2,(size.start[1]+size.end[1])/2],edge=nearestOnRect(size.rect,middle);
-    if(Math.hypot(edge[0]-middle[0],edge[1]-middle[1])>16)inkLine(ctx,edge,middle,1);
-    inkLine(ctx,size.start,size.end,2);
-    for(const end of size.cut?[size.end]:[size.start,size.end])inkLine(ctx,[end[0]-size.across[0]*8,end[1]-size.across[1]*8],[end[0]+size.across[0]*8,end[1]+size.across[1]*8],2);
-  }
-  for(const label of labels){
-    inkLine(ctx,nearestOnRect(label.rect,label.target),label.target,2);
-    inkDot(ctx,label.target,5);
-  }
-  for(const size of sizes)textBox(ctx,size.lines,[size.rect.x,size.rect.y]);
-  for(const label of labels)textBox(ctx,label.lines,[label.rect.x,label.rect.y]);
+  drawCornerLabels(pen,labels);
+  void overlaps;void taken;void width;void height;
+  const a=pieceLabel(f0.through,letterOf),b=pieceLabel(f0.into,letterOf);
+  drawPictureBand(ctx,width,'How it goes in',f0.kind==='dowel'?`half in ${a}, half in ${b}`:f0.kind==='bracket'?`in the corner of ${a} and ${b}`
+    :`${f0.kind==='pocket'?'from the pocket holes in':'through'} ${a} into ${b}`);
 }
 
 /* ---------- every step ---------- */
@@ -738,12 +729,16 @@ function stepPictures(plan){
     }
     const lettered=S.parts.filter(p=>view.fresh.has(p.id)&&view.visible(p.id)&&!isProp(p));
     const marks=markingLines(step,view.fresh).filter(line=>view.visible(line.piece.id));
-    if(marks.length)entry.notes.push('The dark lines are the pencil marks this step asks for: each shows where the underside of a piece will sit, measured up from the bottom end.');
+    if(marks.length){
+      entry.notes.push('The dark lines are the pencil marks this step asks for: each shows where the underside of a piece will sit. Their heights are in "The pencil marks" under the picture.');
+      const markPlan=marksMarkPlan(marks,plan.letterOf,step.words);
+      if(markPlan)entry.markView={src:markingPictureLater(markPlan),caption:`The pencil marks of step ${step.no}, with their heights measured up from the bottom end.`};
+    }
     entry.marks=marks.length;
     entry.src=annotatedPicture(camera,pen=>{
       const written=drawMarks(pen,marks);
-      drawPieceLetters(pen,lettered,plan.letterOf);
-      drawBalloons(pen,balloons,written);
+      const tags=drawPieceLetters(pen,lettered,plan.letterOf,written);
+      drawBalloons(pen,balloons,written.concat(tags));
     });
     grid.visible=floor.visible=true;
     scene.remove(markers);
@@ -758,16 +753,20 @@ function stepPictures(plan){
     const withSample=step.groups.filter(group=>group.sample&&group.sample.layout.length);
     const chosen=withSample.slice().sort((a,b)=>b.places-a.places).slice(0,CLOSEUPS_MAX).sort((a,b)=>a.no-b.no);
     grid.visible=floor.visible=false;
+    // each close-up is a pair: how it goes in (src, the 3D view) and where (mark, the marking view)
     for(const group of chosen){
       const others=group.places-1;
-      entry.closeups.push({no:group.no,src:closeupPicture(step,group,view.fresh),
-        caption:`Close-up of line ${group.no}`+(others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.')});
+      // (words: where the line says the fasteners go, shown under the picture when it is opened large)
+      // (mark: the marking view, a key drawn when it is seen; markingSource(mark) draws it)
+      entry.closeups.push({no:group.no,src:closeupPicture(step,group,view.fresh),mark:markingPictureLater(jointMarkPlan(group,plan.letterOf)),
+        caption:`Close-up of line ${group.no}`+(others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.'),
+        words:group.where||''});
     }
     // and one for each line of hardware that has numbers to show (hinges, pulls, slides, runners, kickers)
     for(const row of step.hardware){
       if(entry.closeups.length>=CLOSEUPS_MAX)break;
       const src=hardwareCloseupPicture(row,view.fresh);
-      if(src)entry.closeups.push({no:row.no,src,caption:`Close-up of line ${row.no}: the numbers of that line, measured on the piece.`});
+      if(src)entry.closeups.push({no:row.no,src,mark:markingPictureLater(hardwareMarkPlan(row,plan.letterOf)),caption:`Close-up of line ${row.no}: the numbers of that line, measured on the piece.`,words:row.line||''});
     }
     const left=withSample.filter(group=>!chosen.includes(group)).map(group=>group.no);
     if(left.length)entry.notes.push(`No close-up for line${left.length>1?'s':''} ${listWords(left.map(String))}: ${left.length>1?'they are':'it is'} driven like the lines above.`);

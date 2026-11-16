@@ -376,32 +376,55 @@ function stepsSection(plan,shots){
     const under=(shot.notes||[]).slice();   // what the picture shows when that is not simply "the design so far" (stepScene, js/steppictures.js)
     if(shot.total>shot.drawn)under.push(`This picture shows ${shot.drawn} of the ${shot.total.toLocaleString()} fasteners of this step.`);
     const picture=shot.src?`<figure class="step-pic"><img src="${shot.src}" alt="Step ${step.no}">${under.length?`<figcaption>${esc(under.join(' '))}</figcaption>`:''}</figure>`:'';
+    // a close-up is two pictures side by side: how it goes in (3D) and where to mark (flat, with the sizes)
     const closeups=shot.closeups.length?`<div class="closeups">${shot.closeups.map(close=>
-      `<figure><img src="${close.src}" alt="Close-up of line ${close.no} of step ${step.no}"><figcaption>${balloonMark(close.no)}${esc(close.caption)}</figcaption></figure>`).join('')}</div>`:'';
+      `<figure class="${close.mark?'pair':''}" data-words="${esc(close.words||'')}"><div class="halves"><img src="${close.src}" alt="Close-up of line ${close.no} of step ${step.no}: how it goes in">`+
+      (close.mark?`<img ${markImageSource(close.mark)} alt="Close-up of line ${close.no} of step ${step.no}: where to mark">`:'')+
+      `</div><figcaption>${balloonMark(close.no)} <span>${esc(close.caption)}</span></figcaption></figure>`).join('')}</div>`:'';
+    const marks=shot.markView?`<div class="markviews"><figure><img ${markImageSource(shot.markView.src)} alt="The pencil marks of step ${step.no}"><figcaption>${esc(shot.markView.caption)}</figcaption></figure></div>`:'';
     h+=`<div class="step${shot.src?'':' nopic'}" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>`+
-      `<div class="step-text">${stepTextHtml(step)}</div>${picture}${closeups}</div>`;
+      `<div class="step-text">${stepTextHtml(step)}</div>${picture}${marks}${closeups}</div>`;
   });
   return h;
 }
+/* the src of a marking view: a key ('markview:N') is drawn later, when it is seen (fillMarkViews, js/markingview.js) */
+const markImageSource=mark=>/^markview:/.test(mark)?`src="${MARK_BLANK}" data-mark="${mark}"`:`src="${mark}"`;
 /* A click on a picture of a document page shows it at its full size (the pictures are taken 880 pixels wide and
-   shown much smaller beside the words); a click anywhere, or Esc, puts it away. */
+   shown much smaller beside the words); a click anywhere, or Esc, puts it away. The bar under the picture holds
+   its caption (the number of its line in its circle, then the words) and, at the right, how to close it: no tip
+   pops up over the picture.
+     caption   {no, text, where}: the line number for the circle (or none), the words, and where the line says
+               the fasteners go (shown under the bar, so the picture need not be closed to read it) */
 function showPictureLarge(source,caption){
   let holder=$('#picZoom');
   if(!holder){
     holder=document.createElement('div');
     holder.id='picZoom';
-    holder.title='Click anywhere, or press Esc, to close';
     document.body.appendChild(holder);
     holder.onclick=()=>{holder.hidden=true;};
   }
-  holder.innerHTML=`<figure><img src="${source}" alt=""><figcaption>${esc(caption||'')}</figcaption></figure>`;
+  const words=caption&&caption.text||'',where=caption&&caption.where||'';
+  const number=caption&&caption.no?balloonMark(caption.no)+' ':'';
+  holder.innerHTML=`<figure><img src="${source}" alt=""><figcaption><span class="zcap">${number}<span>${esc(words)}</span></span>`+
+    `<span class="zclose">Click anywhere or press Esc to close</span></figcaption>${where?`<p class="zwhere">${esc(where)}</p>`:''}</figure>`;
   holder.hidden=false;
 }
 document.addEventListener('click',event=>{
   const picture=event.target.closest&&event.target.closest('.doc .step img, .doc .views img, .doc img.wide, .doc #shot');
   if(!picture)return;
+  // (a marking view not drawn yet is drawn now)
+  if(picture.dataset.mark){picture.src=markingSource(picture.dataset.mark)||picture.src;delete picture.dataset.mark;}
   const figure=picture.closest('figure'),caption=figure&&figure.querySelector('figcaption');
-  showPictureLarge(picture.src,caption?caption.textContent:picture.alt);
+  const badge=caption&&caption.querySelector('.bal');
+  let text=caption?(badge?caption.textContent.replace(badge.textContent,'').trim():caption.textContent.trim()):picture.alt;
+  // a picture of a close-up pair says which half it is, and the words of its line come with it
+  const halves=picture.closest('.halves');
+  if(halves){
+    const index=[...halves.querySelectorAll('img')].indexOf(picture);
+    const which=index===0?'How it goes in':'Where to mark';
+    text=`${which}. ${text}`;
+  }
+  showPictureLarge(picture.src,{no:badge?badge.textContent:'',text,where:figure&&figure.dataset.words||''});
 });
 document.addEventListener('keydown',event=>{
   const holder=$('#picZoom');
@@ -477,6 +500,7 @@ function renderCut(instr){
   h+=fastenerSection(joints);
 
   page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)
+  if(instr)fillMarkViews(page);   // the marking views are drawn as they are seen (js/markingview.js)
   page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{S.stock[choice.dataset.stock]=+choice.value;commit();});
 }
 

@@ -193,11 +193,19 @@ function presetStepOfPieces(steps){
 /* ---------- where a fastener goes, in words and as size lines ----------
    For one joint and its layout: a sentence a person can mark the wood from, and the same distances as pairs of
    points for the size lines of the close-up picture, so the words and the picture cannot disagree.
-   Returns {text, general, dims: [{from, to}], across, first, gap}
+   Returns {text, general, dims: [{from, to}], across, first, gap, rule, row}
      text      the sentence with every number
      general   the same sentence without the distance across the joint, for a group of joints that sit at
                different heights (five shelves in one bookcase side)
-     across / first / gap   the numbers, for telling whether two joints are laid out the same way */
+     across / first / gap   the numbers, for telling whether two joints are laid out the same way
+     rule      what the words measure from, so that the marking view (js/markingview.js) draws the same sizes
+               from the same edges: {across, along} for fasteners driven straight in (see placesWords), or
+               {row:true} for pocket holes, angled nails and brackets
+     row       pocket holes, angled nails, brackets: {axis, range, frame, ends, refWord, refName} the line they
+               are spread along and the face they are marked on
+   "Left", "right", "top" and "bottom" in the words are as the marking view of the joint sees the face that is
+   marked (markingFrame, js/markingview.js): seen from the back, the left end is the end on your left as you
+   stand behind it, and the words say so. */
 const HEIGHT_FROM_TOP=6;   // inches: see fromNearer in fastenerPlaces
 function fastenerPlaces(joint,layout){
   const none={text:'',mirrored:'',general:'',dims:[],across:null,side:0,first:null,gap:null};
@@ -208,58 +216,90 @@ function fastenerPlaces(joint,layout){
   const throughBox=plainBox(through),intoBox=plainBox(into);
   const sideWord=(piece,axis)=>piece.ax[0]===axis?'end':'edge';
   const biggest=(vector,skip)=>[0,1,2].filter(k=>k!==skip).reduce((best,k)=>Math.abs(vector[k])>Math.abs(vector[best])?k:best);
-  if(f0.kind==='bracket'){
-    return{...none,text:f0.flat?'':'Push each bracket tight into the corner before you mark its screw holes.',general:''};
-  }
-
-  /* a pocket hole or an angled screw sits along the end of its own piece */
-  if(f0.kind==='pocket'||f0.toe){
-    const pocket=f0.kind==='pocket';
-    const slantAxis=pocket?biggest(f0.pocket.out,-1):biggest(f0.dir,shape.k);    // the way the hole or the nail leans
+  /* a pocket hole, an angled screw or nail, or a bracket sits along the end of its own piece (a bracket: along
+     the inside corner). They are spread evenly along one line, so the words give the first one from one end of
+     that line and the spacing; the marking view draws the same chain on the face they are marked on. */
+  if(f0.kind==='pocket'||f0.toe||f0.kind==='bracket'){
+    const pocket=f0.kind==='pocket',bracket=f0.kind==='bracket';
+    const slantAxis=pocket?biggest(f0.pocket.out,-1):bracket?biggest(f0.dir,-1):biggest(f0.dir,shape.k);   // the way the hole or the nail leans (a bracket: the way its leg stands off)
     const axis=[0,1,2].find(k=>k!==shape.k&&k!==slantAxis);                       // the way they are spread
     const range=axis===shape.L?shape.rangeL:shape.rangeW;
     const pointOf=f=>pocket?f.pocket.mouth:f.pos;
     const spots=layout.map(f=>pointOf(f)[axis]).sort((a,b)=>a-b);
-    const first=spots[0]-range[0],what=pocket?'pocket hole':f0.kind==='nail'?'nail':'screw';
+    const first=spots[0]-range[0],what=pocket?'pocket hole':bracket?'bracket':f0.kind==='nail'?'nail':'screw';
+    const gap=layout.length>1?spots[1]-spots[0]:null;
+    const rowGaps=spots.slice(1).map((v,index)=>Math.round((v-spots[index])*16)/16);
+    const evenRow=rowGaps.every(one=>Math.abs(one-rowGaps[0])<.03);
     const wholeEnd=Math.abs(range[0]-throughBox.lo[axis])<.07&&Math.abs(range[1]-throughBox.hi[axis])<.07;
     const ref=wholeEnd?`the ${through.name}`:'the joint',refSide=wholeEnd?sideWord(through,axis):'end';
+    // the face they are marked on: the face the holes open on, the side the nail starts in, the face the bracket lies on
+    const faceAxis=pocket?biggest(f0.pocket.out,-1):slantAxis;
+    const look=pocket?-Math.sign(f0.pocket.out[faceAxis]):bracket?-Math.sign(f0.dir[faceAxis]):Math.sign(f0.dir[faceAxis])||1;
+    const frame=markingFrame(faceAxis,look,through);
+    // the end the first one is measured from: the one on the left of the marking view (or at its bottom)
+    const startHigh=frame.screenLowIsHigh(axis),startName=frame.nameOf(axis,startHigh),otherName=frame.nameOf(axis,!startHigh);
+    const firstSaid=startHigh?range[1]-spots[spots.length-1]:first;
+    // the first and the last from their own ends, and whether they are alike (a row set off the middle is not)
+    const lastFrom=range[1]-spots[spots.length-1],lastSaid=startHigh?first:lastFrom;
+    const balanced=Math.abs(Math.round(first*16)-Math.round(lastFrom*16))<=0;
     let text;
-    // a row with a hole moved off a piece that lies against that face (rule 10 in js/fasteners.js) is not evenly
-    // spaced: every place is given, measured along the piece the holes are drilled in
+    /* Pocket holes measured along the piece they are drilled in, from one end of that piece (each place given, not
+       a spacing), in two cases:
+       - a row with a hole moved off a piece that lies against that face (rule 10 in js/fasteners.js), or moved past
+         the pocket holes in the ends of the piece (rule 11): it is not evenly spaced;
+       - a joint over part of the piece (a top board crossing a cross rail): the piece is marked and drilled before
+         it goes in, so the places are measured on it.
+       The end they are measured from is the one on the left of the marking view (or at its bottom), named as the
+       view sees it, like every other row. */
     const cleared=layout.find(f=>f.clear||f.passEnds);
-    const fromLow=spots.map(v=>v-throughBox.lo[axis]),lowEnd=DIRECTION_ENDS[axis][0];
-    if(cleared){
-      const kept=listWords(fromLow.map(inchWords));
-      text=`Put the ${what}s ${kept} from the ${lowEnd} ${sideWord(through,axis)} of the ${through.name}. `+
-        notEvenlyWords(layout,through.name);
+    const alongPiece=pocket&&(!!cleared||!wholeEnd);
+    const pieceStart=startHigh?throughBox.hi[axis]:throughBox.lo[axis];
+    const fromPieceEnd=spots.map(v=>Math.abs(v-pieceStart)).sort((a,b)=>a-b);
+    const pieceSide=sideWord(through,axis);
+    // the same places from both ends of the piece (a short apron with its holes kept clear of the holes at both
+    // ends): "from either end", so that the two aprons of a table, seen from opposite sides, read the same
+    const pieceLength=throughBox.hi[axis]-throughBox.lo[axis];
+    const bothEnds=fromPieceEnd.every((v,index)=>Math.abs(v+fromPieceEnd[fromPieceEnd.length-1-index]-pieceLength)<.07);
+    if(alongPiece){
+      text=`Put the ${what}${layout.length>1?'s':''} ${listWords(fromPieceEnd.map(inchWords))} from ${bothEnds?'either':'the '+startName} ${pieceSide} of the ${through.name}.`;
+      if(cleared)text+=' '+notEvenlyWords(layout,through.name);
+      if(frame.mirrored&&!bothEnds)text+=` Left and right are as you look at it ${frame.from}.`;
     }
-    // a joint over part of the piece (a top board crossing a cross rail): the places along the piece itself, which
-    // is what gets marked and drilled before the piece goes in
-    else if(!wholeEnd&&pocket){
-      text=`Put the ${what}${layout.length>1?'s':''} ${listWords(fromLow.map(inchWords))} from the ${lowEnd} ${sideWord(through,axis)} of the ${through.name}.`;
+    else if(layout.length===1&&balanced)text=`Put the ${what} in the middle of ${wholeEnd?'the '+through.name:'the joint'} (${inchWords(first)} from either ${refSide}).`;
+    else if(layout.length===1)text=`Put the ${what} ${inchWords(firstSaid)} in from the ${startName} ${refSide} of ${ref} (${inchWords(lastSaid)} from the ${otherName} ${refSide}).`;
+    else if(layout.length===2&&balanced)text=`Put one ${what} ${inchWords(first)} in from each ${refSide} of ${ref} (${inchWords(gap)} apart).`;
+    else if(layout.length===2)text=`Put one ${what} ${inchWords(firstSaid)} in from the ${startName} ${refSide} of ${ref} and the other ${inchWords(lastSaid)} in from the ${otherName} ${refSide} (${inchWords(gap)} apart).`;
+    else if(evenRow)text=`Put the first ${what} ${inchWords(firstSaid)} in from the ${startName} ${refSide} of ${ref}, then one every ${inchWords(gap)} `+
+      (balanced?`(the last is as far from the ${otherName} ${refSide}).`:`(the last is ${inchWords(lastSaid)} from the ${otherName} ${refSide}).`);
+    else{
+      // not evenly spread (one moved off another screw): each gap in turn, from the start end
+      const fromStart=startHigh?rowGaps.slice().reverse():rowGaps;
+      text=`Put the first ${what} ${inchWords(firstSaid)} in from the ${startName} ${refSide} of ${ref}, then the others at gaps of ${listWords(fromStart.map(inchWords))}, in turn (the last is ${inchWords(lastSaid)} from the ${otherName} ${refSide}).`;
     }
-    else if(layout.length===1)text=`Put the ${what} in the middle of ${wholeEnd?'the '+through.name:'the joint'}.`;
-    else if(layout.length===2)text=`Put one ${what} ${inchWords(first)} in from each ${refSide} of ${ref}.`;
-    else text=`Put the first ${what} ${inchWords(first)} from the ${refSide} of ${ref}, then one about every ${inchWords(spots[1]-spots[0])}.`;
+    if(!alongPiece&&frame.mirrored&&layout.length>2)text+=` Left and right are as you look at it ${frame.from}.`;
     if(f0.toe){
       const back=Math.abs(f0.pos[shape.k]-shape.plane);
       text+=` Start each ${what} about ${inchWords(back)} back from the joint and slant it toward the joint.`;
     }
+    if(bracket&&!f0.flat)text+=' Push each bracket tight into the corner before you mark its screw holes.';
     const start=pointOf(layout.slice().sort((a,b)=>pointOf(a)[axis]-pointOf(b)[axis])[0]);
     const from=start.slice(),to=start.slice();
-    // (measured the way the words measure: from the low end of the piece when they give places along it)
-    const alongPiece=pocket&&(cleared||!wholeEnd);
-    from[axis]=alongPiece?throughBox.lo[axis]:range[0];
-    const dims=(alongPiece?fromLow[0]:first)>.05?[{from,to}]:[];
+    // (measured the way the words measure: from the start end of the piece when they give places along it)
+    from[axis]=alongPiece?pieceStart:range[0];
+    const dims=(alongPiece?fromPieceEnd[0]:first)>.05?[{from,to}]:[];
     if(layout.length>1&&!alongPiece){
       const next=start.slice();
       next[axis]=spots[1];
       dims.push({from:start.slice(),to:next});
     }
-    // (the places along the piece the holes are drilled in, for a line of several joints on one such piece: whereWords)
-    const row=pocket?{through,axis,lowEnd,side:sideWord(through,axis),at:fromLow.map(r16),
-      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null}:null;
-    return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:layout.length>1?r16(spots[1]-spots[0]):null,row};
+    /* the row, for the marking view (js/markingview.js) and for a line of several joints on one piece
+       (pocketRowsWords): alongPiece rows give the places along the piece (at, from its startEnd end), and why they
+       are not evenly spaced (clear, passEnds) */
+    const row={axis,range,frame,faceAxis,startHigh,refWord:refSide,refName:wholeEnd?through.name:'',first:r16(first),gap:gap===null?null:r16(gap),even:evenRow,
+      back:f0.toe?r16(Math.abs(f0.pos[shape.k]-shape.plane)):null,kind:what,
+      alongPiece,through,startEnd:startName,bothEnds,side:pieceSide,at:pocket?fromPieceEnd.map(r16):null,
+      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null};
+    return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:gap===null?null:r16(gap),rule:{row:true},row};
   }
 
   /* driven straight in (screws, brads, nails, dowels): a line across the joint, and places along it.
@@ -270,8 +310,18 @@ function fastenerPlaces(joint,layout){
   const L=shape.L,W=shape.W,sorted=layout.slice().sort((a,b)=>a.pos[L]-b.pos[L]);
   const marked=f0.kind==='dowel'?into:through,markedBox=f0.kind==='dowel'?intoBox:throughBox;
   const round=v=>Math.round(v*16)/16;
-  const acrossValues=[...new Set(layout.map(f=>round(f.pos[W])))].sort((a,b)=>a-b);
-  const acrossLow=acrossValues.map(v=>round(v-markedBox.lo[W])),acrossHigh=acrossValues.map(v=>round(markedBox.hi[W]-v)).reverse();
+  // The rows across: the fasteners sorted into rows by where they sit (to the nearest 1/16"), and each row's
+  // distance from the edges worked out from where its fasteners really are, rounded once. (Rounding the place
+  // first and the distance after made 0.209" read 1/4" where the edge is not on a sixteenth, a lean-to stud.)
+  const rowsAcross=new Map();
+  for(const f of layout){
+    const key=round(f.pos[W]);
+    if(!rowsAcross.has(key))rowsAcross.set(key,[]);
+    rowsAcross.get(key).push(f.pos[W]);
+  }
+  const acrossValues=[...rowsAcross.keys()].sort((a,b)=>a-b);
+  const acrossRaw=acrossValues.map(key=>{const list=rowsAcross.get(key);return list.reduce((sum,v)=>sum+v,0)/list.length;});
+  const acrossLow=acrossRaw.map(v=>round(v-markedBox.lo[W])),acrossHigh=acrossRaw.map(v=>round(markedBox.hi[W]-v)).reverse();
   // A height is measured up from the bottom end, as the steps that mark heights do, unless the line is within
   // HEIGHT_FROM_TOP of the top end and nearer to it (a top rail). Everything else: from the nearer side.
   const fromNearer=(axis,low,high)=>axis===1?!(high<low&&high<HEIGHT_FROM_TOP):low<=high+.03;
@@ -279,6 +329,16 @@ function fastenerPlaces(joint,layout){
   const alongLow=sorted.map(f=>round(f.pos[L]-markedBox.lo[L])),alongHigh=sorted.map(f=>round(markedBox.hi[L]-f.pos[L])).reverse();
   const nearLowL=alongLow[0]<=alongHigh[0]+.03;
   const first=sorted[0].pos[L]-shape.rangeL[0],gap=sorted.length>1?sorted[1].pos[L]-sorted[0].pos[L]:null;
+  // every gap along the row, and whether they are all one size: "then one every 7 1/4"" is only said when they are
+  // (a screw moved out of the way of another makes them uneven)
+  const gaps=sorted.slice(1).map((f,index)=>round(f.pos[L]-sorted[index].pos[L]));
+  const evenGaps=gaps.every(one=>Math.abs(one-gaps[0])<.03);
+  // the last one from the far side of the place where the two pieces touch (two screws moved on purpose are not
+  // as far from both sides)
+  const last=shape.rangeL[1]-sorted[sorted.length-1].pos[L];
+  // two on a slant: each one's distances, and which end and edge each is nearest (0 the low one, 1 the high one)
+  const nearSide=sorted.map(f=>[f.pos[L]-markedBox.lo[L]<=markedBox.hi[L]-f.pos[L]?0:1,f.pos[W]-markedBox.lo[W]<=markedBox.hi[W]-f.pos[W]?0:1]);
+  const fromPlace=sorted.map((f,index)=>round(index?shape.rangeL[1]-f.pos[L]:f.pos[L]-shape.rangeL[0]));
   // the joint is as wide as the other piece: the line then runs over the middle of that piece
   const overInto=Math.abs(intoBox.hi[W]-intoBox.lo[W]-shape.wide)<.07;
   const endsAt=b=>Math.abs(b.lo[L]-shape.rangeL[0])<.07&&Math.abs(b.hi[L]-shape.rangeL[1])<.07;
@@ -290,18 +350,22 @@ function fastenerPlaces(joint,layout){
   const slant=sorted.length===2&&acrossValues.length===2;
   const edge=slant?(start[W]-markedBox.lo[W]<=markedBox.hi[W]-start[W]?markedBox.lo[W]:markedBox.hi[W]):nearLowW?markedBox.lo[W]:markedBox.hi[W];
   const nearest=nearLowL?sorted[0].pos:sorted[sorted.length-1].pos;   // the fastener nearest the end the marks are measured from
-  // (inches: the number the words give, rounded the way the words round it: the place first, then the distance)
-  const acrossInches=slant?round(Math.abs(start[W]-edge)):round(Math.abs(round(start[W])-edge));
+  // (inches: the number the words give, rounded the way the words round it: once, from where the fastener is)
+  const acrossInches=round(Math.abs(start[W]-edge));
   const acrossDim=Math.abs(edge-start[W])>.05?[{from:at(start[L],edge),to:at(start[L],start[W]),word:sideWord(marked,W),inches:acrossInches}]:[];
   const gapDim=gap?[{from:at(start[L],sorted[1].pos[W]),to:at(sorted[1].pos[L],sorted[1].pos[W])}]:[];
+  // the marking view of this joint: the face of the marked piece, seen from where the fastener comes from (a
+  // dowel: the face of the joint, seen from the other piece)
+  const frame=markingFrame(shape.k,Math.sign(f0.dir[shape.k])||1,marked);
   const spot={
-    kind:'straight',n:sorted.length,marked,into,W,L,
+    kind:'straight',n:sorted.length,marked,into,W,L,frame,
     sideW:sideWord(marked,W),sideL:sideWord(marked,L),
     acrossLow,acrossHigh,acrossNear:nearLowW?acrossLow:acrossHigh,nearLowW,
     centredW:acrossValues.length===1&&Math.abs(acrossLow[0]-acrossHigh[0])<.07,
     alongLow,alongHigh,nearLowL,centredL:sorted.length===1&&Math.abs(alongLow[0]-alongHigh[0])<.07,
     // each fastener by how far it is from the nearest end and the nearest edge of the marked piece
     nearEach:sorted.map(f=>[round(Math.min(f.pos[L]-markedBox.lo[L],markedBox.hi[L]-f.pos[L])),round(Math.min(f.pos[W]-markedBox.lo[W],markedBox.hi[W]-f.pos[W]))]),
+    nearSide,fromPlace,gaps,evenGaps,last:round(last),
     first:r16(first),gap:gap?r16(gap):null,long:r16(shape.long),
     overInto,beyond:shape.k===1?(shape.signInto(into)<0?'under it':'above it'):'behind it',
     intoEnds:endsAt(intoBox),intoSideL:sideWord(into,L),
@@ -311,101 +375,169 @@ function fastenerPlaces(joint,layout){
     dimsJoint:acrossDim.concat(first>.05?[{from:at(shape.rangeL[0],start[W]),to:at(start[L],start[W]),word:'edge of the joint'}]:[],gapDim),
   };
   const said=placesWords([spot]);
-  return{...none,text:said.text,dims:said.fromJoint?spot.dimsJoint:spot.dimsMarked,spot,first:spot.first,gap:spot.gap};
+  return{...none,text:said.text,dims:said.fromJoint?spot.dimsJoint:spot.dimsMarked,spot,first:spot.first,gap:spot.gap,rule:said.rule};
 }
 /* Where the fasteners of one line go, in words, for all its joints at once (spots: one entry per joint, from
    fastenerPlaces). Numbers that are the same at every joint are given once, from a named end or edge of the
    marked piece; joints that mirror each other get "the nearest end"; joints at different places along one
    board (shelves up a bookcase side, cross pieces along a rail) get the list of their distances.
-   Returns {text, fromJoint}: fromJoint is true when the words had to measure from the place where the two
-   pieces touch, so that the close-up draws its size lines from there as well. */
+   Returns {text, fromJoint, rule}: fromJoint is true when the words had to measure from the place where the two
+   pieces touch, so that the close-up draws its size lines from there as well. rule says what the words measured
+   from, so that the marking view (jointMarkPlan, js/markingview.js) draws exactly those sizes:
+     rule.slant    'nearest' (each of two from its nearest end and edge) or 'joint' (from the corners of the place)
+     rule.across   {kind:'middle'} | {kind:'from', side:'low'|'high'|'near'} | {kind:'none'} (no number across)
+     rule.along    {kind:'middle'} | {kind:'from', side:'low'|'high'|'near'} (n=2: both from that end; more: the
+                   first from it, then the spacing) | {kind:'even'} (from both ends: the first, the spacing, the
+                   last; starting at the end on the left of the marking view, or at its bottom) | {kind:'joint'}
+                   (from the side of the place where the two pieces touch)
+   Ends and edges named left and right are as the marking view sees them (markingFrame): from the back of a
+   piece, the left end is the one on your left as you stand behind it, and the words then say so. */
 function placesWords(spots){
   const s=spots[0],name=s.marked.name,lead=s.n>1?'Mark them':'Mark it';
   const same=pick=>{const want=JSON.stringify(pick(s));return spots.every(spot=>JSON.stringify(pick(spot))===want);};
   const distinct=pick=>[...new Set(spots.map(pick))].sort((a,b)=>a-b);
   const said=values=>listWords(values.map(inchWords));
-  const endsW=DIRECTION_ENDS[s.W],endsL=DIRECTION_ENDS[s.L];
   const LIST_MAX=12;   // a list of more places than this is no help on a page (the 9 studs of a 10 ft shed wall still are)
   let fromJoint=false;
   const behind=`the ${s.into.name} ${s.beyond}`;
+  // the name of an end or an edge: as the marking view sees it when every joint of the line is seen the same way
+  const mirrored=spots.every(spot=>spot.frame&&spot.frame.mirrored);
+  let usedLeftRight=false;
+  const sideName=(axis,high)=>{
+    const word=mirrored?s.frame.nameOf(axis,high):DIRECTION_ENDS[axis][high?1:0];
+    if(axis===0)usedLeftRight=true;
+    return word;
+  };
+  // the spacing after the first one: "one every 4 5/8"" when the gaps are equal, else each gap in turn (a screw
+  // moved out of the way of another makes them uneven, and "every" would then be wrong)
+  const spacingWords=gaps=>gaps.every(one=>Math.abs(one-gaps[0])<.03)?`one every ${inchWords(gaps[0])}`:`the others at gaps of ${said(gaps)}, in turn`;
+  // "3/8" down from the top end", "2 3/8" in from the front edge"
+  const off=(axis,high)=>axis===1?(high?'down from':'up from'):'in from';
+  const finish=(text,rule)=>({fromJoint,rule,text:text+(mirrored&&usedLeftRight?` Left and right are as you look at the ${name} ${s.frame.from}.`:'')});
 
   // two fasteners set on a slant (a joint wide enough to stagger them): each from the nearest end and edge
   if(s.n===2&&s.acrossLow.length===2){
-    if(same(spot=>spot.nearEach)){
-      const[a,b]=s.nearEach.slice().sort((one,two)=>one[0]-two[0]||one[1]-two[1]);
-      return{fromJoint,text:`${lead} on the ${name}, on a slant so that they do not split the wood along one line: one ${inchWords(a[0])} from the nearest ${s.sideL} and ${inchWords(a[1])} from the nearest ${s.sideW} of the ${name}, the other ${inchWords(b[0])} from that ${s.sideL} and ${inchWords(b[1])} from that ${s.sideW}.`};
+    // the two, the one nearer its end first, and whether the other is nearest the same end and edge or the other ones
+    const slantPair=spot=>{
+      const order=[0,1].sort((i,j)=>spot.nearEach[i][0]-spot.nearEach[j][0]||spot.nearEach[i][1]-spot.nearEach[j][1]);
+      const[a,b]=order.map(index=>spot.nearEach[index]),[sa,sb]=order.map(index=>spot.nearSide[index]);
+      return{a,b,sameEnd:sa[0]===sb[0],sameEdge:sa[1]===sb[1]};
+    };
+    if(same(slantPair)){
+      const{a,b,sameEnd,sameEdge}=slantPair(s);
+      return finish(`${lead} on the ${name}, on a slant so that they do not split the wood along one line: one ${inchWords(a[0])} from the nearest ${s.sideL} and ${inchWords(a[1])} from the nearest ${s.sideW} of the ${name}, `+
+        `the other ${inchWords(b[0])} from ${sameEnd?'that':'the other'} ${s.sideL} and ${inchWords(b[1])} from ${sameEdge?'that':'the other'} ${s.sideW}.`,{slant:'nearest'});
     }
     // joints that mirror each other slant the other way: the same distances, paired differently
-    const alongNear=spot=>spot.nearEach.map(pair=>pair[0]).sort((one,two)=>one-two),acrossNear=spot=>spot.nearEach.map(pair=>pair[1]).sort((one,two)=>one-two);
-    if(same(alongNear)&&same(acrossNear)){
-      const along=alongNear(s),across=acrossNear(s);
-      const alongSaid=Math.abs(along[0]-along[1])<.03?`both ${inchWords(along[0])}`:`one ${inchWords(along[0])} and the other ${inchWords(along[1])}`;
-      const acrossSaid=Math.abs(across[0]-across[1])<.03?`both ${inchWords(across[0])}`:`one ${inchWords(across[0])} and the other ${inchWords(across[1])}`;
-      return{fromJoint,text:`${lead} on the ${name}, on a slant (either way round) so that they do not split the wood along one line: ${alongSaid} from the nearest ${s.sideL} of the ${name}, and ${acrossSaid} from its nearest ${s.sideW}.`};
+    // (each one's two numbers together, so it is plain which goes with which)
+    const pairsOf=spot=>spot.nearEach.slice().sort((one,two)=>one[0]-two[0]||one[1]-two[1]);
+    if(same(pairsOf)){
+      const[a,b]=pairsOf(s);
+      return finish(`${lead} on the ${name}, on a slant (either way round) so that they do not split the wood along one line: one ${inchWords(a[0])} from the ${s.sideL} of the ${name} nearest it and ${inchWords(a[1])} from the ${s.sideW} nearest it, `+
+        `the other ${inchWords(b[0])} from the ${s.sideL} nearest it and ${inchWords(b[1])} from the ${s.sideW} nearest it.`,{slant:'nearest'});
     }
-    const inFromEdge=Math.min(...s.acrossLow.map((v,index)=>Math.min(v,s.acrossHigh[index])));
-    return{fromJoint:true,text:`${lead} on the ${name}: the two go at opposite corners of the place where the ${name} lies on ${behind}, each ${inchWords(s.first)} in from one side of that place and ${inchWords(inFromEdge)} from the ${s.sideW} of the ${name}.`};
+    /* At opposite corners of the place where the two pieces touch: each from its own side of that place and from
+       the nearest edge of the marked piece, with its own numbers (the near screw of a bed end rail is 1 1/4" from
+       its side of the leg, the far one 2 1/4"). Joints that are not alike get a sentence each (the caller). */
+    const corners=spot=>spot.fromPlace.map((along,index)=>[along,spot.nearEach[index][1]]);
+    const eachSame=spot=>{const[a,b]=corners(spot);return Math.abs(a[0]-b[0])<.03&&Math.abs(a[1]-b[1])<.03;};
+    const mirrorOf=spot=>corners(spot).slice().reverse();
+    const sameWay=same(corners),eitherWay=spots.every(spot=>{const want=JSON.stringify(corners(s));return JSON.stringify(corners(spot))===want||JSON.stringify(mirrorOf(spot))===want;});
+    if(!sameWay&&!eitherWay)return{fromJoint,text:''};
+    fromJoint=true;
+    const[a,b]=corners(s),place=`the place where the ${name} lies on ${behind}`;
+    if(spots.every(eachSame))return finish(`${lead} on the ${name}: the two go at opposite corners of ${place}, each ${inchWords(a[0])} in from its own side of that place and ${inchWords(a[1])} from the nearest ${s.sideW} of the ${name}.`,{slant:'joint'});
+    const lowSide=`the ${sideName(s.L,false)} side`,highSide=`the ${sideName(s.L,true)} side`;
+    const sides=sameWay?[lowSide,highSide]:['one side','the other side'];
+    return finish(`${lead} on the ${name}: the two go at opposite corners of ${place}, one ${inchWords(a[0])} in from ${sides[0]} of that place and ${inchWords(a[1])} from the nearest ${s.sideW} of the ${name}, `+
+      `the other ${inchWords(b[0])} in from ${sides[1]} and ${inchWords(b[1])} from its nearest ${s.sideW}${sameWay?'':' (either way round)'}.`,{slant:'joint'});
   }
 
   /* across: the line (or the two rows) the fasteners sit on */
-  let across;
+  let across,acrossRule;
   const middleNote=spots.every(spot=>spot.overInto)?` (that is the middle of ${behind})`:'';
   if(spots.every(spot=>spot.centredW)){
     // the middle, with its number too, so the size line of the close-up says nothing the words do not
     across=s.marked.ax[0]===s.W?`on a line across the ${name}, at the middle of its length (${inchWords(s.acrossLow[0])} from either end)`
       :`along the middle of the ${name} (${inchWords(s.acrossLow[0])} from either edge)`;
+    acrossRule={kind:'middle'};
   }else if(same(spot=>spot.acrossNear)){
-    const which=same(spot=>spot.nearLowW)?`the ${endsW[s.nearLowW?0:1]} ${s.sideW}`:`the nearest ${s.sideW}`;
-    across=s.acrossNear.length>1?`in two rows, ${said(s.acrossNear)} from ${which} of the ${name}, in a zig-zag`
-      :`on a line ${inchWords(s.acrossNear[0])} from ${which} of the ${name}${middleNote}`;
+    const named=same(spot=>spot.nearLowW),high=!s.nearLowW;
+    const which=named?`${off(s.W,high)} the ${sideName(s.W,high)} ${s.sideW}`:`from the nearest ${s.sideW}`;
+    across=s.acrossNear.length>1?`in two rows, ${said(s.acrossNear)} ${which} of the ${name}, in a zig-zag`
+      :`on a line ${inchWords(s.acrossNear[0])} ${which} of the ${name}${middleNote}`;
+    acrossRule={kind:'from',side:named?(high?'high':'low'):'near'};
   }else if(s.acrossLow.length===1&&distinct(spot=>spot.acrossLow[0]).length<=LIST_MAX){
     const lines=distinct(spot=>spot.acrossLow[0]);
-    across=`on ${countWord(lines.length)} lines, ${said(lines)} from the ${endsW[0]} ${s.sideW} of the ${name}`+(spots.every(spot=>spot.overInto)?` (each is the middle of a ${s.into.name} ${s.beyond})`:'');
+    across=`on ${countWord(lines.length)} lines, ${said(lines)} ${off(s.W,false)} the ${sideName(s.W,false)} ${s.sideW} of the ${name}`+(spots.every(spot=>spot.overInto)?` (each is the middle of a ${s.into.name} ${s.beyond})`:'');
+    acrossRule={kind:'from',side:'low'};
   }else if(s.acrossLow.length===1){
     across=`on a line over the middle of each ${s.into.name} ${s.beyond}`;
+    acrossRule={kind:'none'};
   }else if(spots.length>1){
     // two rows that sit at different places at different joints (a back panel over a top rail and a bottom
     // rail): no one sentence gives their numbers, so the caller writes a sentence for each sort of joint
     return{fromJoint,text:''};
   }else{
     across=`in two rows in a zig-zag, each row a quarter of the way in from the edges of the place where the ${name} lies on ${behind}`;
+    acrossRule={kind:'none'};
   }
 
   /* along: where on that line */
-  let along;
+  let along,alongRule;
   const eachEnd=spot=>[spot.alongLow[0],spot.alongHigh[0]];   // the first from the low end, the last from the high end
   const intoWords=()=>{   // measured from the piece behind: only when the marked piece gives no single number
     fromJoint=true;
+    alongRule={kind:'joint'};
     const firsts=distinct(spot=>spot.alongLow[0]);
-    const where=firsts.length<=LIST_MAX?` (measured on the ${name}: the first of each place is ${said(firsts)} from its ${endsL[0]} ${s.sideL})`:'';
+    const where=firsts.length<=LIST_MAX?` (measured on the ${name}: the first of each place is ${said(firsts)} ${off(s.L,false)} its ${sideName(s.L,false)} ${s.sideL})`:'';
     const ref=s.intoEnds?`${s.intoSideL} of ${behind}`:`side of the place where the ${name} lies on ${behind}`;
+    const refWord=s.intoEnds?s.intoSideL:'side';
     if(s.n===1)return`${inchWords(s.first)} in from the ${ref}${where}`;
-    if(s.n===2)return`${inchWords(s.first)} in from each ${ref}${where}`;
-    return`the first ${inchWords(s.first)} in from the ${ref}, then one about every ${inchWords(s.gap)}${where}`;
+    // two: as far from both sides, or each with its own number (a pair moved so that other screws pass them)
+    if(s.n===2&&Math.abs(s.first-s.last)<.03)return`${inchWords(s.first)} in from each ${ref} (${inchWords(s.gap)} apart)${where}`;
+    if(s.n===2)return`one ${inchWords(s.first)} ${off(s.L,false)} the ${sideName(s.L,false)} ${ref}, the other ${inchWords(s.last)} ${off(s.L,true)} its ${sideName(s.L,true)} ${refWord} (${inchWords(s.gap)} apart)${where}`;
+    return`the first ${inchWords(s.first)} in from the ${ref}, then ${spacingWords(s.gaps)}${where}`;
   };
   if(s.n===1){
-    if(spots.every(spot=>spot.centredL))along=s.marked.ax[0]===s.L?'at the middle of its length':'at the middle of its width';
-    else if(same(spot=>spot.alongLow[0]))along=`${inchWords(s.alongLow[0])} from the ${endsL[0]} ${s.sideL} of the ${name}`;
-    else if(same(spot=>Math.min(spot.alongLow[0],spot.alongHigh[0])))along=`${inchWords(Math.min(s.alongLow[0],s.alongHigh[0]))} from the nearest ${s.sideL} of the ${name}`;
-    else if(distinct(spot=>spot.alongLow[0]).length<=LIST_MAX)along=`one at each of these distances from the ${endsL[0]} ${s.sideL} of the ${name}: ${said(distinct(spot=>spot.alongLow[0]))}`;
-    else along=intoWords();
+    if(spots.every(spot=>spot.centredL)){
+      along=`${s.marked.ax[0]===s.L?'at the middle of its length':'at the middle of its width'} (${inchWords(s.alongLow[0])} from either ${s.sideL})`;
+      alongRule={kind:'middle'};
+    }else if(same(spot=>spot.alongLow[0])){
+      along=`${inchWords(s.alongLow[0])} ${off(s.L,false)} the ${sideName(s.L,false)} ${s.sideL} of the ${name}`;
+      alongRule={kind:'from',side:'low'};
+    }else if(same(spot=>Math.min(spot.alongLow[0],spot.alongHigh[0]))){
+      along=`${inchWords(Math.min(s.alongLow[0],s.alongHigh[0]))} from the nearest ${s.sideL} of the ${name}`;
+      alongRule={kind:'from',side:'near'};
+    }else if(distinct(spot=>spot.alongLow[0]).length<=LIST_MAX){
+      along=`one at each of these distances ${off(s.L,false)} the ${sideName(s.L,false)} ${s.sideL} of the ${name}: ${said(distinct(spot=>spot.alongLow[0]))}`;
+      alongRule={kind:'from',side:'low'};
+    }else along=intoWords();
   }else{
     // Two or more on the line. They are counted from the end of the marked piece they are nearer to: the two
     // screws through the foot of a post are "1 1/4 in. and 2 1/4 in. from its bottom end", not one from each end.
     const groupNearLow=spot=>spot.alongLow[0]+spot.alongLow[spot.n-1]<=spot.alongHigh[0]+spot.alongHigh[spot.n-1]+.03;
     const fromNear=spot=>groupNearLow(spot)?spot.alongLow:spot.alongHigh;
     const evenBothEnds=spot=>Math.abs(eachEnd(spot)[0]-eachEnd(spot)[1])<.07;
-    if(spots.every(evenBothEnds)&&same(spot=>[spot.alongLow[0],spot.gap])){
-      along=s.n===2?`${inchWords(s.alongLow[0])} in from each ${s.sideL} of the ${name}`
-        :`the first ${inchWords(s.alongLow[0])} from one ${s.sideL} of the ${name}, then one about every ${inchWords(s.gap)} (the last is as far from the other ${s.sideL})`;
+    if(spots.every(spot=>evenBothEnds(spot)&&spot.evenGaps)&&same(spot=>[spot.alongLow[0],spot.gap])){
+      // the same from both ends: counted from the end on the left of the marking view (or at its bottom)
+      const startHigh=s.frame.screenLowIsHigh(s.L),start=startHigh?s.alongHigh[0]:s.alongLow[0];
+      along=s.n===2?`${inchWords(s.alongLow[0])} in from each ${s.sideL} of the ${name} (${inchWords(s.gap)} apart)`
+        :`the first ${inchWords(start)} ${off(s.L,startHigh)} the ${sideName(s.L,startHigh)} ${s.sideL} of the ${name}, then one every ${inchWords(s.gap)} (the last is as far from the ${sideName(s.L,!startHigh)} ${s.sideL})`;
+      alongRule={kind:'even'};
     }else if(same(fromNear)){
-      const which=same(groupNearLow)?`the ${endsL[groupNearLow(s)?0:1]} ${s.sideL}`:`the nearest ${s.sideL}`,near=fromNear(s);
-      along=s.n===2?`${inchWords(near[0])} and ${inchWords(near[1])} from ${which} of the ${name}`
-        :`the first ${inchWords(near[0])} from ${which} of the ${name}, then one about every ${inchWords(s.gap)}`;
-    }else if(same(spot=>[spot.first,spot.gap]))along=intoWords();
+      const named=same(groupNearLow),high=!groupNearLow(s),near=fromNear(s);
+      const which=named?`${off(s.L,high)} the ${sideName(s.L,high)} ${s.sideL}`:`from the nearest ${s.sideL}`;
+      // (each gap rounded once, from where the fasteners are: s.gaps runs from the low end. The difference of two
+      // places already rounded made a gap of 4.333" read 4 3/8" where the marking view says 4 5/16")
+      const gapsFromNear=high?s.gaps.slice().reverse():s.gaps;
+      along=s.n===2?`${inchWords(near[0])} and ${inchWords(near[1])} ${which} of the ${name}`
+        :`the first ${inchWords(near[0])} ${which} of the ${name}, then ${spacingWords(gapsFromNear)}`;
+      alongRule={kind:'from',side:named?(high?'high':'low'):'near'};
+    }else if(same(spot=>[spot.first,spot.last,spot.gaps]))along=intoWords();
     else return{fromJoint,text:''};   // joints of different lengths: the caller writes a sentence for each length
   }
-  return{fromJoint,text:`${lead} on the ${name}: ${across}; ${along}.`};
+  return finish(`${lead} on the ${name}: ${across}; ${along}.`,{across:acrossRule,along:alongRule});
 }
 
 /* ---------- one "Fasten with" line ----------
@@ -479,6 +611,15 @@ function fastenLine(links,letterOf){
     pair.throughs.push(facts.through);pair.intos.push(facts.into);pair.places++;
   }
   const byPlaces=[...pairs.values()].sort((a,b)=>b.places-a.places);
+  // The joint the close-ups show. When the joints of the first pair are marked some from the front and some from
+  // the back (the front and the back rail of a stand), one marked from the front: the words then name left and
+  // right as a person in front of the design does, and so does the marking view.
+  const seenFromBehind=facts=>!!facts.f&&facts.joint.k===2&&facts.f.dir[2]>0&&facts.f.kind!=='pocket'&&!facts.f.toe&&facts.f.kind!=='bracket';
+  const firstPair=byPlaces[0];
+  if(seenFromBehind(firstPair.first)){
+    const fromFront=all.find(facts=>facts.f&&[facts.through.name,facts.into.name,facts.intoFace].join('|')===[firstPair.first.through.name,firstPair.first.into.name,firstPair.first.intoFace].join('|')&&!seenFromBehind(facts));
+    if(fromFront)firstPair.first=fromFront;
+  }
   const sample=byPlaces[0].first,f=sample.f;
 
   if(type==='glue'||!f){
@@ -488,7 +629,9 @@ function fastenLine(links,letterOf){
   }
   const sameCount=all.every(facts=>facts.spec.n===spec.n);
   const here=fastenerPlaces(sample.joint,sample.layout);
-  group.sample={link:sample.link,layout:sample.layout,dims:here.dims};
+  // (here: where the fasteners of the sample joint go; rule: what the words of the line measure from, set again
+  //  below once the words of every joint are known. The marking view reads both.)
+  group.sample={link:sample.link,layout:sample.layout,dims:here.dims,here,rule:here.rule||null};
   const leans=all.some(facts=>facts.f&&facts.f.lean),sunk=all.find(facts=>facts.f&&facts.f.sunk);
   const tail=()=>(leans?(all.every(facts=>facts.f.lean)?' Drive each nail at a slight slant, so that its point stays inside the wood.':' Where a nail driven straight would come out of the far side, drive it at a slight slant.'):'')+
     (sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'');
@@ -507,12 +650,14 @@ function fastenLine(links,letterOf){
     group.line=`${capital(fastenerPhrase(total,spec.hw[0][0]).replace(/^\d+ /,''))}, through the ${sheets} into ${behind.length>1?'every board behind it ('+listWords(behind)+')':'the '+namedLabel(byPlaces[0].intos,letterOf)}: `+
       `one every ${FRAMING.SHEET_EDGE}" along the edges of each sheet and every ${FRAMING.SHEET_FIELD}" in between (about ${total} in this step).`+tail();
     group.sample.dims=[];   // nailed by that rule, not at the places the picture happens to show: no size lines that would say otherwise
+    group.sample.rule={sheet:true,edge:FRAMING.SHEET_EDGE,field:FRAMING.SHEET_FIELD};
     return group;
   }
   if(sample.how==='plate'){
     const plates=listWords([...new Set(all.map(facts=>facts.through.name))].map(name=>namedLabel(all.filter(facts=>facts.through.name===name).map(facts=>facts.through),letterOf)));
     const under=[...new Set(all.flatMap(facts=>(facts.f.also||[]).map(piece=>piece.name)))];
     group.line=`${capital(fastenerPhrase(total,spec.hw[0][0]))}, about every ${FRAMING.PLATE_SCREW_EVERY}", down through the ${plates} and the ${byPlaces[0].intos[0].name} into ${under.length?'the '+listWords(under)+' under it':'the framing under it'}. Put each one where a joist or a rim joist is under the plywood.`;
+    group.sample.rule={plate:true};
     return group;
   }
   /* several pairs of pieces on one line (a step with many joints): the count, then each pair, through-piece first */
@@ -529,6 +674,7 @@ function fastenLine(links,letterOf){
       return`${through} into ${into} (${pair.places} place${pair.places>1?'s':''})`;
     }).join('; ');
     group.line=`${count}: ${share}. ${how}: ${list}.`+tail();
+    group.sample.rule={free:true,gap:null};   // the words give no marks for these: the marking view shows where they sit, with no sizes
     if(f.toe)group.where='Start each one about an inch back from the joint and slant it toward the joint, from both sides in turn.';
     else if(f.kind!=='pocket'&&f.kind!=='bracket')group.where='Keep them at least 3/4" from the ends of each joint, so the wood does not split. The close-up shows one of these joints.';
     return group;
@@ -578,20 +724,40 @@ function whereWords(places,here,group){
     const texts=new Map();
     for(const place of places)texts.set(place.text,(texts.get(place.text)||0)+1);
     if(texts.size<=1)return here.text;
+    // pocket holes of several joints in the same kind of piece: one row along each piece, and the marking view
+    // measures the holes it shows along the piece too (running sizes from its start end), as the words do
     const rows=pocketRowsWords(places);
-    if(rows)return rows;
-    if(texts.size>SORTS_MAX)return'';
-    return'The places of this line are not all alike. '+[...texts.entries()].map(([text,count])=>`At ${count} of them: ${text}`).join(' ');
+    if(rows){group.sample.rule={row:true,alongPiece:true};return rows;}
+    if(texts.size>SORTS_MAX){group.sample.rule={free:true,gap:null};return'';}
+    // each sort said for the piece it is on when it is one piece ("On the back Long apron: ..."), so a beginner
+    // knows which is which; else by count
+    // (only when every sort is on one piece of its own, and no piece has two sorts)
+    const pieceOf=new Map();
+    for(const text of texts.keys()){
+      const own=places.filter(place=>place.text===text);
+      const pieces=[...new Set(own.map(place=>place.row&&place.row.through))];
+      pieceOf.set(text,pieces.length===1&&pieces[0]?pieces[0]:null);
+    }
+    const byPiece=[...pieceOf.values()].every(piece=>piece)&&new Set(pieceOf.values()).size===pieceOf.size;
+    const whose=(text,count)=>{
+      if(!byPiece)return`At ${count} of them`;
+      const piece=pieceOf.get(text);
+      return`On ${whichOne(piece,S.parts.filter(other=>other.name===piece.name))}`;
+    };
+    return'The places of this line are not all alike. '+[...texts.entries()].map(([text,count])=>`${whose(text,count)}: ${text}`).join(' ');
   }
   const said=placesWords(places.map(place=>place.spot));
   if(said.text){
     group.sample.dims=said.fromJoint?here.spot.dimsJoint:here.spot.dimsMarked;
+    group.sample.rule=said.rule;
     return said.text;
   }
   // The places of the line are not all laid out alike (boards of different widths crossing one rail, a corner
   // where one pair had to make room for another screw): they are sorted into the few sorts that are alike, and
-  // each sort gets its sentence. The sort that the close-up shows comes first.
+  // each sort gets its sentence. The sort that the close-up shows comes first, and its rule is the one the
+  // marking view draws.
   group.sample.dims=here.spot.dimsMarked;
+  group.sample.rule={free:true,gap:here.spot.gap};
   const sorts=[{spots:[here.spot]}];
   for(const place of places){
     if(place===here)continue;
@@ -600,6 +766,7 @@ function whereWords(places,here,group){
     else sorts.push({spots:[place.spot]});
   }
   if(sorts.length<=SORTS_MAX){
+    group.sample.rule=placesWords(sorts[0].spots).rule||group.sample.rule;
     const sizes=new Set(sorts.map(sort=>sort.spots[0].long));
     return'The places of this line are not all alike. '+sorts.map((sort,index)=>{
       const which=sizes.size===sorts.length?`Where the two pieces touch over ${inchWords(sort.spots[0].long)} (${sort.spots.length} place${sort.spots.length>1?'s':''})`
@@ -616,7 +783,12 @@ function whereWords(places,here,group){
    of the line has the same row, one sentence gives it; otherwise null, and the line says it joint by joint. */
 const ROW_PLACES_MAX=10;
 function pocketRowsWords(places){
-  if(!places.every(place=>place.row))return null;
+  if(!places.every(place=>place.row&&place.row.at))return null;   // (pocket holes only)
+  // every place measured from the same end, as the marking views see their faces (or the places of one piece
+  // would be measured from two ends and the words could give only one)
+  // (or every row has the same places from both ends of its piece: "from either end")
+  const one=places[0].row,eitherEnd=places.every(place=>place.row.bothEnds);
+  if(!eitherEnd&&!places.every(place=>place.row.startEnd===one.startEnd&&place.row.side===one.side&&!!place.row.frame.mirrored===!!one.frame.mirrored))return null;
   const byPiece=new Map();
   for(const place of places){
     const id=place.row.through.id;
@@ -630,7 +802,8 @@ function pocketRowsWords(places){
   const clear=[...new Set(places.flatMap(place=>place.row.clear||[]))];
   const passEnds=[...new Set(places.flatMap(place=>place.row.passEnds||[]))];
   const why=clear.length||passEnds.length?' '+notEvenlyWords([{clear,passEnds}],name):'';
-  return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from its ${first.row.lowEnd} ${first.row.side}.`+why;
+  const seen=first.row.frame.mirrored&&!eitherEnd?` Left and right are as you look at it ${first.row.frame.from}.`:'';
+  return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from ${eitherEnd?'either':'its '+first.row.startEnd} ${first.row.side}.`+why+seen;
 }
 /* Why a row of pocket holes is not evenly spaced (rules 10 and 11 in js/fasteners.js): a hole was moved off a piece
    that lies against the face, or past the pocket holes in the ends of the piece. */
