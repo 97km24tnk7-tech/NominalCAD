@@ -89,6 +89,8 @@ function renderFacts(){
 
   // fish tanks and what they weigh when filled (the program allows 11.25 lb for every gallon)
   const tanks=S.parts.filter(p=>p.mat==='tank'&&p.gal);
+  // the fish tank controls in the ribbon only show while the design has a tank in it (the style sheet reads this)
+  document.body.toggleAttribute('data-tanks',S.parts.some(p=>p.mat==='tank'));
   if(tanks.length){
     const gallons=tanks.reduce((sum,p)=>sum+p.gal,0),pounds=Math.round(gallons*11.25).toLocaleString();
     setFact('#stTanks',`${tanks.length} tank${tanks.length>1?'s':''} · ${pounds} lb filled`,

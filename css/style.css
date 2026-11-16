@@ -644,3 +644,8 @@ svg.jh .t{font:10px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#262c33}
   .terms{font-size:9.5pt;gap:3pt 10pt}
   .words{break-inside:avoid}
 }
+
+/* Fish tank controls stay out of the way until the design has a fish tank in it (a fish preset, or a tank added
+   from Add, More). The More row itself shows in Expert, or once there is a tank. */
+body:not([data-tanks]) [data-tank]{display:none!important}
+body:not([data-tanks])[data-level="beginner"] [data-tank-menu]{display:none!important}

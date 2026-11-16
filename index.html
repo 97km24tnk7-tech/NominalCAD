@@ -158,8 +158,9 @@
         <div class="stack add">
           <select class="fld s" id="addMat" title="The board or plywood that Add and Draw a board use" aria-label="Material to add"></select>
           <button class="btn s" id="bAdd" title="Add one piece of this material beside the design"><svg class="i"><use href="#i-plus"/></svg>Add</button>
-          <select class="fld s" id="addTank" title="Fish tank size" aria-label="Fish tank to add"></select>
-          <button class="btn s" id="bAddTank" title="Add a fish tank of this size. It is shown for reference and counted in the filled weight."><svg class="i"><use href="#i-plus"/></svg>Add tank</button>
+          <!-- data-tank: the fish tank controls only show while the design has a fish tank in it (js/statusbar.js sets data-tanks on the body) -->
+          <select class="fld s" id="addTank" data-tank title="Fish tank size" aria-label="Fish tank to add"></select>
+          <button class="btn s" id="bAddTank" data-tank title="Add a fish tank of this size. It is shown for reference and counted in the filled weight."><svg class="i"><use href="#i-plus"/></svg>Add tank</button>
           <button class="sb span" id="bImportCut" title="Bring in the pieces from a plan you found online"><svg class="i"><use href="#i-import"/></svg>Import a cut list&hellip;</button>
         </div>
         <div class="pd">
@@ -168,7 +169,7 @@
             <button class="mi" data-click="#bPreset"><svg class="i"><use href="#i-presets"/></svg><span>Furniture preset&hellip;</span><kbd></kbd></button>            <div class="msep"></div>
             <button class="mi" data-click="#bAdd" title="Adds one piece of the material picked in the ribbon"><svg class="i"><use href="#i-plus"/></svg><span>Board or panel</span><kbd></kbd></button>
             <button class="mi" data-tool="draw" title="Drag on the floor to draw a board of the material picked in the ribbon"><svg class="i"><use href="#i-draw"/></svg><span>Draw a board</span><kbd>D</kbd></button>
-            <button class="mi" data-click="#bAddTank" title="Adds a fish tank of the size picked in the ribbon"><svg class="i"><use href="#i-plus"/></svg><span>Fish tank</span><kbd></kbd></button>
+            <button class="mi" data-click="#bAddTank" data-tank-menu title="Adds a fish tank. The tank size picker then shows in the ribbon."><svg class="i"><use href="#i-plus"/></svg><span>Fish tank</span><kbd></kbd></button>
             <button class="mi" data-click="#bImportCut"><svg class="i"><use href="#i-import"/></svg><span>Cut list from another plan&hellip;</span><kbd></kbd></button>
           </div>
         </div>

@@ -44,7 +44,7 @@ function propsGroup(cells,cls){
 }
 const DROP_BUTTON=`<button class="btn s" data-act="drop" title="Lower it until it rests on the floor or on the piece below">${icon('i-drop')}Drop down</button>`;
 const positionFields=p=>propsSection('Position',DROP_BUTTON)+
-  propsGroup([['From left',sizeField('x',p.pos[0])],['From back',sizeField('z',p.pos[2])],['Off the floor',sizeField('y',p.pos[1])]]);
+  propsGroup([['X',sizeField('x',p.pos[0],'X: left to right, measured from the left')],['Y',sizeField('z',p.pos[2],'Y: front to back, measured from the back')],['Z',sizeField('y',p.pos[1],'Z: up, measured from the floor')]]);
 
 function renderProps(){
   const ps=selParts(),el=$('#props'),who=$('#propsName');

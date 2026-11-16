@@ -72,7 +72,7 @@ function moveReadout(st,delta){
   const ways=[['left','right'],['down','up'],['toward the back','toward the front']];
   const moved=[0,2,1].filter(k=>Math.abs(delta[k])>1e-6).map(k=>`${fmt(Math.abs(delta[k]))} ${ways[k][delta[k]>0?1:0]}`).join(', ');
   return`<b>Moving ${count>1?count+' pieces':esc(p.name)}</b>${moved||'0"'}. `+
-    `Now ${fmt(p.pos[0])} from left, ${fmt(p.pos[2])} from back, ${fmt(p.pos[1])} off the floor. Alt turns snapping off.`;
+    `Now X ${fmt(p.pos[0])}, Y ${fmt(p.pos[2])}, Z ${fmt(p.pos[1])}. Alt turns snapping off.`;
 }
 /* move the selection by d along the given axes from where it started (st = moveState), snapping to other pieces or the grid */
 function applyMove(st,d,axes,noSnap){
