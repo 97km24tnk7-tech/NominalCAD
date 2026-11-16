@@ -226,8 +226,13 @@ function presetField(q,index){
   if(q.check){
     return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><span class="ck"><input type="checkbox" id="${id}" data-k="${q.k}"${q.v?' checked':''}>${hint}</span></div>`;
   }
-  const value=q.int||q.dec?q.v:fa(q.v);
-  return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${value}">${hint}</div>`;
+  // A count (int) or a plain number (dec: gallons, a roof slope) shows as typed. A size shows the way every
+  // length box does, 2'-8" over 12" (boxLen, js/core.js), and is tidied into that form when the box is left
+  // (data-len, js/lengthboxes.js).
+  if(q.int||q.dec){
+    return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${q.v}">${hint}</div>`;
+  }
+  return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" data-len value="${esc(boxLen(q.v))}">${hint}</div>`;
 }
 /* A row of the form may only make sense with some of the other choices: the Bookshelf's "Opening 3" box needs
    three shelves and the choice to set the heights by hand. Such an entry of params carries show(p), which is
@@ -273,7 +278,7 @@ function presetFieldChanged(field){
   if(param.fill&&param.fill[field.value]){
     for(const[key,value]of Object.entries(param.fill[field.value])){
       const target=curPreset.params.find(q=>q.k===key);
-      $(`#presetForm [data-k="${key}"]`).value=target.int||target.dec?value:fmt(value);
+      $(`#presetForm [data-k="${key}"]`).value=target.int||target.dec?value:boxLen(value);
     }
   }else if(!param.fill&&sizeChoice&&param.k!=='clr'&&Object.values(sizeChoice.fill).some(set=>param.k in set)){
     $(`#presetForm [data-k="${sizeChoice.k}"]`).value='custom';
@@ -285,7 +290,7 @@ function presetFieldChanged(field){
    On the way it shows or hides the rows that have a show(p) rule. A hidden box is not judged: whatever was left
    in it, the preset gets the value the box starts with, because the person cannot see it to put it right. */
 let presetFieldNote='';
-const CANNOT_READ='A size in red cannot be read. Type it like 36, 3 1/2 or 4\' 6.';
+const CANNOT_READ='A size in red cannot be read. Type it like 36, 3 1/2, 2\'-8" or 2 ft 8.';
 function readVals(focusBad){
   const vals={};
   let firstBad=null;
@@ -308,7 +313,7 @@ function readVals(focusBad){
     if(!bad){vals[q.k]=v;return;}
     if(firstBad)return;
     firstBad=el;
-    const show=size=>q.int||q.dec?String(size):fmt(size),name=splitLabel(q.label)[0];
+    const show=size=>q.int||q.dec?String(size):boxLen(size),name=splitLabel(q.label)[0]; // a limit is written the way its box shows it
     presetFieldNote=unreadable?CANNOT_READ
       :notWhole?`${name} must be a whole number, like ${v} or ${v+1}.`
       :q.min!==undefined&&q.max!==undefined?`${name} must be between ${show(q.min)} and ${show(q.max)}.`
@@ -361,8 +366,9 @@ function showPresetSummary(){
     showPreview(picture,[]);
     return;
   }
-  const remark=curPreset.info?curPreset.info(vals):'';
-  const check=checkPreset(curPreset,vals,null,{maxPieces:LIVE_CHECK_MAX_PIECES}),parts=check.parts;
+  // the remark and the findings under the form quote the sizes typed in its boxes the way the boxes show them
+  const remark=speakAsBoxes(()=>curPreset.info?curPreset.info(vals):'');
+  const check=speakAsBoxes(()=>checkPreset(curPreset,vals,null,{maxPieces:LIVE_CHECK_MAX_PIECES})),parts=check.parts;
   found.innerHTML=findingsHtml(check.shown,false);   // the preset's own reasons alone when it refuses (checkPreset)
   found.title=check.shown.length?'Create will '+(check.stops.length?'not build this until the red items are fixed.':'ask before building this.'):'';
   showPreview(picture,parts);
@@ -374,7 +380,7 @@ function showPresetSummary(){
     // why in its own remark; cannotBuildText is the one place that picks the words, here and in presetGate.
     // Nothing is said about pieces, price or hours of work for a design that cannot be built: the picture
     // stays, so the person sees what their numbers ask for, and the red box under it says what to change.
-    say(check.stops.length?'This cannot be built with these sizes. The box below says why.':cannotBuildText(curPreset,vals));
+    say(check.stops.length?'This cannot be built with these sizes. The box below says why.':speakAsBoxes(()=>cannotBuildText(curPreset,vals)));
     info.textContent='';
     return;
   }

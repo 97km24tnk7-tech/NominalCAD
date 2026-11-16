@@ -314,10 +314,11 @@ function rackNotes(p,fields){
   if(pl.wall)N.push(wallNote(pl,thing));
   if(p.base==='shelf')N.push('The bottom level is an open storage shelf for filters, food and buckets. It is not counted as holding water.');
   if(p.base==='cabinet')N.push('The bottom level is a closed cabinet with doors for filters, food and buckets. It is not counted as holding water.');
-  if(pl.need>p.H+.01)N.push(`Your rows need ${fmtFt(pl.need)} of height, which is more than the ${fmtFt(p.H)} available. Remove a row or reduce the room above the tanks.`);
+  // typedLen (js/core.js): under the presets form these repeat the sizes typed in its boxes the way the boxes show them
+  if(pl.need>p.H+.01)N.push(`Your rows need ${typedLen(pl.need,fmtFt)} of height, which is more than the ${typedLen(p.H,fmtFt)} available. Remove a row or reduce the room above the tanks.`);
   N.push(`The ${thing} is ${fmtFt(pl.W)} wide × ${fmtFt(pl.D)} deep`+(M0>1?`, built as ${M0} separate sections side by side so no rail is longer than ${pl.board===96?'an':'a'} ${pl.board/12} ft board`:'')+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`,
    `Filled weight: about ${Math.round(pl.total).toLocaleString()} lb of tanks plus lumber, roughly ${psf} lb per square foot of floor.`,
-   `Above every tank there is ${fmt(p.light)} for the light plus ${fmt(p.clr)} of open hand room for feeding, netting and cleaning.`+(pl.top>66?' The top row is above eye level, so plan on a step stool to service it.':''));
+   `Above every tank there is ${typedLen(p.light)} for the light plus ${typedLen(p.clr)} of open hand room for feeding, netting and cleaning.`+(pl.top>66?' The top row is above eye level, so plan on a step stool to service it.':''));
   if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${fmt(pl.span)} apart. The weight goes straight down through wood, not through screws.`);
   if(pl.rows.some(r=>r.doubled))N.push('Some rows hold tanks a little shallower than the rack. Their frames have doubled rails front and back, so the edges of those tanks still sit over wood.');
   if(pl.rows.some(r=>r.inset>0))N.push(`The rows hold tanks of different depths. Each tank must have a rail under its front and back edge, so the frames of the shallower rows are built narrower and the ${pl.up} uprights are deep enough to carry them. The plywood decks are all the full ${fmt(pl.D)} deep.`);
@@ -495,11 +496,11 @@ function tankProblems(p){
   if(!(p.tl>0&&p.td>0&&p.th>0&&p.gal>0))return[stop('The tank needs a length, a front-to-back size, a height and its gallons, all more than zero.','Pick a tank size from the list, or type all four numbers.')];
   const holds=p.tl*p.td*p.th/231;
   if(RACK_RULES.GALLONS_SHARE*holds>RACK_RULES.MAX_GALLONS){ // asking for more gallons than the form takes would be a dead end
-    return[stop(`A tank ${fmt(p.tl)} long, ${fmt(p.td)} front to back and ${fmt(p.th)} tall holds about ${Math.round(holds)} gallons. That is more than the ${RACK_RULES.MAX_GALLONS} gallons these wooden designs are worked out for.`,
+    return[stop(`A tank ${typedLen(p.tl)} long, ${typedLen(p.td)} front to back and ${typedLen(p.th)} tall holds about ${Math.round(holds)} gallons. That is more than the ${RACK_RULES.MAX_GALLONS} gallons these wooden designs are worked out for.`,
       'Pick a smaller tank. A tank this big needs a stand designed for it by an engineer.')];
   }
   if(p.gal<RACK_RULES.GALLONS_SHARE*holds-1e-6){
-    return[stop(`A tank ${fmt(p.tl)} long, ${fmt(p.td)} front to back and ${fmt(p.th)} tall holds about ${Math.round(holds)} gallons, but Gallons says ${p.gal}. The lumber is sized from the gallons, so this would be built too light for the water.`,
+    return[stop(`A tank ${typedLen(p.tl)} long, ${typedLen(p.td)} front to back and ${typedLen(p.th)} tall holds about ${Math.round(holds)} gallons, but Gallons says ${p.gal}. The lumber is sized from the gallons, so this would be built too light for the water.`,
       `Set Gallons to about ${Math.round(holds)}, or correct the tank sizes.`)];
   }
   return[];
@@ -516,25 +517,27 @@ function rackWhyNothingFits(p,fields){
   const depthOk=ways.filter(w=>deepOf(w)<=p.maxD+1e-6);
   if(!depthOk.length){
     const need=Math.min(...ways.map(deepOf));
-    return stop(`No tank fits. The rack must be ${fmt(need)} deep for ${several?'the deepest of these tanks':'this tank'} (the tank plus 1"), and ${fields.maxD||'the depth allowed'} is ${fmt(p.maxD)}.`,
-      `Allow at least ${fmt(need)} of depth, or pick a tank that is smaller front to back.`);
+    // typedLen (js/core.js): a size typed in the form, the size it is held against and the size to type instead
+    // are quoted the way the form's boxes show them
+    return stop(`No tank fits. The rack must be ${typedLen(need)} deep for ${several?'the deepest of these tanks':'this tank'} (the tank plus 1"), and ${fields.maxD||'the depth allowed'} is ${typedLen(p.maxD)}.`,
+      `Allow at least ${typedLen(need)} of depth, or pick a tank that is smaller front to back.`);
   }
   const widthOk=depthOk.filter(w=>wideOf(w)<=p.W+1e-6);
   if(!widthOk.length){
     const need=Math.min(...depthOk.map(wideOf));
-    return stop(`No tank fits. ${several?'The longest of these tanks':'One tank'} needs ${fmt(need)} of width (the tank, 1" of slack and the posts and uprights at both ends), and ${fields.W} is ${fmt(p.W)}.`,
-      `Make ${fields.W} at least ${fmt(need)}, or pick a shorter tank.`);
+    return stop(`No tank fits. ${several?'The longest of these tanks':'One tank'} needs ${typedLen(need)} of width (the tank, 1" of slack and the posts and uprights at both ends), and ${fields.W} is ${typedLen(p.W)}.`,
+      `Make ${fields.W} at least ${typedLen(need)}, or pick a shorter tank.`);
   }
   const needH=Math.max(base+rb,p.low||0)+p.th+(p.light||0)+(p.clr||0); // the storage space counts toward "Lowest tank off floor"
   if(fields.H&&needH>p.H+1e-6){
-    return stop(`No tank fits. One row needs ${fmt(needH)} of height (the frame, the tank, the light and the hand room${base?', on top of the storage space':''}), and ${fields.H} is ${fmt(p.H)}.`,
-      `Make ${fields.H} at least ${fmt(up16(needH))}, or reduce the room above the tank.`);
+    return stop(`No tank fits. One row needs ${typedLen(needH)} of height (the frame, the tank, the light and the hand room${base?', on top of the storage space':''}), and ${fields.H} is ${typedLen(p.H)}.`,
+      `Make ${fields.H} at least ${typedLen(up16(needH))}, or reduce the room above the tank.`);
   }
   const forcedUp=upOf(p.up),deepest=Math.max(...widthOk.map(deepOf));
   if(forcedUp&&2*forcedUp[3]>deepest+1e-6){
     return stop(`The ${p.up} uprights you chose are ${fmt(forcedUp[3])} deep. One at the front and one at the back do not fit in a rack ${fmt(deepest)} deep.`,'Set Upright size back to Auto, or pick 2x4.');
   }
-  if(q.r1==='store'&&(+p.storeH||16)<RACK_RULES.MIN_STORAGE)return stop(`The storage space is only ${fmt(+p.storeH)} tall.`,`Make it at least ${fmt(RACK_RULES.MIN_STORAGE)} tall.`);
+  if(q.r1==='store'&&(+p.storeH||16)<RACK_RULES.MIN_STORAGE)return stop(`The storage space is only ${typedLen(+p.storeH)} tall.`,`Make it at least ${fmt(RACK_RULES.MIN_STORAGE)} tall.`);
   // The space is big enough for the tank itself, so it is the lumber the tank needs. Plan one row of tanks by
   // hand in all the room the form could ever give, and say what that plan runs into in the room there really is.
   let storageRows=0;
@@ -546,14 +549,14 @@ function rackWhyNothingFits(p,fields){
     if(!roomy.pastCap&&railLength>board+1e-6)return stop(`No tank fits. The rails under one of these tanks are ${fmt(railLength)} long, longer than the ${board/12} ft boards this is cut from. A rail must be one piece.`,
       fields.H?'Choose a longer board under "Longest board you can haul", or pick a shorter tank.':'Pick a shorter tank.');
     if(roomy.pastCap)return stop(`No tank fits. This ${fields.thing} has uprights only between tanks, never under the middle of one, so its rails would span ${fmt(roomy.span)}. No rail may span more than ${fmt(roomy.capSpan)} under full tanks.`,
-      `Pick a tank no longer than ${fmt(longestTank)}.`);
+      `Pick a tank no longer than ${typedLen(longestTank)}.`);
     if(roomy.over)return stop(`No tank fits. This tank is too heavy for a ${fields.thing} with uprights only between tanks: even ${roomy.rail} rails would be at ${pct(roomy.util.rail)} and ${roomy.up} uprights at ${pct(roomy.util.up)} of the rule-of-thumb limit.`,
       'Pick a lighter or shorter tank.');
     if(roomy.tooTall||roomy.postLong)return planProblems(oneRow,roomy,fields)[0];
-    if(fields.H&&roomy.need>p.H+.01)return stop(`No tank fits. This tank needs ${roomy.rail} rails to carry it, and with a frame that deep one row needs ${fmtFt(roomy.need)} of height (the frame, the tank, the light and the hand room${base?', on top of the storage space':''}). ${fields.H} is ${fmtFt(p.H)}.`,
-      `Make ${fields.H} at least ${fmtFt(up16(roomy.need))}, or reduce the room above the tank.`);
-    if(roomy.mods[0].W>p.W+1e-6)return stop(`No tank fits. With ${roomy.up} uprights one tank needs ${fmt(roomy.mods[0].W)} of width, and ${fields.W} is ${fmt(p.W)}.`,
-      `Make ${fields.W} at least ${fmt(roomy.mods[0].W)}${upOf(p.up)?', or set Upright size back to Auto':''}.`);
+    if(fields.H&&roomy.need>p.H+.01)return stop(`No tank fits. This tank needs ${roomy.rail} rails to carry it, and with a frame that deep one row needs ${typedLen(roomy.need,fmtFt)} of height (the frame, the tank, the light and the hand room${base?', on top of the storage space':''}). ${fields.H} is ${typedLen(p.H,fmtFt)}.`,
+      `Make ${fields.H} at least ${typedLen(up16(roomy.need),fmtFt)}, or reduce the room above the tank.`);
+    if(roomy.mods[0].W>p.W+1e-6)return stop(`No tank fits. With ${roomy.up} uprights one tank needs ${typedLen(roomy.mods[0].W)} of width, and ${fields.W} is ${typedLen(p.W)}.`,
+      `Make ${fields.W} at least ${typedLen(roomy.mods[0].W)}${upOf(p.up)?', or set Upright size back to Auto':''}.`);
   }
   return stop('No tank fits. With these numbers no rail size in the program carries the tanks: the tank is too long or too heavy for a rack with uprights only between tanks, or the rows do not fit.',
     'Pick a shorter or lighter tank, or change the sizes of the space.');
@@ -579,7 +582,7 @@ function planProblems(p,pl,fields){
       `Keep it under ${fmtFt(down16(RACK_RULES.MAX_RATIO*pl.D))} tall: ${fields.lower}, or use a tank that is deeper front to back.`));
   }
   if(fields.H&&pl.need>p.H+.01){
-    found.push(stop(`The rows you set need ${fmtFt(pl.need)} of height, and ${fields.H} is ${fmtFt(p.H)}.`,`Remove a row, reduce the room above the tanks, or make ${fields.H} at least ${fmtFt(up16(pl.need))}.`));
+    found.push(stop(`The rows you set need ${typedLen(pl.need,fmtFt)} of height, and ${fields.H} is ${typedLen(p.H,fmtFt)}.`,`Remove a row, reduce the room above the tanks, or make ${fields.H} at least ${typedLen(up16(pl.need),fmtFt)}.`));
   }
   // It would stand, but nobody could look after the fish: a tank under another row with no room to reach in.
   const cramped=pl.rows.filter((r,i)=>!r.store&&i<pl.n-1&&r.ab<RACK_RULES.MIN_REACH);
@@ -622,8 +625,8 @@ function standCheck(p){
   if(tank.length)return tank;
   const a=standArgs(p);
   if(!a){
-    if(p.under!=='tank'&&p.standH<STAND_MIN_HEIGHT)return[stop(`A stand ${fmt(p.standH)} tall has no room inside: the two frames take ${fmt(STAND_MIN_HEIGHT-RACK_RULES.MIN_STORAGE)} and the space between them must be at least ${fmt(RACK_RULES.MIN_STORAGE)}.`,`Make the stand at least ${fmt(STAND_MIN_HEIGHT)} tall.`)];
-    if(railOf(p.rail))return[stop(`Two frames of ${p.rail} rails do not leave ${fmt(RACK_RULES.MIN_STORAGE)} of space in a stand ${fmt(p.standH)} tall.`,'Make the stand taller, or set Rail size back to Auto.')];
+    if(p.under!=='tank'&&p.standH<STAND_MIN_HEIGHT)return[stop(`A stand ${typedLen(p.standH)} tall has no room inside: the two frames take ${fmt(STAND_MIN_HEIGHT-RACK_RULES.MIN_STORAGE)} and the space between them must be at least ${fmt(RACK_RULES.MIN_STORAGE)}.`,`Make the stand at least ${typedLen(STAND_MIN_HEIGHT)} tall.`)];
+    if(railOf(p.rail))return[stop(`Two frames of ${p.rail} rails do not leave ${fmt(RACK_RULES.MIN_STORAGE)} of space in a stand ${typedLen(p.standH)} tall.`,'Make the stand taller, or set Rail size back to Auto.')];
     return[stop('That combination does not work: no rail size in the program fits this tank and this stand height.','Make the stand taller or pick a smaller tank.')];
   }
   const pl=rackPlan(a),found=planProblems(a,pl,STAND_FIELDS);
@@ -632,9 +635,9 @@ function standCheck(p){
     let enough=0;
     for(let h=Math.ceil(p.standH)+1;h<=STAND_MAX_HEIGHT&&!enough&&p.under!=='tank';h++){const taller=rackPlan({...a,standH:h});if(taller&&!taller.over)enough=h;}
     found[0]=enough
-      ?stop(`A stand ${fmt(p.standH)} tall is too low for this tank. It weighs about ${Math.round(pl.total).toLocaleString()} lb full and needs deeper rails than fit in that height with ${fmt(RACK_RULES.MIN_STORAGE)} of space between the two frames. With the ${pl.rail} rails that do fit, the rails are at ${pct(pl.util.rail)} of the rule-of-thumb limit.`,`Make the stand at least ${fmt(enough)} tall.`)
+      ?stop(`A stand ${typedLen(p.standH)} tall is too low for this tank. It weighs about ${Math.round(pl.total).toLocaleString()} lb full and needs deeper rails than fit in that height with ${fmt(RACK_RULES.MIN_STORAGE)} of space between the two frames. With the ${pl.rail} rails that do fit, the rails are at ${pct(pl.util.rail)} of the rule-of-thumb limit.`,`Make the stand at least ${typedLen(enough)} tall.`)
       :pl.pastCap
-      ?stop(`This tank is too long for a stand held up only at its ends: the rails would span ${fmt(pl.span)}, and no rail may span more than ${fmt(pl.capSpan)} under a full tank.`,`Pick a tank no longer than ${fmt(pl.capSpan-pl.su-1)}. A longer one needs a stand with legs under its middle, which this design does not draw.`)
+      ?stop(`This tank is too long for a stand held up only at its ends: the rails would span ${fmt(pl.span)}, and no rail may span more than ${fmt(pl.capSpan)} under a full tank.`,`Pick a tank no longer than ${typedLen(pl.capSpan-pl.su-1)}. A longer one needs a stand with legs under its middle, which this design does not draw.`)
       :stop(`This tank is too long or too heavy for a stand held up only at its ends: about ${Math.round(pl.total).toLocaleString()} lb across ${fmt(pl.span)}. Even the biggest rail here is past its rule-of-thumb limit (${pct(pl.util.rail)}).`,'Pick a shorter or lighter tank. A tank this size needs a stand with legs under its middle, which this design does not draw.');
   }
   return found;
@@ -642,7 +645,7 @@ function standCheck(p){
 const standWall=p=>{const a=standArgs(p);return a?rackWallIfNeeded(a):[];};
 function standNotes(p){const a=standArgs(p);if(!a)return[standCheck(p).map(f=>f.text+' '+f.fix).join(' ')||'That combination does not work.'];
   const skin=p.under==='cabinet'?' The thin panels and the doors add 1/2" to the width and 1" to the depth.':p.under==='panels'?' The thin panels add 1/2" to the width and 1/4" to the depth.':'';
-  const pl=rackPlan(a),N=[`The frame of the stand is ${fmtFt(pl.W)} wide × ${fmtFt(pl.D)} deep × ${fmtFt(p.under==='tank'?pl.top:p.standH)} tall, with ${pl.rail} rails and ${pl.up} uprights.`+skin,
+  const pl=rackPlan(a),N=[`The frame of the stand is ${typedLen(pl.W,fmtFt)} wide × ${typedLen(pl.D,fmtFt)} deep × ${typedLen(p.under==='tank'?pl.top:p.standH,fmtFt)} tall, with ${pl.rail} rails and ${pl.up} uprights.`+skin,
    `${p.under==='tank'?'The two filled tanks are':'The filled tank is'} about ${Math.round(pl.total).toLocaleString()} lb (water, glass, gravel). The weight goes straight down through the uprights, not through screws.`];
   if(pl.wall)N.push(wallNote(pl,'stand'));
   N.push(pl.over?`OVERLOADED. The rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger size, set them back to Auto, or make the stand taller so deeper rails fit.`

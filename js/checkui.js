@@ -190,19 +190,22 @@ const CANNOT_BUILD_TITLE='This cannot be built';
    caller does not put a second question straight after it. note is added to that question: what else building
    it does (it replaces the design on screen). */
 function presetGate(preset,vals,build,note){
+  // What it says quotes the sizes typed in the form the way its boxes show them (speakAsBoxes, js/core.js).
+  // Only the words: building runs outside, so the notes and steps of the design stay in inches.
+  const cannotText=()=>speakAsBoxes(()=>cannotBuildText(preset,vals));
   if(presetGateOff){
     const parts=preset.build(vals);
     if(parts.length)build(parts);
-    else showMessage(CANNOT_BUILD_TITLE,cannotBuildText(preset,vals),{wide:true});
+    else showMessage(CANNOT_BUILD_TITLE,cannotText(),{wide:true});
     return;
   }
-  const check=checkPreset(preset,vals);
+  const check=speakAsBoxes(()=>checkPreset(preset,vals));
   if(check.stops.length){
     showMessage(CANNOT_BUILD_TITLE,`${findingsText(check.shownStops.length?check.shownStops:check.stops)}\n\n${RULE_OF_THUMB}`,{wide:true});
     return;
   }
   if(!check.parts.length){
-    showMessage(CANNOT_BUILD_TITLE,cannotBuildText(preset,vals),{wide:true});
+    showMessage(CANNOT_BUILD_TITLE,cannotText(),{wide:true});
     return;
   }
   if(check.warns.length){

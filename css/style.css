@@ -258,7 +258,7 @@ body[data-level="beginner"] [data-expert]{display:none!important}
 /* ---------- 9. Floating panels (Pieces, Properties) ---------- */
 aside.float{position:absolute;z-index:var(--z-panel);display:flex;flex-direction:column;max-height:calc(100% - 16px);background:var(--n50);border:1px solid var(--n400);border-radius:var(--r-float);box-shadow:var(--shadow-panel)}
 #left{left:8px;top:8px;width:288px;max-height:calc(100% - 92px)} /* leaves the axis symbol in the corner clear */
-#right{right:8px;top:8px;width:272px}
+#right{right:8px;top:8px;width:296px} /* wide enough that three length boxes side by side show -49'-11 15/16" whole (see .f3 .fld[data-len]) */
 aside.float.off{display:none}
 aside.float.min .fb{display:none}
 aside.float.min .fh{border-bottom:0;border-radius:2px}
@@ -315,6 +315,7 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .sec::after{content:"";flex:1;height:1px;background:var(--n200)}
 .sec .btn{order:1;font-size:var(--fs);font-weight:400;color:var(--n800)}
 .f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px 6px}
+.f3 .fld[data-len]{padding:0 3px} /* a size in feet and inches (2'-11 15/16") needs the room; js/lengthboxes.js checks that it fits */
 .f3.two{grid-template-columns:1fr 2fr}
 .f3.even{grid-template-columns:1fr 1fr}
 /* a slider with its value written beside it (how far a door is open, js/motion.js) */
@@ -581,7 +582,7 @@ body[data-stepmode] #stHidden{display:none}
 /* ---------- 12b. Prices (js/prices.js) ---------- */
 /* the quiet line about where the prices stand: top of the 3D view, in the gap between the two floating panels,
    and under them when one is dragged across */
-#priceLine{position:absolute;top:8px;left:300px;right:300px;width:fit-content;margin:0 auto;z-index:calc(var(--z-panel) - 1);display:flex;align-items:center;gap:8px;padding:2px 3px 2px 8px;background:rgba(255,255,255,.92);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+#priceLine{position:absolute;top:8px;left:300px;right:312px;width:fit-content;margin:0 auto;z-index:calc(var(--z-panel) - 1);display:flex;align-items:center;gap:8px;padding:2px 3px 2px 8px;background:rgba(255,255,255,.92);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:15px;color:var(--n600)}
 #priceLine .btn{flex:none;font-size:var(--fs-s)}
 #priceLine .ib{flex:none}
 @media (max-width:1400px){

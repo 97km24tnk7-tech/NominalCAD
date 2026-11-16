@@ -125,8 +125,8 @@ function tableShelfPlan(o,size,apronDepth,problems){
     const reach=slatSpanLimit(o.shelf,strip,'shelf');
     const widest=Math.floor((reach+M[stretcher].t+2*over)/size.boardW)*size.boardW;
     problems.push({level:'stop',
-      text:`The shelf slats would have to span ${fmt(across)} from one long stretcher to the other. A ${shelfM.short} lying flat sags under a loaded shelf beyond about ${fmt(Math.floor(reach))}.`,
-      fix:`Make the ${size.what} ${fmt(widest)} or less from front to back.`});
+      text:`The shelf slats would have to span ${typedLen(across)} from one long stretcher to the other. A ${shelfM.short} lying flat sags under a loaded shelf beyond about ${typedLen(Math.floor(reach))}.`,
+      fix:`Make the ${size.what} ${typedLen(widest)} or less from front to back.`});   // a size to type: written as the box shows it (js/core.js)
   }
   return shelf;
 }
@@ -171,21 +171,22 @@ function tablePlan(o){
   const deep=mat=>M[mat].w>=minDepth-1e-9;
   if(!planks&&(L>SHEET_SIZE[0]+1e-6||W>SHEET_SIZE[1]+1e-6)){
     problems.push({level:'stop',
-      text:`The top is one piece of plywood ${fmt(L)} by ${fmt(W)}, and a sheet of plywood is only ${fmt(SHEET_SIZE[0])} by ${fmt(SHEET_SIZE[1])}.`,
-      fix:`Keep it to ${fmt(SHEET_SIZE[0])} long and ${fmt(SHEET_SIZE[1])} from front to back, or less.`});
+      // typedLen (js/core.js): the sizes typed in the form, and the ones they are held against, as the boxes show them
+      text:`The top is one piece of plywood ${typedLen(L)} by ${typedLen(W)}, and a sheet of plywood is only ${typedLen(SHEET_SIZE[0])} by ${typedLen(SHEET_SIZE[1])}.`,
+      fix:`Keep it to ${typedLen(SHEET_SIZE[0])} long and ${typedLen(SHEET_SIZE[1])} from front to back, or less.`});
   }
   if(!deep(biggest)){
     const tallest=Math.floor(M[biggest].w*R.rackDepth+topT);
     problems.push({level:'stop',
-      text:`At ${fmt(H)} tall the legs are ${fmt(legH)} long, and the ${M[biggest].short} aprons (${fmt(M[biggest].w)} deep) are the only thing keeping them square. Aprons hold a frame steady up to about ${R.rackDepth} times their depth; taller than that it sways.`,
-      fix:`Keep the height to ${fmt(tallest)} or less.`});
+      text:`At ${typedLen(H)} tall the legs are ${typedLen(legH)} long, and the ${M[biggest].short} aprons (${fmt(M[biggest].w)} deep) are the only thing keeping them square. Aprons hold a frame steady up to about ${R.rackDepth} times their depth; taller than that it sways.`,
+      fix:`Keep the height to ${typedLen(tallest)} or less.`});
   }
   if(!strong(biggest)){
     const reach=Math.min(railReach(biggest,W/2,use),people?personReach(biggest):Infinity);
     const longest=Math.floor(reach+2*over+2*leg);
     problems.push({level:'stop',
-      text:`The long aprons would span ${fmt(longSpan)} between the legs and carry half of a ${people?'seat':'top'} ${fmt(W)} wide (${USES[use].label}, about ${USES[use].psf} lb per square foot). Even ${M[biggest].short} aprons on edge would sag or be overloaded.`,
-      fix:longest>=2*over+2*leg+4?`Keep the length to ${fmt(longest)} or less at this width, or make it narrower.`:'Make it narrower.'});
+      text:`The long aprons would span ${typedLen(longSpan)} between the legs and carry half of a ${people?'seat':'top'} ${typedLen(W)} wide (${USES[use].label}, about ${USES[use].psf} lb per square foot). Even ${M[biggest].short} aprons on edge would sag or be overloaded.`,
+      fix:longest>=2*over+2*leg+4?`Keep the length to ${typedLen(longest)} or less at this width, or make it narrower.`:'Make it narrower.'});
   }
   return{name:o.name||'',L,W,H,legH,leg,over,use,planks,boards,topMat:o.top,topT,legMat:o.leg,
     topName:planks?(o.seatBoards?'Seat board':'Top board'):'Top',
@@ -242,7 +243,7 @@ function tableNotes(name,p){
   }
   if(plan.shoes&&plan.shelf)notes.push(`There is ${fmt(plan.shelf.room)} between the shoe shelf and the aprons.`);
   if(plan.planks&&Math.abs(plan.W-p.W)>.01){
-    notes.push(`The ${surface} is ${plan.boards} whole ${M[plan.topMat].short} boards, so it comes out ${fmt(plan.W)} from front to back instead of ${fmt(p.W)}.`);
+    notes.push(`The ${surface} is ${plan.boards} whole ${M[plan.topMat].short} boards, so it comes out ${typedLen(plan.W)} from front to back instead of ${typedLen(p.W)}.`);   // under the form: as its boxes show sizes (js/core.js)
   }
   if(plan.apronWhy==='span'){
     notes.push(`The aprons are ${M[plan.apron].short} instead of ${M[plan.baseApron].short}: at this size the long ones span ${fmt(plan.longSpan)} between the legs, too far for a ${M[plan.baseApron].short}.`);
@@ -298,8 +299,8 @@ function fiveBoardPlan(p){
   if(!railFits(F.apron,span,depth/2,'seat')||!personFits(F.apron,span)){
     const longest=Math.floor(Math.min(railReach(F.apron,depth/2,'seat'),personReach(F.apron))+2*F.legInset+legM.t);
     problems.push({level:'stop',
-      text:`The two ${apronM.short} aprons would span ${fmt(span)} between the legs with people sitting on the seat. That is too far for boards that thin: they would sag or be overloaded.`,
-      fix:`Keep the length to ${fmt(longest)} or less. For a longer bench use the Sturdy bench.`});
+      text:`The two ${apronM.short} aprons would span ${typedLen(span)} between the legs with people sitting on the seat. That is too far for boards that thin: they would sag or be overloaded.`,
+      fix:`Keep the length to ${typedLen(longest)} or less. For a longer bench use the Sturdy bench.`});
   }
   return{L,H,depth,edge,seatMat,legMat,apronMat:F.apron,legH:H-seatM.t,problems};
 }

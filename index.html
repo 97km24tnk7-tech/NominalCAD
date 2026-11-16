@@ -2,11 +2,11 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='8cd3c9c';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='4cddc9b';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=8cd3c9c">
+<link rel="stylesheet" href="css/style.css?v=4cddc9b">
 </head>
 <body data-tab="design">
 
@@ -504,7 +504,7 @@
   <div class="dlg-b">
     <div class="frow"><label for="rowN">How many copies</label><input class="fld" type="text" id="rowN" value="3" autofocus title="A whole number from 1 to 200"></div>
     <div class="frow"><label for="rowDir">Direction</label><select class="fld" id="rowDir"><option value="0">Left to right</option><option value="2">Back to front</option><option value="1">Upward</option></select></div>
-    <div class="frow"><label for="rowStep">Distance apart</label><input class="fld" type="text" id="rowStep" value="12&quot;" title="It starts as the size of the selection, which puts the copies edge to edge. Type a minus sign to go the other way."></div>
+    <div class="frow"><label for="rowStep">Distance apart</label><input class="fld" type="text" id="rowStep" data-len value="12&quot;" title="It starts as the size of the selection, which puts the copies edge to edge. Type a minus sign to go the other way."></div>
     <p class="note">Distance is from the start of one copy to the start of the next.</p>
   </div>
   <div class="dlg-f"><span class="grow"></span>
@@ -646,6 +646,11 @@
       <dt>Import a cut list</dt><dd>Found a free plan online? Import a cut list, in the Add group, takes its pieces one per line and lays them on the floor beside your design.</dd>
       <dt>Look around</dt><dd>Drag empty space to turn the view, right-drag to slide it, scroll to zoom. Fit view, Front, Side and Top are in the View group.</dd>
     </dl>
+    <div class="sec">Typing sizes</div>
+    <dl>
+      <dt>How a box shows a size</dt><dd>Every box you type a size or a position into shows feet and inches once it is over 12": <b>2'-8"</b>, <b>2'-8 1/2"</b>, <b>25'-0"</b>. A size of 12" or less stays in inches: <b>11 1/2"</b>. The cut list, the shopping list, the build instructions and the size labels in the 3D view stay in inches.</dd>
+      <dt>What you can type</dt><dd>Inches or feet and inches, whichever is quicker: <b>32</b>, <b>32"</b>, <b>2'-8"</b>, <b>2' 8</b>, <b>2'8</b>, <b>2 ft 8 in</b>, <b>2.5'</b>, <b>300"</b>, <b>25'</b>, with fractions like <b>3 1/2</b> or <b>2'-8 1/2"</b>. A plain number is inches. When you leave the box it is written the box's way, so 300" becomes 25'-0" and 32 becomes 2'-8". A minus sign in front of a position or a distance goes the other way. After <kbd>M</kbd> or <kbd>S</kbd> you can type a size the same way, with the ' and " keys, such as 2'6".</dd>
+    </dl>
     <div class="sec">Keyboard</div>
     <dl>
       <dt><kbd>Ctrl+Z</kbd> <kbd>Ctrl+Y</kbd></dt><dd>Undo, redo</dd>
@@ -664,69 +669,70 @@
       <dt><kbd>F1</kbd></dt><dd>Open this help</dd>
     </dl>
   </div>
-  <div class="dlg-f"><span class="grow">Sizes are in inches. Type them like 36, 3 1/2 or 4' 6. A 2x4 from the store is really 1 1/2" × 3 1/2".</span>
+  <div class="dlg-f"><span class="grow">A 2x4 from the store is really 1 1/2" × 3 1/2".</span>
     <button class="btn pri" data-close autofocus>Close</button></div>
 </dialog>
 
-<script src="three.min.js?v=8cd3c9c"></script>
+<script src="three.min.js?v=4cddc9b"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=8cd3c9c"></script>
-<script src="js/hosted.js?v=8cd3c9c"></script>
-<script src="js/dialogs.js?v=8cd3c9c"></script>
-<script src="js/orient.js?v=8cd3c9c"></script>
-<script src="js/verify.js?v=8cd3c9c"></script>
-<script src="js/builders-furniture.js?v=8cd3c9c"></script>
-<script src="js/builders-fish.js?v=8cd3c9c"></script>
-<script src="js/builders-shed.js?v=8cd3c9c"></script>
-<script src="js/builders-storage.js?v=8cd3c9c"></script>
-<script src="js/builders-outdoor.js?v=8cd3c9c"></script>
-<script src="js/presets.js?v=8cd3c9c"></script>
-<script src="js/drawers.js?v=8cd3c9c"></script>
-<script src="js/nightstand.js?v=8cd3c9c"></script>
-<script src="js/state.js?v=8cd3c9c"></script>
-<script src="js/joints.js?v=8cd3c9c"></script>
-<script src="js/neighbors.js?v=8cd3c9c"></script>
-<script src="js/framing.js?v=8cd3c9c"></script>
-<script src="js/style.js?v=8cd3c9c"></script>
-<script src="js/fasteners.js?v=8cd3c9c"></script>
-<script src="js/visibility.js?v=8cd3c9c"></script>
-<script src="js/view3d.js?v=8cd3c9c"></script>
-<script src="js/viewmodes.js?v=8cd3c9c"></script>
-<script src="js/groups.js?v=8cd3c9c"></script>
-<script src="js/connections.js?v=8cd3c9c"></script>
-<script src="js/components.js?v=8cd3c9c"></script>
-<script src="js/hardware.js?v=8cd3c9c"></script>
-<script src="js/holds.js?v=8cd3c9c"></script>
-<script src="js/hardwareshapes.js?v=8cd3c9c"></script>
-<script src="js/copies.js?v=8cd3c9c"></script>
-<script src="js/tools.js?v=8cd3c9c"></script>
-<script src="js/transform.js?v=8cd3c9c"></script>
-<script src="js/panels.js?v=8cd3c9c"></script>
-<script src="js/piecetree.js?v=8cd3c9c"></script>
-<script src="js/unfasten.js?v=8cd3c9c"></script>
-<script src="js/statusbar.js?v=8cd3c9c"></script>
-<script src="js/viewpick.js?v=8cd3c9c"></script>
-<script src="js/fastenerview.js?v=8cd3c9c"></script>
-<script src="js/motion.js?v=8cd3c9c"></script>
-<script src="js/hanging.js?v=8cd3c9c"></script>
-<script src="js/hardwaretool.js?v=8cd3c9c"></script>
-<script src="js/drawertool.js?v=8cd3c9c"></script>
-<script src="js/plans.js?v=8cd3c9c"></script>
-<script src="js/buildsteps.js?v=8cd3c9c"></script>
-<script src="js/steppictures.js?v=8cd3c9c"></script>
-<script src="js/stepmode.js?v=8cd3c9c"></script>
-<script src="js/prices.js?v=8cd3c9c"></script>
-<script src="js/layout.js?v=8cd3c9c"></script>
-<script src="js/preview.js?v=8cd3c9c"></script>
-<script src="js/checkui.js?v=8cd3c9c"></script>
-<script src="js/app.js?v=8cd3c9c"></script>
-<script src="js/level.js?v=8cd3c9c"></script>
-<script src="js/glossary.js?v=8cd3c9c"></script>
-<script src="js/jointhelp.js?v=8cd3c9c"></script>
-<script src="js/wordlinks.js?v=8cd3c9c"></script>
-<script src="js/transfer.js?v=8cd3c9c"></script>
-<script src="js/menus.js?v=8cd3c9c"></script>
-<script src="js/selftest.js?v=8cd3c9c"></script>
+<script src="js/core.js?v=4cddc9b"></script>
+<script src="js/hosted.js?v=4cddc9b"></script>
+<script src="js/dialogs.js?v=4cddc9b"></script>
+<script src="js/lengthboxes.js?v=4cddc9b"></script>
+<script src="js/orient.js?v=4cddc9b"></script>
+<script src="js/verify.js?v=4cddc9b"></script>
+<script src="js/builders-furniture.js?v=4cddc9b"></script>
+<script src="js/builders-fish.js?v=4cddc9b"></script>
+<script src="js/builders-shed.js?v=4cddc9b"></script>
+<script src="js/builders-storage.js?v=4cddc9b"></script>
+<script src="js/builders-outdoor.js?v=4cddc9b"></script>
+<script src="js/presets.js?v=4cddc9b"></script>
+<script src="js/drawers.js?v=4cddc9b"></script>
+<script src="js/nightstand.js?v=4cddc9b"></script>
+<script src="js/state.js?v=4cddc9b"></script>
+<script src="js/joints.js?v=4cddc9b"></script>
+<script src="js/neighbors.js?v=4cddc9b"></script>
+<script src="js/framing.js?v=4cddc9b"></script>
+<script src="js/style.js?v=4cddc9b"></script>
+<script src="js/fasteners.js?v=4cddc9b"></script>
+<script src="js/visibility.js?v=4cddc9b"></script>
+<script src="js/view3d.js?v=4cddc9b"></script>
+<script src="js/viewmodes.js?v=4cddc9b"></script>
+<script src="js/groups.js?v=4cddc9b"></script>
+<script src="js/connections.js?v=4cddc9b"></script>
+<script src="js/components.js?v=4cddc9b"></script>
+<script src="js/hardware.js?v=4cddc9b"></script>
+<script src="js/holds.js?v=4cddc9b"></script>
+<script src="js/hardwareshapes.js?v=4cddc9b"></script>
+<script src="js/copies.js?v=4cddc9b"></script>
+<script src="js/tools.js?v=4cddc9b"></script>
+<script src="js/transform.js?v=4cddc9b"></script>
+<script src="js/panels.js?v=4cddc9b"></script>
+<script src="js/piecetree.js?v=4cddc9b"></script>
+<script src="js/unfasten.js?v=4cddc9b"></script>
+<script src="js/statusbar.js?v=4cddc9b"></script>
+<script src="js/viewpick.js?v=4cddc9b"></script>
+<script src="js/fastenerview.js?v=4cddc9b"></script>
+<script src="js/motion.js?v=4cddc9b"></script>
+<script src="js/hanging.js?v=4cddc9b"></script>
+<script src="js/hardwaretool.js?v=4cddc9b"></script>
+<script src="js/drawertool.js?v=4cddc9b"></script>
+<script src="js/plans.js?v=4cddc9b"></script>
+<script src="js/buildsteps.js?v=4cddc9b"></script>
+<script src="js/steppictures.js?v=4cddc9b"></script>
+<script src="js/stepmode.js?v=4cddc9b"></script>
+<script src="js/prices.js?v=4cddc9b"></script>
+<script src="js/layout.js?v=4cddc9b"></script>
+<script src="js/preview.js?v=4cddc9b"></script>
+<script src="js/checkui.js?v=4cddc9b"></script>
+<script src="js/app.js?v=4cddc9b"></script>
+<script src="js/level.js?v=4cddc9b"></script>
+<script src="js/glossary.js?v=4cddc9b"></script>
+<script src="js/jointhelp.js?v=4cddc9b"></script>
+<script src="js/wordlinks.js?v=4cddc9b"></script>
+<script src="js/transfer.js?v=4cddc9b"></script>
+<script src="js/menus.js?v=4cddc9b"></script>
+<script src="js/selftest.js?v=4cddc9b"></script>
 </body>
 </html>

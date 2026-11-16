@@ -50,15 +50,78 @@ function fmtFt(v){
   const feet=Math.floor(v/12+1e-6);
   return`${feet}' ${fmt(v-feet*12)}`;
 }
-function parseLen(str){
-  str=String(str).trim().replace(/["”″]/g,'').replace(/\s*in(ch(es)?)?\.?$/i,'').trim();if(!str)return NaN;
-  let ft=0;const m=str.match(/^([\d.]+)\s*(?:'|′|ft\.?|feet)\s*(.*)$/i);
-  if(m){ft=parseFloat(m[1]);str=m[2].trim();if(!str)return ft*12;}
-  let neg=false;if(str[0]==='-'){neg=true;str=str.slice(1).trim();}
-  let tot=0;for(const tok of str.split(/[\s-]+/)){if(!tok)continue;
-    if(tok.includes('/')){const[a,b]=tok.split('/').map(Number);if(!b||isNaN(a))return NaN;tot+=a/b;}
-    else{const x=Number(tok);if(isNaN(x))return NaN;tot+=x;}}
-  return(neg?-1:1)*(ft*12+tot);
+/* What a box a person types a size or a position into shows (the owner reads sizes the way a steel detailer
+   writes them):
+     12" and under       inches, as fmt writes them:            11 1/2"   12"   -3/4"
+     over 12"            feet, a dash, then the inches:         2'-8"   2'-8 1/2"   25'-0"   1'-0 1/16"   -2'-8"
+   Only the boxes use this. Everything that is read or printed (cut list, shopping list, steps, size labels in the
+   3D view, the status bar, the Pieces list) keeps fmt and fmtFt. parseLen reads every box back to the very same
+   number, to the sixteenth (the self-check lengthBoxesRoundTrip in js/lengthboxes.js tries a table of them). */
+const BOX_FEET_OVER=12; // inches: a box value over this is written in feet and inches
+function boxLen(inches){
+  const sixteenths=Math.round(Math.abs(inches)*16);
+  if(sixteenths<=BOX_FEET_OVER*16)return fmt(inches);
+  const sign=inches<0?'-':'';
+  const feet=Math.floor(sixteenths/192);           // 192 sixteenths in a foot
+  const restInches=(sixteenths-feet*192)/16;
+  const zeroInches=restInches>0&&restInches<1?'0 ':'';   // 1'-0 1/16", the way a detailer writes it
+  return`${sign}${feet}'-${zeroInches}${fmt(restInches)}`;
+}
+/* A sentence that quotes a size the person typed into a box of the presets form ("Width is 25'-0"") speaks the way
+   the box does while the form is talking (the limit line, the findings and the remark under the form, the
+   message of Create). The same sentence in the notes and the steps of the build instructions stays in inches.
+     typedLen(v)          boxLen(v) while the form is talking, fmt(v) otherwise
+     typedLen(v, fmtFt)   the same, with fmtFt as the usual writer
+     speakAsBoxes(fn)     runs fn() with the form talking, and returns what it returns */
+let boxSpeech=0; // how many speakAsBoxes calls are running (they can sit inside each other)
+function typedLen(inches,usualWriter){
+  if(boxSpeech>0)return boxLen(inches);
+  return(usualWriter||fmt)(inches);
+}
+function speakAsBoxes(fn){
+  boxSpeech++;
+  try{return fn();}
+  finally{boxSpeech--;}
+}
+/* Reads a size typed by a person. Returns inches, or NaN when it cannot be read. Reads:
+     32   32"   32 in   3 1/2   3-1/2   .75   2'-8"   2' 8"   2'8   2 ft 8 in   2ft 8   2.5'   25'   25'-0"
+     2'-8 1/2"   300"   and any of them with a minus sign in front (a position or a distance that goes back).
+   Curly quotes, the prime marks and '' for inches are taken as well. */
+function parseLen(text){
+  let s=String(text).trim().toLowerCase()
+    .replace(/[‘’′]/g,"'").replace(/[“”″]/g,'"').replace(/−/g,'-')
+    .replace(/''/g,'"')
+    .replace(/\s*(feet|foot|ft)\.?/g,"'")          // 2 ft 8 in, 2ft 8
+    .replace(/\s*(inches|inch|in)\.?/g,'"')
+    .trim();
+  if(!s)return NaN;
+  let sign=1;
+  if(s[0]==='-'){sign=-1;s=s.slice(1).trim();}
+  else if(s[0]==='+')s=s.slice(1).trim();
+  const footMark=s.indexOf("'");
+  let feet=0,inchText=s;
+  if(footMark>=0){
+    feet=readPlainNumber(s.slice(0,footMark));
+    inchText=s.slice(footMark+1).replace(/^\s*-?\s*/,''); // the dash or space between the feet and the inches
+    if(inchText.includes("'"))return NaN;               // two foot marks
+  }
+  inchText=inchText.trim();
+  if(inchText.endsWith('"'))inchText=inchText.slice(0,-1).trim();
+  if(inchText.includes('"'))return NaN;
+  const inches=footMark>=0&&!inchText?0:readPlainNumber(inchText);
+  if(isNaN(feet)||isNaN(inches))return NaN;
+  return sign*(feet*12+inches);
+}
+/* one number without a unit: 8, 8.5, .75, 1/2, 8 1/2 or 8-1/2 (no sign); NaN otherwise */
+function readPlainNumber(text){
+  const t=String(text).trim();
+  const found=t.match(/^(?:(\d+\.?\d*|\.\d+)(?:(?:\s+|\s*-\s*)(\d+)\/(\d+))?|(\d+)\/(\d+))$/);
+  if(!found)return NaN;
+  if(found[4]!==undefined)return +found[5]?found[4]/found[5]:NaN;          // a fraction alone: 1/2
+  const whole=+found[1];
+  if(found[2]===undefined)return whole;                                     // 8 or 8.5
+  if(!+found[3]||found[1].includes('.'))return NaN;                         // 8 1/0, 8.5 1/2
+  return whole+found[2]/found[3];                                           // 8 1/2
 }
 function size(p){const s=[0,0,0];s[p.ax[0]]=p.l;s[p.ax[1]]=p.w;s[p.ax[2]]=p.t;return s;}
 function mk(name,mat,s,pos){

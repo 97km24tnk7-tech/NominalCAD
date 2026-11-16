@@ -64,7 +64,7 @@ function nightstandPlan(p){
   if(plan!==first&&plan.tip.factor>=NS.tipStop){
     plan.changed=plan.changed.filter(sentence=>!/drawers were used/.test(sentence));
     plan.changed.push(plan.shelf
-      ?`The drawer front${plan.drawers>1?'s were':' was'} cut back to ${fmt(plan.frontHeight)} tall: any taller and a full, open drawer could pull the cabinet over.`
+      ?`The drawer front${plan.drawers>1?'s were':' was'} cut back to ${typedLen(plan.frontHeight)} tall: any taller and a full, open drawer could pull the cabinet over.`
       :`${plan.drawers} drawers were used: with fewer, a full, open drawer could pull the cabinet over.`);
   }
   return plan.tip.factor>=NS.tipStop?plan:first;
@@ -74,8 +74,9 @@ function nightstandPlan(p){
 function nightstandLayout(p,force){
   const changed=[];
   const within=(value,lo,hi,what)=>{
-    if(!(value>=lo)){changed.push(`${what} was raised to ${fmt(lo)}, the smallest that works.`);return lo;}
-    if(value>hi){changed.push(`${what} was cut back to ${fmt(hi)}, the largest this design is checked for.`);return hi;}
+    // a box of the form that was put right: under the form it reads as the box shows it (typedLen, js/core.js)
+    if(!(value>=lo)){changed.push(`${what} was raised to ${typedLen(lo)}, the smallest that works.`);return lo;}
+    if(value>hi){changed.push(`${what} was cut back to ${typedLen(hi)}, the largest this design is checked for.`);return hi;}
     return value;
   };
   const W=within(p.W,NS.minWidth,NS.maxWidth,'Width');
@@ -104,7 +105,7 @@ function nightstandLayout(p,force){
     if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} above an open shelf at this height. Make it taller, or leave out the open shelf, for more.`);
     if(stack(drawers,frontHeight)>room){
       frontHeight=floor16((room-(drawers-1)*gap)/drawers);
-      changed.push(`The drawer fronts were cut back to ${fmt(frontHeight)} tall so the open shelf keeps ${fmt(NS.minShelf)}.`);
+      changed.push(`The drawer fronts were cut back to ${typedLen(frontHeight)} tall so the open shelf keeps ${fmt(NS.minShelf)}.`);
     }
     shelfHeight=r16(frontsTo-stack(drawers,frontHeight)-capBottom-floorOfCabinet);
     frontsFrom=floorOfCabinet+shelfHeight+capBottom;   // shelfHeight is the clear height under the shelf panel

@@ -250,7 +250,7 @@ PICKED_KINDS.hw={
     html+=propsRow('Mounted on',pieceButton(host),true)+(other?propsRow('Holds it to',pieceButton(other),true):'');
     // where it sits: a distance from the low end of the piece, for each direction it can slide in
     const canSlide=k=>k!==normalAxis&&!(kind.motion==='swing'&&k!==pinAxis)&&!(kind.motion==='slide'&&k===pinAxis);
-    const cells=[0,2,1].filter(canSlide).map(k=>[HW_FROM[k],`<input class="fld" type="text" data-hw-at="${k}" value="${fa(r16(half[k]+item.at[k]))}">`]);
+    const cells=[0,2,1].filter(canSlide).map(k=>[HW_FROM[k],`<input class="fld" type="text" data-hw-at="${k}" data-len value="${esc(boxLen(r16(half[k]+item.at[k])))}">`]);   // a length box (boxLen, js/core.js)
     if(cells.length&&!tilted(host))html+=propsSection('Position on the piece')+propsGroup(cells,cells.length===2?'even':cells.length===1?'two':'');
     html+=propsSection('How to mount it')+propsNote(esc(kind.mount))+
       propsNote(`Screws: ${esc(kind.screws)}.<br>${esc(hardwarePriceWords(kind,item.size))}`)+

@@ -6,7 +6,9 @@
 const propsSection=(title,extra)=>`<div class="sec">${title}${extra||''}</div>`;
 const propsNote=html=>`<div class="note">${html}</div>`;
 const propsRow=(label,control,wide)=>`<div class="frow${wide?' wide':''}"><label>${label}</label>${control}</div>`;
-const sizeField=(field,value,title)=>`<input class="fld" type="text" data-f="${field}" value="${fa(value)}"${title?` title="${esc(title)}"`:''}>`;
+/* a box for a size or a position: it shows 2'-8" over 12" (boxLen, js/core.js) and is tidied into that form when
+   it is left (data-len, js/lengthboxes.js) */
+const sizeField=(field,value,title)=>`<input class="fld" type="text" data-f="${field}" data-len value="${esc(boxLen(value))}"${title?` title="${esc(title)}"`:''}>`;
 /* a group of fields side by side, each with its label above it: cells = [[label, control html], ...] */
 function propsGroup(cells,cls){
   return`<div class="f3${cls?' '+cls:''}">${cells.map(c=>`<label>${c[0]}</label>`).join('')}${cells.map(c=>c[1]).join('')}</div>`;
@@ -42,7 +44,7 @@ function propsOfPiece(p){
     propsRow('Material',`<select class="fld" data-f="mat">${materials}</select>`)+
     propsSection('Size')+
     propsGroup([['Length',sizeField('l',p.l)],['Width',sizeField('w',p.w,realSize)],
-      ['Thickness',`<input class="fld" type="text" value="${fa(p.t)}" disabled title="The thickness comes from the material">`]])+
+      ['Thickness',`<input class="fld" type="text" value="${esc(boxLen(p.t))}" disabled title="The thickness comes from the material">`]])+
     positionFields(p)+
     propsSection('Turn a quarter')+
     `<div class="f3"><button class="btn t" data-act="rotY">Spin flat</button><button class="btn t" data-act="rotX">Tip front/back</button><button class="btn t" data-act="rotZ">Tip sideways</button></div>`+

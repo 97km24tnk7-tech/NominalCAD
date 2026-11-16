@@ -121,16 +121,17 @@ function bookshelfOpenings(asked,shelves,room,least,caseHeight){
   if(tooLow>=0){
     const why=least>BOOKSHELF_MIN_OPENING.plain?'the shelves that meet a divider are fastened from underneath, and a drill needs that much room'
       :'a hand cannot reach in to fasten, sand or paint it, and almost nothing fits in it';
-    return stop(`Opening ${tooLow+1}${tooLow?'':' (the bottom one)'} is set to ${fmt(asked[tooLow])}. An opening lower than ${fmt(least)} cannot be built here: ${why}.`,
-      `Make it ${fmt(least)} or more, or type 0 to let it share what is left.`);
+    // typedLen (js/core.js): the heights typed in the opening boxes, and those to type there, as the boxes show them
+    return stop(`Opening ${tooLow+1}${tooLow?'':' (the bottom one)'} is set to ${typedLen(asked[tooLow])}. An opening lower than ${typedLen(least)} cannot be built here: ${why}.`,
+      `Make it ${typedLen(least)} or more, or type 0 to let it share what is left.`);
   }
   // what is left over goes to the top opening, shared evenly with the openings that are not set
   const used=set.reduce((sum,size)=>sum+size,0),free=count-set.length,each=(room-used)/free;
   if(each<least-1e-6){
     const others=free===1?'the top opening':`the ${free} openings that share what is left`;
     const most=Math.floor((room-free*least)*16)/16;
-    return stop(`The ${set.length===1?'opening height you set is':'opening heights you set add up to'} ${fmt(used)}. A case ${fmt(caseHeight)} tall with ${shelvesWord(shelves)} has ${fmt(Math.floor(room*16)/16)} of clear height to share between its ${count} openings, so that leaves ${each>0?'only '+fmt(Math.floor(each*16)/16)+(free>1?' each':''):'nothing'} for ${others}, and an opening lower than ${fmt(least)} cannot be built.`,
-      `Lower the heights you set (together no more than ${fmt(most)}), make the case taller, or use fewer shelves.`);
+    return stop(`The ${set.length===1?'opening height you set is':'opening heights you set add up to'} ${typedLen(used)}. A case ${typedLen(caseHeight)} tall with ${shelvesWord(shelves)} has ${typedLen(Math.floor(room*16)/16)} of clear height to share between its ${count} openings, so that leaves ${each>0?'only '+typedLen(Math.floor(each*16)/16)+(free>1?' each':''):'nothing'} for ${others}, and an opening lower than ${typedLen(least)} cannot be built.`,
+      `Lower the heights you set (together no more than ${typedLen(most)}), make the case taller, or use fewer shelves.`);
   }
   // The openings that share come out the same to the 1/16", so the shelf marks are easy to measure; the few
   // sixteenths that rounding leaves over go to the top opening, which takes what is left.
@@ -210,7 +211,7 @@ function bookshelfCheck(p){
     const most=Math.floor((s.H-s.T-BOOKSHELF_FLOOR_TOP-least)/(least+s.T));
     const why=s.dividers?`A case this wide has ${s.dividers>1?'dividers':'a divider'}, and the shelves that meet a divider are fastened from underneath: a drill needs about ${fmt(least)} of room to do that.`
       :`A hand cannot reach into a space lower than about ${fmt(least)} to sand or paint it, and almost nothing fits on such a shelf.`;
-    return[{level:'stop',text:`${shelvesWord(s.shelves)} in a case ${fmt(s.H)} tall would be only ${fmt(Math.floor(s.room/(s.shelves+1)*16)/16)} apart. ${why}`,
+    return[{level:'stop',text:`${shelvesWord(s.shelves)} in a case ${typedLen(s.H)} tall would be only ${typedLen(Math.floor(s.room/(s.shelves+1)*16)/16)} apart. ${why}`,
       fix:`Use ${most>0?most+' or fewer':'no'} shelves at this height, or make the case taller.`}];
   }
   return s.openingProblems;          // the opening heights set by hand cannot work: why, and what to change
@@ -227,9 +228,10 @@ function bookshelfInfo(p){
     const heights=bookshelfBuiltOpenings(s);
     if(s.customOpenings){
       const shared=s.shelves+1-bookshelfAskedOpenings(p,s.shelves).filter(size=>size>0).length;
-      out.push(`Openings from the bottom up: ${heights.map(fmt).join(', ')}. ${shared>1?`The ${shared-1===1?'opening':shared-1+' openings'} left at 0 and the top one share what is left.`:'The top one takes what is left.'}`);
+      // under the form the heights read as the opening boxes show them (typedLen, js/core.js)
+      out.push(`Openings from the bottom up: ${heights.map(height=>typedLen(height)).join(', ')}. ${shared>1?`The ${shared-1===1?'opening':shared-1+' openings'} left at 0 and the top one share what is left.`:'The top one takes what is left.'}`);
     }else{
-      out.push(`Each of the ${heights.length} openings is ${fmt(heights[0])} tall`+
+      out.push(`Each of the ${heights.length} openings is ${typedLen(heights[0])} tall`+
         (p.spacing==='set'?': every box is at 0, so they share the height evenly. Type a height for the ones you want different.'
           :'. To make them different, choose "Set the height of each opening" under Shelf spacing.'));
     }
@@ -342,8 +344,8 @@ function garageCheck(p){
   const s=garagePlan(p);
   if(s.opening<GARAGE_MIN_OPENING-1e-6){
     const most=Math.floor((s.H-8)/(GARAGE_MIN_OPENING+4))+1;
-    return[{level:'stop',text:`${s.shelves} shelves in a unit ${fmt(s.H)} tall would leave ${s.opening>0?'only '+fmt(Math.floor(s.opening*16)/16)+' of':'no'} clear height between them, because each shelf frame is 4" thick. A hand cannot reach to the back of a space lower than about ${fmt(GARAGE_MIN_OPENING)}, and almost nothing fits in it.`,
-      fix:most>=2?`Use ${most===2?'2':most+' or fewer'} shelves at this height, or make the unit taller.`:`Make the unit at least ${fmt(GARAGE_MIN_OPENING+12)} tall.`}];
+    return[{level:'stop',text:`${s.shelves} shelves in a unit ${typedLen(s.H)} tall would leave ${s.opening>0?'only '+fmt(Math.floor(s.opening*16)/16)+' of':'no'} clear height between them, because each shelf frame is 4" thick. A hand cannot reach to the back of a space lower than about ${fmt(GARAGE_MIN_OPENING)}, and almost nothing fits in it.`,
+      fix:most>=2?`Use ${most===2?'2':most+' or fewer'} shelves at this height, or make the unit taller.`:`Make the unit at least ${typedLen(GARAGE_MIN_OPENING+12)} tall.`}];   // typedLen: as the Height box shows it (js/core.js)
   }
   return[];
 }

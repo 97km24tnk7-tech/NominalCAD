@@ -148,7 +148,7 @@ function modalKey(e){
   else if(k in KEYAXIS&&m.type!=='s'){const a=KEYAXIS[k];m.axis=m.type==='g'&&m.axis===a?null:a;m.ref=null;restore(m.snap);for(const s of m.snap.values())setMeshPos(s.p);
     if(m.num)modalTyped();else{modalStatus();draw();if(lastMouse)modalMove(lastMouse);}}
   else if(k==='backspace'){m.num=m.num.slice(0,-1);modalTyped();}
-  else if(/^[0-9.\-\/' ]$/.test(e.key)){m.num+=e.key;modalTyped();}
+  else if(/^[0-9.\-\/'" ]$/.test(e.key)){m.num+=e.key;modalTyped();} // a number, a fraction, feet and inches: 2'-6" (parseLen, js/core.js)
   return true;
 }
 
@@ -172,7 +172,7 @@ function copyRow(n,k,step){ // n more copies, each one "step" further along axis
   const ps=selParts();if(!ps.length||!(n>0)||!step)return;const ids=[];
   for(let i=1;i<=n;i++)ids.push(...addCopies(ps,ps.map(p=>{const c=clonePart(p);c.pos[k]=placeRound(c,c.pos[k]+i*step);return c;})));
   sel=new Set([...sel,...ids]);bornLoose(ids);commit(); // copies are free of what they land against (rule 4, js/connections.js)
-  toast(`Added ${n} cop${n>1?'ies':'y'}, ${fmt(Math.abs(step))} apart.`+(copiesLeftLoose()?LOOSE_COPY_WORDS:''));}
+  toast(`Added ${n} cop${n>1?'ies':'y'}, ${boxLen(Math.abs(step))} apart.`+(copiesLeftLoose()?LOOSE_COPY_WORDS:''));}
 function mirrorSel(k,about,keep){ // flip the selection across a plane square to axis k
   const ps=selParts();if(!ps.length)return;
   // A mirrored copy is made of the selection. Flipping pieces in place takes everything fastened to them along:
@@ -198,7 +198,7 @@ function openRow(){
 /* the distance starts as the size of the selection in the chosen direction, which puts the copies edge to edge */
 function rowSpacing(){
   const b=bbox(selParts()),k=+$('#rowDir').value;
-  if(b)$('#rowStep').value=fmt(b.hi[k]-b.lo[k]);
+  if(b)$('#rowStep').value=boxLen(b.hi[k]-b.lo[k]);   // a length box: 2'-8" over 12" (js/core.js)
   $('#rowStep').classList.remove('bad');
 }
 function openMirror(){if(needSel())$('#mirrorDlg').showModal();}

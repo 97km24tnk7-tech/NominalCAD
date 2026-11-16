@@ -208,8 +208,10 @@ function shedPlan(p){
   if(lean&&Hf>SHED.TALLEST_WALL+1e-6){
     // the steepest slope, to one decimal, that keeps the front wall within the limit at this depth and back wall
     const steepest=Math.floor((SHED.TALLEST_WALL-Hb)/(D-T)*120)/10;
-    stop(`The front wall of this lean-to would be ${fmtFt(Hf)} tall: at ${pitch} in 12 the roof climbs ${fmtFt(r16(Hf-Hb))} over a shed ${fmtFt(D)} deep. 2x4 studs should not stand taller than ${fmtFt(SHED.TALLEST_WALL)}: they bow, and a wall that tall catches the wind.`,
-      `Use a slope of ${steepest} in 12 or less with these sizes, lower the back wall, make the shed shallower, or choose the gable roof: its peak is in the middle, so the walls stay ${fmtFt(Hb)} tall at any slope up to 12 in 12.`);
+    // typedLen (js/core.js): under the form this sentence quotes the typed depth and wall height as the boxes show
+    // them, and the heights worked out beside them the same way, so one sentence never mixes 7'-0" and 9' 4"
+    stop(`The front wall of this lean-to would be ${typedLen(Hf,fmtFt)} tall: at ${pitch} in 12 the roof climbs ${typedLen(r16(Hf-Hb),fmtFt)} over a shed ${typedLen(D,fmtFt)} deep. 2x4 studs should not stand taller than ${typedLen(SHED.TALLEST_WALL,fmtFt)}: they bow, and a wall that tall catches the wind.`,
+      `Use a slope of ${steepest} in 12 or less with these sizes, lower the back wall, make the shed shallower, or choose the gable roof: its peak is in the middle, so the walls stay ${typedLen(Hb,fmtFt)} tall at any slope up to 12 in 12.`);
   }
 
   // gable: the ridge board is as deep as the plumb cut on the rafters, unless that would foul the rafter ties
@@ -269,7 +271,8 @@ function shedPlan(p){
   const doorWall=walls[p.dwall]||walls.front,doorRoom=doorWall.len-2*SHED.CORNER;
   let dw=shedNumber(p.dw,36,12,96),dh=shedNumber(p.dh,72,24,120),du;
   if(dw>doorRoom+1e-6){
-    stop(`The door is ${fmt(dw)} wide, but the ${doorWall.label} is only ${fmtFt(doorWall.outside)} long on the outside. With a corner stud, a full stud and a trimmer stud on each side there is room for a door up to ${fmt(doorRoom)} wide.`,
+    // typedLen (js/core.js): a size typed in a box of the form, or one to type there, is quoted the way the box shows it
+    stop(`The door is ${typedLen(dw)} wide, but the ${doorWall.label} is only ${typedLen(doorWall.outside,fmtFt)} long on the outside. With a corner stud, a full stud and a trimmer stud on each side there is room for a door up to ${typedLen(doorRoom)} wide.`,
       'Make the door narrower, put it on a longer wall, or make the shed bigger.');
     dw=doorRoom;
   }
@@ -284,22 +287,22 @@ function shedPlan(p){
     if(du<SHED.CORNER-1e-6||du+dw>doorWall.len-SHED.CORNER+1e-6){
       // to the 1/16" like every other size; rounded inward so that both ends of the range really fit
       const nearest=Math.ceil((doorWall.offset+SHED.CORNER)*16-1e-6)/16,furthest=Math.floor((doorWall.offset+doorWall.len-SHED.CORNER-dw)*16+1e-6)/16;
-      const where=furthest>nearest+1e-6?`between ${fmt(nearest)} and ${fmt(furthest)}`:fmt(nearest);   // one number when there is only one place for it
-      stop(`A ${fmt(dw)} door set ${fmt(doff)} from the corner does not fit on the ${doorWall.label}, which is ${fmtFt(doorWall.outside)} long on the outside. It needs a corner stud, a full stud and a trimmer stud between it and each corner.`,
+      const where=furthest>nearest+1e-6?`between ${typedLen(nearest)} and ${typedLen(furthest)}`:typedLen(nearest);   // one number when there is only one place for it
+      stop(`A ${typedLen(dw)} door set ${typedLen(doff)} from the corner does not fit on the ${doorWall.label}, which is ${typedLen(doorWall.outside,fmtFt)} long on the outside. It needs a corner stud, a full stud and a trimmer stud between it and each corner.`,
         `Set it ${where} from the corner, or type 0 to center it.`);
       du=Math.min(Math.max(du,SHED.CORNER),doorWall.len-SHED.CORNER-dw);
     }
   }else du=r16((doorWall.len-dw)/2);
   let doorHeader=headerFor(doorWall,dw);
   if(!doorHeader){
-    stop(`A door ${fmt(dw)} wide in the ${doorWall.label} needs a header stronger than a doubled 2x12 to carry the roof above it.`,
+    stop(`A door ${typedLen(dw)} wide in the ${doorWall.label} needs a header stronger than a doubled 2x12 to carry the roof above it.`,
       'Make the door narrower, or put it in a side wall, which carries much less of the roof.');
     doorHeader={mat:'2x12'};
   }
   const doorTop=doorWall.studTop(du-1.5)-M[doorHeader.mat].w;
   if(dh>doorTop+1e-6){
-    stop(`The door is ${fmt(dh)} tall. With the doubled ${doorHeader.mat} header over it, it needs ${fmt(dh+M[doorHeader.mat].w)} under the top plates, but the ${doorWall.label} has only ${fmt(r16(doorTop+M[doorHeader.mat].w))} there.`,
-      `Make the door ${fmt(Math.floor(doorTop))} or shorter, or make the walls taller${lean&&doorWall.key!=='front'?', or put the door in the taller front wall':''}.`);
+    stop(`The door is ${typedLen(dh)} tall. With the doubled ${doorHeader.mat} header over it, it needs ${typedLen(dh+M[doorHeader.mat].w)} under the top plates, but the ${doorWall.label} has only ${typedLen(r16(doorTop+M[doorHeader.mat].w))} there.`,
+      `Make the door ${typedLen(Math.floor(doorTop))} or shorter, or make the walls taller${lean&&doorWall.key!=='front'?', or put the door in the taller front wall':''}.`);
     dh=Math.floor(doorTop);
   }
   addOpening(doorWall,'door',du,dw,0,dh,doorHeader.mat);
@@ -320,12 +323,12 @@ function shedPlan(p){
     const room=free.map(([a,b])=>Math.max(0,Math.floor((b-a+SHED.BETWEEN+1e-6)/(ww+SHED.BETWEEN))));
     const fits=room.reduce((sum,n)=>sum+n,0);
     if(count>fits){
-      stop(`${count} window${count>1?'s':''} ${fmt(ww)} wide ${count>1?'do':'does'} not fit on the ${wall.label}, which is ${fmtFt(wall.outside)} long on the outside${door?' and has the door in it':''}. Each window needs a trimmer stud and a full stud on both sides. There is room for ${fits||'none'}.`,
+      stop(`${count} window${count>1?'s':''} ${typedLen(ww)} wide ${count>1?'do':'does'} not fit on the ${wall.label}, which is ${typedLen(wall.outside,fmtFt)} long on the outside${door?' and has the door in it':''}. Each window needs a trimmer stud and a full stud on both sides. There is room for ${fits||'none'}.`,
         'Ask for fewer or narrower windows, or put them on a longer wall or on both side walls.');
     }
     let header=headerFor(wall,ww);
     if(!header){
-      stop(`A window ${fmt(ww)} wide in the ${wall.label} needs a header stronger than a doubled 2x12.`,'Make the windows narrower.');
+      stop(`A window ${typedLen(ww)} wide in the ${wall.label} needs a header stronger than a doubled 2x12.`,'Make the windows narrower.');
       header={mat:'2x12'};
     }
     const share=room.map(()=>0);
@@ -341,8 +344,10 @@ function shedPlan(p){
         const u0=r16(a+ends+i*(ww+between)),top=wall.studTop(u0-1.5)-M[header.mat].w;
         let height=wh;
         if(sill+wh>top+1e-6){
-          stop(`The windows reach ${fmt(sill+wh)} above the floor. With the doubled ${header.mat} header over them they need ${fmt(sill+wh+M[header.mat].w)} under the top plate, but the ${wall.label} has only ${fmt(r16(top+M[header.mat].w))} there.`,
-            `Lower the windows or make them shorter (the top of the glass can be at most ${fmt(Math.floor(top))} above the floor), or make the walls taller.`);
+          // typedLen (js/core.js): the top of the glass is the typed sill plus the typed window height, so under the
+          // form it reads the way those boxes show sizes, like the door's finding above
+          stop(`The windows reach ${typedLen(sill+wh)} above the floor. With the doubled ${header.mat} header over them they need ${typedLen(sill+wh+M[header.mat].w)} under the top plate, but the ${wall.label} has only ${typedLen(r16(top+M[header.mat].w))} there.`,
+            `Lower the windows or make them shorter (the top of the glass can be at most ${typedLen(Math.floor(top))} above the floor), or make the walls taller.`);
           height=Math.floor(top)-sill;
         }
         if(height>=6)addOpening(wall,'window',u0,ww,sill,sill+height,header.mat);
@@ -623,15 +628,18 @@ function shedNotes(p){
   const roofing=s.pitch<2?'At this slope use roll roofing or a rubber membrane: shingles leak on a roof flatter than 2 in 12.'
     :s.pitch<4?'At this slope metal panels work best: shingles need a double layer of underlayment below 4 in 12.'
     :'Shingles or metal panels both suit this slope.';
+  // The first two notes are also the remark under the presets form, where they repeat the sizes typed in its
+  // boxes the way the boxes show them (typedLen, js/core.js); the heights worked out beside them in the same
+  // sentence read the same way there, so one sentence never mixes 7'-0" and 9' 4". In the notes: fmtFt.
   const shape=s.lean
-    ?`It has a lean-to roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the back wall is ${fmtFt(s.Hb)} tall and the front wall ${fmtFt(s.Hf)}, so the roof drains to the back.`
-    :`It has a gable roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the walls are ${fmtFt(s.Hb)} tall and the ridge is ${fmtFt(r16(s.peak))} above the ground.`;
+    ?`It has a lean-to roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the back wall is ${typedLen(s.Hb,fmtFt)} tall and the front wall ${typedLen(s.Hf,fmtFt)}, so the roof drains to the back.`
+    :`It has a gable roof at ${s.pitch} in 12 (${Math.round(s.deg)} degrees): the walls are ${typedLen(s.Hb,fmtFt)} tall and the ridge is ${typedLen(r16(s.peak),fmtFt)} above the ground.`;
   // The sizing, one short sentence at a time. "Reaches ... with nothing under it" is what builders call the span.
   const rafterReach=`Each ${s.rafter.mat} rafter, one every ${SHED.RAFTER_EVERY}", reaches ${fmtFt(r16(s.rafter.span))} ${s.lean?'from wall to wall':`from the wall to the ${s.ridge.mat} ridge board`} with nothing under it (its span). A ${s.rafter.mat} is good for about ${fmtFt(Math.floor(s.rafter.good))} there.`;
   const ties=s.lean?'':` A 2x4 rafter tie crosses the shed ${shedTieWords(s)}, so the roof cannot push the walls apart. Each tie holds back about ${Math.round(s.tie.push/10)*10} lb.`;
   const gable=shedGableSheets(s),above=s.lean?'the sloped strip of sheathing above each side wall':'the triangle of sheathing above each end wall';
   return['BUILD AT YOUR OWN RISK. This is a simplified framing layout to help you plan and price a shed. It is not an engineered plan. Sheds usually need a permit and must meet local rules for wind, snow, anchoring, size and distance from property lines, so check with your city or county building department before you buy lumber.',
-   `The shed is ${fmtFt(s.W)} wide × ${fmtFt(s.D)} deep (${Math.round(s.W*s.D/144)} sq ft of floor). ${shape}`,
+   `The shed is ${typedLen(s.W,fmtFt)} wide × ${typedLen(s.D,fmtFt)} deep (${Math.round(s.W*s.D/144)} sq ft of floor). ${shape}`,
    `The roof is sized by rule of thumb for light snow: ${USES.roof.psf} lb on every square foot. ${rafterReach}${ties} Heavy snow country needs bigger rafters than this: ask your building department.`,
    `The floor is sized by rule of thumb for ${USES.floor.psf} lb on every square foot. Each ${s.joist.mat} floor joist, one every ${SHED.JOIST_EVERY}", reaches ${fmtFt(r16(s.joist.span))} from one skid to the next. A ${s.joist.mat} is good for about ${fmtFt(Math.floor(s.joist.good))} there. Over each opening in a wall there is ${shedHeaderWords(s)} header.`,
    'The 1/2" plywood wall sheathing is what stops the shed from leaning over, so do not leave it off. Grooved plywood siding (T1-11) nailed straight to the studs does the same job in its place. To see the framing behind the sheathing, turn on the see-through view (Alt+Z) or hide those pieces.',

@@ -389,7 +389,8 @@ function selfTestGate(problems){
     choosePreset(PRESETS.length-1);
     const box=$('#presetForm [data-k="W"]');
     box.value='31';
-    if(readVals(false)!==null||!/between 10" and 30"/.test(presetFieldNote))problems.push('preset limits: 31" in a box limited to 10" to 30" was not turned away with a plain message: '+presetFieldNote);
+    // a limit is written the way its box shows it (boxLen, js/core.js): 30" is 2'-6"
+    if(readVals(false)!==null||!/between 10" and 2'-6"/.test(presetFieldNote))problems.push('preset limits: 31" in a box limited to 10" to 30" was not turned away with a plain message: '+presetFieldNote);
     box.value='30';
     if(!readVals(false))problems.push('preset limits: 30" in a box limited to 10" to 30" was turned away');
   }finally{
