@@ -58,6 +58,9 @@
   <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9.5 5.5L12 3l2.5 2.5M9.5 18.5L12 21l2.5-2.5M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M3.5 9.5l6-3.5 6 3.5v7l-6 3.5-6-3.5zM3.5 9.5l6 3.5 6-3.5M9.5 13v7"/><path class="ia" d="M21 12h-5.5M18 9.5L15.5 12l2.5 2.5"/></symbol>
   <symbol id="i-hide" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><path d="M4.5 19.5l15-15"/></symbol>
+  <!-- prices (js/prices.js): a price tag, and two arrows going round for Update prices -->
+  <symbol id="i-price" viewBox="0 0 24 24"><path d="M3.5 12.5v-9h9l8 8-9 9z"/><circle cx="8" cy="8" r="1.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 9.5A7.5 7.5 0 0 0 5.6 8M5 14.5A7.5 7.5 0 0 0 18.4 16"/><path d="M19.5 4.5v5h-5M4.5 19.5v-5h5"/></symbol>
   <!-- pictures for the tiles in the Furniture presets dialog (PRESET_ICONS in js/presets.js says which preset gets which) -->
   <symbol id="i-p-rack" viewBox="0 0 24 24"><path d="M4 3v18M20 3v18M4 10.5h16M4 18h16"/><path class="ia" d="M7 5.5h10v5H7zM7 13h10v5H7z"/></symbol>
   <symbol id="i-p-stand" viewBox="0 0 24 24"><path d="M5 12h14v8.5H5zM12 12v8.5"/><path class="ia" d="M6 4.5h12V12H6zM6 7h12"/></symbol>
@@ -90,6 +93,10 @@
         <!-- data-hosted="hide": not in the copy that runs from a link, where downloads do not work (js/hosted.js) -->
         <button class="mi" data-click="#bExport" data-hosted="hide"><svg class="i"><use href="#i-download"/></svg><span>Download as a file</span><kbd></kbd></button>
         <button class="mi" data-click="#bImport"><svg class="i"><use href="#i-upload"/></svg><span>Load from a file&hellip;</span><kbd></kbd></button>
+        <div class="msep"></div>
+        <!-- prices (js/prices.js). The hosted copy cannot ask another website, so Update prices is not shown there. -->
+        <button class="mi" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg><span>Update prices</span><kbd></kbd></button>
+        <button class="mi" data-cmd="priceBook" title="Every price the program uses, where each one comes from, and your store"><svg class="i"><use href="#i-price"/></svg><span>Price book&hellip;</span><kbd></kbd></button>
         <div class="msep"></div>
         <button class="mi" id="bPrint"><svg class="i"><use href="#i-print"/></svg><span data-hosted="hide">Print instructions</span><span data-hosted="only">How to print&hellip;</span><kbd>Ctrl+P</kbd></button>
       </div>
@@ -133,6 +140,17 @@
         <button class="rb" data-doc="style" title="Pick the wood, the finish and how fancy the joints are. The pages follow."><svg class="i l"><use href="#i-style"/></svg><span>Style &amp;<br>finish</span></button>
       </div>
       <div class="cap">This page</div>
+    </div>
+    <!-- prices of the shopping list (js/prices.js) -->
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <div class="stack">
+          <button class="sb" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg>Update prices</button>
+          <button class="sb" data-cmd="priceBook" title="Every price the program uses, where each one comes from, and your store"><svg class="i"><use href="#i-price"/></svg>Price book&hellip;</button>
+          <button class="sb" data-cmd="pastePrices" title="Reads prices from lines copied from a receipt or a store page"><svg class="i"><use href="#i-paste"/></svg>Paste prices&hellip;</button>
+        </div>
+      </div>
+      <div class="cap">Prices</div>
     </div>
     <div class="grp doc-only">
       <div class="grp-b">
@@ -297,6 +315,13 @@
       <svg id="axisSym" width="76" height="76" aria-hidden="true"></svg>
       <div id="legend" style="display:none"></div>
       <div id="boxSel"></div>
+      <!-- one quiet line about where the prices stand (js/prices.js). Its close button puts it away for good. -->
+      <div id="priceLine" hidden>
+        <span id="priceLineText"></span>
+        <button class="btn s" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed.">Update prices</button>
+        <button class="btn s" data-cmd="priceBook" data-hosted="only" title="Every price the program uses and where each one comes from">Price book&hellip;</button>
+        <button class="ib s" id="priceLineOff" title="Do not show this line again. Update prices stays in the File menu and in the shopping list, and the Price book can bring the line back." aria-label="Do not show this line again"><svg class="i xs"><use href="#i-x"/></svg></button>
+      </div>
       <aside id="left" class="float">
         <div class="fh"><b>Pieces</b><span class="sub" id="partCount"></span>
           <span class="fh-btns"><button class="ib s" data-min title="Roll up or down"><svg class="i xs"><use href="#i-min"/></svg></button><button class="ib s" data-hide title="Hide. Bring it back with the Pieces button at the right edge of the view."><svg class="i xs"><use href="#i-x"/></svg></button></span></div>
@@ -442,6 +467,35 @@
     <button class="btn pri" id="bMirrorGo" autofocus>Mirror</button></div>
 </dialog>
 
+<!-- Prices (js/prices.js): every price with its source and date, and reading prices pasted from a receipt -->
+<dialog class="dlg wide" id="priceDlg">
+  <div class="dlg-h"><span>Price book</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" id="priceBookStatus"></p>
+    <div class="frow"><label for="priceStore">Your store</label><input class="fld" type="text" id="priceStore" maxlength="40" placeholder="Home Depot" title="Where the prices you type come from. It is shown on the shopping list. It stays on this computer."></div>
+    <div class="frow" data-hosted="hide"><span></span><label class="ck" title="Once a day at most, when the program opens, it asks the national lumber price index and moves the estimates. Nothing about your designs is sent."><input type="checkbox" id="priceAuto">Update prices each time NominalCAD opens</label></div>
+    <div class="frow"><span></span><label class="ck" title="One quiet line at the top of the 3D view that says where the prices stand. Its X puts it away; this brings it back."><input type="checkbox" id="priceLineShow">Show the line about prices over the 3D view</label></div>
+    <div class="pbook" id="priceBookTable"></div>
+  </div>
+  <div class="dlg-f"><span class="grow" id="priceBookNote"></span>
+    <button class="btn" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg>Update prices</button>
+    <button class="btn" data-cmd="pastePrices" title="Reads prices from lines copied from a receipt or a store page"><svg class="i"><use href="#i-paste"/></svg>Paste prices&hellip;</button>
+    <button class="btn dng" id="bPriceReset" title="Forgets every price you typed and takes the price index adjustment off">Reset all to built-in</button>
+    <button class="btn pri" data-close>Done</button></div>
+</dialog>
+
+<dialog class="dlg wide" id="pastePricesDlg">
+  <div class="dlg-h"><span>Paste prices</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" title="Select the lines on a receipt, an order or a store page, copy them (Ctrl+C), then paste them here. A price on the line after the size is read too.">Paste lines copied from a receipt or a store page (Ctrl+V). Lines like <b>2x4x8 &hellip; $3.98</b> or <b>2 in. x 4 in. x 8 ft. &hellip; 3.98</b> are read.</p>
+    <textarea class="fld area" id="pastePricesText" rows="6" aria-label="Lines with prices" placeholder="2 in. x 4 in. x 8 ft. Stud   $3.98&#10;2x6x10 lumber 9.27&#10;3/4 in. x 4 ft. x 8 ft. plywood $54.98"></textarea>
+    <div id="pastePricesFound"></div>
+  </div>
+  <div class="dlg-f"><span class="grow" id="pastePricesNote"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bPastePricesGo" disabled>Use these prices</button></div>
+</dialog>
+
 <div id="ctxMenu" class="menu"></div>
 <!-- the card that opens beside a highlighted word on a page (js/wordlinks.js) -->
 <div id="infoCard" class="infocard" role="dialog" aria-label="Explanation"></div>
@@ -470,6 +524,7 @@
       <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The blue button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
       <dt>Beginner and Expert</dt><dd>The switch at the top right. <b>Beginner</b> shows the three steps a first project needs, and the program picks every screw and joint for you. <b>Expert</b> adds a fourth tab, <b>Fasteners</b>: a table of every place two pieces meet, where you can change the screw or joint by hand. Nothing is missing in Beginner: the hardware to buy and which fastener goes where are on the other pages.</dd>
       <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list tab, type the prices from your store and the total follows.</dd>
+      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
       <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
@@ -530,6 +585,7 @@
 <script src="js/panels.js"></script>
 <script src="js/statusbar.js"></script>
 <script src="js/plans.js"></script>
+<script src="js/prices.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/app.js"></script>

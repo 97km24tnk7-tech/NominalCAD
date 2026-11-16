@@ -476,6 +476,42 @@ svg.sheet text{fill:var(--n900);font-family:var(--font)}
 .need.pieces li{display:contents}
 .need .qty{text-align:right;font-variant-numeric:tabular-nums}
 
+/* ---------- 12b. Prices (js/prices.js) ---------- */
+/* the quiet line about where the prices stand: top of the 3D view, in the gap between the two floating panels,
+   and under them when one is dragged across */
+#priceLine{position:absolute;top:8px;left:300px;right:300px;width:fit-content;margin:0 auto;z-index:calc(var(--z-panel) - 1);display:flex;align-items:center;gap:8px;padding:2px 3px 2px 8px;background:rgba(255,255,255,.92);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+#priceLine .btn{flex:none;font-size:var(--fs-s)}
+#priceLine .ib{flex:none}
+@media (max-width:1400px){
+  #priceLine{top:auto;bottom:8px;left:84px;right:8px} /* too little room between the panels for one line: along the bottom, clear of the X Y Z symbol */
+}
+/* shopping list: whose price a row shows (est. or yours), how many of a boxed item are needed, the buttons above the table */
+.pmark{font-size:var(--fs-s);color:var(--n600)}
+.pmark.yours{font-weight:600;color:var(--blue-d)}
+.pnote{margin-left:4px;font-size:var(--fs-s);color:var(--n600)}
+.doc .pbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.pnotice{font-size:var(--fs);line-height:var(--lh);color:var(--n600)}
+.pwords{color:var(--n600)}
+.tbl.shop a + a{margin-left:8px}
+.tbl tr.sub td{height:24px;padding-top:7px;border-bottom-color:var(--n400);font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+.tbl tr.sub:hover{background:none}
+/* Price book: the table scrolls under its own headings */
+.pbook{margin-top:8px;max-height:min(48vh,440px);overflow:auto;border:1px solid var(--n300);border-radius:var(--r)}
+.pbook .tbl th{position:sticky;top:0;z-index:1;border-top:0}
+.pbook .tbl tr:last-child td{border-bottom:0}
+.pbook .tbl td.act{width:64px}
+/* Paste prices: what was read from the pasted lines, and what was not */
+#pastePricesFound{margin-top:4px}
+.pfrom{max-width:270px}
+.pline{max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--n600)}
+.pwhy{max-width:270px;white-space:normal;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n900)} /* why a line that was read is not ticked */
+.pmissed{margin:0;padding-left:18px;font:12px/18px ui-monospace,Consolas,"Cascadia Mono",monospace;color:var(--n600)}
+@media print{
+  .pmark,.pnote{color:#444}
+  .pmark.yours{color:#000}
+  .tbl tr.sub td{color:#000;border-bottom-color:#999}
+}
+
 /* ---------- 13. Narrow windows ---------- */
 @media (max-width:1280px){
   .grp{padding:2px 3px 0}

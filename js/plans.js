@@ -2,11 +2,10 @@
 'use strict';
 /* ---------- cut list ---------- */
 const STOCKS=[72,96,120,144,192];
-// rough price of an 8 ft board or a full sheet, in dollars; the user can overwrite these in the shopping list
+// The built-in estimate for an 8 ft board or a full sheet in construction pine, in dollars: a national ballpark for
+// the month named in PRICE_BASELINE (js/prices.js). Everything else about prices is in js/prices.js: priceOf, the
+// prices the person types, Update prices, and the shopping list itself.
 const PRICE8={'1x2':2.5,'1x3':4,'1x4':6,'1x6':10,'1x8':14,'1x10':19,'1x12':25,'2x2':3.5,'2x3':3.3,'2x4':3.9,'2x6':6.5,'2x8':9,'2x10':13,'2x12':17,'4x4':10,ply34:55,ply12:40,ply14:25};
-let userPrice={};try{userPrice=JSON.parse(localStorage.getItem('woodshop.prices'))||{};}catch(e){}
-const pkey=id=>(look().wood==='pine'?'':look().wood+':')+id; // typed prices are remembered per wood type
-const priceOf=(id,stock)=>(userPrice[pkey(id)]??(PRICE8[id]??0)*(M[id].kind==='sheet'?Math.pow(WOODS[look().wood][2],.6):WOODS[look().wood][2]))*(stock?stock/96:1);
 function packBoards(lens,stock){const K=.125,bins=[];
   lens.slice().sort((a,b)=>b-a).forEach(l=>{let b=bins.find(b=>b.used+(b.cuts.length?K:0)+l<=stock+1e-6);
     if(!b){b={used:0,cuts:[]};bins.push(b);}b.used+=(b.cuts.length?K:0)+l;b.cuts.push(l);});return bins;}
@@ -284,22 +283,7 @@ function diagramSection(list){
   }
   return{html:h,buy};
 }
-function shoppingSection(buy){
-  let total=0;
-  const rows=buy.map(b=>{
-    const each=priceOf(b.m.id,b.stock),what=b.stock?`${b.m.short} ${b.stock/12} ft lumber`:`${{ply34:'3/4',ply12:'1/2',ply14:'1/4'}[b.m.id]} in plywood 4x8 sheet`;
-    total+=each*b.qty;
-    return`<tr><td>${esc(b.m.short)}${b.stock?`, ${b.stock/12} ft long`:', 4 ft × 8 ft sheet'}</td><td class="num">${b.qty}</td>`+
-      // the price is a box to type in on screen and one plain number on paper (class "printonly")
-      `<td class="num"><span class="noprint">$ <input class="fld price" data-price="${b.m.id}" data-len="${b.stock}" value="${each.toFixed(2)}" aria-label="Price of one ${esc(b.m.short)}"></span><span class="printonly">$${each.toFixed(2)}</span></td>`+
-      `<td class="num">$${(each*b.qty).toFixed(2)}</td>`+
-      `<td class="noprint"><a target="_blank" rel="noopener" href="https://www.homedepot.com/s/${encodeURIComponent(what)}" title="Opens this item on homedepot.com, which shows the price at your store once you pick your store there">Check Home Depot</a></td></tr>`;
-  });
-  rows.push(`<tr class="total"><td colspan="3">Estimated lumber total, before tax and hardware</td><td class="num">$${total.toFixed(2)}</td><td class="noprint"></td></tr>`);
-  return`<h2>Shopping list</h2>`+
-    docTable([['Buy',''],['Qty','num'],['Price each','num'],['Total','num'],['Today\'s price','noprint']],rows)+
-    `<p class="hint noprint">Prices start as rough guesses. Type the price from your store into a box and the total follows; it is remembered for next time.</p>`;
-}
+/* (The shopping list, shoppingSection, is in js/prices.js with everything else about prices.) */
 /* the numbered steps: what to do, the pieces to grab, the fasteners that join them to what is already built, and a
    picture with the new pieces in orange */
 function stepsSection(list,joints,shots){
@@ -369,20 +353,12 @@ function renderCut(instr){
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</p>`;
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
-  const diagrams=diagramSection(list);
-  h+=cutListSection(list)+shoppingSection(diagrams.buy)+diagrams.html;
-  h+=`<h2>Hardware</h2>`+hwTable(hardwareTotals(joints));
+  const diagrams=diagramSection(list),hardware=hardwareTotals(joints);
+  h+=cutListSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js
+  h+=`<h2>Hardware</h2>`+hwTable(hardware);
   if(instr)h+=stepsSection(list,joints,pics.steps);
   h+=fastenerSection(joints);
 
-  page.innerHTML=`<div class="doc">${h}</div>`;
-  page.querySelectorAll('input.price').forEach(box=>box.onchange=()=>{
-    const price=parseFloat(box.value);
-    if(price>=0){
-      userPrice[pkey(box.dataset.price)]=price/((+box.dataset.len||96)/96); // kept as the price of an 8 ft board
-      try{localStorage.setItem('woodshop.prices',JSON.stringify(userPrice));}catch(e){}
-    }
-    renderCut(instr);
-  });
+  page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)
   page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{S.stock[choice.dataset.stock]=+choice.value;commit();});
 }

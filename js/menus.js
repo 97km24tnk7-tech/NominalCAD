@@ -38,6 +38,7 @@ const COMMANDS={
   xray:()=>toggleXray(),explode:()=>setExplode(explode?0:.55),
   fit:()=>fit('fit'),preset:()=>$('#bPreset').click(),draw:()=>setTool('draw'),
   help:()=>$('#helpDlg').showModal(),
+  updatePrices:()=>updatePricesClicked(),priceBook:()=>openPriceBook(),pastePrices:()=>openPastePrices(), // js/prices.js
 };
 /* commands that are switches: is the thing on right now? Their menu rows get a tick, their buttons the "on" look. */
 const CHECKS={
@@ -71,6 +72,7 @@ const ENABLED={
   selectAll:()=>S.parts.length>0,
   showAll:()=>hiddenIds.size>0,
   toggleLegend:()=>viewMode==='block',                // the color key explains the Color blocks look
+  updatePrices:()=>canUpdatePrices(),                 // not while it is already asking, and never in the hosted copy
 };
 function setViewMode(m){const s=$('#viewMode');s.value=m;s.dispatchEvent(new Event('change'));}
 
