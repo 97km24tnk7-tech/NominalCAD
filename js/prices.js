@@ -56,12 +56,32 @@ const PRICE_LIMIT_WAIT_MS=3*60*60*1000;     // after "daily limit reached", do n
 /* Hardware and finishing supplies: what one pack costs. Not moved by the index.
      match   picks the row for an item name from jSpec, finishSupplies (js/style.js) or a preset; first match wins
      pack    how many are in one pack; sold says the same in words
-     search  the words to look it up at a store (default: the item's own name) */
+     search  the words to look it up at a store (default: the item's own name)
+     parent  (rows made by priceByLength) the id of the general row of the same kind: a price the person typed
+             for that general row also counts for this length, until they type one for the length itself */
+/* Screws and nails cost more the longer they are, and a design that needs two lengths needs two boxes. So every
+   length the program can ask for gets its own row, with its own estimate, made here from one short table:
+   lengths = [[length as the program writes it, price of one pack], ...]. nameOf(length) must give exactly the
+   item name that jSpec (js/style.js) writes, because that name is how the row is found. */
+function priceByLength(parent,kind,nameOf,pack,sold,lengths){
+  const literal=text=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return lengths.map(([length,price])=>({
+    id:`${parent}:${length}`,parent,name:`${kind}, ${length}`,
+    match:new RegExp('(^|[^-/\\d])'+literal(nameOf(length)),'i'),   // '1"' must not also catch '1-1/4"'
+    pack,sold,price}));
+}
 const HARDWARE_PRICES=[
-  {id:'pocket-screws',name:'Pocket-hole screws',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
-  {id:'wood-screws',name:'Wood screws, #8',match:/wood screws|screws for brackets/i,pack:100,sold:'box of 100',price:9},
+  ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,100,'box of 100',
+    [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12]]),
+  {id:'pocket-screws',name:'Pocket-hole screws, other lengths',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
+  ...priceByLength('wood-screws','Wood screws, #8',length=>`#8 × ${length} wood screws`,100,'box of 100',
+    [['1"',6],['1-1/4"',7],['1-5/8"',8],['2"',9],['2-1/2"',11],['3"',13],['3-1/2"',15]]),
+  {id:'bracket-screws',name:'Short screws for brackets, #8 × 5/8"',match:/screws for brackets/i,pack:100,sold:'box of 100',price:5},
+  {id:'wood-screws',name:'Wood screws, #8, other lengths',match:/wood screws/i,pack:100,sold:'box of 100',price:9},
   {id:'dowels',name:'Wood dowels',match:/wood dowels/i,pack:30,sold:'bag of 30',price:4},
-  {id:'brads',name:'Brad nails, 18 gauge',match:/brad nails/i,pack:1000,sold:'box of 1,000',price:7},
+  ...priceByLength('brads','Brad nails, 18 gauge',length=>`${length} brad nails`,1000,'box of 1,000',
+    [['5/8"',5],['3/4"',5.5],['1"',6],['1-1/4"',7],['1-1/2"',8],['2"',9]]),
+  {id:'brads',name:'Brad nails, 18 gauge, other lengths',match:/brad nails/i,pack:1000,sold:'box of 1,000',price:7},
   {id:'brackets',name:'L-brackets (corner braces)',match:/l-brackets/i,pack:4,sold:'pack of 4',price:4.5},
   {id:'cabinet-hinges',name:'Cabinet hinges',match:/cabinet hinges/i,pack:2,sold:'pack of 2',price:7},
   {id:'t-hinges',name:'Heavy T-hinges',match:/t-hinges/i,pack:1,sold:'each',price:9},
@@ -234,7 +254,9 @@ function hardwareFamily(label){
 function hardwarePriceInfo(label,family){
   const itemKey='hw:'+label,familyKey=family?'hwf:'+family.id:'';
   const key=label?itemKey:familyKey;
-  const own=(label&&priceBook.yours[itemKey])||(family&&priceBook.yours[familyKey]);
+  // a price for exactly this item, else for its row, else for the general row its length belongs to
+  const own=(label&&priceBook.yours[itemKey])||(family&&priceBook.yours[familyKey])||
+    (family&&family.parent&&priceBook.yours['hwf:'+family.parent]);
   if(own)return{price:own.p,source:'yours',date:own.d,key};
   if(family)return{price:family.price,source:'built-in',date:PRICE_BASELINE.month,key};
   return{price:null,source:'none',date:'',key};
@@ -1221,7 +1243,12 @@ SELFTESTS.push(function prices(problems){
     const buy=[{m:M['2x4'],qty:3,stock:96},{m:M.ply34,qty:1,stock:0}],hardware={rows:[['#8 × 1-1/4" wood screws',148],['A part nobody has heard of',2]],glue:true};
     const model=shoppingModel(buy,hardware),html=shoppingSection(buy,hardware);
     if(model.counts.yours!==1||model.counts.estimates!==3||model.counts.none!==1)say('the shopping list miscounts whose prices it shows: '+JSON.stringify(model.counts));
-    if(!near(model.total,3*4.25+PRICE8.ply34+2*9+5))say('the shopping list total is wrong: '+model.total);
+    const screwBox=hardwareFamily('#8 × 1-1/4" wood screws').price;   // 148 screws are two boxes of 100
+    if(!near(model.total,3*4.25+PRICE8.ply34+2*screwBox+5))say('the shopping list total is wrong: '+model.total);
+    // a longer screw has its own row and costs more; a length with no row of its own still gets a price
+    const shortRow=hardwareFamily('#8 × 1" wood screws'),longRow=hardwareFamily('#8 × 3" wood screws'),otherRow=hardwareFamily('#8 × 4" wood screws');
+    if(!shortRow||!longRow||shortRow.id===longRow.id||!(longRow.price>shortRow.price)||!otherRow||!(otherRow.price>0))say('screws of different lengths are not priced separately');
+    if(hardwareFamily('1-1/2" brad nails (18 gauge)').id===hardwareFamily('2" brad nails (18 gauge)').id)say('a 1-1/2 in brad is priced as a 2 in brad');
     if(model.rows[2].qty!==2)say('148 screws should be 2 boxes of 100');
     // to the cent: a row is how many times the price of one as shown, and the total is the sum of the rows as shown
     priceBook.yours['hwf:wood-screws']={p:2.995,d:''};
