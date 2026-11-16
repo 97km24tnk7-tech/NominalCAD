@@ -40,7 +40,7 @@ const TOOL_PROMPTS={
 };
 /* the prompt on the other tabs says what the page is for */
 const PAGE_PROMPTS={
-  joints:['i-screw','Joints & hardware','Every place two pieces touch, with a suggested fastener. Pick another in the Fasten with column and the hardware list follows.'],
+  joints:['i-screw','Fasteners','Every place two pieces touch, with a suggested fastener. Pick another in the Fasten with column and the hardware list follows.'],
   cut:['i-list','Cut list & shopping','What to buy and how to cut it. Type the prices from your store into the boxes and the total follows.'],
   instr:['i-print','Build instructions','Shopping list, cut list and the steps in order. '+PRINT_HINT], // PRINT_HINT: hosted.js
 };

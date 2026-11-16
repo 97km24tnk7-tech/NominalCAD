@@ -138,7 +138,7 @@ $('#props').addEventListener('click',e=>{
    One row for every kind of joint (the same two pieces meeting the same way), with the fastener to use. Picking
    another fastener in a row changes all the joints of that kind. (docHead and docTable are in plans.js.) */
 function renderJoints(){
-  const page=$('#jointsPage'),sheetName='Joints and hardware';
+  const page=$('#jointsPage'),sheetName='Fasteners and hardware';
   if(!S.parts.length){
     page.innerHTML=`<div class="doc">${docHead(sheetName)}<p>Add some pieces in the Design tab first, or pick a furniture preset.</p></div>`;
     return;

@@ -339,7 +339,7 @@ function fastenerSection(joints){
   if(!groups.length)return'';
   const rows=groups.map(g=>{
     const types=new Set(g.js.map(jType));
-    return`<tr><td>${esc(g.A[0])} to ${esc(g.B[0])}</td><td class="num">${g.js.length}</td><td>${types.size===1?esc(jSpec(g.js[0],[...types][0]).text):'Mixed, see the Joints tab'}</td></tr>`;
+    return`<tr><td>${esc(g.A[0])} to ${esc(g.B[0])}</td><td class="num">${g.js.length}</td><td>${types.size===1?esc(jSpec(g.js[0],[...types][0]).text):'Mixed: see the Fasteners tab (switch to Expert, top right)'}</td></tr>`;
   });
   return`<h2>Which fastener goes where</h2>`+docTable([['Join',''],['Joints','num'],['With, per joint','']],rows);
 }

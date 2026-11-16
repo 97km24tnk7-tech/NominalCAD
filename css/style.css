@@ -121,6 +121,8 @@ select.fld{appearance:none;-webkit-appearance:none;padding-right:20px;background
 .ib:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
 
 /* segmented switch (one of several) and toggle switch (on / off) */
+/* Beginner and Expert (js/level.js): anything marked data-expert is only shown in Expert */
+body[data-level="beginner"] [data-expert]{display:none!important}
 .seg{display:inline-flex}
 .seg button,.tg>span{height:var(--h-s);padding:0 7px;border:1px solid var(--n300);background:#fff;font-size:var(--fs-s);color:var(--n600);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .seg button{margin-left:-1px;position:relative}

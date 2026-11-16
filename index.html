@@ -96,13 +96,17 @@
     </div>
     <nav class="tabs" aria-label="Steps">
       <button class="tab on" data-tab="design" title="Step 1: build the design in 3D"><i>1</i>Design</button>
-      <button class="tab" data-tab="joints" title="Step 2: how the pieces join, and the screws and other hardware to buy"><i>2</i>Joints &amp; hardware</button>
+      <!-- data-expert: only shown in Expert (js/level.js). The numbers in <i> and "Step n" are rewritten to count the tabs that show. -->
+      <button class="tab" data-tab="joints" data-expert title="Step 2: the fastener at every joint, which you can change by hand, and the hardware to buy"><i>2</i>Fasteners</button>
       <button class="tab" data-tab="cut" title="Step 3: the cut list, the lumber to buy and what it costs"><i>3</i>Cut list &amp; shopping</button>
       <button class="tab" data-tab="instr" title="Step 4: everything on one set of pages, with the steps in order, ready to print"><i>4</i>Build instructions</button>
     </nav>
     <div class="tr-right">
       <label class="projname" title="Project name. Click to rename."><svg class="i"><use href="#i-doc"/></svg><input class="fld s" id="projName" aria-label="Project name"></label>
-      <!-- Quick search and the Beginner / Expert switch go here, between the project name and Help. -->
+      <!-- Beginner / Expert (js/level.js). Quick search goes here too, between the project name and Help. -->
+      <span class="seg" id="levelSwitch" role="group" aria-label="How much the program shows">
+        <button data-level="beginner" title="Beginner: the three steps a first project needs. The program picks every screw and joint for you.">Beginner</button><button data-level="expert" title="Expert: adds the Fasteners tab, a table where you can change the screw or joint used anywhere two pieces meet.">Expert</button>
+      </span>
       <button class="ib" data-cmd="help" title="How to use NominalCAD (F1)" aria-label="Help"><svg class="i m"><use href="#i-help"/></svg></button>
     </div>
     <input type="file" id="fileIn" accept=".json" hidden>
@@ -359,7 +363,7 @@
     <div class="frow"><label for="woodSel">Wood</label><select class="fld" id="woodSel" title="Sizes stay the same for every wood. Store boards are smaller than their names (a 2x4 is 1 1/2&quot; × 3 1/2&quot;). True rough-sawn boards from a sawmill are a full 2&quot; × 4&quot;, so measure yours and adjust if you use them."></select></div>
     <div class="frow"><label for="finSel">Finish</label><select class="fld" id="finSel" title="The 3D view, the steps and the shopping list all follow the finish you pick"></select></div>
   </div>
-  <div class="dlg-f"><span class="grow" title="Time is hands-on working time for one person and does not include glue or finish drying. Any fastener you picked by hand in the Joints tab is kept.">Skill, time and price are rough guides, not promises.</span>
+  <div class="dlg-f"><span class="grow" title="Time is hands-on working time for one person and does not include glue or finish drying. Any fastener you picked by hand on the Fasteners tab is kept.">Skill, time and price are rough guides, not promises.</span>
     <button class="btn pri" data-close autofocus>Done</button></div>
 </dialog>
 
@@ -442,15 +446,16 @@
   <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b help">
     <div class="sec">The quick way</div>
-    <p>Click <b>Furniture presets</b> (the blue button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Then open <b>4 Build instructions</b> for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
+    <p>Click <b>Furniture presets</b> (the blue button at the left of the ribbon), pick a design on the left, set your size on the right, and press <b>Create</b>. Then open the <b>Build instructions</b> tab for the shopping list, the cut list and the steps, and press <b>Print</b> there.</p>
     <div class="sec">Where things are</div>
     <dl>
-      <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: 1 Design, 2 Joints &amp; hardware, 3 Cut list &amp; shopping, 4 Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
+      <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: Design, Cut list &amp; shopping, Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
       <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, and turns on see-through, exploded view and the color key. A command that is gray needs something first, usually a selected piece.</dd>
       <dt>Panels</dt><dd>The <b>Pieces</b> list and the <b>Properties</b> of the selected piece float over the 3D view. Drag one by its title bar, roll it up with the dash, or hide it. The two buttons at the right edge of the view bring them back. Properties appears when a piece is selected.</dd>
       <dt>Status bar</dt><dd>The bar along the bottom says what to do next with the current tool and shows live sizes while you drag. It also has the overall size, the piece count, a warning when pieces overlap, the Fasteners and Sizes switches, and the Snap size.</dd>
       <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The blue button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
-      <dt>Pages to print</dt><dd>Tabs 2, 3 and 4 are pages to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list tab, type the prices from your store and the total follows.</dd>
+      <dt>Beginner and Expert</dt><dd>The switch at the top right. <b>Beginner</b> shows the three steps a first project needs, and the program picks every screw and joint for you. <b>Expert</b> adds a fourth tab, <b>Fasteners</b>: a table of every place two pieces meet, where you can change the screw or joint by hand. Nothing is missing in Beginner: the hardware to buy and which fastener goes where are on the other pages.</dd>
+      <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list tab, type the prices from your store and the total follows.</dd>
       <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
     </dl>
     <div class="sec">Building your own</div>
@@ -514,6 +519,7 @@
 <script src="js/layout.js"></script>
 <script src="js/preview.js"></script>
 <script src="js/app.js"></script>
+<script src="js/level.js"></script>
 <script src="js/transfer.js"></script>
 <script src="js/menus.js"></script>
 <script src="js/selftest.js"></script>
