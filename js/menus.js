@@ -1,8 +1,21 @@
-/* WoodShop Designer: the menu bar, commands and keyboard shortcuts.
-   To add a menu item later: add a <button> inside a .mlist in index.html with ONE of these attributes:
-     data-click="#someButtonId"   presses an existing button (keeps one source of truth for what the action does)
+/* NominalCAD: pulldown menus, commands, keyboard shortcuts and the right-click menu.
+
+   A pulldown can sit anywhere on the page (the File button, the "More" button of a ribbon group, Display):
+       <div class="pd">
+         <button class="pd-btn">File</button>
+         <div class="menu"> ...rows... </div>        (or class="pop" for a small panel of settings)
+       </div>
+   Clicking the button opens it under its bar; clicking outside or pressing Esc closes it; while one is open,
+   pointing at another opens that one instead.
+
+   To add a command anywhere (a menu row, a ribbon button, a status-bar chip), give a <button> ONE of these:
      data-cmd="name"              runs COMMANDS.name below
-     data-view / data-tool        handled in app.js, same as the toolbar buttons */
+     data-click="#someButtonId"   presses an existing button (keeps one source of truth for what the action does)
+     data-view / data-tool        handled in app.js
+   A menu row looks like:  <button class="mi" data-cmd="hide"><i></i><span>Hide selected</span><kbd>H</kbd></button>
+   (the first cell is an icon, or an empty <i> that shows a tick when the command has a row in CHECKS).
+   Add data-keep to a row that should leave its panel open after the click (the switches in Display).
+   A button inside an element marked data-design switches to the Design tab before it runs. */
 'use strict';
 const COMMANDS={
   duplicate:()=>dupSel(),
@@ -12,6 +25,7 @@ const COMMANDS={
   viewBlock:()=>setViewMode('block'),
   toggleFasteners:()=>$('#showFast').click(),
   toggleSizes:()=>$('#showDims').click(),
+  toggleLegend:()=>toggleLegend(),
   dupGrab:()=>dupGrab(),
   row:()=>openRow(),
   mirror:()=>openMirror(),
@@ -25,26 +39,94 @@ const COMMANDS={
   fit:()=>fit('fit'),preset:()=>$('#bPreset').click(),draw:()=>setTool('draw'),
   help:()=>$('#helpDlg').showModal(),
 };
+/* commands that are switches: is the thing on right now? Their menu rows get a tick, their buttons the "on" look. */
+const CHECKS={
+  viewReal:()=>viewMode==='real',
+  viewBlock:()=>viewMode==='block',
+  xray:()=>xray,
+  explode:()=>!!explode,
+  toggleFasteners:()=>$('#showFast').checked,
+  toggleSizes:()=>$('#showDims').checked,
+  toggleLegend:()=>legendOn,
+  togglePieces:()=>!panelOf('left').off,
+  toggleProps:()=>!panelOf('right').off,
+};
+/* commands that only make sense some of the time: can it be used right now? */
+const ENABLED={
+  toggleLegend:()=>viewMode==='block', // the color key explains the Color blocks look
+};
 function setViewMode(m){const s=$('#viewMode');s.value=m;s.dispatchEvent(new Event('change'));}
-const closeMenus=()=>document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open'));
-$('#menubar').addEventListener('click',e=>{
-  const top=e.target.closest('.mbtn');
-  if(top){const m=top.parentElement,was=m.classList.contains('open');closeMenus();if(!was)m.classList.add('open');return;}
-  const item=e.target.closest('.mlist button');if(!item)return;
+
+/* show the current state on every switch-like control: ticks in menus, "on" buttons, the current tool */
+function syncChecks(){
+  document.querySelectorAll('[data-cmd]').forEach(el=>{
+    const cmd=el.dataset.cmd;
+    if(CHECKS[cmd])el.classList.toggle(el.classList.contains('mi')?'checked':'on',!!CHECKS[cmd]());
+    if(ENABLED[cmd])el.disabled=!ENABLED[cmd]();
+  });
+  document.querySelectorAll('.mi[data-tool]').forEach(el=>el.classList.toggle('checked',el.dataset.tool===tool));
+}
+
+/* ---------- pulldowns ---------- */
+function closeMenus(){
+  document.querySelectorAll('.pd.open').forEach(pd=>pd.classList.remove('open'));
+}
+function openMenu(pd){
   closeMenus();
-  if(item.dataset.click)$(item.dataset.click).click();
-  else if(item.dataset.cmd&&COMMANDS[item.dataset.cmd]){if(tab!=='design'&&item.dataset.design)setTab('design');COMMANDS[item.dataset.cmd]();}
+  closeContext();
+  syncChecks();
+  pd.classList.add('open');
+  // hang the list under the bar its button sits in (so it is flush with the ribbon), and keep it on screen
+  const button=pd.querySelector('.pd-btn'),list=pd.querySelector('.menu,.pop'),bar=button.closest('.ribbon,.tabrow');
+  const b=button.getBoundingClientRect(),top=bar?bar.getBoundingClientRect().bottom-1:b.bottom;
+  list.style.top=top+'px';
+  list.style.left=Math.max(0,Math.min(b.left,innerWidth-list.offsetWidth-4))+'px';
+  list.style.maxHeight=(innerHeight-top-8)+'px';
+}
+/* before anything else reacts to a click: put away the menu the click came from, and go to the Design tab
+   when the control only makes sense there */
+document.addEventListener('click',e=>{
+  const button=e.target.closest('button');
+  if(!button||button.classList.contains('pd-btn'))return;
+  if(button.closest('.menu,.pop')&&!button.hasAttribute('data-keep')){closeMenus();closeContext();}
+  if(tab!=='design'&&button.closest('[data-design]'))setTab('design');
+},true);
+document.addEventListener('click',e=>{
+  const opener=e.target.closest('.pd-btn');
+  if(opener){
+    const pd=opener.closest('.pd');
+    if(pd.classList.contains('open'))closeMenus();else openMenu(pd);
+    return;
+  }
+  const el=e.target.closest('[data-cmd],[data-click]');
+  if(el&&!el.disabled){
+    if(el.dataset.click)$(el.dataset.click).click();
+    else if(COMMANDS[el.dataset.cmd])COMMANDS[el.dataset.cmd]();
+  }
+  if(document.querySelector('.pd.open'))syncChecks(); // a panel that stayed open shows its new state
 });
-// hovering another menu name while one is open switches to it, like a desktop program
-$('#menubar').addEventListener('mouseover',e=>{const top=e.target.closest('.mbtn');
-  if(top&&document.querySelector('.menu.open')&&!top.parentElement.classList.contains('open')){closeMenus();top.parentElement.classList.add('open');}});
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('#menubar'))closeMenus();});
-$('#bHelpClose').onclick=()=>$('#helpDlg').close();
+// pointing at another pulldown while one is open switches to it, like a desktop program
+document.addEventListener('mouseover',e=>{
+  const opener=e.target.closest('.pd-btn');
+  if(!opener)return;
+  const pd=opener.closest('.pd'),open=document.querySelector('.pd.open');
+  if(open&&open!==pd)openMenu(pd);
+});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.pd'))closeMenus();});
+// Esc closes an open menu and does nothing else (it does not also drop the tool or the selection)
+window.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if(!document.querySelector('.pd.open')&&$('#ctxMenu').style.display!=='block')return;
+  closeMenus();closeContext();
+  e.stopImmediatePropagation();
+},true);
+
+/* ---------- keyboard shortcuts (Ctrl+Z, Ctrl+D, arrows, D, C, Delete and M / R / S are in app.js and transform.js) ---------- */
 window.addEventListener('keydown',e=>{
   const c=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
-  if(k==='escape')closeMenus();
   if(c&&k==='s'){e.preventDefault();$('#bSave').click();}
   else if(c&&k==='p'){e.preventDefault();$('#bPrint').click();}
+  else if(k==='f1'){e.preventDefault();if(!document.querySelector('dialog[open]'))COMMANDS.help();}
   else if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)||document.querySelector('dialog[open]')||modal||tab!=='design')return;
   else if(c&&k==='g'){e.preventDefault();e.shiftKey?ungroupSel():groupSel();}
   else if(c&&k==='m'){e.preventDefault();openMirror();}
@@ -60,22 +142,25 @@ window.addEventListener('keydown',e=>{
 });
 
 /* ---------- right-click menu on the 3D view ---------- */
-const CTX_SEL=[['move','Move','M'],['rotate','Rotate','R'],['stretch','Stretch (change length)','S'],null,
-  ['duplicate','Duplicate','Ctrl+D'],['dupGrab','Duplicate and drag','Shift+D'],['row','Copy in a row…',''],['mirror','Mirror…','Ctrl+M'],null,
+/* each row: [command, label, shortcut, icon id (optional)]; null draws a separator */
+const CTX_SEL=[['move','Move','M','i-move'],['rotate','Rotate','R','i-rotate'],['stretch','Stretch (change length)','S','i-dim'],null,
+  ['duplicate','Duplicate','Ctrl+D','i-dup'],['dupGrab','Duplicate and drag','Shift+D'],['row','Copy in a row…','','i-row'],['mirror','Mirror…','Ctrl+M','i-mirror'],null,
   ['group','Group','Ctrl+G'],['ungroup','Ungroup','Ctrl+Shift+G'],['similar','Select all pieces like this','Shift+G'],null,
-  ['hide','Hide','H'],['isolate','Show only these','Shift+H'],['focus','Zoom to these','F'],null,['remove','Delete','Del']];
-const CTX_NONE=[['preset','Furniture preset…',''],['draw','Draw a board','D'],null,
-  ['showAll','Show everything','Alt+H'],['fit','Fit everything on screen','Home'],['xray','See-through view on / off','Alt+Z'],['explode','Exploded view on / off','']];
+  ['hide','Hide','H','i-hide'],['isolate','Show only these','Shift+H'],['focus','Zoom to these','F'],null,['remove','Delete','Del','i-delete']];
+const CTX_NONE=[['preset','Furniture preset…','','i-presets'],['draw','Draw a board','D','i-draw'],null,
+  ['showAll','Show everything','Alt+H'],['fit','Fit everything on screen','Home','i-fit'],['xray','See-through view','Alt+Z'],['explode','Exploded view','']];
 function openContext(x,y,hitId){
   if(tab!=='design'||modal)return;
+  closeMenus();
   if(hitId&&!sel.has(hitId)){sel=new Set(groupIds(hitId));renderAll();}
   const el=$('#ctxMenu');
-  el.innerHTML=(sel.size?CTX_SEL:CTX_NONE).map(i=>i?`<button data-cmd="${i[0]}">${i[1]}<kbd>${i[2]}</kbd></button>`:'<hr>').join('');
-  el.style.display='block';el.style.left=Math.min(x,innerWidth-el.offsetWidth-8)+'px';el.style.top=Math.min(y,innerHeight-el.offsetHeight-8)+'px';
+  el.innerHTML=(sel.size?CTX_SEL:CTX_NONE).map(row=>row
+    ?`<button class="mi" data-cmd="${row[0]}">${row[3]?icon(row[3]):'<i></i>'}<span>${row[1]}</span><kbd>${row[2]}</kbd></button>`
+    :'<div class="msep"></div>').join('');
+  syncChecks();
+  el.style.display='block';
+  el.style.left=Math.max(4,Math.min(x,innerWidth-el.offsetWidth-8))+'px';
+  el.style.top=Math.max(4,Math.min(y,innerHeight-el.offsetHeight-8))+'px';
 }
-const closeContext=()=>{$('#ctxMenu').style.display='none';};
-$('#ctxMenu').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;closeContext();COMMANDS[b.dataset.cmd]();});
+function closeContext(){$('#ctxMenu').style.display='none';}
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#ctxMenu'))closeContext();});
-window.addEventListener('keydown',e=>{if(e.key==='Escape')closeContext();});
-// toolbar buttons can run the same commands as menu items
-document.querySelectorAll('#viewBtns [data-cmd]').forEach(b=>b.onclick=()=>COMMANDS[b.dataset.cmd]());

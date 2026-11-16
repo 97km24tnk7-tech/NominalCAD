@@ -1,4 +1,4 @@
-/* WoodShop Designer: shed framing builder */
+/* NominalCAD: shed framing builder */
 'use strict';
 /* Shed: simplified stick framing (floor on skids, four stud walls, single-slope roof). Not engineered plans. */
 function tile(P,name,mat,t,x0,z0,W,D,y){ // flat panels no bigger than 8 ft x 4 ft

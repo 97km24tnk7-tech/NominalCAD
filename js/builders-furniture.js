@@ -1,4 +1,4 @@
-/* WoodShop Designer: shared builders for tables, benches and boxes, plus the tank size list */
+/* NominalCAD: shared builders for tables, benches and boxes, plus the tank size list */
 'use strict';
 /* ---------- presets ---------- */
 function buildTable(o){

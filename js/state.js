@@ -1,4 +1,4 @@
-/* WoodShop Designer: the current project, undo/redo and autosave */
+/* NominalCAD: the current project, undo/redo and autosave */
 'use strict';
 /* ---------- state ---------- */
 let S,sel=new Set(),undoStack=[],redoStack=[],lastSnap='';

@@ -1,137 +1,541 @@
-:root{--bg:#f4f1ea;--panel:#fffdf8;--line:#d9d2c3;--ink:#2b2520;--mute:#7a6f62;--acc:#8a5a2b;--acc2:#1565c0;}
+/* NominalCAD: all styling.
+
+   Sections
+     1. Design tokens            5. Tab row                    9. Floating panels          13. Narrow windows
+     2. Base                     6. Ribbon                    10. Status bar               14. Print
+     3. Icons                    7. Pulldowns and menus       11. Dialogs
+     4. Controls                 8. The 3D view               12. Document pages
+
+   The look: cool light-gray chrome, one blue for the primary action, focus and "on" states,
+   1px separators, 2px radii, two control heights (20 and 24px), line icons with short labels.
+   State classes set by the JavaScript: .on (active tab, current tool, switch that is on, selected row),
+   .open (a pulldown that is showing), .checked (a ticked menu row), .min / .off (a floating panel rolled up / hidden). */
+
+/* ---------- 1. Design tokens ---------- */
+:root{
+  /* neutrals, light to dark */
+  --n0:#ffffff;    /* fields, lists, menus, dialogs, pages */
+  --n50:#f6f7f9;   /* ribbon body, panel body, active tab */
+  --n100:#eceef1;  /* tab row, status bar, panel header, side strip */
+  --n200:#dfe3e7;  /* hover fill, inner separators */
+  --n300:#c9ced5;  /* structural borders, field borders */
+  --n400:#a9b0b9;  /* button borders, borders of floating layers */
+  --n500:#7d8690;  /* placeholder and hint text */
+  --n600:#59626c;  /* labels, captions, secondary text */
+  --n800:#262c33;  /* body text */
+  --n900:#14181d;  /* titles, selected-row text */
+  /* the one accent */
+  --blue:#4e342e; --blue-d:#38241f; --blue-50:#f0ebe8; --blue-300:#a58d84;
+  /* colors with a meaning */
+  --warn:#8a5a00; --warn-bg:#fff3cf; --danger:#b3261e; --ok:#2e7d32;
+  --icon:#3b434c;       /* ink of the large ribbon icons */
+  --backdrop:#d5d9de;   /* behind document pages */
+  --view-bg:linear-gradient(180deg,#d8e2ed 0%,#edf1f5 58%,#f6f7f9 100%); /* behind the 3D view; js/view3d.js paints the same colors */
+
+  /* type: one family, two weights (400 and 600) */
+  --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --fs:12px;     --lh:16px;    /* base */
+  --fs-s:11px;   --lh-s:13px;  /* ribbon labels, captions, hints, switches */
+  --fs-caps:10px;              /* small caps captions inside panels */
+  --fs-doc:13px; --fs-h:14px; --fs-title:20px;
+
+  /* spacing scale */
+  --s2:2px; --s4:4px; --s6:6px; --s8:8px; --s12:12px; --s16:16px; --s24:24px;
+
+  /* control heights and the fixed bands of the window */
+  --h:24px;      /* fields and buttons in panels and dialogs, menu rows, icon buttons */
+  --h-s:20px;    /* ribbon rows, tab-row fields */
+  --h-st:18px;   /* switches inside the status bar */
+  --tabrow-h:30px; --ribbon-h:85px; --status-h:24px; --panel-head-h:26px; --row-h:22px; --strip-w:36px;
+
+  /* corners: 2px on controls, 3px on floating layers, 0 on bars */
+  --r:2px; --r-float:3px;
+
+  /* shadows: floating layers only */
+  --shadow-float:0 4px 14px rgba(20,28,38,.16),0 1px 2px rgba(20,28,38,.12);
+  --shadow-panel:0 2px 8px rgba(20,28,38,.12),0 1px 2px rgba(20,28,38,.10);
+  --shadow-dlg:0 12px 32px rgba(20,28,38,.22),0 2px 4px rgba(20,28,38,.12);
+
+  /* stacking order of the things that float. The bars themselves get no z-index, so that a menu opened
+     from a bar is not trapped under the floating panels. Dialogs use the browser's top layer. */
+  --z-panel:5; --z-mini:20; --z-menu:30; --z-toast:50;
+
+  --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%2359626c' stroke-width='1.3'/%3E%3C/svg%3E");
+  --tick:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%2359626c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --tick-w:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); /* white tick of a checked box */
+}
+
+/* ---------- 2. Base ---------- */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{font:14px/1.4 system-ui,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
-header{display:flex;gap:6px;align-items:center;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
-header .brand{font-weight:700;color:var(--acc);margin-right:6px}
-#projName{font:inherit;font-weight:600;border:1px solid transparent;background:transparent;padding:4px 6px;border-radius:4px;width:190px}
-#projName:hover,#projName:focus{border-color:var(--line);background:#fff}
-button,select,input{font:inherit;color:inherit}
-button{background:#fff;border:1px solid var(--line);border-radius:5px;padding:5px 10px;cursor:pointer}
-button:hover{border-color:var(--acc)}
-button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
-button.danger{color:#b3261e}
-button:disabled{opacity:.4;cursor:default}
-.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
-.tabs{margin-left:auto;display:flex;gap:4px}
-.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-main{flex:1;display:flex;min-height:0}
-#view{flex:1;min-width:0;display:flex;flex-direction:column}
-#cvWrap{flex:1;position:relative;min-height:0}
-#cvWrap canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-#viewBtns{display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--line)}
-#viewBtns button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-#viewBtns button,#viewBtns label{background:rgba(255,255,255,.9);font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:5px}
-#status{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:5px;padding:5px 9px;font-size:12px;color:var(--mute);pointer-events:none}
-#status b{color:var(--ink)}
-h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
-.addrow{display:flex;gap:4px;margin-bottom:10px}
-.addrow select{flex:1;min-width:0;padding:4px}
-#partList{list-style:none;margin:0;padding:0}
-#partList li{padding:5px 7px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:6px}
-#partList li:hover{background:#f1ebdf}
-#partList li.on{background:#dbe8f8}
-#partList small{color:var(--mute);white-space:nowrap}
-.f{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.f label{width:92px;color:var(--mute);font-size:12px;flex:none}
-.f input[type=text],.f select{flex:1;min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:#fff}
-.f span.ro{padding:4px 0}
-.btnrow{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}
-.btnrow button{font-size:12px;padding:4px 8px}
-.hint{font-size:12px;color:var(--mute);margin:6px 0}
-.page{flex:1;overflow:auto;padding:18px 24px;display:none;background:var(--panel)}
-.page h2{margin:18px 0 8px;font-size:17px;color:var(--acc)}
-.page h2:first-child{margin-top:0}
-table{border-collapse:collapse;width:100%;max-width:900px}
-th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
-th{background:#f1ebdf;font-size:12px}
-td.n{text-align:right;white-space:nowrap}
-.bar{display:flex;height:26px;border:1px solid #8a7a63;max-width:900px;margin:3px 0;background:repeating-linear-gradient(45deg,#eee,#eee 4px,#ddd 4px,#ddd 8px)}
-.bar div{background:#e6c592;border-right:2px solid #6b4f2a;font-size:11px;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap}
-.bar div.w{background:none;border:none;color:#666}
-.sheet{width:100%;max-width:520px;border:1px solid #8a7a63;background:repeating-linear-gradient(45deg,#eee,#eee 4px,#ddd 4px,#ddd 8px);margin:4px 12px 8px 0}
-.buy{margin:10px 0 2px;font-weight:600}
-.buy select{font-weight:400;padding:2px}
-.warn{color:#b3261e}
-input.price{width:72px;text-align:right;border:1px solid var(--line);border-radius:4px;padding:2px 4px;background:#fff}
-@media print{input.price{border:none;width:60px}}
-.page h1{margin:0 0 10px;font-size:22px}
-.printbar{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 12px;background:#fbf5ea;border:1px solid var(--line);border-radius:8px;color:var(--mute)}
-button.big{font-size:16px;padding:9px 18px}
-.step{display:flex;gap:12px;max-width:900px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
-.stepn{flex:none;width:32px;height:32px;border-radius:50%;background:var(--acc);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
-.step p{margin:4px 0 8px;font-size:15px}
-.step img{max-width:440px;width:100%;border:1px solid var(--line);border-radius:6px;display:block}
-.proj{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:#fff}
-.proj div{flex:1;min-width:0}.proj span{display:block;font-size:12px;color:var(--mute)}
-#legend{position:absolute;left:50%;transform:translateX(-50%);top:8px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12px;line-height:1.7;pointer-events:none}
-.tbsp{flex:1}
-.meter{margin-top:8px;font-size:12px;display:grid;gap:3px;color:var(--ink)}
-.meter i{display:inline-block;width:52px;color:var(--mute);font-style:normal}
-.stylebar{max-width:900px;margin:0 0 12px;padding:8px 12px;background:#fbf5ea;border:1px solid var(--line);border-radius:8px;font-size:13px}
-.stylebar button{margin-left:8px;font-size:12px;padding:3px 8px}
-.need{font-size:13px;margin:0 0 8px;color:#4a4036}
-.need ul{margin:2px 0}
-b.let{display:inline-block;min-width:20px;padding:0 5px;border-radius:4px;background:var(--acc);color:#fff;text-align:center;font-size:12px}
-.bar b{margin-right:2px}
-.page ul{margin:4px 0;padding-left:20px;max-width:900px}
-#shot{max-width:420px;width:100%;border:1px solid var(--line);border-radius:6px}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
-dialog{border:1px solid var(--line);border-radius:10px;padding:0;max-width:820px;width:92vw;color:var(--ink)}
-dialog::backdrop{background:rgba(40,30,20,.4)}
-.dh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
-.db{padding:14px 16px;max-height:70vh;overflow:auto}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px}
-.card{border:1px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;background:#fff;text-align:left}
-.card:hover,.card.on{border-color:var(--acc);background:#fbf5ea}
-.card b{display:block;margin-bottom:3px}
-.card span{font-size:12px;color:var(--mute)}
-#presetForm{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
-.ph{grid-column:1/-1;margin:10px 0 2px}
-#presetForm .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 16px}
-@media print{
-  header,main,dialog,.noprint{display:none!important}
-  body{background:#fff;display:block}
-  .page{display:none!important;padding:0;overflow:visible}
-  body[data-tab=cut] #cutPage,body[data-tab=instr] #instrPage{display:block!important}
-  .step,table,.bar,.sheet{break-inside:avoid}
-  .buy select{border:none;appearance:none}
-}
-/* menu bar */
-#menubar{display:flex;gap:2px}
-.menu{position:relative}
-.mbtn{border-color:transparent;background:transparent;padding:5px 9px}
-.mbtn:hover,.menu.open .mbtn{background:#f1ebdf;border-color:var(--line)}
-.mlist{display:none;position:absolute;top:100%;left:0;z-index:20;min-width:230px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(40,30,20,.18);padding:5px}
-.menu.open .mlist{display:block}
-.mlist button{display:flex;justify-content:space-between;gap:18px;width:100%;text-align:left;border:none;border-radius:5px;padding:6px 10px;background:none}
-.mlist button:hover{background:#f1ebdf}
-.mlist hr{border:none;border-top:1px solid var(--line);margin:4px 2px}
-kbd{font:11px system-ui,Arial,sans-serif;color:var(--mute)}
-#viewBtns .sep{margin:0 3px}
-#viewBtns button.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
-#helpDlg table td{border:none;padding:3px 10px 3px 0}
-#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2b2520;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
-#toast.on{opacity:.95}
-@media print{#toast{display:none}}
+body{font:var(--fs)/var(--lh) var(--font);color:var(--n800);background:var(--backdrop);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit;margin:0}
+button{cursor:default}
+b,strong,th{font-weight:600}
+kbd{font:var(--fs-s) var(--font);color:var(--n600)}
+[hidden]{display:none!important}
+.num{text-align:right;font-variant-numeric:tabular-nums}
 
-#boxSel{display:none;position:absolute;border:1px dashed var(--acc2);background:rgba(21,101,192,.12);pointer-events:none}
-/* floating panels over the 3D view */
-aside.float{position:absolute;z-index:5;width:250px;max-height:calc(100% - 80px);display:flex;flex-direction:column;background:rgba(255,253,248,.96);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 22px rgba(40,30,20,.18)}
-#left{left:10px;top:10px}
-#right{right:10px;top:10px;width:280px}
-.fh{display:flex;justify-content:space-between;align-items:center;padding:6px 6px 6px 12px;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);cursor:move;user-select:none;flex:none;touch-action:none}
-.fh button{border:none;background:none;padding:0 7px;font-size:17px;line-height:1.2;color:var(--mute)}
-.fh button:hover{color:var(--ink)}
-.fb{padding:10px;overflow:auto}
-aside.float.min .fb{display:none}
-aside.float.min .fh{border-bottom:none}
+/* ---------- 3. Icons ---------- */
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;--ia:currentColor}
+svg.i.l{width:24px;height:24px;stroke-width:1.5;color:var(--icon);--ia:var(--blue)}
+svg.i.m{width:20px;height:20px;stroke-width:1.5}
+svg.i.xs{width:12px;height:12px;stroke-width:1.8}
+/* Parts of an icon. These are plain class selectors on purpose: a rule that starts with #sprite does not reach
+   the copies that <use> draws in Chromium. */
+.ia{stroke:var(--ia)}                                   /* the one stroke that takes the accent on large icons */
+.fa{fill:currentColor;fill-opacity:.45;stroke:none}     /* a tinted face, as on the Front / Side / Top boxes */
+
+/* ---------- 4. Controls ---------- */
+/* field: text box or select, one look everywhere */
+.fld{height:var(--h);padding:0 6px;border:1px solid var(--n300);border-radius:var(--r);background:#fff;min-width:0;width:100%;outline:0}
+select.fld{appearance:none;-webkit-appearance:none;padding-right:20px;background:#fff var(--chev) no-repeat right 6px center;text-overflow:ellipsis}
+.fld.s{height:var(--h-s)}
+.fld:hover{border-color:var(--n400)}
+.fld:focus{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+.fld.bad{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+.fld:disabled{background:var(--n100);color:var(--n500);border-color:var(--n200)}
+
+/* button */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:var(--h);padding:0 10px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;white-space:nowrap}
+.btn:hover{background:var(--n100);border-color:var(--n500)}
+.btn:active{background:var(--n200)}
+.btn:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+.btn:disabled{background:var(--n100);border-color:var(--n200);color:var(--n400)}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;min-width:76px}
+.btn.pri:hover{background:var(--blue-d);border-color:var(--blue-d)}
+.btn.pri:disabled{background:var(--n200);border-color:var(--n200);color:var(--n500)}
+.btn.dng{color:var(--danger)}
+.btn.dng:disabled{color:var(--n400)}
+.btn.s{height:var(--h-s);padding:0 7px 0 5px}
+.btn.t{padding:0 4px;font-size:var(--fs-s)}
+
+/* icon button */
+.ib{width:24px;height:24px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:var(--r);background:none;color:var(--n800)}
+.ib.s{width:20px;height:20px;color:var(--n600)}
+.ib:hover{background:var(--n200);border-color:var(--n300)}
+.ib.on{background:var(--blue-50);border-color:var(--blue-300);color:var(--blue-d)}
+.ib:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+
+/* segmented switch (one of several) and toggle switch (on / off) */
+.seg{display:inline-flex}
+.seg button,.tg>span{height:var(--h-s);padding:0 7px;border:1px solid var(--n300);background:#fff;font-size:var(--fs-s);color:var(--n600);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.seg button{margin-left:-1px;position:relative}
+.seg button:first-child{margin-left:0;border-radius:var(--r) 0 0 var(--r)}
+.seg button:last-child{border-radius:0 var(--r) var(--r) 0}
+.seg button:hover,.tg:hover>span{background:var(--n100);color:var(--n800)}
+.seg button.on,.tg>input:checked+span{background:var(--blue-50);border-color:var(--blue-300);color:var(--blue-d);z-index:1;font-weight:600}
+.seg button:focus-visible,.tg>input:focus-visible+span{outline:2px solid var(--blue-300);outline-offset:1px;z-index:2}
+/* a toggle switch is a label around a real checkbox: the checkbox is kept (and can be clicked from code) but not drawn */
+.tg{display:inline-flex;position:relative}
+.tg>input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.tg>span{border-radius:var(--r);padding:0 7px 0 4px}
+
+/* ---------- the window: four bands, top to bottom ---------- */
+.app{height:100vh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--tabrow-h) var(--ribbon-h) minmax(0,1fr) var(--status-h);background:var(--n0);overflow:hidden}
+#designPage,.page{grid-row:3;grid-column:1;min-width:0;min-height:0}
+
+/* ---------- 5. Tab row ---------- */
+.tabrow{grid-row:1;display:flex;align-items:stretch;background:var(--n100);border-bottom:1px solid var(--n300);white-space:nowrap}
+.pd{display:flex;flex:none}
+.file{display:flex;align-items:center;gap:6px;padding:0 14px;border:0;background:var(--blue);color:#fff;font-weight:600}
+.file:hover,.pd.open>.file{background:var(--blue-d)}
+.file:focus-visible{outline:2px solid var(--blue-300);outline-offset:-3px}
+.tabs{display:flex;align-items:stretch;flex:none}
+.tab{display:flex;align-items:center;gap:6px;padding:0 12px;border:0;border-right:1px solid transparent;border-left:1px solid transparent;background:none;color:var(--n600);white-space:nowrap}
+.tab i{font-style:normal;font-size:var(--fs-s);color:var(--n500);font-variant-numeric:tabular-nums}
+.tab:hover{background:var(--n200);color:var(--n800)}
+.tab.on{background:var(--n50);color:var(--n900);font-weight:600;border-color:var(--n300);box-shadow:inset 0 2px 0 var(--blue);margin-bottom:-1px}
+.tab.on i{color:var(--blue-d)}
+.tab:focus-visible{outline:2px solid var(--blue-300);outline-offset:-3px}
+.tr-right{margin-left:auto;display:flex;align-items:center;gap:8px;padding:0 6px 0 12px;flex:none}
+.projname{display:flex;align-items:center;gap:5px;color:var(--n500)}
+.projname input{width:150px;font-weight:600;color:var(--n900)}
+
+/* ---------- 6. Ribbon ---------- */
+.ribbon{grid-row:2;display:flex;align-items:stretch;background:var(--n50);border-bottom:1px solid var(--n300);padding-left:2px;white-space:nowrap;overflow:hidden}
+.grp{display:flex;flex-direction:column;padding:2px 6px 0;position:relative;flex:none}
+.grp + .grp{border-left:1px solid var(--n200)}
+.grp-b{height:66px;display:flex;gap:2px;align-items:stretch}
+.cap{height:16px;font-size:var(--fs-s);line-height:15px;color:var(--n600);text-align:center}
+/* large command: icon over a label of one or two lines */
+.rb{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:50px;height:66px;padding:6px 5px 0;border:1px solid transparent;border-radius:var(--r);background:none;font-size:var(--fs-s);line-height:var(--lh-s);text-align:center;color:var(--n800);white-space:nowrap}
+.rb:hover,.pd.open>.rb{background:var(--n200);border-color:var(--n300)}
+.rb.on{background:var(--blue-50);border-color:var(--blue-300);color:var(--blue-d)}
+.rb:focus-visible,.sb:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
+.rb:disabled{color:var(--n400);background:none;border-color:transparent}
+.rb:disabled svg{color:var(--n400);--ia:currentColor}
+.rb .lbl{display:inline-flex;align-items:center;gap:2px}
+.rb .lbl svg{color:var(--n600)}
+/* the first step for a beginner: the one filled blue button in the ribbon */
+.rb.pri{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;padding:6px 7px 0}
+.rb.pri svg{color:#fff;--ia:#fff}
+.rb.pri:hover{background:var(--blue-d);border-color:var(--blue-d)}
+/* "More": opens the full menu of its group */
+.rb.more{min-width:42px;color:var(--n600)}
+.rb.more svg.l{color:var(--n600)}
+/* small commands, three rows to a column */
+.stack{display:grid;grid-template-rows:repeat(3,22px);grid-auto-flow:column;align-items:center;column-gap:4px;align-content:start}
+.sb{display:inline-flex;align-items:center;gap:5px;height:var(--h-s);padding:0 6px 0 3px;border:1px solid transparent;border-radius:var(--r);background:none;white-space:nowrap;color:var(--n800)}
+.sb:hover{background:var(--n200);border-color:var(--n300)}
+.sb svg{color:var(--icon)}
+.sb:disabled{color:var(--n400);background:none;border-color:transparent}
+.sb:disabled svg{color:var(--n400)}
+.stack.add{grid-template-columns:136px auto;grid-auto-flow:row}
+.stack.add .btn{justify-content:flex-start}
+.stack.add .span{grid-column:1/3;justify-self:start}
+
+/* ---------- 7. Pulldowns and menus ---------- */
+/* A pulldown is  <div class="pd"><button class="pd-btn">…</button><div class="menu">…</div></div>  anywhere on the page.
+   js/menus.js opens it, places it under its bar and closes it. .pop is the same for a small panel of settings. */
+.menu,.pop{display:none;position:fixed;z-index:var(--z-menu);min-width:236px;max-width:calc(100vw - 8px);overflow:auto;padding:4px 0;background:#fff;border:1px solid var(--n400);border-radius:0 0 var(--r-float) var(--r-float);box-shadow:var(--shadow-float);font-size:var(--fs);line-height:var(--lh);font-weight:400;color:var(--n800);text-align:left;white-space:nowrap}
+.pd.open>.menu,.pd.open>.pop{display:block}
+.mi{display:grid;grid-template-columns:20px 1fr auto;align-items:center;column-gap:6px;width:100%;height:var(--h);padding:0 12px 0 6px;border:0;background:none;text-align:left;white-space:nowrap}
+.mi:hover,.mi:focus-visible{background:var(--blue-50);outline:0}
+.mi kbd{padding-left:20px}
+.mi svg{color:var(--n600)}
+.mi>i{width:16px;height:16px}
+.mi.checked>i{background:var(--tick) center/16px no-repeat}
+.mi:disabled{color:var(--n400);background:none}
+.mi:disabled svg,.mi:disabled kbd{color:var(--n400)}
+.msep{height:1px;background:var(--n200);margin:4px 0}
+.pop{min-width:252px;padding:8px 0 4px}
+.pop-row{display:grid;grid-template-columns:44px 1fr;align-items:center;height:var(--h);margin:0 12px 6px 10px}
+.pop-row label{color:var(--n600)}
+.pop .seg{display:flex}
+.pop .seg button{flex:1 1 0;justify-content:center;height:var(--h);font-size:var(--fs)}
+/* the right-click menu uses the same rows; js/menus.js places it at the pointer */
+#ctxMenu{border-radius:var(--r-float);min-width:250px}
+
+/* ---------- 8. The 3D view and the things that sit on it ---------- */
+#designPage{display:flex}
+#cvWrap{flex:1 1 0;min-width:0;position:relative;overflow:hidden;background:var(--view-bg)}
+#cvWrap canvas{display:block;position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#axisSym{position:absolute;left:0;bottom:0;pointer-events:none;font:600 var(--fs-s) var(--font)}
+#legend{position:absolute;left:8px;bottom:84px;display:grid;grid-template-columns:10px auto;gap:3px 6px;align-items:center;max-width:220px;padding:6px 8px;background:rgba(255,255,255,.94);border:1px solid var(--n300);border-radius:var(--r);font-size:var(--fs-s);line-height:var(--lh-s);pointer-events:none}
+#legend i{width:10px;height:10px;border:1px solid rgba(0,0,0,.35)}
+#legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#legend .rest{grid-column:1/3;color:var(--n600)}
+#boxSel{display:none;position:absolute;border:1px solid var(--blue);background:rgba(78,52,46,.10);pointer-events:none}
+/* slim strip on the right edge: shows and hides the floating panels */
+.strip{flex:none;width:var(--strip-w);display:flex;flex-direction:column;background:var(--n100);border-left:1px solid var(--n300)}
+.sp-b{height:36px;border:0;background:none;display:grid;place-items:center;position:relative;color:var(--n600);padding:0}
+.sp-b:hover{background:var(--n200);color:var(--n900)}
+.sp-b.on{background:var(--n50);color:var(--blue-d)}
+.sp-b.on::before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:2px;background:var(--blue)}
+.sp-b:focus-visible{outline:2px solid var(--blue-300);outline-offset:-3px}
+/* toast: one short message at the bottom centre of the view */
+#toast{position:fixed;left:50%;bottom:calc(var(--status-h) + 12px);transform:translateX(-50%);max-width:min(620px,calc(100vw - 32px));min-height:28px;display:flex;align-items:center;padding:6px 12px;background:var(--n800);color:#fff;border-radius:var(--r-float);box-shadow:var(--shadow-float);opacity:0;pointer-events:none;transition:opacity .15s;z-index:var(--z-toast)}
+#toast.on{opacity:1}
+
+/* ---------- 9. Floating panels (Pieces, Properties) ---------- */
+aside.float{position:absolute;z-index:var(--z-panel);display:flex;flex-direction:column;max-height:calc(100% - 16px);background:var(--n50);border:1px solid var(--n400);border-radius:var(--r-float);box-shadow:var(--shadow-panel)}
+#left{left:8px;top:8px;width:264px;max-height:calc(100% - 92px)} /* leaves the axis symbol in the corner clear */
+#right{right:8px;top:8px;width:272px}
 aside.float.off{display:none}
-#partList li.hid{opacity:.4}
-#ctxMenu{display:none;position:fixed;z-index:60;min-width:250px}
-.views{display:flex;flex-wrap:wrap;gap:10px;max-width:900px}
-.views figure{margin:0;flex:1 1 260px;max-width:440px}
-.views img,img.wide{width:100%;border:1px solid var(--line);border-radius:6px;display:block;background:#f4f1ea}
-img.wide{max-width:620px}
-.views figcaption{font-size:12px;color:var(--mute);text-align:center;margin-top:3px}
-@media print{.views figure{break-inside:avoid}}
+aside.float.min .fb{display:none}
+aside.float.min .fh{border-bottom:0;border-radius:2px}
+.fh{flex:none;height:var(--panel-head-h);display:flex;align-items:center;gap:6px;padding:0 3px 0 8px;background:var(--n100);border-bottom:1px solid var(--n300);border-radius:2px 2px 0 0;cursor:move;user-select:none;touch-action:none;white-space:nowrap}
+.fh b{color:var(--n900)}
+.fh .sub{color:var(--n500);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fh-btns{margin-left:auto;display:flex;flex:none}
+.fb{min-height:0;overflow:auto}
+/* small caps caption: list headers and field groups inside panels */
+.phead,.sec{font-size:var(--fs-caps);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--n600)}
+/* Pieces: a tight three-column list (name, cut from, length) */
+#left .fb{display:flex;flex-direction:column;overflow:hidden}
+.phead,.plist li{display:grid;grid-template-columns:minmax(0,1fr) 84px 54px;column-gap:6px;align-items:center;padding:0 8px 0 10px}
+.phead{flex:none;height:20px;border-bottom:1px solid var(--n200)}
+.plist{list-style:none;margin:0;padding:0;overflow:auto;flex:1 1 auto;min-height:0;background:#fff;border-radius:0 0 2px 2px}
+.plist li{height:var(--row-h)}
+.plist li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plist li span + span{color:var(--n600)}
+.plist li:hover{background:var(--n100)}
+.plist li.on{background:var(--blue-50);box-shadow:inset 2px 0 0 var(--blue)}
+.plist li.on span{color:var(--n900)}
+.plist li.hid span{color:var(--n400)}
+.plist li.note{display:block;height:auto;padding:8px 10px;margin:0}
+.plist li.note:hover{background:none}
+/* Properties: label-left rows, then groups of three fields with the label above */
+#props{padding:8px 8px 10px}
+.frow{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;min-height:var(--h);margin-bottom:4px}
+.frow.wide{grid-template-columns:92px minmax(0,1fr)}
+.frow label,.f3 label{color:var(--n600)}
+.sec{display:flex;align-items:center;gap:8px;height:22px;margin-top:8px}
+.sec::after{content:"";flex:1;height:1px;background:var(--n200)}
+.sec .btn{order:1;text-transform:none;letter-spacing:0;font-size:var(--fs);font-weight:400;color:var(--n800)}
+.f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px 6px}
+.f3.two{grid-template-columns:1fr 2fr}
+.f3 label{font-size:var(--fs-s);line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{font-size:var(--fs-s);line-height:15px;color:var(--n600);margin:4px 0}
+.note b{color:var(--n800)}
+
+/* ---------- 10. Status bar ---------- */
+.status{grid-row:4;display:flex;align-items:stretch;background:var(--n100);border-top:1px solid var(--n300);white-space:nowrap;overflow:hidden}
+.st{display:flex;align-items:center;gap:6px;padding:0 10px;flex:none;border:0;background:none;font:inherit;color:inherit}
+.st + .st{border-left:1px solid var(--n300)}
+.st.prompt{flex:1 1 0;min-width:0}
+.st.prompt svg{color:var(--n600)}
+#status{overflow:hidden;text-overflow:ellipsis;min-width:0}
+#status b{color:var(--n900)}
+#status b:first-child{margin-right:4px}
+.st i{font-style:normal;color:var(--n600);font-size:var(--fs-s)}
+.st .short{display:none}
+.st.link:hover{background:var(--n200)}
+.st.link svg{color:var(--n600)}
+.st.warn{background:var(--warn-bg);color:var(--warn)}
+.st.warn:hover{background:#ffe9a8}
+.st:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px}
+.status .seg button,.status .tg>span{height:var(--h-st)}
+/* Show, Snap and the grid note only matter on the Design tab */
+body:not([data-tab=design]) .design-only{display:none}
+
+
+/* ---------- 11. Dialogs ----------
+   One pattern for every dialog: .dlg-h (title bar with a close button), .dlg-b (body), .dlg-f (button row, the
+   primary action on the right). js/dialogs.js has the markup to copy and the shared behavior. */
+dialog.dlg{width:440px;max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);padding:0;border:1px solid var(--n500);border-radius:var(--r-float);background:#fff;color:var(--n800);box-shadow:var(--shadow-dlg);overflow:hidden}
+dialog.dlg[open]{display:flex;flex-direction:column}
+dialog.dlg.narrow{width:340px}
+dialog.dlg.wide{width:700px}
+dialog.dlg::backdrop{background:rgba(20,28,38,.35)}
+dialog.dlg:focus{outline:0}
+.dlg-h{flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px 0 12px;background:var(--n100);border-bottom:1px solid var(--n300);font-weight:600;color:var(--n900);white-space:nowrap}
+.dlg-b{flex:1 1 auto;min-height:0;overflow:auto;padding:12px}
+.dlg-b>:first-child{margin-top:0}
+.dlg-b>:last-child{margin-bottom:0}
+.dlg-f{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--n300);background:var(--n50)}
+.dlg-f .grow{flex:1 1 0;min-width:0;color:var(--n600)}
+.dlg-msg{margin:0 0 8px;white-space:pre-line;overflow-wrap:anywhere}
+.dlg .frow{grid-template-columns:120px minmax(0,1fr)}
+.err,.dlg-f .grow.err{color:var(--danger)}
+textarea.fld.area{display:block;height:auto;padding:6px 8px;resize:vertical;font:12px/18px ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre}
+
+/* check box and radio button: <label class="ck"><input type="checkbox">Words</label> */
+.ck{display:inline-flex;align-items:center;gap:6px;min-height:var(--h)}
+.ck input{appearance:none;-webkit-appearance:none;flex:none;width:14px;height:14px;margin:0;border:1px solid var(--n500);border-radius:var(--r);background:#fff}
+.ck input[type=radio]{border-radius:50%}
+.ck input:hover{border-color:var(--n800)}
+.ck input:checked{border-color:var(--blue);background:var(--blue) var(--tick-w) center/12px no-repeat}
+.ck input[type=radio]:checked{border:4px solid var(--blue);background:#fff}
+.ck input:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+
+/* Furniture presets: pick a design on the left, set its size on the right */
+#presetDlg{width:880px}
+.preset{flex:0 1 672px;min-height:0;display:grid;grid-template-columns:400px minmax(0,1fr)}
+.pick{min-height:0;overflow:auto;padding:0 12px 12px;border-right:1px solid var(--n300)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.card{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:8px;align-items:center;height:40px;padding:0 8px;border:1px solid var(--n300);border-radius:var(--r);background:#fff;text-align:left}
+.card b,.card small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card small{font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600)}
+.card:hover{background:var(--n100);border-color:var(--n400)}
+.card.on{background:var(--blue-50);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.card:focus-visible{outline:2px solid var(--blue-300);outline-offset:1px}
+.pform{display:flex;flex-direction:column;min-width:0;min-height:0}
+.pform-b{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 16px}
+.pform-b h4{margin:0 0 2px;font-size:var(--fs-h);line-height:20px;font-weight:600;color:var(--n900)}
+.pform-b>p{margin:0 0 4px;color:var(--n600)}
+.pform-empty{margin:auto;padding:24px;max-width:260px;color:var(--n500);text-align:center}
+.pform .frow{grid-template-columns:170px 96px minmax(0,1fr);column-gap:8px}
+.pform .frow select,.pform .frow .ck{grid-column:2/4}
+.pform .frow i,.sec i{font-style:normal;font-weight:400;font-size:var(--fs-s);letter-spacing:0;text-transform:none;color:var(--n500)}
+/* the live summary under the form: what the design comes to with the sizes typed so far */
+.pform-s{flex:none;padding:8px 16px 10px;border-top:1px solid var(--n300);background:var(--n50)}
+.sum{display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;column-gap:12px}
+.sum small{display:block;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600)}
+.sum b{font-size:var(--fs-doc);line-height:19px;color:var(--n900);font-variant-numeric:tabular-nums}
+.pform-s .note{margin:6px 0 0;max-height:77px;overflow:auto}
+#cutDlg{width:520px}
+
+/* Style, finish and difficulty: three choices side by side, each with what it takes */
+.opt3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.opt{display:block;padding:4px 10px 8px;border:1px solid var(--n300);border-radius:var(--r);background:#fff}
+.opt:hover{background:var(--n50);border-color:var(--n400)}
+.opt.on{background:var(--blue-50);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.opt p{margin:0;font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+.opt dl{display:grid;grid-template-columns:44px minmax(0,1fr);gap:2px 8px;margin:8px 0 0}
+.opt dt{color:var(--n600)}
+.opt dd{margin:0}
+
+/* Help: terms on the left, what they mean on the right */
+.help p{margin:0 0 4px}
+.help dl{display:grid;grid-template-columns:132px minmax(0,1fr);gap:4px 12px;margin:0}
+.help dl.keys{grid-template-columns:172px minmax(0,1fr)}
+.help dt{font-weight:600;color:var(--n900)}
+.help dd{margin:0}
+.help kbd{display:inline-block;min-width:18px;padding:0 4px;border:1px solid var(--n300);border-radius:var(--r);background:var(--n50);color:var(--n800);font-weight:400;line-height:16px;text-align:center}
+
+/* ---------- 12. Document pages (Joints & hardware, Cut list & shopping, Build instructions) ----------
+   A white sheet 816px wide on the gray backdrop, like a page on a desk. The same markup is what gets printed
+   (section 14). .docbar is the strip of commands above the sheet; it is never printed. */
+.page{display:none;overflow:auto;padding:16px 16px 32px;background:var(--backdrop)}
+.docbar,.doc{width:816px;max-width:100%;margin:0 auto}
+.docbar{display:flex;align-items:center;gap:8px;min-height:36px;padding:5px 8px 5px 12px;background:var(--n50);border:1px solid var(--n300);border-bottom:0}
+.docbar .grow{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--n600)}
+.docbar .grow b{color:var(--n900)}
+.doc{padding:36px 44px;background:#fff;border:1px solid var(--n300);font-size:var(--fs-doc);line-height:19px;color:var(--n900)}
+.doc h1{margin:0;font-size:var(--fs-title);line-height:26px;font-weight:600}
+.doc .meta{margin:2px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--n800);font-size:var(--fs);line-height:var(--lh);color:var(--n600)}
+.doc h2{margin:22px 0 6px;font-size:var(--fs-h);line-height:20px;font-weight:600}
+.doc p{margin:0 0 8px}
+.doc ul{margin:0 0 8px;padding-left:18px}
+.doc li{margin-bottom:2px}
+.doc ul.cols{columns:2;column-gap:28px}
+.doc ul.cols li{break-inside:avoid}
+.doc .hint{margin:0 0 6px;font-size:var(--fs);line-height:var(--lh);color:var(--n600)}
+.doc .warn{margin:4px 0;color:var(--danger)}
+.doc a{color:var(--blue)}
+.doc .btn{font-size:var(--fs);line-height:var(--lh)}
+.titleblock{display:none} /* the drawing-style title block is for paper only (section 14) */
+
+/* table: gray header between two rules, thin rules between rows, numbers right-aligned in tabular figures */
+.tbl{width:100%;border-collapse:collapse;font-size:var(--fs);line-height:var(--lh);font-variant-numeric:tabular-nums}
+.tbl th{height:24px;padding:0 8px;background:var(--n100);border-top:1px solid var(--n400);border-bottom:1px solid var(--n400);font-size:var(--fs-s);color:var(--n600);text-align:left;white-space:nowrap}
+.tbl td{height:26px;padding:3px 8px;border-bottom:1px solid var(--n200);text-align:left}
+.tbl th.num,.tbl td.num{text-align:right;white-space:nowrap}
+.tbl td.nowrap{white-space:nowrap}
+.tbl tbody tr:hover{background:var(--n50)}
+.tbl tr.total td{border-top:1px solid var(--n800);border-bottom:0;font-weight:600}
+.tbl tr.total:hover{background:none}
+.tbl .fld{height:var(--h-s)}
+.tbl input.price{width:64px;text-align:right;font-variant-numeric:tabular-nums}
+.tbl select.fld{width:auto;max-width:100%}
+.tbl td.act{text-align:right;white-space:nowrap}
+.tbl td.act .btn{margin-left:4px}
+.tbl.half{width:auto;min-width:360px}
+/* the letter that names a cut-list row; the same letter is in the cutting diagrams and the steps */
+.key{display:inline-block;min-width:18px;padding:0 3px;border:1px solid var(--n800);background:#fff;font-size:var(--fs-s);line-height:14px;font-weight:600;color:var(--n900);text-align:center}
+/* the fastener dots of the 3D view, explained on the Joints page */
+.dots{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:var(--fs);line-height:var(--lh)}
+.dots span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:50%}
+
+/* the top of a sheet: picture of the whole design beside a short list of facts */
+.lead{display:grid;grid-template-columns:400px minmax(0,1fr);gap:20px;align-items:start;margin-bottom:8px}
+.lead img,.views img,.doc img.wide,.step img{display:block;width:100%;border:1px solid var(--n400);background:#fff}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;margin:0;font-size:var(--fs);line-height:var(--lh)}
+.facts dt{color:var(--n600)}
+.facts dd{margin:0}
+.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.views figure{margin:0}
+.views figcaption{margin-top:3px;font-size:var(--fs-s);line-height:var(--lh-s);color:var(--n600);text-align:center}
+.doc img.wide{max-width:520px}
+
+/* cutting diagrams: what to buy, then one bar per board (or one drawing per plywood sheet) with the cuts marked */
+.buy{display:flex;align-items:center;gap:6px;margin:14px 0 2px;font-weight:600}
+.buy select.fld{width:auto;height:var(--h-s);font-weight:400}
+.cut{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:8px;margin-top:4px;font-size:var(--fs);line-height:var(--lh)}
+.cut>span{color:var(--n600)}
+.board{display:flex;height:26px;border:1px solid var(--n800);background:#fff}
+.board div{display:flex;align-items:center;justify-content:center;gap:3px;border-right:1px solid var(--n800);font-size:var(--fs-s);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+.board .waste,svg.sheet{background:repeating-linear-gradient(135deg,#fff 0 5px,var(--n300) 5px 6px)}
+.board .waste{flex:1 1 0;border-right:0;color:var(--n600)}
+.board .waste span{padding:0 3px;background:#fff}
+.cut.ply{align-items:start}
+svg.sheet{display:block;width:100%;max-width:440px;border:1px solid var(--n800)}
+svg.sheet rect{fill:#fff;stroke:var(--n800);stroke-width:.25}
+svg.sheet text{fill:var(--n900);font-family:var(--font)}
+
+/* a step: boxed number, what to do and what it takes, and its picture on the right */
+.step{display:grid;grid-template-columns:30px minmax(0,1fr) 250px;gap:0 14px;padding:14px 0;border-top:1px solid var(--n300)}
+.step.nopic{grid-template-columns:30px minmax(0,1fr)}
+.step .no{width:30px;height:30px;display:grid;place-items:center;border:1.5px solid var(--n900);font-size:15px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums}
+.step p{margin:5px 0 8px}
+.need{margin:0 0 6px;font-size:var(--fs);line-height:18px}
+.need h4{margin:0;font-size:var(--fs-s);line-height:16px;font-weight:600;color:var(--n600)}
+.need ul{margin:0;padding:0;list-style:none}
+.need li{margin:0}
+.need .qty{display:inline-block;min-width:28px;font-variant-numeric:tabular-nums}
+
+/* ---------- 13. Narrow windows ---------- */
+@media (max-width:1280px){
+  .grp{padding:2px 3px 0}
+  .rb{min-width:44px;padding:6px 2px 0}
+  .rb.pri{padding:6px 5px 0}
+  .rb.more{min-width:38px;padding:6px 0 0}
+  .rb .lbl{gap:0}
+  .rb .lbl svg{width:10px;height:10px}
+  .stack{column-gap:2px}
+  .sb{padding:0 4px 0 2px;gap:4px}
+  .stack.add{grid-template-columns:104px auto}
+  .projname input{width:120px}
+  .tab{padding:0 9px}
+  .st{padding:0 8px}
+  .st.opt{display:none}
+  .st .long{display:none}
+  .st .short{display:inline}
+}
+/* smaller still: Front / Side / Top leave the ribbon (they stay in the View group's More menu and on keys 1, 3, 7),
+   and as a last resort the ribbon scrolls sideways rather than cutting commands off */
+@media (max-width:1100px){
+  .stack.dirs{display:none}
+  .ribbon{overflow-x:auto;scrollbar-width:none}
+  .ribbon::-webkit-scrollbar{display:none}
+  .st i{display:none}
+}
+/* a window narrower than the presets dialog: the list of designs gets slimmer, one tile to a row */
+@media (max-width:920px){
+  .preset{grid-template-columns:230px minmax(0,1fr)}
+  .tiles{grid-template-columns:minmax(0,1fr)}
+  .pform .frow{grid-template-columns:140px 96px minmax(0,1fr)}
+  .opt3{grid-template-columns:minmax(0,1fr)}
+  .doc{padding:24px 20px}
+  .step{grid-template-columns:30px minmax(0,1fr) 200px}
+}
+
+/* ---------- 14. Print ----------
+   Paper gets the sheet of the open document tab and nothing else: no tab row, ribbon, status bar, dialogs or
+   backdrop. Black text, thin gray rules, no blue. The first page starts with a title block in the manner of a
+   shop drawing (project, sheet, date, "made with NominalCAD"); js/plans.js writes the page footer
+   (project name and page number) into the #printPage style element. */
+@page{margin:12mm 12mm 14mm}
+@media print{
+  html,body{height:auto;overflow:visible}
+  body{background:#fff}
+  .app{display:block;height:auto;overflow:visible;background:none}
+  .tabrow,.ribbon,.status,#designPage,dialog,#ctxMenu,#toast,#sprite,.noprint{display:none!important}
+  .page{display:none!important;overflow:visible;padding:0;background:none}
+  body[data-tab=joints] #jointsPage,body[data-tab=cut] #cutPage,body[data-tab=instr] #instrPage{display:block!important}
+  .doc{width:auto;max-width:none;margin:0;padding:0;border:0;font-size:10.5pt;line-height:1.4;color:#000}
+
+  /* the title block replaces the on-screen heading */
+  .doc h1,.doc .meta{display:none}
+  .titleblock{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,1.2fr);margin:0 0 12pt;border:1pt solid #000}
+  .titleblock div{padding:3pt 6pt 4pt;border-right:.5pt solid #000;border-bottom:.5pt solid #000}
+  .titleblock div:nth-child(3n){border-right:0}
+  .titleblock div:nth-last-child(-n+3){border-bottom:0}
+  .titleblock small{display:block;font-size:7pt;line-height:1.3;color:#444}
+  .titleblock b{display:block;font-size:10.5pt;line-height:1.25;font-weight:600}
+  .titleblock .tb-name b{font-size:16pt}
+  .titleblock .tb-made{display:flex;align-items:flex-end;font-size:8pt;color:#444;white-space:nowrap}
+
+  .doc h2{margin:14pt 0 5pt;font-size:12pt;break-after:avoid}
+  .doc .hint,.doc .meta,.views figcaption,.cut>span,.facts dt,.need h4,.board .waste{color:#444}
+  .doc .hint{font-size:9pt;break-after:avoid}
+  .doc .warn{color:#000;font-weight:600}
+  .doc a{color:inherit;text-decoration:none}
+
+  /* tables: the header row repeats on every page, a row never splits */
+  .tbl{font-size:9.5pt}
+  .tbl thead{display:table-header-group}
+  .tbl tr{break-inside:avoid}
+  .tbl th{font-size:8.5pt;color:#000;border-color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tbl td{border-bottom-color:#999}
+  .tbl tr.total td{border-top-color:#000}
+  .tbl tbody tr:hover{background:none}
+  /* boxes that can be typed in print as plain text */
+  .tbl .fld,.buy select.fld{width:auto;height:auto;padding:0;border:0;background:none;box-shadow:none;appearance:none;-webkit-appearance:none;font:inherit;color:inherit}
+  .tbl input.price{width:4em}
+  @supports (field-sizing:content){.tbl input.price{width:auto;field-sizing:content}} /* as wide as the number in it */
+  .key{border-color:#000;color:#000}
+
+  /* things that must stay in one piece: a step with its picture, a cutting bar, a picture with its caption */
+  .step,.cut,.lead,.views figure,.buy + .cut,.need{break-inside:avoid}
+  .buy{break-after:avoid}
+  .step{border-top-color:#999}
+  .lead img,.views img,.doc img.wide,.step img{border-color:#999}
+  .board,svg.sheet{border-color:#000}
+  .board div{border-right-color:#000}
+  .board .waste,svg.sheet{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:repeating-linear-gradient(135deg,#fff 0 5px,#bbb 5px 6px)}
+  .dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

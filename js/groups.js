@@ -1,4 +1,4 @@
-/* WoodShop Designer: groups and "select similar".
+/* NominalCAD: groups and "select similar".
    A group is just a shared number (p.grp) on its pieces; clicking one piece of a group selects them all. */
 'use strict';
 function groupIds(id){const p=byId(id);return p&&p.grp?S.parts.filter(q=>q.grp===p.grp).map(q=>q.id):[id];}

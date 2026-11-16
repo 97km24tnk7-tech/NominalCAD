@@ -1,4 +1,4 @@
-/* WoodShop Designer: style, wood type, finish, and the difficulty/time/cost estimate */
+/* NominalCAD: style, wood type, finish, and the difficulty/time/cost estimate */
 'use strict';
 /* ---------- style, wood and finish ---------- */
 const WOODS={pine:['Construction pine or spruce (cheapest)',0xe6c592,1,0],select:['Select pine (smooth, few knots)',0xf1dcae,2.2,0],poplar:['Poplar (best under paint)',0xd8d3a4,2.4,0],
@@ -36,12 +36,7 @@ function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceS
   if(f[2]===2)rows.push(['Primer, quarts',qt(1)],['Paint, quarts',qt(2)]);
   if(L.finish==='clear'||f[2]===1)rows.push(['Polyurethane, quarts',qt(L.style==='fine'?3:2)]);
   return rows;}
-function lumberCost(){let tot=0;
-  for(const m of MATS){const ps=S.parts.filter(p=>p.mat===m.id);if(!ps.length||m.kind==='prop')continue;
-    if(m.kind==='board'){const lens=ps.map(p=>p.l),need=Math.max(...lens);let stock=S.stock[m.id]||96;if(need>stock)stock=STOCKS.find(s=>s>=need)||192;
-      tot+=packBoards(lens.filter(l=>l<=stock),stock).length*priceOf(m.id,stock);}
-    else tot+=packSheets(ps.map(p=>({a:p.l,b:p.w,name:''}))).sheets.length*priceOf(m.id,0);}
-  return tot;}
+const lumberCost=()=>lumberToBuy(S.parts,S.stock).cost; // lumberToBuy is in plans.js, next to the board and sheet packing
 function assess(lk){ // how hard, how long and how much, for a given style / wood / finish
   const keep=S.look;S.look=lk;
   try{const js=findJoints(),ts={},ps=S.parts.filter(p=>!isProp(p)),n=ps.length,f=FINISHES[lk.finish],area=surfaceSqFt();
@@ -50,12 +45,25 @@ function assess(lk){ // how hard, how long and how much, for a given style / woo
     const mins=n*4+(ts.screw||0)*3+(ts.pocket||0)*6+(ts.dowel||0)*12+(ts.nail||0)*2+(ts.bracket||0)*5+(ts.glue||0)*5+area*(lk.style==='rustic'?.5:lk.style==='fine'?3:1.5)+area*(lk.finish==='none'?0:f[2]?2.5:1.5);
     return{level:sc<2?'Beginner: a good first project':sc<3?'Beginner with patience':sc<4?'Some experience helps':'Experienced builder',hours:Math.max(1,Math.round(mins/60)),cost:lumberCost(),tools:toolList(js).length,pocket:!!ts.pocket};
   }finally{S.look=keep;}}
-function renderStyle(){const L=look();
-  $('#styleCards').innerHTML=S.parts.length?Object.entries(STYLES).map(([k,[nm,d]])=>{const a=assess({...L,style:k});
-    return`<button class="card${k===L.style?' on':''}" data-style="${k}"><b>${nm}</b><span>${d}</span><div class="meter"><div><i>Skill</i>${a.level}</div><div><i>Time</i>about ${a.hours} hour${a.hours>1?'s':''} of work</div><div><i>Lumber</i>about $${Math.round(a.cost).toLocaleString()}</div><div><i>Tools</i>${a.tools} kinds${a.pocket?', including a pocket-hole jig':''}</div></div></button>`;}).join('')
-    :'<div class="hint">Add some pieces or pick a preset first, then come back to compare styles.</div>';
+/* The Style, finish and difficulty dialog (#styleDlg): one choice per style with what it takes for THIS design
+   (skill, time, lumber cost, tools), then the wood and the finish. app.js applies a choice as soon as it is made. */
+function renderStyle(){
+  const L=look();
+  const choice=([key,[name,about]])=>{
+    const a=assess({...L,style:key}),on=key===L.style;
+    return`<label class="opt${on?' on':''}" data-style="${key}">`+
+      `<span class="ck"><input type="radio" name="lookStyle" value="${key}"${on?' checked':''}><b>${name}</b></span>`+
+      `<p>${about}</p>`+
+      `<dl><dt>Skill</dt><dd>${a.level}</dd>`+
+      `<dt>Time</dt><dd>about ${a.hours} hour${a.hours>1?'s':''} of work</dd>`+
+      `<dt>Lumber</dt><dd>about $${Math.round(a.cost).toLocaleString()}</dd>`+
+      `<dt>Tools</dt><dd>${a.tools} kinds${a.pocket?', including a pocket-hole jig':''}</dd></dl></label>`;
+  };
+  $('#styleCards').innerHTML=S.parts.length?Object.entries(STYLES).map(choice).join('')
+    :'<p class="dlg-msg">Add some pieces or pick a preset first, then come back to compare styles.</p>';
   $('#woodSel').innerHTML=Object.entries(WOODS).map(([k,v])=>`<option value="${k}"${k===L.wood?' selected':''}>${v[0]}${v[2]>1?` (about ${v[2]}× the price)`:''}</option>`).join('');
-  $('#finSel').innerHTML=Object.entries(FINISHES).map(([k,v])=>`<option value="${k}"${k===L.finish?' selected':''}>${v[0]}</option>`).join('');}
+  $('#finSel').innerHTML=Object.entries(FINISHES).map(([k,v])=>`<option value="${k}"${k===L.finish?' selected':''}>${v[0]}</option>`).join('');
+}
 const jType=j=>S.joints[j.key]||styleType(defaultType(j),j);
 function jSpec(j,type){
   const long=Math.max(j.ru[1]-j.ru[0],j.rv[1]-j.rv[0]),th=thruPart(j);
@@ -76,7 +84,7 @@ function jSpec(j,type){
   else if(type==='bracket'){n=Math.max(1,Math.ceil(long/18));
     text=`${n} × 1-1/2" L-bracket${n>1?'s':''} (4 screws each)`;hw.push(['1-1/2" L-brackets (corner braces)',n],['#8 × 5/8" screws for brackets',n*4]);}
   else if(type==='glue'){text='Wood glue and clamps';glue=true;}
-  else text='—';
+  else text='No fastener: the pieces only touch';
   return{text,hw,n,glue};
 }
 function hardwareTotals(js){const m=new Map();let glue=false;

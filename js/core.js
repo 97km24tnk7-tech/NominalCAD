@@ -1,4 +1,4 @@
-/* WoodShop Designer: materials, units and small helpers shared by every other file */
+/* NominalCAD: materials, units and small helpers shared by every other file */
 'use strict';
 /* ---------- materials ---------- */
 const MATS=[
@@ -47,6 +47,19 @@ function mk(name,mat,s,pos){
   return{id:0,name,mat,l:r16(s[ax[0]]),w:r16(s[ax[1]]),t:s[ax[2]],ax,pos:pos.map(r16)};
 }
 
-/* a short message that fades out by itself, for confirming an action without interrupting */
-function toast(msg){let t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}
-  t.textContent=msg;t.classList.add('on');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('on'),2200);}
+/* one of the line icons drawn in the #sprite block at the top of index.html.
+   size: '' = 16px, 'l' = 24px, 'm' = 20px, 'xs' = 12px. Example: icon('i-undo') */
+function icon(id,size){
+  return `<svg class="i${size?' '+size:''}"><use href="#${id}"/></svg>`;
+}
+
+/* a short message that fades out by itself, for confirming an action without interrupting.
+   One at a time, at the bottom centre of the view; long messages stay up a little longer so they can be read. */
+function toast(msg){
+  let t=$('#toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.setAttribute('role','status');document.body.appendChild(t);}
+  t.textContent=msg;
+  t.classList.add('on');
+  clearTimeout(toast.timer);
+  toast.timer=setTimeout(()=>t.classList.remove('on'),msg.length>80?7000:4000);
+}

@@ -1,4 +1,4 @@
-/* WoodShop Designer: finding where pieces touch and choosing fasteners */
+/* NominalCAD: finding where pieces touch and choosing fasteners */
 'use strict';
 /* ---------- joints ---------- */
 const JTYPES={screw:['Wood screws',0x333333,'Drill a pilot hole first so the wood does not split. A bead of glue makes it much stronger.'],

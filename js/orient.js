@@ -1,4 +1,4 @@
-/* WoodShop Designer: how a piece is turned in space.
+/* NominalCAD: how a piece is turned in space.
    Most pieces sit square to the world; p.ax says which way their length, width and thickness run.
    On top of that a piece can carry a free rotation about its own center, stored one of two ways:
      p.rot = {k, deg}   a tilt about one world axis (written by presets and the Angle fields)

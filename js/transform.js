@@ -1,4 +1,4 @@
-/* WoodShop Designer: moving and turning pieces the way 3D programs do it.
+/* NominalCAD: moving and turning pieces the way 3D programs do it.
    - Gizmo: colored arrows (move along one direction) and rings (turn about one direction) drawn on the selection.
    - Hotkeys: M move, R rotate, S stretch. Then X / Y / Z locks a direction, typing gives an exact amount,
      click or Enter keeps it, Esc or right-click cancels.
@@ -6,7 +6,7 @@
    Directions follow the usual 3D convention: X is left-right (red), Y is front-back (green), Z is up (blue). */
 'use strict';
 const gizmoGroup=new THREE.Group();scene.add(gizmoGroup);
-const GCOL=[0xe53935,0x1e88e5,0x43a047],GNAME=['X (left-right)','Z (up-down)','Y (front-back)']; // indexed by world axis
+const GCOL=[0xc0392b,0x2f6fb5,0x2e8b57],GNAME=['X (left-right)','Z (up-down)','Y (front-back)']; // indexed by world axis; the same colors as the axis symbol in the corner of the view
 const KEYAXIS={x:0,y:2,z:1};
 const HOTKEY={m:'g',r:'r',s:'s'}; // M move, R rotate, S stretch (inside the code the move operation is called 'g')
 let modal=null,lastMouse=null;
@@ -43,10 +43,10 @@ function gizmoHit(e){
 }
 function axisDrag(e){setRay(e);const d=[0,0,0];d[drag.k]=axisCoord(drag.k,drag.c)-drag.s0;
   const dl=applyMove(drag,d,[drag.k],e.altKey);gizmoGroup.position.set(dl[0],dl[1],dl[2]);
-  $('#status').innerHTML=`Moving along ${GNAME[drag.k]}: <b>${fmt(dl[drag.k])}</b>. Hold Alt to turn snapping off.`;draw();}
+  setPrompt(`<b>Moving along ${GNAME[drag.k]}</b>${fmt(dl[drag.k])}. Alt turns snapping off.`);draw();}
 function ringDrag(e){setRay(e);const a=ringAngle(drag.k,drag.c);if(a===null||drag.a0===null)return;
   const ang=snapAngle(wrapAngle(a-drag.a0),e.altKey);applyRot(drag.snap,drag.k,ang,drag.c);
-  $('#status').innerHTML=`Turning about ${GNAME[drag.k]}: <b>${Math.round(ang*1800/Math.PI)/10}°</b>. Snaps every 15°; hold Alt for any angle.`;draw();}
+  setPrompt(`<b>Turning about ${GNAME[drag.k]}</b>${Math.round(ang*1800/Math.PI)/10}°. It snaps every 15°; hold Alt for any angle.`);draw();}
 const snapAngle=(a,free)=>free?Math.round(a*180/Math.PI)*Math.PI/180:Math.round(a/(Math.PI/12))*Math.PI/12;
 
 /* remember the selection exactly as it is, so a turn can be previewed, redone from scratch, or cancelled */
@@ -70,9 +70,14 @@ function startModal(type){
   modal={type,axis:type==='r'?1:null,num:'',c:selCenter(),snap:snapshot(),st:moveState([...sel][0]),ref:null};
   fastGroup.visible=dimGroup.visible=false;buildHandles();buildGizmo();modalStatus();draw();return true;
 }
-function modalStatus(extra){const m=modal,ax=m.axis===null?'':` along <b>${GNAME[m.axis]}</b>`;
-  const what=m.type==='g'?`Move${ax}`:m.type==='r'?`Rotate about <b>${GNAME[m.axis]}</b>`:'Stretch';
-  $('#status').innerHTML=`<b>${what}</b>${m.num?`: typed <b>${esc(m.num)}</b>`:extra?': <b>'+extra+'</b>':''}<br>Move the mouse${m.type==='s'?'':', press X, Y or Z to lock a direction'}, or type an exact ${m.type==='r'?'angle':'size'}. Click or Enter to keep it, Esc to cancel.`;}
+/* the status bar prompt while M / R / S is running: what is happening, the live amount (extra) or the number typed so far, then what to do */
+function modalStatus(extra){
+  const m=modal;
+  const what=m.type==='g'?(m.axis===null?'Move':`Move along ${GNAME[m.axis]}`):m.type==='r'?`Rotate about ${GNAME[m.axis]}`:'Stretch';
+  const amount=m.num?`typed ${esc(m.num)}. `:extra?extra+'. ':'';
+  const how=`Move the mouse${m.type==='s'?'':', press X, Y or Z to lock a direction'}, or type an exact ${m.type==='r'?'angle':'size'}. Click or Enter keeps it, Esc cancels.`;
+  setPrompt(`<b>${what}</b>${amount}${how}`,m.type==='g'?'i-move':m.type==='r'?'i-rotate':'i-dim');
+}
 function modalMove(e){
   const m=modal;if(!m||m.num)return;setRay(e);const c=m.c;
   if(m.type==='g'){const d=[0,0,0];let axes;
@@ -139,12 +144,32 @@ function mirrorSel(k,about,keep){ // flip the selection across a plane square to
     const pb=box(p);if(pb.lo[1]<0)p.pos[1]=r16(p.pos[1]-pb.lo[1]);}
   if(keep)sel=new Set(addParts(out));commit();toast(keep?'Mirrored copy added':'Mirrored');}
 const needSel=()=>{if(tab!=='design')setTab('design');if(sel.size)return true;toast('Select one or more pieces first.');return false;};
-function openRow(){if(!needSel())return;rowSpacing();$('#rowDlg').showModal();}
-function rowSpacing(){const b=bbox(selParts()),k=+$('#rowDir').value;if(b)$('#rowStep').value=fmt(b.hi[k]-b.lo[k]);}
+
+/* ---------- the Copy in a row and Mirror dialogs (their markup is in index.html) ---------- */
+function openRow(){
+  if(!needSel())return;
+  $('#rowN').classList.remove('bad');
+  rowSpacing();
+  $('#rowDlg').showModal();
+}
+/* the distance starts as the size of the selection in the chosen direction, which puts the copies edge to edge */
+function rowSpacing(){
+  const b=bbox(selParts()),k=+$('#rowDir').value;
+  if(b)$('#rowStep').value=fmt(b.hi[k]-b.lo[k]);
+  $('#rowStep').classList.remove('bad');
+}
 function openMirror(){if(needSel())$('#mirrorDlg').showModal();}
 $('#rowDir').onchange=rowSpacing;
-$('#bRowGo').onclick=()=>{const n=parseInt($('#rowN').value,10),step=parseLen($('#rowStep').value);
-  if(!(n>0)||n>200){$('#rowN').focus();return;}if(isNaN(step)||!step){$('#rowStep').focus();return;}
-  $('#rowDlg').close();copyRow(n,+$('#rowDir').value,step);};
-$('#bMirrorGo').onclick=()=>{$('#mirrorDlg').close();mirrorSel(+$('#mirDir').value,$('#mirAbout').value,$('#mirKeep').checked);};
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());
+$('#bRowGo').onclick=()=>{
+  const count=$('#rowN'),distance=$('#rowStep'),n=parseInt(count.value,10),step=parseLen(distance.value);
+  const badCount=!(n>0)||n>200,badStep=isNaN(step)||!step;
+  count.classList.toggle('bad',badCount);      // a box that cannot be used turns red and takes the keyboard
+  distance.classList.toggle('bad',badStep);
+  if(badCount||badStep){(badCount?count:distance).focus();return;}
+  $('#rowDlg').close();
+  copyRow(n,+$('#rowDir').value,step);
+};
+$('#bMirrorGo').onclick=()=>{
+  $('#mirrorDlg').close();
+  mirrorSel(+$('#mirDir').value,$('#mirAbout').value,$('#mirKeep').checked);
+};

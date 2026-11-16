@@ -1,61 +1,111 @@
-/* WoodShop Designer: side panels (piece list, properties, status) and the Joints tab */
+/* NominalCAD: what the floating panels show (the piece list and the properties of the selection)
+   and the Joints tab. The status bar is in statusbar.js; dragging and hiding the panels is in layout.js. */
 'use strict';
-/* ---------- panels ---------- */
+/* ---------- Pieces panel: one row per piece (name, what it is cut from, length) ---------- */
+const MAX_ROWS=400; // a whole fish room is thousands of pieces; the list shows the first few hundred
 function renderParts(){
-  $('#partCount').textContent=S.parts.length?`(${S.parts.length})`:'';
-  $('#partList').innerHTML=(S.parts.length>400?`<div class="hint">Showing the first 400 of ${S.parts.length} pieces. Click any piece in the 3D view to select it.</div>`:'')+S.parts.slice(0,400).map(p=>`<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><small>${esc(M[p.mat].short)} · ${fmt(p.l)}</small></li>`).join('')
-    ||'<div class="hint">Nothing here yet. Pick a furniture preset, or add a board above.</div>';
+  const count=S.parts.length,list=$('#partList');
+  $('#partCount').textContent=count||'';
+  if(!count){
+    list.innerHTML='<li class="note">Nothing here yet. Pick a furniture preset, or draw a board.</li>';
+    return;
+  }
+  const rows=S.parts.slice(0,MAX_ROWS).map(p=>
+    `<li data-id="${p.id}" class="${sel.has(p.id)?'on':''}${hiddenIds.has(p.id)?' hid':''}"><span>${esc(p.name)}</span><span>${esc(M[p.mat].short)}</span><span class="num">${fmt(p.l)}</span></li>`).join('');
+  list.innerHTML=rows+(count>MAX_ROWS?`<li class="note">Showing the first ${MAX_ROWS} of ${count.toLocaleString()} pieces. Click any piece in the 3D view to select it.</li>`:'');
+  // bring the selected row into view, so picking a piece in 3D also finds it in the list
+  const row=list.querySelector('li.on');
+  if(row){
+    const frame=list.getBoundingClientRect(),r=row.getBoundingClientRect();
+    if(r.top<frame.top)list.scrollTop-=frame.top-r.top;
+    else if(r.bottom>frame.bottom)list.scrollTop+=r.bottom-frame.bottom;
+  }
 }
-$('#partList').addEventListener('click',e=>{const li=e.target.closest('li');if(!li)return;const id=+li.dataset.id;
-  if(e.ctrlKey||e.metaKey){sel.has(id)?sel.delete(id):sel.add(id);}else sel=new Set([id]);renderAll();});
+$('#partList').addEventListener('click',e=>{
+  const li=e.target.closest('li[data-id]');
+  if(!li)return;
+  const id=+li.dataset.id;
+  if(e.ctrlKey||e.metaKey){sel.has(id)?sel.delete(id):sel.add(id);}
+  else sel=new Set([id]);
+  renderAll();
+});
+
+/* ---------- Properties panel ---------- */
+/* small builders for the panel's markup */
+const propsSection=(title,extra)=>`<div class="sec">${title}${extra||''}</div>`;
+const propsNote=html=>`<div class="note">${html}</div>`;
+const propsRow=(label,control,wide)=>`<div class="frow${wide?' wide':''}"><label>${label}</label>${control}</div>`;
+const sizeField=(field,value,title)=>`<input class="fld" type="text" data-f="${field}" value="${fa(value)}"${title?` title="${esc(title)}"`:''}>`;
+/* a group of fields side by side, each with its label above it: cells = [[label, control html], ...] */
+function propsGroup(cells,cls){
+  return`<div class="f3${cls?' '+cls:''}">${cells.map(c=>`<label>${c[0]}</label>`).join('')}${cells.map(c=>c[1]).join('')}</div>`;
+}
+const DROP_BUTTON=`<button class="btn s" data-act="drop" title="Lower it until it rests on the floor or on the piece below">${icon('i-drop')}Drop down</button>`;
+const positionFields=p=>propsSection('Position',DROP_BUTTON)+
+  propsGroup([['From left',sizeField('x',p.pos[0])],['From back',sizeField('z',p.pos[2])],['Off the floor',sizeField('y',p.pos[1])]]);
+
 function renderProps(){
-  const ps=selParts(),el=$('#props');
-  if(!ps.length){el.innerHTML=`<h3>How it works</h3>
-    <div class="hint"><b>Click</b> a piece to select it, then <b>drag</b> to slide it across the floor. It snaps to other pieces.</div>
-    <div class="hint"><b>Shift + drag</b> raises or lowers it. <b>Alt</b> turns snapping off.</div>
-    <div class="hint"><b>Drag empty space</b> to look around, <b>right-drag</b> to pan, <b>scroll</b> to zoom.</div>
-    <div class="hint"><b>Ctrl + click</b> selects several pieces so they move together.</div>
-    <div class="hint">Keys: arrows nudge, PgUp/PgDn raise/lower, R turns, Ctrl+D copies, Delete removes.</div>
-    <div class="hint">Type sizes like <b>36</b>, <b>3 1/2</b> or <b>4' 6</b>.</div>`;return;}
-  if(ps.length>1){const b=bbox(ps);el.innerHTML=`<h3>${ps.length} pieces selected</h3>
-    <div class="hint">Together: ${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall</div>
-    ${ps.length===2?(()=>{const A=box(ps[0]),B=box(ps[1]),lab=['Left to right','Up and down','Front to back'],rows=[0,2,1].map(k=>{const g=Math.max(A.lo[k]-B.hi[k],B.lo[k]-A.hi[k]);
-        return`<div class="f"><label>${lab[k]}</label><span class="ro"><b>${g>.01?fmt(g)+' gap':g>-.01?'touching':'overlap '+fmt(-g)}</b></span></div>`;}).join('');
-      const[ia,ib]=[...sel],jn=findJoints().find(j=>(j.a.id===ia&&j.b.id===ib)||(j.a.id===ib&&j.b.id===ia));let cn;
-      if(jn){const t=jType(jn),sp=jSpec(jn,t);cn=`<div class="hint">The ${jn.fa} of <b>${esc(jn.a.name)}</b> meets the ${jn.fb} of <b>${esc(jn.b.name)}</b>.</div>
-        <div class="f"><label>Fasten with</label><select data-f="jt" data-key="${jn.key}">${Object.entries(JTYPES).map(([k,v])=>`<option value="${k}"${k===t?' selected':''}>${v[0]}</option>`).join('')}</select></div>
-        <div class="hint"><b>${esc(sp.text)}</b><br>${esc(JTYPES[t][2])}</div>`;}
-      else cn=`<div class="hint">These two are not touching yet.</div><div class="btnrow"><button data-act="connect" class="primary">Connect them</button></div>
-        <div class="hint">Moves, stretches or trims <b>${esc((byId(ia)||{}).name||'')}</b> (the one you picked first) so it meets <b>${esc((byId(ib)||{}).name||'')}</b>, then suggests the fastener.</div>`;
-      return`<h3 style="margin-top:12px">Connection</h3>${cn}<h3 style="margin-top:12px">Tape measure</h3><div class="hint">Space between <b>${esc(ps[0].name)}</b> and <b>${esc(ps[1].name)}</b>:</div>${rows}`;})():'<div class="hint">Select exactly two pieces to measure the gap between them.</div>'}
-    <div class="btnrow"><button data-act="dup">Duplicate</button><button data-act="row">Copy in a row</button><button data-act="mirror">Mirror</button><button data-act="del" class="danger">Delete</button></div>`;return;}
-  const p=ps[0],m=M[p.mat];
-  if(m.kind==='prop'){el.innerHTML=`<h3>${esc(m.short)}</h3>
-    <div class="hint">${fmt(p.l)} long × ${fmt(p.w)} front-to-back × ${fmt(p.t)} tall. Shown for reference only; it is not in the cut list.</div>
-    <div class="f"><label>From left</label><input type="text" data-f="x" value="${fa(p.pos[0])}"></div>
-    <div class="f"><label>From back</label><input type="text" data-f="z" value="${fa(p.pos[2])}"></div>
-    <div class="f"><label>Off the floor</label><input type="text" data-f="y" value="${fa(p.pos[1])}"></div>
-    <div class="btnrow"><button data-act="drop">Drop down</button><button data-act="dup">Duplicate</button><button data-act="row">Copy in a row</button><button data-act="mirror">Mirror</button><button data-act="del" class="danger">Delete</button></div>`;return;}
-  el.innerHTML=`<h3>Selected piece</h3>
-   <div class="f"><label>Name</label><input type="text" data-f="name" value="${esc(p.name)}"></div>
-   <div class="f"><label>Material</label><select data-f="mat">${MATS.filter(x=>x.kind!=='prop').map(x=>`<option value="${x.id}"${x.id===p.mat?' selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
-   <div class="f"><label>Length</label><input type="text" data-f="l" value="${fa(p.l)}"></div>
-   <div class="f"><label>Width</label><input type="text" data-f="w" value="${fa(p.w)}"></div>
-   <div class="f"><label>Thickness</label><span class="ro">${fmt(p.t)}</span></div>
-   ${m.kind==='board'?`<div class="hint">A ${m.short} is really ${fmt(m.t)} × ${fmt(m.w)}. A narrower width means a rip cut.</div>`:''}
-   <h3 style="margin-top:12px">Position</h3>
-   <div class="f"><label>From left</label><input type="text" data-f="x" value="${fa(p.pos[0])}"></div>
-   <div class="f"><label>From back</label><input type="text" data-f="z" value="${fa(p.pos[2])}"></div>
-   <div class="f"><label>Off the floor</label><input type="text" data-f="y" value="${fa(p.pos[1])}"></div>
-   <div class="btnrow"><button data-act="drop" title="Lower until it rests on the floor or the piece below">Drop down</button></div>
-   <h3 style="margin-top:12px">Turn</h3>
-   <div class="btnrow"><button data-act="rotY" title="R">Spin flat</button><button data-act="rotX">Tip front/back</button><button data-act="rotZ">Tip sideways</button></div>
-   <h3 style="margin-top:12px">Angle (braces, splayed legs)</h3>
-   <div class="f"><label>Tilt, degrees</label><input type="text" data-f="deg" value="${p.rot?p.rot.deg:p.q?angleOf(p):0}"></div>
-   <div class="f"><label>Direction</label><select data-f="rax">${[[2,'Lean left / right'],[0,'Lean front / back'],[1,'Swing flat (like a clock hand)']].map(([k,l])=>`<option value="${k}"${(p.rot?p.rot.k:2)===k?' selected':''}>${l}</option>`).join('')}</select></div>
-   ${tilted(p)?'<div class="hint">Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.</div>':''}
-   <div class="btnrow"><button data-act="dup">Duplicate</button><button data-act="row">Copy in a row</button><button data-act="mirror">Mirror</button><button data-act="del" class="danger">Delete</button></div>`;
+  const ps=selParts(),el=$('#props'),who=$('#propsName');
+  if(!ps.length){who.textContent='';el.innerHTML=propsNote('Nothing selected. Click a piece to edit it.');return;}
+  if(ps.length>1){who.textContent=ps.length+' pieces';el.innerHTML=propsOfSeveral(ps);return;}
+  const p=ps[0];
+  who.textContent=p.name;
+  el.innerHTML=isProp(p)?propsOfProp(p):propsOfPiece(p);
 }
+/* one wooden piece: name, material, size, position, quarter turns, angle */
+function propsOfPiece(p){
+  const m=M[p.mat];
+  const materials=MATS.filter(x=>x.kind!=='prop').map(x=>`<option value="${x.id}"${x.id===p.mat?' selected':''}>${esc(x.name)}</option>`).join('');
+  const realSize=m.kind==='board'?`A ${m.short} is really ${fmt(m.t)} × ${fmt(m.w)}. A narrower width means a rip cut.`:'';
+  const directions=[[2,'Lean left / right'],[0,'Lean front / back'],[1,'Swing flat (like a clock hand)']]
+    .map(([k,label])=>`<option value="${k}"${(p.rot?p.rot.k:2)===k?' selected':''}>${label}</option>`).join('');
+  return propsRow('Name',`<input class="fld" type="text" data-f="name" value="${esc(p.name)}">`)+
+    propsRow('Material',`<select class="fld" data-f="mat">${materials}</select>`)+
+    propsSection('Size')+
+    propsGroup([['Length',sizeField('l',p.l)],['Width',sizeField('w',p.w,realSize)],
+      ['Thickness',`<input class="fld" type="text" value="${fa(p.t)}" disabled title="The thickness comes from the material">`]])+
+    positionFields(p)+
+    propsSection('Turn a quarter')+
+    `<div class="f3"><button class="btn t" data-act="rotY">Spin flat</button><button class="btn t" data-act="rotX">Tip front/back</button><button class="btn t" data-act="rotZ">Tip sideways</button></div>`+
+    `<div class="sec" title="For braces and splayed legs">Angle</div>`+
+    propsGroup([['Tilt, degrees',`<input class="fld" type="text" data-f="deg" value="${p.rot?p.rot.deg:p.q?angleOf(p):0}">`],
+      ['Direction',`<select class="fld" data-f="rax">${directions}</select>`]],'two')+
+    (tilted(p)?propsNote('Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.'):'');
+}
+/* a fish tank, light, mattress or window: shown for reference, so only its position can change */
+function propsOfProp(p){
+  return propsNote(`${fmt(p.l)} long × ${fmt(p.w)} front-to-back × ${fmt(p.t)} tall. Shown for reference only; it is not in the cut list.`)+
+    positionFields(p);
+}
+/* several pieces: their size together, and for exactly two the joint between them and a tape measure */
+function propsOfSeveral(ps){
+  const b=bbox(ps);
+  let h=propsNote(`Together: <b>${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall</b>`);
+  if(ps.length!==2)return h+propsNote('Select exactly two pieces to measure the gap between them.');
+
+  const[ia,ib]=[...sel],joint=findJoints().find(j=>(j.a.id===ia&&j.b.id===ib)||(j.a.id===ib&&j.b.id===ia));
+  h+=propsSection('Connection');
+  if(joint){
+    const type=jType(joint),spec=jSpec(joint,type);
+    const types=Object.entries(JTYPES).map(([k,v])=>`<option value="${k}"${k===type?' selected':''}>${v[0]}</option>`).join('');
+    h+=propsNote(`The ${joint.fa} of <b>${esc(joint.a.name)}</b> meets the ${joint.fb} of <b>${esc(joint.b.name)}</b>.`)+
+      propsRow('Fasten with',`<select class="fld" data-f="jt" data-key="${joint.key}">${types}</select>`,true)+
+      propsNote(`<b>${esc(spec.text)}</b><br>${esc(JTYPES[type][2])}`);
+  }else{
+    h+=propsNote('These two are not touching yet.')+
+      `<button class="btn" data-act="connect">${icon('i-connect')}Connect them</button>`+
+      propsNote(`Moves, stretches or trims <b>${esc((byId(ia)||{}).name||'')}</b> (the one you picked first) so it meets <b>${esc((byId(ib)||{}).name||'')}</b>, then suggests the fastener.`);
+  }
+
+  const A=box(ps[0]),B=box(ps[1]),labels=['Left to right','Up and down','Front to back'];
+  h+=propsSection('Tape measure')+propsNote(`Space between <b>${esc(ps[0].name)}</b> and <b>${esc(ps[1].name)}</b>:`);
+  for(const k of[0,2,1]){
+    const gap=Math.max(A.lo[k]-B.hi[k],B.lo[k]-A.hi[k]);
+    h+=propsRow(labels[k],`<b>${gap>.01?fmt(gap)+' gap':gap>-.01?'touching':'overlap '+fmt(-gap)}</b>`,true);
+  }
+  return h;
+}
+/* typing in a field: every field carries data-f, the name of what it changes */
 $('#props').addEventListener('change',e=>{
   const f=e.target.dataset.f,p=selParts()[0];if(!f||!p)return;const m=M[p.mat];
   if(f==='jt'){S.joints[e.target.dataset.key]=e.target.value;commit();return;}
@@ -71,46 +121,63 @@ $('#props').addEventListener('change',e=>{
     else p.pos['xyz'.indexOf(f)]=r16(f==='y'?Math.max(0,v):v);}
   commit();
 });
+/* buttons in the panel carry data-act (the click may land on the icon inside the button) */
 $('#props').addEventListener('click',e=>{
-  const a=e.target.dataset.act;if(!a)return;const p=selParts()[0];
+  const button=e.target.closest('[data-act]');if(!button)return;
+  const a=button.dataset.act,p=selParts()[0];
   if(a==='row'){openRow();return;}if(a==='mirror'){openMirror();return;}
   if(a==='connect'){const[ia,ib]=[...sel],msg=connectParts(byId(ia),byId(ib));commit();toast(msg);return;}
   if(a==='del')delSel();else if(a==='dup')dupSel();
   else if(a==='drop'){p.pos[1]=dropPart(p);commit();}
   else if(a.startsWith('rot')){rotatePart(p,'XYZ'.indexOf(a[3]));commit();}
 });
-function renderStatus(){
-  const b=bbox(S.parts);
-  $('#status').innerHTML=b?`Overall size: <b>${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall</b> &nbsp;·&nbsp; ${S.parts.length} pieces &nbsp;·&nbsp; grid squares are 12"`+(()=>{const tk=S.parts.filter(p=>p.mat==='tank'&&p.gal);if(!tk.length)return'';const g=tk.reduce((a,p)=>a+p.gal,0);
-      return` &nbsp;·&nbsp; <b>${tk.length} tank${tk.length>1?'s':''}, ${Math.round(g).toLocaleString()} gallons, about ${Math.round(g*11.25).toLocaleString()} lb filled</b>`;})()+(S.notes&&S.notes[0]?`<br>${esc(S.notes[0])} See the Cut list tab for weight and safety notes.`:'')
-    :'Start with <b>Furniture presets</b>, or click <b>Draw a board</b> above and drag on the floor.';
-  const hint=tool==='draw'?'<b>Draw mode.</b> Pick a material on the left, then drag on the floor, or on top of a piece, to draw it. Hold Shift to stand a board upright. Press Esc when you are done.'
-    :tool==='connect'?(connectFirst?'<b>Connect.</b> Now click the piece it should meet. That one stays where it is.':'<b>Connect.</b> Click the piece you want to move or stretch.'):'';
-  if(hint)$('#status').innerHTML=hint+'<br>'+$('#status').innerHTML;
-  const cl=findClashes();if(cl.length)$('#status').innerHTML=`<b class="warn">Overlap:</b> ${esc(cl[0][0].name)} and ${esc(cl[0][1].name)} are in the same space${cl.length>1?`, and ${cl.length-1} more pair${cl.length>2?'s':''}`:''}. They are shown in red; move or shorten one.<br>`+$('#status').innerHTML;
-  if(hiddenIds.size)$('#status').innerHTML+=` &nbsp;·&nbsp; <b>${hiddenIds.size} hidden</b> (Alt+H shows everything)`;
-}
 
-/* ---------- joints page ---------- */
+/* ---------- Joints & hardware page ----------
+   One row for every kind of joint (the same two pieces meeting the same way), with the fastener to use. Picking
+   another fastener in a row changes all the joints of that kind. (docBar, docHead and docTable are in plans.js.) */
 function renderJoints(){
-  const js=findJoints(),groups=jointGroups(js),hw=hardwareTotals(js);
-  let h=`<h2>How the pieces join</h2><div class="hint">Every place two pieces touch is listed here with a suggested fastener. Change any of them; the hardware list updates.</div>`;
+  const page=$('#jointsPage'),sheetName='Joints and hardware';
+  if(!S.parts.length){
+    page.innerHTML=`<div class="doc">${docHead(sheetName)}<p>Add some pieces in the Design tab first, or pick a furniture preset.</p></div>`;
+    return;
+  }
+  const joints=findJoints(),groups=jointGroups(joints),used=new Set();
+  let h=docHead(sheetName)+`<h2>How the pieces join</h2>`;
   if(!groups.length)h+='<p>No pieces are touching yet. Slide pieces together in the Design tab and the joints appear here.</p>';
-  else{h+=`<table><tr><th>Pieces</th><th>Joints</th><th>How they meet</th><th>Fasten with</th><th>Per joint</th></tr>`;
-    groups.forEach((g,i)=>{const types=new Set(g.js.map(jType)),cur=types.size===1?[...types][0]:'';
-      const sp=cur?jSpec(g.js[0],cur):null;
-      h+=`<tr><td><b>${esc(g.A[0])}</b> to <b>${esc(g.B[0])}</b></td><td class="n">${g.js.length}</td><td>${g.A[1]} to ${g.B[1]}</td>
-        <td><select data-g="${i}">${cur?'':'<option value="" selected>(mixed)</option>'}${Object.entries(JTYPES).map(([k,v])=>`<option value="${k}"${k===cur?' selected':''}>${v[0]}</option>`).join('')}</select></td>
-        <td>${sp?esc(sp.text)+`<div class="hint">${esc(JTYPES[cur][2])}</div>`:'—'}</td></tr>`;});
-    h+=`</table><div class="btnrow noprint"><button id="bJReset">Reset all to suggested</button></div>`;}
-  h+=`<h2>Hardware to buy</h2>`+hwTable(hw);
-  h+=`<h2>Dots in the 3D view</h2><div class="hint">${Object.entries(JTYPES).filter(([k])=>k!=='none'&&k!=='glue').map(([k,v])=>`<span class="dot" style="background:#${v[1].toString(16).padStart(6,'0')}"></span>${v[0]}`).join(' &nbsp; ')}</div>`;
-  const el=$('#jointsPage');el.innerHTML=h;
-  el.querySelectorAll('select[data-g]').forEach(s=>s.onchange=()=>{if(!s.value)return;groups[+s.dataset.g].js.forEach(j=>S.joints[j.key]=s.value);commit();});
-  const rb=$('#bJReset');if(rb)rb.onclick=()=>{S.joints={};commit();};
+  else{
+    const rows=groups.map((g,i)=>{
+      const types=new Set(g.js.map(jType)),current=types.size===1?[...types][0]:'';
+      types.forEach(t=>used.add(t));
+      const choices=(current?'':'<option value="" selected>(mixed)</option>')+
+        Object.entries(JTYPES).map(([key,type])=>`<option value="${key}"${key===current?' selected':''}>${type[0]}</option>`).join('');
+      return`<tr><td class="nowrap"><b>${esc(g.A[0])}</b> to <b>${esc(g.B[0])}</b></td><td class="num">${g.js.length}</td><td class="nowrap">${g.A[1]} to ${g.B[1]}</td>`+
+        `<td><select class="fld" data-g="${i}" aria-label="Fastener"${current?` title="${esc(JTYPES[current][2])}"`:''}>${choices}</select></td>`+
+        `<td>${current?esc(jSpec(g.js[0],current).text):'Mixed'}</td></tr>`;
+    });
+    h+=docTable([['Pieces',''],['Joints','num'],['How they meet',''],['Fasten with',''],['Per joint','']],rows)+
+      `<p class="noprint"><button class="btn" id="bJReset" title="Forget the fasteners picked by hand and go back to the suggested ones">Reset all to suggested</button></p>`;
+    // how to make each kind of joint that is in use, once, instead of under every row
+    const howTo=Object.entries(JTYPES).filter(([key])=>used.has(key)&&key!=='none');
+    if(howTo.length)h+=`<h2>How to make each joint</h2><dl class="facts">${howTo.map(([,type])=>`<dt>${type[0]}</dt><dd>${esc(type[2])}</dd>`).join('')}</dl>`;
+  }
+  h+=`<h2>Hardware to buy</h2>`+hwTable(hardwareTotals(joints));
+  const dots=Object.entries(JTYPES).filter(([key])=>key!=='none'&&key!=='glue')
+    .map(([,type])=>`<span><i class="dot" style="background:#${type[1].toString(16).padStart(6,'0')}"></i>${type[0]}</span>`).join('');
+  h+=`<h2 class="noprint">Dots in the 3D view</h2><div class="dots noprint">${dots}</div>`;
+  page.innerHTML=docBar()+`<div class="doc">${h}</div>`;
+  page.querySelectorAll('select[data-g]').forEach(choice=>choice.onchange=()=>{
+    if(!choice.value)return;
+    groups[+choice.dataset.g].js.forEach(j=>S.joints[j.key]=choice.value);
+    commit();
+  });
+  const reset=$('#bJReset');
+  if(reset)reset.onclick=()=>{S.joints={};commit();};
 }
+/* the hardware list, used on all three document pages. hw = {rows:[[item, quantity]], glue:true/false} from hardwareTotals() */
 function hwTable(hw){
   if(!hw.rows.length&&!hw.glue)return'<p>No hardware needed yet.</p>';
-  return`<table style="max-width:520px"><tr><th>Item</th><th>Quantity</th></tr>${hw.rows.map(([k,q])=>`<tr><td>${esc(k)}</td><td class="n">${q}</td></tr>`).join('')}${hw.glue?'<tr><td>Wood glue</td><td class="n">1 bottle</td></tr>':''}</table><div class="hint">Buy a few extra screws; boxes are cheap and some will strip.</div>`;
+  const rows=hw.rows.map(([item,quantity])=>`<tr><td>${esc(item)}</td><td class="num">${quantity}</td></tr>`);
+  if(hw.glue)rows.push('<tr><td>Wood glue</td><td class="num">1 bottle</td></tr>');
+  return docTable([['Item',''],['Quantity','num']],rows,'half')+`<p class="hint">Buy a few extra screws; boxes are cheap and some will strip.</p>`;
 }
 

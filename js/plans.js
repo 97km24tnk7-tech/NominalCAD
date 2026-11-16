@@ -1,4 +1,4 @@
-/* WoodShop Designer: cut list, shopping list, cutting diagrams and printable instructions */
+/* NominalCAD: cut list, shopping list, cutting diagrams and printable instructions */
 'use strict';
 /* ---------- cut list ---------- */
 const STOCKS=[72,96,120,144,192];
@@ -25,11 +25,37 @@ function packSheets(rects){const SW=96,SH=48,K=.125,sheets=[],over=[];
     if(!placed){const ft=opts.sort((p,q)=>p[1]-q[1])[0];sheets.push({y:ft[1]+K,shelves:[{y:0,h:ft[1],x:ft[0]+K}],items:[{x:0,y:0,w:ft[0],h:ft[1],name:r.name}]});}
   }
   return{sheets,over};}
+/* What a list of pieces takes to buy: how many boards, how many plywood sheets, and roughly what they cost.
+   stock = the board length chosen for each material, e.g. {'2x4':120}; anything not listed is bought as 8 ft boards,
+   or as the shortest board that is long enough for the longest piece. */
+function lumberToBuy(parts,stock){
+  let boards=0,sheets=0,cost=0;
+  for(const m of MATS){
+    if(m.kind==='prop')continue;
+    const pieces=parts.filter(p=>p.mat===m.id);
+    if(!pieces.length)continue;
+    if(m.kind==='board'){
+      const lengths=pieces.map(p=>p.l),longest=Math.max(...lengths);
+      let boardLength=(stock&&stock[m.id])||96;
+      if(longest>boardLength)boardLength=STOCKS.find(s=>s>=longest)||192;
+      const count=packBoards(lengths.filter(l=>l<=boardLength),boardLength).length;
+      boards+=count;
+      cost+=count*priceOf(m.id,boardLength);
+    }else{
+      const count=packSheets(pieces.map(p=>({a:p.l,b:p.w,name:''}))).sheets.length;
+      sheets+=count;
+      cost+=count*priceOf(m.id,0);
+    }
+  }
+  return{boards,sheets,cost};
+}
 /* Every picture for the plans, taken in one go from a clean copy of the scene (nothing selected, hidden, see-through or exploded):
    an overview, flat front / side / top views with sizes, a pulled-apart view, and one picture per step. */
 function takePictures(full){
-  const keep={cam:{...cam,target:cam.target.clone()},sel,hidden:hiddenIds,xray,explode},W=880,H=560,out={steps:[],views:[]};
+  const keep={cam:{...cam,target:cam.target.clone()},sel,hidden:hiddenIds,xray,explode,dim:VIEW_COL.dim,dimText:VIEW_COL.dimText},W=880,H=560,out={steps:[],views:[]};
+  VIEW_COL.dim=VIEW_COL.printDim;VIEW_COL.dimText=VIEW_COL.printDimText; // size lines in drawing gray while the pictures are taken
   sel=new Set();hiddenIds=new Set();xray=false;explode=0;forceDims=true;rebuildScene();
+  scene.background=new THREE.Color(VIEW_COL.printBg); // plain paper behind the printed pictures, not the screen backdrop
   const snap=c=>{renderer.render(scene,c||camera);return renderer.domElement.toDataURL('image/jpeg',.88);};
   renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix();
   fastGroup.visible=handleGroup.visible=gizmoGroup.visible=false;
@@ -49,6 +75,7 @@ function takePictures(full){
         if(v){if(nw.has(p.name))any=true;g.children[0].material.color.setHex(isProp(p)?M[p.mat].color:nw.has(p.name)?0xf2a03d:0xe6c592);}}
       out.steps.push(any?snap():'');}
   }
+  scene.background=VIEW_BG;VIEW_COL.dim=keep.dim;VIEW_COL.dimText=keep.dimText;
   sel=keep.sel;hiddenIds=keep.hidden;xray=keep.xray;explode=keep.explode;forceDims=false;Object.assign(cam,keep.cam);
   resize();rebuildScene();updateCam();renderer.render(scene,camera);
   return out;
@@ -62,71 +89,234 @@ function toolList(js){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>M[p.m
   if(sheet)L.push('Straight-edge guide for cutting plywood (or have the store cut it)');
   if(S.notes&&S.notes.length)L.push('Level and shims');
   return L;}
-function renderCut(instr){
-  const pics=S.parts.length?takePictures(instr):{steps:[],views:[]},shots=pics.steps;
-  const groups=new Map();
-  const pk=p=>[p.mat,p.l,p.w,p.t,angleOf(p)].join('|');let lbs=0;
-  for(const p of S.parts){if(isProp(p))continue;const dg=angleOf(p),k=pk(p);if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:dg,qty:0,names:new Set()});
-    const g=groups.get(k);g.qty++;g.names.add(p.name);lbs+=p.l*p.w*p.t*(M[p.mat].kind==='sheet'?.02:.017);}
-  const order=id=>MATS.findIndex(m=>m.id===id),rows=[...groups.values()].sort((a,b)=>order(a.mat)-order(b.mat)||b.l-a.l);
-  // every cut-list row gets a letter that is reused in the diagrams and the steps
-  rows.forEach((g,i)=>g.id=(i>=26?String.fromCharCode(64+Math.floor(i/26)):'')+String.fromCharCode(65+i%26));
-  const letOf=p=>isProp(p)?'':groups.get(pk(p)).id,lenLet=new Map();
-  for(const g of rows)if(!lenLet.has(g.mat+'|'+g.l))lenLet.set(g.mat+'|'+g.l,g.id);
-  const b=bbox(S.parts);
-  let h=instr?`<div class="noprint printbar"><button class="primary big" id="bPrint2">Print these instructions</button><span>Everything on this page prints: shopping list, cut list, and the steps.</span></div><h1>${esc(S.name)}: build instructions</h1>`:`<h2>${esc(S.name)}</h2>`;
-  if(instr&&S.parts.length){const L=look(),a=assess(L);h+=`<div class="stylebar"><b>${STYLES[L.style][0]}</b> style · ${esc(WOODS[L.wood][0])} · ${esc(FINISHES[L.finish][0])}<br>Skill: ${a.level} · about ${a.hours} hour${a.hours>1?'s':''} of work <button class="noprint" id="bStyle2">Change style or finish</button></div>`;}
-  if(!S.parts.length){$(instr?'#instrPage':'#cutPage').innerHTML=h+'<p>Add some pieces in the Design tab first, or pick a furniture preset.</p>';return;}
-  const js0=findJoints();
-  h+=`<img id="shot" src="${pics.overview||''}" alt=""><div class="hint">Overall: ${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall. The wood weighs about ${Math.round(lbs)} lb.</div>`;
-  if(S.notes&&S.notes.length)h+=`<h2>Notes</h2><ul>${S.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
-  if(instr&&pics.views.length)h+=`<h2>Views with sizes</h2><div class="views">${pics.views.map(([n,src])=>`<figure><img src="${src}" alt=""><figcaption>${n}</figcaption></figure>`).join('')}</div><h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt=""><div class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</div>`;
-  if(instr)h+=`<h2>Tools you need</h2><ul>${toolList(js0).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
-  h+=`<h2>Cut list</h2><div class="hint">Write the letter on each piece as you cut it. The same letters are used in the cutting diagrams and the steps.</div><table><tr><th>Label</th><th>Qty</th><th>Piece</th><th>Cut from</th><th>Length</th><th>Width</th><th>Thick</th><th>Note</th></tr>`+
-    rows.map(g=>{const m=M[g.mat],rip=m.kind==='board'&&g.w<m.w-.01;
-      return`<tr><td><b class="let">${g.id}</b></td><td class="n">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td>${esc(m.short)}</td><td class="n">${fmt(g.l)}</td><td class="n">${fmt(g.w)}</td><td class="n">${fmt(g.t)}</td><td>${[rip?'Rip to '+fmt(g.w)+' wide':'',g.deg?`Sits at ${g.deg}°: cut the ends at an angle to fit`:''].filter(Boolean).join('. ')}</td></tr>`;}).join('')+`</table>`;
-  const h0=h,buy=[];h='';
-  for(const m of MATS){const ps=S.parts.filter(p=>p.mat===m.id);if(!ps.length||m.kind==='prop')continue;
-    if(m.kind==='board'){const lens=ps.map(p=>p.l),need=Math.max(...lens);let stock=S.stock[m.id]||96;
-      if(need>stock)stock=STOCKS.find(s=>s>=need)||192;
-      const bins=packBoards(lens.filter(l=>l<=stock),stock),tooLong=lens.filter(l=>l>stock);buy.push({m,qty:bins.length,stock});
-      h+=`<div class="buy">${bins.length} × ${esc(m.short)}, <select data-stock="${m.id}">${STOCKS.map(s=>`<option value="${s}"${s===stock?' selected':''}>${s/12} ft</option>`).join('')}</select> long</div>`;
-      if(tooLong.length)h+=`<div class="warn">${tooLong.length} piece(s) are longer than 16 ft and cannot be cut from one board.</div>`;
-      for(const bin of bins){const left=stock-bin.used;
-        h+=`<div class="bar">${bin.cuts.map(l=>`<div style="width:${l/stock*100}%"><b>${lenLet.get(m.id+'|'+l)||''}</b>&nbsp;${fmt(l)}</div>`).join('')}${left>1?`<div class="w" style="flex:1">${fmt(left)} left</div>`:''}</div>`;}
-    }else{const{sheets,over}=packSheets(ps.map(p=>({a:p.l,b:p.w,name:letOf(p)+': '+p.name})));buy.push({m,qty:sheets.length,stock:0});
-      h+=`<div class="buy">${sheets.length} × ${esc(m.short)}, 4 ft × 8 ft sheet${sheets.length>1?'s':''}</div>`;
-      if(sheets.length===1&&sheets[0].items.every(i=>i.x+i.w<=48&&i.y+i.h<=48))h+=`<div class="hint">Everything fits on a half sheet (4 ft × 4 ft) if your store sells them.</div>`;
-      if(over.length)h+=`<div class="warn">${over.map(o=>esc(o.name)).join(', ')}: larger than a 4 × 8 sheet.</div>`;
-      for(const sh of sheets)h+=`<svg class="sheet" viewBox="0 0 96 48">${sh.items.map(i=>`<rect x="${i.x}" y="${i.y}" width="${i.w}" height="${i.h}" fill="#e6c592" stroke="#6b4f2a" stroke-width=".3"/><text x="${i.x+i.w/2}" y="${i.y+i.h/2}" font-size="${Math.min(3,i.w/6,i.h/2.4)}" text-anchor="middle" dominant-baseline="middle">${esc(i.name)} ${fmt(i.w).replace('"','')}×${fmt(i.h).replace('"','')}</text>`).join('')}</svg>`;
-    }}
-  const dg=h;h=h0;let tot=0;
-  h+=`<h2>Shopping list</h2><table style="max-width:640px"><tr><th>Buy</th><th>Qty</th><th>Price each (edit)</th><th>Total</th><th class="noprint">Today's price</th></tr>`+buy.map(b=>{const each=priceOf(b.m.id,b.stock);tot+=each*b.qty;
-    return`<tr><td>${esc(b.m.short)}${b.stock?`, ${b.stock/12} ft long`:', 4 ft × 8 ft sheet'}</td><td class="n">${b.qty}</td><td class="n">$<input class="price" data-price="${b.m.id}" data-len="${b.stock}" value="${each.toFixed(2)}"></td><td class="n">$${(each*b.qty).toFixed(2)}</td><td class="noprint"><a target="_blank" rel="noopener" href="https://www.homedepot.com/s/${encodeURIComponent(b.stock?`${b.m.short} ${b.stock/12} ft lumber`:`${{ply34:'3/4',ply12:'1/2',ply14:'1/4'}[b.m.id]} in plywood 4x8 sheet`)}">Check Home Depot</a></td></tr>`;}).join('')+
-    `<tr><th colspan="3">Estimated lumber total (before tax and hardware)</th><th class="n">$${tot.toFixed(2)}</th><th class="noprint"></th></tr></table><div class="hint noprint">Prices start as rough guesses. "Check Home Depot" opens that item on homedepot.com, which shows the price at your store once you pick your store there. Type that price into the box and the total updates; it is remembered for next time.</div>`+
-    `<h2>Cutting diagrams</h2><div class="hint">Diagrams allow 1/8" for each saw cut. Striped areas are leftover.</div>`+dg;
-  const js=findJoints();
-  h+=`<h2>Hardware</h2>`+hwTable(hardwareTotals(js));
-  const jg=jointGroups(js).filter(g=>g.js.some(j=>jType(j)!=='none'));
-  if(instr){h+=`<h2>Steps</h2>`;
-    const steps=S.steps&&S.steps.length?S.steps:[CUT,{t:'Join the pieces as shown in the picture at the top, using the fastener table below. Start with the frame or the largest pieces, check for square as you go, and add tops and shelves last.',add:[]},FIN];
-    if(!(S.steps&&S.steps.length))h+=`<div class="hint">This is a custom design, so the steps are general. Presets come with detailed steps and a picture for each one.</div>`;
-    const seen=new Set();
-    h+=steps.map((st,i)=>{const nw=new Set(st.add);st.add.forEach(n=>seen.add(n));
-      // what to grab for this step, and which fasteners join it to what is already built
-      const need=new Map();for(const p of S.parts)if(nw.has(p.name)){const k=letOf(p)+'|'+p.name+'|'+(isProp(p)?'':fmt(p.l));need.set(k,(need.get(k)||0)+1);}
-      const needTxt=[...need.entries()].map(([k,q])=>{const[l,n,len]=k.split('|');return`${q} × ${l?`<b class="let">${l}</b> `:''}${esc(n)}${len?` (${len})`:''}`;}).join(', ');
-      const fj=jointGroups(js.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(nw.has(j.a.name)||nw.has(j.b.name))&&jType(j)!=='none'))
-        .map(g=>{const ts=new Set(g.js.map(jType));return`<li>${esc(g.A[0])} to ${esc(g.B[0])}: ${ts.size===1?esc(jSpec(g.js[0],[...ts][0]).text)+' at each joint':'mixed, see the table below'}</li>`;}).join('');
-      return`<div class="step"><div class="stepn">${i+1}</div><div><p>${esc(stepText(st))}</p>${needTxt?`<div class="need"><b>Pieces:</b> ${needTxt}</div>`:''}${fj?`<div class="need"><b>Fasten with:</b><ul>${fj}</ul></div>`:''}${shots[i]?`<img src="${shots[i]}" alt=""><div class="hint">New pieces in this step are orange.</div>`:''}</div></div>`;}).join('');}
-  if(jg.length)h+=`<h2>Which fastener goes where</h2><table><tr><th>Join</th><th>Joints</th><th>With (per joint)</th></tr>${jg.map(g=>{const ts=new Set(g.js.map(jType));
-    return`<tr><td>${esc(g.A[0])} to ${esc(g.B[0])}</td><td class="n">${g.js.length}</td><td>${ts.size===1?esc(jSpec(g.js[0],[...ts][0]).text):'Mixed, see Joints tab'}</td></tr>`;}).join('')}</table>`;
-  const el=$(instr?'#instrPage':'#cutPage');el.innerHTML=h;
-  const pb=el.querySelector('#bPrint2');if(pb)pb.onclick=()=>window.print();
-  const sb=el.querySelector('#bStyle2');if(sb)sb.onclick=openStyle;
-  el.querySelectorAll('input.price').forEach(i=>i.onchange=()=>{const v=parseFloat(i.value);
-    if(v>=0){userPrice[pkey(i.dataset.price)]=v/((+i.dataset.len||96)/96);try{localStorage.setItem('woodshop.prices',JSON.stringify(userPrice));}catch(e){}}
-    renderCut(instr);});
-  el.querySelectorAll('select[data-stock]').forEach(s=>s.onchange=()=>{S.stock[s.dataset.stock]=+s.value;commit();});
-}
 
+/* ---------- what the three document pages share (Joints & hardware, Cut list & shopping, Build instructions) ----------
+   A page is  docBar() + <div class="doc"> docHead(sheet name) + sections </div> . The same markup is printed. */
+const docDate=()=>new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
+const overallSize=b=>`${fmt(b.hi[0]-b.lo[0])} wide × ${fmt(b.hi[2]-b.lo[2])} deep × ${fmt(b.hi[1]-b.lo[1])} tall`;
+const plural=(n,word)=>`${n.toLocaleString()} ${word}${n===1?'':'s'}`;
+
+/* the strip of commands above the sheet (never printed): the style in words, Change style or finish, Print */
+function docBar(){
+  const L=look();
+  return`<div class="docbar noprint"><span class="grow"><b>${STYLES[L.style][0]}</b> style · ${esc(WOODS[L.wood][0])} · ${esc(FINISHES[L.finish][0])}</span>`+
+    `<button class="btn" data-doc="style" title="Pick the wood, the finish and how fancy the joints are">${icon('i-style')}Change style or finish</button>`+
+    `<button class="btn pri" data-doc="print" title="Print this page">${icon('i-print')}Print</button></div>`;
+}
+document.addEventListener('click',e=>{
+  const button=e.target.closest('[data-doc]');
+  if(!button)return;
+  if(button.dataset.doc==='style')openStyle();
+  if(button.dataset.doc==='print')window.print();
+});
+
+/* the top of a sheet. On screen: the title and one line of facts. On paper: a title block like the one on a
+   shop drawing (the style sheet shows one or the other). */
+function docHead(sheetName){
+  const b=bbox(S.parts),date=docDate(),toCut=S.parts.filter(p=>!isProp(p)).length;
+  const size=b?overallSize(b):'',style=toCut?STYLES[look().style][0]+' style':'';
+  const facts=[size,toCut?plural(toCut,'piece')+' to cut':'',style,date].filter(Boolean).join(' · ');
+  setPrintFooter();
+  return`<h1>${esc(S.name)}: ${sheetName.toLowerCase()}</h1><div class="meta">${facts}</div>`+
+    `<div class="titleblock">`+
+      `<div class="tb-name"><small>Project</small><b>${esc(S.name)}</b></div>`+
+      `<div><small>Sheet</small><b>${sheetName}</b></div>`+
+      `<div><small>Date</small><b>${date}</b></div>`+
+      `<div><small>Overall size</small><b>${size||'No pieces yet'}</b></div>`+
+      `<div><small>Pieces to cut, style</small><b>${toCut?toCut.toLocaleString()+', '+style:'None'}</b></div>`+
+      `<div class="tb-made">made with NominalCAD</div>`+
+    `</div>`;
+}
+/* Every printed page gets a footer: the project name on the left, the page number on the right. Browsers only
+   take that from an @page rule, so it is written into a small style element of its own. */
+function setPrintFooter(){
+  let el=$('#printPage');
+  if(!el){el=document.createElement('style');el.id='printPage';document.head.appendChild(el);}
+  const name=S.name.replace(/[\\"\n\r]/g,' '); // safe inside a quoted string in the style sheet
+  const type='font:8pt "Segoe UI",system-ui,Arial,sans-serif;color:#444';
+  el.textContent=`@page{@bottom-left{content:"${name} · made with NominalCAD";${type}}@bottom-right{content:"Page " counter(page) " of " counter(pages);${type}}}`;
+}
+/* a table in the document style. columns = [[heading, 'num' for a column of numbers or ''], ...]; rows = finished <tr> html. */
+function docTable(columns,rows,cls){
+  const head=columns.map(([text,kind])=>`<th${kind?` class="${kind}"`:''}>${text}</th>`).join('');
+  return`<table class="tbl${cls?' '+cls:''}"><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+const keyBox=letter=>letter?`<span class="key">${letter}</span>`:'';
+
+/* ---------- Cut list & shopping, and Build instructions (instr = true) ---------- */
+/* The cut list: one row for every different piece (same material and size), each with a letter that is reused in
+   the cutting diagrams and the steps. Also returns how to look a piece's letter up, and what the wood weighs. */
+function cutRows(){
+  const groups=new Map(),keyOf=p=>[p.mat,p.l,p.w,p.t,angleOf(p)].join('|');
+  let pounds=0;
+  for(const p of S.parts){
+    if(isProp(p))continue;
+    const k=keyOf(p);
+    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:angleOf(p),qty:0,names:new Set()});
+    const g=groups.get(k);
+    g.qty++;g.names.add(p.name);
+    pounds+=p.l*p.w*p.t*(M[p.mat].kind==='sheet'?.02:.017);
+  }
+  const order=id=>MATS.findIndex(m=>m.id===id);
+  const rows=[...groups.values()].sort((a,b)=>order(a.mat)-order(b.mat)||b.l-a.l);
+  rows.forEach((g,i)=>g.id=(i>=26?String.fromCharCode(64+Math.floor(i/26)):'')+String.fromCharCode(65+i%26)); // A, B ... Z, AA, AB ...
+  const byLength=new Map(); // material + length -> letter, for labelling the cuts on a board
+  for(const g of rows)if(!byLength.has(g.mat+'|'+g.l))byLength.set(g.mat+'|'+g.l,g.id);
+  return{rows,pounds,byLength,letterOf:p=>isProp(p)?'':groups.get(keyOf(p)).id};
+}
+function cutListSection(list){
+  const rows=list.rows.map(g=>{
+    const m=M[g.mat],ripped=m.kind==='board'&&g.w<m.w-.01;
+    const note=[ripped?'Rip to '+fmt(g.w)+' wide':'',g.deg?`Sits at ${g.deg}°: cut the ends at an angle to fit`:''].filter(Boolean).join('. ');
+    return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
+      `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td><td>${note}</td></tr>`;
+  });
+  return`<h2>Cut list</h2><p class="hint">Write the letter on each piece as you cut it. The same letters are used in the cutting diagrams and the steps.</p>`+
+    docTable([['Label',''],['Qty','num'],['Piece',''],['Cut from',''],['Length','num'],['Width','num'],['Thick','num'],['Note','']],rows);
+}
+/* Cutting diagrams: for each material what to buy, then one bar per board (or one drawing per plywood sheet)
+   with the cuts marked. Returns the html and the list of what to buy, which the shopping list is made from. */
+const BAR_WIDTH=568; // how wide a cutting bar is drawn on the sheet, in pixels; decides which cuts have room for a label
+function diagramSection(list){
+  const buy=[];
+  let h=`<h2>Cutting diagrams</h2><p class="hint">Diagrams allow 1/8" for each saw cut. Striped areas are leftover.</p>`;
+  for(const m of MATS){
+    const pieces=S.parts.filter(p=>p.mat===m.id);
+    if(!pieces.length||m.kind==='prop')continue;
+    if(m.kind==='board'){
+      const lengths=pieces.map(p=>p.l),longest=Math.max(...lengths);
+      let stock=S.stock[m.id]||96;
+      if(longest>stock)stock=STOCKS.find(s=>s>=longest)||192;
+      const boards=packBoards(lengths.filter(l=>l<=stock),stock),tooLong=lengths.filter(l=>l>stock);
+      buy.push({m,qty:boards.length,stock});
+      const lengthChoices=STOCKS.map(s=>`<option value="${s}"${s===stock?' selected':''}>${s/12} ft</option>`).join('');
+      h+=`<div class="buy">${boards.length} × ${esc(m.short)}, <select class="fld" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select> long</div>`;
+      if(tooLong.length)h+=`<p class="warn">${plural(tooLong.length,'piece')} ${tooLong.length>1?'are':'is'} longer than 16 ft and cannot be cut from one board.</p>`;
+      boards.forEach((board,i)=>{
+        const left=stock-board.used;
+        const cuts=board.cuts.map(l=>{
+          const letter=list.byLength.get(m.id+'|'+l)||'',length=fmt(l),room=l/stock*BAR_WIDTH;
+          // a short cut has no room for its length, and a very short one not even for its letter; the tooltip has both
+          const label=room>=(letter.length+length.length)*6+12?`<b>${letter}</b>${length}`:room>=letter.length*7+4?`<b>${letter}</b>`:'';
+          return`<div style="width:${l/stock*100}%" title="${letter} ${esc(length)}">${label}</div>`;
+        }).join('');
+        const waste=left>.01?`<div class="waste" title="${esc(fmt(left))} left over">${left/stock*BAR_WIDTH>=76?`<span>${fmt(left)} left</span>`:''}</div>`:'';
+        h+=`<div class="cut"><span>Board ${i+1} of ${boards.length}</span><div class="board">${cuts}${waste}</div></div>`;
+      });
+    }else{
+      const{sheets,over}=packSheets(pieces.map(p=>({a:p.l,b:p.w,name:list.letterOf(p)+': '+p.name})));
+      buy.push({m,qty:sheets.length,stock:0});
+      h+=`<div class="buy">${sheets.length} × ${esc(m.short)}, 4 ft × 8 ft sheet${sheets.length>1?'s':''}</div>`;
+      if(sheets.length===1&&sheets[0].items.every(i=>i.x+i.w<=48&&i.y+i.h<=48))h+=`<p class="hint">Everything fits on a half sheet (4 ft × 4 ft) if your store sells them.</p>`;
+      if(over.length)h+=`<p class="warn">${over.map(o=>esc(o.name)).join(', ')}: larger than a 4 × 8 sheet.</p>`;
+      sheets.forEach((sheet,i)=>{
+        // each piece is drawn to scale (1 unit = 1 inch) with two lines of text inside: its letter and name, then its size
+        const cuts=sheet.items.map(it=>{
+          const size=`${fmt(it.w)} × ${fmt(it.h)}`,longest=Math.max(it.name.length,size.length);
+          const type=Math.min(2.6,it.w/(longest*.56),it.h/3.2).toFixed(2),cx=it.x+it.w/2,cy=it.y+it.h/2;
+          return`<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}"><title>${esc(it.name)}, ${esc(size)}</title></rect>`+
+            `<text x="${cx}" y="${cy-type*.25}" font-size="${type}" text-anchor="middle">${esc(it.name)}</text>`+
+            `<text x="${cx}" y="${cy+type*.95}" font-size="${type}" text-anchor="middle">${esc(size)}</text>`;
+        }).join('');
+        h+=`<div class="cut ply"><span>Sheet ${i+1} of ${sheets.length}</span><svg class="sheet" viewBox="0 0 96 48">${cuts}</svg></div>`;
+      });
+    }
+  }
+  return{html:h,buy};
+}
+function shoppingSection(buy){
+  let total=0;
+  const rows=buy.map(b=>{
+    const each=priceOf(b.m.id,b.stock),what=b.stock?`${b.m.short} ${b.stock/12} ft lumber`:`${{ply34:'3/4',ply12:'1/2',ply14:'1/4'}[b.m.id]} in plywood 4x8 sheet`;
+    total+=each*b.qty;
+    return`<tr><td>${esc(b.m.short)}${b.stock?`, ${b.stock/12} ft long`:', 4 ft × 8 ft sheet'}</td><td class="num">${b.qty}</td>`+
+      `<td class="num">$ <input class="fld price" data-price="${b.m.id}" data-len="${b.stock}" value="${each.toFixed(2)}" aria-label="Price of one ${esc(b.m.short)}"></td>`+
+      `<td class="num">$${(each*b.qty).toFixed(2)}</td>`+
+      `<td class="noprint"><a target="_blank" rel="noopener" href="https://www.homedepot.com/s/${encodeURIComponent(what)}" title="Opens this item on homedepot.com, which shows the price at your store once you pick your store there">Check Home Depot</a></td></tr>`;
+  });
+  rows.push(`<tr class="total"><td colspan="3">Estimated lumber total, before tax and hardware</td><td class="num">$${total.toFixed(2)}</td><td class="noprint"></td></tr>`);
+  return`<h2>Shopping list</h2>`+
+    docTable([['Buy',''],['Qty','num'],['Price each','num'],['Total','num'],['Today\'s price','noprint']],rows)+
+    `<p class="hint noprint">Prices start as rough guesses. Type the price from your store into a box and the total follows; it is remembered for next time.</p>`;
+}
+/* the numbered steps: what to do, the pieces to grab, the fasteners that join them to what is already built, and a
+   picture with the new pieces in orange */
+function stepsSection(list,joints,shots){
+  const own=S.steps&&S.steps.length;
+  const steps=own?S.steps:[CUT,{t:'Join the pieces as shown in the picture at the top, using the fastener table below. Start with the frame or the largest pieces, check for square as you go, and add tops and shelves last.',add:[]},FIN];
+  const seen=new Set();
+  let h=`<h2>Steps</h2><p class="hint">${own?'In each picture, the pieces added in that step are orange.':'This is a custom design, so the steps are general. Presets come with detailed steps and a picture for each one.'}</p>`;
+  steps.forEach((step,i)=>{
+    const added=new Set(step.add);
+    step.add.forEach(name=>seen.add(name));
+    // the pieces this step adds, counted by letter, name and length
+    const need=new Map();
+    for(const p of S.parts)if(added.has(p.name)){
+      const k=list.letterOf(p)+'|'+p.name+'|'+(isProp(p)?'':fmt(p.l));
+      need.set(k,(need.get(k)||0)+1);
+    }
+    const pieces=[...need.entries()].map(([k,qty])=>{
+      const[letter,name,length]=k.split('|');
+      return`<li><span class="qty">${qty} ×</span>${keyBox(letter)} ${esc(name)}${length?', '+length:''}</li>`;
+    }).join('');
+    // the joints between a new piece and anything built so far
+    const fasteners=jointGroups(joints.filter(j=>seen.has(j.a.name)&&seen.has(j.b.name)&&(added.has(j.a.name)||added.has(j.b.name))&&jType(j)!=='none'))
+      .map(g=>{
+        const types=new Set(g.js.map(jType));
+        return`<li>${esc(g.A[0])} to ${esc(g.B[0])}: ${types.size===1?esc(jSpec(g.js[0],[...types][0]).text)+' at each joint':'mixed, see the table below'}</li>`;
+      }).join('');
+    h+=`<div class="step${shots[i]?'':' nopic'}"><div class="no">${i+1}</div><div><p>${esc(stepText(step))}</p>`+
+      (pieces?`<div class="need"><h4>Pieces</h4><ul>${pieces}</ul></div>`:'')+
+      (fasteners?`<div class="need"><h4>Fasten with</h4><ul>${fasteners}</ul></div>`:'')+
+      `</div>${shots[i]?`<img src="${shots[i]}" alt="Step ${i+1}">`:''}</div>`;
+  });
+  return h;
+}
+function fastenerSection(joints){
+  const groups=jointGroups(joints).filter(g=>g.js.some(j=>jType(j)!=='none'));
+  if(!groups.length)return'';
+  const rows=groups.map(g=>{
+    const types=new Set(g.js.map(jType));
+    return`<tr><td>${esc(g.A[0])} to ${esc(g.B[0])}</td><td class="num">${g.js.length}</td><td>${types.size===1?esc(jSpec(g.js[0],[...types][0]).text):'Mixed, see the Joints tab'}</td></tr>`;
+  });
+  return`<h2>Which fastener goes where</h2>`+docTable([['Join',''],['Joints','num'],['With, per joint','']],rows);
+}
+function renderCut(instr){
+  const page=$(instr?'#instrPage':'#cutPage'),sheetName=instr?'Build instructions':'Cut list and shopping';
+  if(!S.parts.length){
+    page.innerHTML=`<div class="doc">${docHead(sheetName)}<p>Add some pieces in the Design tab first, or pick a furniture preset.</p></div>`;
+    return;
+  }
+  const pics=takePictures(instr),list=cutRows(),joints=findJoints(),L=look();
+
+  // the top of the sheet: a picture of the whole design beside a few facts
+  const facts=[['Wood',WOODS[L.wood][0]],['Finish',FINISHES[L.finish][0]],['Weight of the wood',`about ${Math.round(list.pounds).toLocaleString()} lb`]];
+  if(instr){
+    const rating=assess(L);
+    facts.push(['Skill',rating.level],['Working time',`about ${rating.hours} hour${rating.hours>1?'s':''}`]);
+  }
+  let h=docHead(sheetName)+
+    `<div class="lead"><img id="shot" src="${pics.overview||''}" alt="The finished design"><dl class="facts">${facts.map(([name,value])=>`<dt>${name}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`;
+  if(S.notes&&S.notes.length)h+=`<h2>Notes</h2><ul>${S.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
+  if(instr&&pics.views.length){
+    h+=`<h2>Views with sizes</h2><div class="views">${pics.views.map(([name,src])=>`<figure><img src="${src}" alt="${name} view"><figcaption>${name}</figcaption></figure>`).join('')}</div>`+
+      `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one. The steps below show the order.</p>`;
+  }
+  if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
+  const diagrams=diagramSection(list);
+  h+=cutListSection(list)+shoppingSection(diagrams.buy)+diagrams.html;
+  h+=`<h2>Hardware</h2>`+hwTable(hardwareTotals(joints));
+  if(instr)h+=stepsSection(list,joints,pics.steps);
+  h+=fastenerSection(joints);
+
+  page.innerHTML=docBar()+`<div class="doc">${h}</div>`;
+  page.querySelectorAll('input.price').forEach(box=>box.onchange=()=>{
+    const price=parseFloat(box.value);
+    if(price>=0){
+      userPrice[pkey(box.dataset.price)]=price/((+box.dataset.len||96)/96); // kept as the price of an 8 ft board
+      try{localStorage.setItem('woodshop.prices',JSON.stringify(userPrice));}catch(e){}
+    }
+    renderCut(instr);
+  });
+  page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{S.stock[choice.dataset.stock]=+choice.value;commit();});
+}

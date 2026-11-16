@@ -1,4 +1,4 @@
-/* WoodShop Designer: fish tank rack engine and the single aquarium stand */
+/* NominalCAD: fish tank rack engine and the single aquarium stand */
 'use strict';
 /* Fish tank rack engine.
    Auto mode fits as many tanks as it can and sizes the lumber for the water weight; every choice can also be

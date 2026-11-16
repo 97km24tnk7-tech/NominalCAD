@@ -1,4 +1,4 @@
-/* WoodShop Designer: mouse handling and the on-screen tools: move, draw, resize, connect */
+/* NominalCAD: mouse handling and the on-screen tools: move, draw, resize, connect */
 'use strict';
 /* ---------- mouse ---------- */
 const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let drag=null;
@@ -43,7 +43,16 @@ cv.addEventListener('pointermove',e=>{
 });
 function moveDrag(e){
   setRay(e);const pt=new THREE.Vector3();if(!ray.ray.intersectPlane(drag.plane,pt))return;
-  applyMove(drag,[pt.x-drag.pt.x,pt.y-drag.pt.y,pt.z-drag.pt.z],drag.vertical?[1]:[0,2],e.altKey);
+  const delta=applyMove(drag,[pt.x-drag.pt.x,pt.y-drag.pt.y,pt.z-drag.pt.z],drag.vertical?[1]:[0,2],e.altKey);
+  setPrompt(moveReadout(drag,delta));
+}
+/* the live readout while pieces are dragged: how far they have gone, and where the one under the pointer is now */
+function moveReadout(st,delta){
+  const p=byId(st.primary),count=st.start.size;
+  const ways=[['left','right'],['down','up'],['toward the back','toward the front']];
+  const moved=[0,2,1].filter(k=>Math.abs(delta[k])>1e-6).map(k=>`${fmt(Math.abs(delta[k]))} ${ways[k][delta[k]>0?1:0]}`).join(', ');
+  return`<b>Moving ${count>1?count+' pieces':esc(p.name)}</b>${moved||'0"'}. `+
+    `Now ${fmt(p.pos[0])} from left, ${fmt(p.pos[2])} from back, ${fmt(p.pos[1])} off the floor. Alt turns snapping off.`;
 }
 /* move the selection by d along the given axes from where it started (st = moveState), snapping to other pieces or the grid */
 function applyMove(st,d,axes,noSnap){
@@ -58,7 +67,7 @@ function applyMove(st,d,axes,noSnap){
   }
   if(axes.includes(1)){let minY=1e9;for(const[id,s0]of st.start)minY=Math.min(minY,s0[1]+st.bx.get(id).off[1]+delta[1]);if(minY<0)delta[1]-=minY;} // never below the floor
   for(const[id,s0]of st.start){const p=byId(id);p.pos=s0.map((v,i)=>r16(v+delta[i]));setMeshPos(p);}
-  draw();renderStatus();return delta;
+  draw();renderFacts();return delta; // the overall size and the overlap warning follow the move; the caller writes the prompt
 }
 cv.addEventListener('pointerup',()=>{
   if(!drag)return;const d=drag;drag=null;
@@ -73,7 +82,7 @@ cv.addEventListener('pointerup',()=>{
 });
 /* ---------- on-screen tools: draw a board, stretch it with handles, connect two pieces ---------- */
 let tool='select',lite=false,connectFirst=null;
-const handleGroup=new THREE.Group(),preview=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0x1565c0,transparent:true,opacity:.45,depthWrite:false}));
+const handleGroup=new THREE.Group(),preview=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:VIEW_COL.sel,transparent:true,opacity:.45,depthWrite:false}));
 preview.visible=false;scene.add(handleGroup,preview);
 function setTool(t){tool=t;connectFirst=null;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===t));
   cv.style.cursor=t==='draw'||t==='connect'?'crosshair':'';if(t==='draw'||t==='connect')sel=new Set();renderAll();}
@@ -84,7 +93,7 @@ function buildHandles(){
   while(handleGroup.children.length){const c=handleGroup.children.pop();c.geometry.dispose();c.material.dispose();}
   handleGroup.visible=true;if(tool!=='select'||sel.size!==1||modal||explode)return;const p=selParts()[0];if(!p||isProp(p)||tilted(p))return;
   const b=box(p),c=b.lo.map((v,i)=>(v+b.hi[i])/2),hs=Math.max(.8,cam.r*.016),axes=M[p.mat].kind==='sheet'?[p.ax[0],p.ax[1]]:[p.ax[0]];
-  for(const k of axes)for(const side of[0,1]){const h=new THREE.Mesh(new THREE.BoxGeometry(hs,hs,hs),new THREE.MeshBasicMaterial({color:0x1565c0,depthTest:false}));
+  for(const k of axes)for(const side of[0,1]){const h=new THREE.Mesh(new THREE.BoxGeometry(hs,hs,hs),new THREE.MeshBasicMaterial({color:VIEW_COL.sel,depthTest:false}));
     const q=c.slice();q[k]=side?b.hi[k]+hs*.7:b.lo[k]-hs*.7;h.position.set(q[0],q[1],q[2]);h.userData={k,side};h.renderOrder=8;handleGroup.add(h);}
 }
 function resizeDrag(e){
@@ -95,7 +104,8 @@ function resizeDrag(e){
   const len=Math.max(1,r16(drag.side?v-drag.lo[k]:drag.hi[k]-v));
   if(p.ax.indexOf(k)===0)p.l=len;else p.w=len;
   p.pos[k]=drag.side?drag.lo[k]:r16(drag.hi[k]-len);if(p.pos[1]<0)p.pos[1]=0;
-  rebuildScene();$('#status').innerHTML=`${esc(p.name)}: <b>${fmt(p.l)} long</b>${M[p.mat].kind==='sheet'?` × ${fmt(p.w)} wide`:''}. Release to keep it. Hold Alt to turn snapping off.`;
+  rebuildScene();renderFacts();
+  setPrompt(`<b>Stretching ${esc(p.name)}</b>${fmt(p.l)} long${M[p.mat].kind==='sheet'?` × ${fmt(p.w)} wide`:''}. Release to keep it. Alt turns snapping off.`);
 }
 function startDraw(e,base){
   const hit=pick(e),y0=hit&&hit.face&&hit.face.normal.y>.9?r16(hit.point.y):0,pt=new THREE.Vector3();setRay(e); // start on the floor, or on top of the piece under the pointer
@@ -115,7 +125,7 @@ function drawDrag(e){
     else{s=[m.w,m.t,Math.abs(dz)];pos=[a[0]-m.w/2,a[1],Math.min(a[2],bz)];}}
   drag.s=s;drag.pos=pos;const ok=s.every(v=>v>=.5);preview.visible=ok;
   if(ok){preview.scale.set(s[0],s[1],s[2]);preview.position.set(pos[0]+s[0]/2,pos[1]+s[1]/2,pos[2]+s[2]/2);}
-  $('#status').innerHTML=`Drawing a ${esc(m.short)}: <b>${fmt(Math.max(...s))} long</b>${m.kind==='sheet'?` × ${fmt(Math.min(s[0],s[2]))} wide`:''}. Release to place it.`;draw();
+  setPrompt(`<b>Drawing a ${esc(m.short)}</b>${fmt(Math.max(...s))} long${m.kind==='sheet'?` × ${fmt(Math.min(s[0],s[2]))} wide`:''}. Release to place it.`);draw();
 }
 function endDraw(d){
   preview.visible=false;lite=false;const m=M[$('#addMat').value];
@@ -139,7 +149,7 @@ function connectParts(A,B){ // make A meet B: line it up, then stretch, trim or 
     for(const o of ks)if(o!==k&&Math.min(a.hi[o],b.hi[o])-Math.max(a.lo[o],b.lo[o])<.1)fitAxis(o);
     msg=`${A.name} was moved ${fmt(Math.abs(sh))} ${lab[k]} to sit against ${B.name}.`;}
   if(A.pos[1]<0)A.pos[1]=0;
-  return msg+' The fastener for this joint is in the panel on the right.';
+  return msg+' The fastener for this joint is in the Properties panel.';
 }
 function connectClick(id){
   if(!connectFirst){connectFirst=id;sel=new Set([id]);renderAll();return;}

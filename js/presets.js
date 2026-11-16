@@ -1,4 +1,4 @@
-/* WoodShop Designer: the preset catalog and the step-by-step instructions for each preset */
+/* NominalCAD: the preset catalog and the step-by-step instructions for each preset */
 'use strict';
 const PRESETS=[
  {name:'Fish tank wall / rack',desc:'From one rack to a whole fish room wall. Auto-fits the most tanks and sizes the lumber for the water weight, or set every row by hand.',
@@ -266,15 +266,33 @@ const STEPS={
       - params is the form: num('key','Label',default), {k,label,opts:[[value,label]],v}, {k,label,check:1,v}, {k,label,v,int:1}, {head:'Section title'}.
       - build(p) returns the pieces, each made with mk(name, material, [width, height, depth], [x, y, z]).
       - steps(p) returns [{t:'what to do', add:['names of the pieces this step adds']}]. Older presets keep their steps in STEPS, keyed by name.
-   2. Put its name in a group below so it shows up under the right heading. Anything not listed lands under "More". */
+   2. Put its name in a group below so it shows up under the right heading. Anything not listed lands under "More".
+   3. Optional: give its tile a picture by adding its name to PRESET_ICONS (or put icon:'i-...' on the preset itself). */
 const PRESET_GROUPS=[
  ['Aquariums and fish rooms',['Fish tank wall / rack','Cabinet stand with a row of tanks','Single aquarium stand']],
  ['Tables and seating',['Dining table','Coffee table','Side table / nightstand','Desk','Sturdy bench','Five-board bench','Entryway shoe bench']],
  ['Storage and shelving',['Bookshelf','Garage shelves','Base cabinet with doors','Storage box / toy chest','Wall shelf','Workbench']],
  ['Bedroom',['Platform bed']],
  ['Outdoors',['Shed','Planter box','Raised garden bed','Bird feeder']]];
+/* The small picture on a preset's tile: the id of an icon in the #sprite block at the top of index.html.
+   A preset that is not listed here gets the plain table icon. */
+const PRESET_ICONS={
+ 'Fish tank wall / rack':'i-p-rack','Cabinet stand with a row of tanks':'i-p-stand','Single aquarium stand':'i-p-stand',
+ 'Sturdy bench':'i-p-bench','Five-board bench':'i-p-bench','Entryway shoe bench':'i-p-bench',
+ 'Bookshelf':'i-p-shelf','Garage shelves':'i-p-shelf','Base cabinet with doors':'i-p-cabinet','Storage box / toy chest':'i-p-box','Wall shelf':'i-p-wallshelf',
+ 'Platform bed':'i-p-bed','Shed':'i-p-shed','Planter box':'i-p-planter','Raised garden bed':'i-p-planter','Bird feeder':'i-p-feeder'};
+/* The left side of the Furniture presets dialog: a heading for each group, then its presets as tiles, two to a row.
+   Each tile carries data-i, the preset's place in PRESETS; app.js opens that preset's form when the tile is clicked. */
 function renderPresetCards(){
-  const listed=new Set(PRESET_GROUPS.flatMap(g=>g[1])),more=PRESETS.filter(p=>!listed.has(p.name)).map(p=>p.name);
-  const card=n=>{const i=PRESETS.findIndex(p=>p.name===n);return i<0?'':`<button class="card" data-i="${i}"><b>${esc(PRESETS[i].name)}</b><span>${esc(PRESETS[i].desc)}</span></button>`;};
-  $('#presetCards').innerHTML=[...PRESET_GROUPS,...(more.length?[['More',more]]:[])].map(([title,names])=>`<h3 class="ph">${esc(title)}</h3>${names.map(card).join('')}`).join('');
+  const listed=new Set(PRESET_GROUPS.flatMap(group=>group[1]));
+  const unlisted=PRESETS.filter(p=>!listed.has(p.name)).map(p=>p.name);
+  const groups=unlisted.length?[...PRESET_GROUPS,['More',unlisted]]:PRESET_GROUPS;
+  const tile=name=>{
+    const i=PRESETS.findIndex(p=>p.name===name);
+    if(i<0)return'';
+    const preset=PRESETS[i],picture=preset.icon||PRESET_ICONS[name]||'i-presets';
+    return`<button class="card" data-i="${i}" title="${esc(preset.desc)}">${icon(picture,'l')}<span><b>${esc(preset.name)}</b><small>${esc(preset.desc)}</small></span></button>`;
+  };
+  $('#presetCards').innerHTML=groups.map(([title,names])=>
+    `<div class="sec">${esc(title)}</div><div class="tiles">${names.map(tile).join('')}</div>`).join('');
 }
