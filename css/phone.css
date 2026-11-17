@@ -1,0 +1,188 @@
+/* NominalCAD: the phone page (js/phone.js, design/specs/13-phone-page.md).
+   Every rule starts with #phone or html.phone-page, so nothing here reaches the desktop (self-check
+   phoneStylesStayOnThePhone); the one exception is #phoneLink, the "Phone page" button that only a phone shows in
+   the full program. The result pages are laid out by css/phonepages.css.
+   Sections: 1 the page and the desktop's dialogs on a phone, 2 the shell, 3 Pick, 4 Sizes, 5 the size pad,
+   6 the 3D view, 7 the bottom bar, 8 sideways. */
+
+/* ---------- 1. the page ---------- */
+html.phone-page .app{display:none!important}
+html.phone-page body{background:#fff;overflow:hidden}
+/* a drag down on the bars must not reload the page (Chrome on Android) or rubber-band the whole shell (iPhone) */
+html.phone-page,html.phone-page body{overscroll-behavior:none}
+html.phone-page #phone{position:fixed;inset:0}
+html.phone-page #toast{bottom:calc(72px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);font-size:15px;line-height:21px}
+/* the desktop's own dialogs (Build anyway, This cannot be built) sized for a thumb */
+html.phone-page dialog.dlg{width:calc(100% - 16px);max-width:640px;max-height:calc(100% - 32px);font-size:16px;line-height:22px}
+html.phone-page dialog.dlg .dlg-h{height:48px;padding-left:16px;font-size:17px}
+html.phone-page dialog.dlg .dlg-h .ib{width:44px;height:44px}
+html.phone-page dialog.dlg .dlg-b{padding:16px}
+html.phone-page dialog.dlg .dlg-f{flex-wrap:wrap;padding:8px}
+html.phone-page dialog.dlg .dlg-f .grow:empty{display:none}
+html.phone-page dialog.dlg .dlg-f .btn{flex:1 1 40%;height:48px;font-size:16px}
+html.phone-page dialog.dlg .fld{height:44px;font-size:16px}
+
+/* the one button the full program shows on a phone */
+/* (above the price note at the foot of the 3D view, so it covers none of its buttons) */
+#phoneLink{position:fixed;right:12px;bottom:92px;z-index:60;height:44px;padding:0 16px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--blue-d);font:600 15px/20px var(--font)}
+
+/* ---------- 2. the shell: top bar, a body that scrolls, bottom bar ---------- */
+#phone{--h:44px;--fs:15px;--lh:21px;position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;color:var(--n800);font:15px/21px var(--font);-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  /* a quick double tap anywhere (a check box row, page text) does not zoom the page; panning and pinching still work */
+  touch-action:manipulation;
+  /* sideways on a phone with a notch, nothing sits under it */
+  padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+#phone .fld{height:44px;padding:0 10px;font-size:16px}
+#phone select.fld{padding-right:28px;background-position:right 10px center}
+#phone .btn{height:44px;font-size:16px}
+#phone .lnk{font-size:15px}
+#phone .ph-bar{flex:none;display:flex;align-items:center;gap:4px;min-height:48px;padding:env(safe-area-inset-top) 4px 0;border-bottom:1px solid var(--n300);background:var(--n100)}
+#phone .ph-title{flex:1 1 0;min-width:0;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:17px;line-height:22px;font-weight:600;color:var(--n900)}
+#phone .ph-barbtn{flex:none;min-width:44px;height:44px;padding:0 10px;border:0;border-radius:var(--r);background:none;color:var(--blue-d);font-size:15px;white-space:nowrap}
+#phone .ph-barbtn:active{background:var(--n200)}
+#phone .ph-back{padding-left:6px}
+#phone .ph-body{flex:1 1 0;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#phone .ph-scr{max-width:640px;margin:0 auto}
+#phone[data-screen="result"] .ph-scr[data-scr="result"]{max-width:none}
+#phone[data-screen="result"][data-section="3d"] .ph-body{overflow:hidden}
+#phone[data-screen="result"][data-section="3d"] .ph-scr[data-scr="result"]{height:100%}
+
+/* ---------- 3. Pick ---------- */
+#phone .ph-find{position:sticky;top:0;z-index:2;padding:8px 16px;border-bottom:1px solid var(--n200);background:#fff}
+#phone .ph-group{margin:0;padding:18px 16px 6px;font-size:13px;line-height:18px;font-weight:600;color:var(--n600)}
+#phone .ph-row{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:6px 12px 6px 16px;border:0;border-bottom:1px solid var(--n200);background:#fff;color:inherit;font:inherit;text-align:left}
+#phone .ph-row:active{background:var(--n100)}
+#phone .ph-row>span{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+#phone .ph-row b{font-weight:600;color:var(--n900)}
+#phone .ph-row small{font-size:13px;line-height:18px;color:var(--n600)}
+#phone .ph-row>svg.i:last-child{color:var(--n500)}
+#phone .ph-last{border-top:1px solid var(--n200);background:var(--n50)}
+#phone .ph-none{margin:0;padding:16px;color:var(--n600)}
+
+/* ---------- 4. Sizes: the desktop's own form, laid out in one column ---------- */
+#phone .pform{display:block}
+#phone .pform-h{position:static;padding:16px 16px 8px}
+#phone .pform-h h4{margin:0 0 4px;padding:0;font-size:17px;line-height:22px}
+#phone .pform-h p{font-size:15px;line-height:21px}
+#phone .preset-reset{position:static;display:inline-flex;align-items:center;min-height:44px;font-size:15px}
+#phone .pview{flex:none;height:180px;min-height:180px;margin:0 16px}
+#phone .pform-b{overflow:visible;padding:0 16px 8px}
+#phone .pform .sec{height:auto;margin:16px 0 0;padding-bottom:4px;font-size:13px;line-height:18px;font-weight:600;color:var(--n600)}
+#phone .pform .sec i{font-size:13px}
+#phone .pform-fold{display:flex;align-items:center;height:44px;margin:4px 0}
+#phone .pform .frow{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;column-gap:8px;align-items:center;min-height:44px;margin:0;padding:10px 0;border-bottom:1px solid var(--n200)}
+#phone .pform .frow>label{grid-column:1/-1;grid-row:1;color:var(--n800);font-size:15px;line-height:21px}
+#phone .pform .frow>label i{display:block}
+#phone .pform .frow i{font-style:normal;font-size:13px;line-height:18px;color:var(--n600)}
+#phone .pform .frow>i{grid-column:1/-1;grid-row:2;margin-top:2px}
+#phone .pform .frow>.fld{grid-column:1/-1;grid-row:3;margin-top:8px}
+#phone .pform .frow.ph-step>.fld{grid-column:2;text-align:center;font-variant-numeric:tabular-nums}
+#phone .pform .frow.ph-step>input[readonly]{background:#fff;cursor:pointer}
+#phone .pform .frow>.ph-minus{grid-column:1;grid-row:3;margin-top:8px}
+#phone .pform .frow>.ph-plus{grid-column:3;grid-row:3;margin-top:8px}
+#phone .pform .frow>.ph-range{grid-column:1/-1;grid-row:4;margin-top:4px;font-size:13px;line-height:18px;color:var(--n600)}
+#phone .pform .frow>.ph-badline{grid-column:1/-1;grid-row:5;margin:6px 0 0;color:var(--danger);font-size:15px;line-height:21px}
+#phone .pform .frow.sub{padding-left:12px;border-left:3px solid var(--n200)}
+#phone .pform .frow.sub>label{padding-left:0}
+#phone .ph-minus,#phone .ph-plus{display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--n800);-webkit-user-select:none;user-select:none}
+#phone .ph-minus svg.i,#phone .ph-plus svg.i{width:20px;height:20px;stroke-width:1.8}
+#phone .ph-minus:active,#phone .ph-plus:active{background:var(--n200)}
+#phone .ph-minus:disabled,#phone .ph-plus:disabled{border-color:var(--n200);background:var(--n100);color:var(--n400)}
+/* a check box: the whole row is the tap target */
+#phone .pform .frow.ph-ck{grid-template-columns:minmax(0,1fr) 44px;padding:0}
+#phone .pform .frow.ph-ck>label{grid-column:1;grid-row:1;display:flex;align-items:center;min-height:52px}
+#phone .pform .frow.ph-ck>.ck{display:contents}
+#phone .pform .frow.ph-ck .ck>input{grid-column:2;grid-row:1;justify-self:center;width:26px;height:26px}
+#phone .pform .frow.ph-ck .ck>input:checked{background-size:20px}
+#phone .pform .frow.ph-ck .ck>i{grid-column:1/-1;grid-row:2;margin:-6px 0 10px}
+/* the summary, the warning box and the remark under the form */
+#phone .pform-s{padding:12px 16px;border-top:1px solid var(--n300)}
+#phone .sum{grid-template-columns:repeat(2,minmax(0,1fr));justify-content:stretch;row-gap:8px}
+#phone .sum small{font-size:13px;line-height:18px}
+#phone .sum b{font-size:15px;line-height:21px}
+#phone .sum .err{grid-column:1/-1;font-size:15px;line-height:21px}
+#phone .pform-s .chk{max-height:none;overflow:visible;margin-top:10px}
+#phone .chk-i{padding:10px 8px;font-size:15px;line-height:21px}
+#phone .chk-i svg.i{margin-top:3px}
+#phone .chk-i small{font-size:13px;line-height:18px}
+#phone .pform-s .note{max-height:none;overflow:visible;margin-top:10px;font-size:15px;line-height:21px}
+#phone #presetFoot{display:block;padding:4px 16px 0;color:var(--n600);font-size:13px;line-height:18px}
+
+/* ---------- 5. the size pad: a sheet from the bottom ---------- */
+#phone .ph-pad{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:flex-end}
+#phone .ph-pad-shade{flex:1 1 0;min-height:0;background:rgba(20,28,38,.35)}
+#phone .ph-pad-sheet{flex:none;width:100%;max-width:640px;max-height:100%;margin:0 auto;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:12px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--n400);background:#fff}
+/* Cancel and Done stay in sight at the foot of the pad when a short screen (sideways) makes the keys scroll */
+#phone .ph-pad{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+#phone .ph-pad-btns{position:sticky;bottom:0;z-index:1;margin:0 -12px calc(-12px - env(safe-area-inset-bottom));padding:8px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--n200);background:#fff}
+#phone .ph-pad-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+#phone .ph-pad-head b{font-size:17px;line-height:22px;color:var(--n900)}
+#phone .ph-pad-head small{font-size:13px;line-height:18px;color:var(--n600);text-align:right}
+#phone .ph-pad-read{padding:6px 8px;border:1px solid var(--n300);border-radius:var(--r);background:var(--n50);text-align:center}
+#phone .ph-pad-keyed{display:block;min-height:36px;font-size:28px;line-height:36px;font-weight:600;color:var(--n900);font-variant-numeric:tabular-nums}
+#phone .ph-pad-keyed.old{color:var(--n500);font-weight:400}
+#phone .ph-pad-means{display:block;min-height:21px;font-size:15px;line-height:21px;color:var(--n600)}
+#phone .ph-pad-means.bad{color:var(--danger)}
+#phone .ph-pad-keys{display:flex;flex-direction:column;gap:8px}
+#phone .ph-pad-digits,#phone .ph-pad-fracs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#phone .ph-key{height:52px;padding:0;border:1px solid var(--n300);border-radius:var(--r);background:#fff;color:var(--n900);font-size:20px;font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none}
+#phone .ph-key:active{background:var(--n200)}
+#phone .ph-key.fn{background:var(--n100);font-size:16px}
+#phone .ph-key.frac{font-size:16px}
+#phone .ph-key.on{border-color:var(--blue);background:var(--blue-50);color:var(--blue-d);font-weight:600}
+#phone .ph-key.wide{grid-column:span 2}
+#phone .ph-pad-type{align-self:center;min-height:44px;padding:0 8px}
+#phone .ph-pad-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#phone .ph-pad-btns .btn{height:48px}
+
+/* ---------- 6. the 3D view ---------- */
+#phone .ph-view{position:relative;height:100%;overflow:hidden;background:var(--view-bg)}
+#phone[data-section="3d"] .ph-docs,#phone:not([data-section="3d"]) .ph-view{display:none}
+#phone .ph-view #cvWrap{position:absolute;inset:0}
+#phone #left,#phone #right,#phone #axisSym,#phone #legend,#phone #priceLine,#phone #stepPanel,#phone #boxSel,#phone #viewTip{display:none!important}
+#phone .ph-touch{position:absolute;inset:0;z-index:3;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#phone .ph-hint{position:absolute;left:0;right:0;top:8px;z-index:4;margin:0;padding:0 12px;text-align:center;font-size:13px;line-height:18px;color:var(--n600);pointer-events:none}
+#phone .ph-reset{position:absolute;left:12px;bottom:12px;z-index:4;height:44px;padding:0 16px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--n800);font-size:15px}
+#phone .ph-reset:active{background:var(--n200)}
+/* the document pages sit in the body and scroll with it (css/phonepages.css lays them out) */
+#phone .ph-docs .page{height:auto;overflow:visible}
+
+/* ---------- 7. the bottom bar: Build it, or the four tabs of the result ---------- */
+#phone .ph-foot{flex:none;border-top:1px solid var(--n300);background:#fff;padding-bottom:env(safe-area-inset-bottom)}
+#phone[data-screen="pick"] .ph-foot{display:none}
+#phone[data-screen="sizes"] .ph-tabs,#phone[data-screen="result"] .ph-build{display:none}
+#phone .ph-build{display:block;width:calc(100% - 16px);max-width:624px;height:48px;margin:8px auto;border:0;border-radius:var(--r);background:var(--blue);color:#fff;font-size:17px;font-weight:600}
+#phone .ph-build:active{background:var(--blue-d)}
+/* sizes that cannot be built yet: the button looks waiting (a tap still goes to the red box, or says why) */
+#phone .ph-build.ph-wait{background:var(--n200);color:var(--n600)}
+/* the line over Build it: that building replaces the design made before, or why it cannot build yet */
+#phone .ph-footline{max-width:624px;margin:8px auto 0;padding:0 8px;color:var(--n600);font-size:13px;line-height:18px}
+#phone .ph-footline.bad{color:var(--danger);font-size:15px;line-height:21px}
+#phone .ph-footline+.ph-build{margin-top:6px}
+#phone .ph-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+#phone .ph-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:56px;padding:0;border:0;border-top:2px solid transparent;background:none;color:var(--n600);font-size:13px;line-height:16px}
+#phone .ph-tab.on{border-top-color:var(--blue);color:var(--blue-d);font-weight:600}
+
+/* ---------- 8. sideways: a short window ---------- */
+@media (max-height:640px){
+  #phone .ph-key{height:46px}
+  #phone .ph-pad-keyed{font-size:24px;line-height:30px;min-height:30px}
+}
+@media (max-height:500px){
+  /* the keys on the right, everything else (the size, Type it instead, Cancel and Done) on the left, so the whole
+     pad fits a phone held sideways without scrolling */
+  #phone .ph-pad-keys{flex-direction:row;align-items:flex-start;gap:4px}
+  #phone .ph-pad-digits,#phone .ph-pad-fracs{flex:1 1 0;gap:4px}
+  #phone .ph-key{height:44px}
+  #phone .ph-pad-sheet{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.4fr);grid-template-rows:auto auto 1fr auto;grid-template-areas:"head keys" "read keys" "type keys" "btns keys";gap:6px 10px;padding-top:8px}
+  #phone .ph-pad-head{grid-area:head;flex-direction:column;align-items:flex-start;gap:0}
+  #phone .ph-pad-head small{text-align:left}
+  #phone .ph-pad-read{grid-area:read;padding:2px 8px}
+  #phone .ph-pad-keys{grid-area:keys}
+  #phone .ph-pad-type{grid-area:type;align-self:start}
+  #phone .ph-pad-btns{grid-area:btns;position:static;margin:0;padding:0;border-top:0}
+  #phone .ph-pad-keyed{font-size:22px;line-height:28px;min-height:28px}
+  #phone .pview{height:140px;min-height:140px}
+  #phone .ph-tab{height:48px}
+  #phone .ph-tab svg.i{display:none}
+}

@@ -1,0 +1,176 @@
+/* NominalCAD: the result pages of the phone page (js/phonepages.js; design/specs/13-phone-page.md, Builder 2).
+   Every rule starts with #phone or html.phone-page, as in css/phone.css (self-check phoneStylesStayOnThePhone), so
+   nothing here reaches the desktop. The pages are the desktop's own (#cutPage, #instrPage, drawn by renderCut);
+   these rules only lay them out for a screen 320 px wide and up.
+   Sections: 1 the page and which parts show, 2 tables as stacked rows, 3 Shopping, 4 Cut list and diagrams,
+   5 drawings that slide sideways, 6 Steps and Drill your pieces, 7 the word cards and large pictures. */
+
+/* ---------- 1. the page, and which parts each tab shows ---------- */
+#phone .ph-docs .page{padding:0;background:#fff}
+#phone .ph-docs .doc{width:auto;max-width:640px;margin:0 auto;padding:4px 16px 32px;border:0;font-size:15px;line-height:21px}
+#phone .ph-docs .doc h2{margin:24px 0 8px;font-size:17px;line-height:22px}
+#phone .ph-docs .doc h3{font-size:15px;line-height:21px}
+#phone .ph-docs .doc h4{font-size:13px;line-height:18px}
+#phone .ph-docs .doc .hint{font-size:13px;line-height:18px}
+#phone .ph-docs .doc .meta{margin:8px 0 0;padding-bottom:8px;border-bottom:1px solid var(--n300);font-size:13px;line-height:18px}
+#phone .ph-docs .doc ul.cols{columns:1}
+/* a part shows only under its own tab; the facts line under the title shows under all three */
+#phone .ph-docs .doc>[data-ph-part="none"]{display:none}
+#phone[data-section="shop"] .ph-docs .doc>[data-ph-part]:not([data-ph-part="shop"]):not([data-ph-part="top"]),
+#phone[data-section="cut"] .ph-docs .doc>[data-ph-part]:not([data-ph-part="cut"]):not([data-ph-part="top"]),
+#phone[data-section="steps"] .ph-docs .doc>[data-ph-part]:not([data-ph-part="steps"]):not([data-ph-part="top"]){display:none}
+/* (until the page is laid out, nothing shows at its widest; and nothing untagged shows) */
+#phone .ph-docs .doc:not([data-ph-laid])>*,#phone .ph-docs .doc>:not([data-ph-part]){display:none}
+
+/* ---------- 2. tables drawn as stacked rows ----------
+   Each row is a block: its title line (the cells marked ph-t, in their --ph-order), then one line for each other cell,
+   its column heading (data-label) small above the value; cells marked ph-half share a line, two to a line. */
+#phone .ph-docs table.tbl[data-ph-table]{display:block;width:100%;min-width:0;border-top:1px solid var(--n400)}
+#phone .ph-docs table.tbl[data-ph-table]>thead{display:none}
+#phone .ph-docs table.tbl[data-ph-table]>tbody{display:block}
+#phone .ph-docs table.tbl[data-ph-table] tr{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;padding:10px 0;border-bottom:1px solid var(--n300)}
+#phone .ph-docs table.tbl[data-ph-table] tr:hover{background:none}
+#phone .ph-docs table.tbl[data-ph-table] td{display:block;order:10;flex:1 1 100%;min-width:0;height:auto;padding:2px 0;border:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
+#phone .ph-docs table.tbl[data-ph-table] td:empty{display:none}
+#phone .ph-docs table.tbl[data-ph-table] td[data-label]:not(.ph-t)::before{content:attr(data-label);display:block;font-size:13px;line-height:18px;color:var(--n600);font-weight:400}
+#phone .ph-docs table.tbl[data-ph-table] td.ph-half{order:9;flex:1 1 calc(50% - 6px)}
+#phone .ph-docs table.tbl[data-ph-table] td.ph-half::before{display:inline!important;margin-right:5px}
+/* the end of the title line: everything after it starts on a new line */
+#phone .ph-docs table.tbl[data-ph-table] tr::after{content:"";order:5;flex:0 0 100%;height:0}
+/* the title line: the title cells side by side, in their order, the last one taking the rest of the line */
+#phone .ph-docs table.tbl[data-ph-table] td.ph-t{order:var(--ph-order);flex:0 0 auto;padding:0 0 4px;font-size:16px;line-height:22px;font-weight:600;color:var(--n900)}
+#phone .ph-docs table.tbl[data-ph-table] td.ph-tl{flex:1 1 0}
+/* a total, a subtotal and a group line: the whole width */
+#phone .ph-docs table.tbl[data-ph-table] tr.total,#phone .ph-docs table.tbl[data-ph-table] tr.sub{flex-wrap:nowrap;justify-content:space-between}
+#phone .ph-docs table.tbl[data-ph-table] tr.total::after,#phone .ph-docs table.tbl[data-ph-table] tr.sub::after{display:none}
+#phone .ph-docs table.tbl[data-ph-table] td.ph-wide{order:1;flex:1 1 auto;font-weight:600}
+#phone .ph-docs table.tbl[data-ph-table] tr.total td{order:2;flex:0 0 auto;border-top:0;font-size:16px;text-align:right}
+#phone .ph-docs table.tbl[data-ph-table] tr.total td.ph-wide{order:1;flex:1 1 auto;text-align:left}
+#phone .ph-docs table.tbl[data-ph-table] tr.total{border-top:2px solid var(--n800)}
+#phone .ph-docs table.tbl[data-ph-table] tr.sub{padding:16px 0 6px;color:var(--n600);font-size:13px}
+#phone .ph-docs table.tbl[data-ph-table] tr.sub td{font-size:13px}
+
+/* the cut list: "A 2 Long apron" as the title, with "×" after the count */
+#phone .ph-docs table.tbl[data-ph-table="cut"] td.ph-t[data-label="Qty"]::after,
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.ph-t[data-label="Qty"]::after{content:" \00D7";font-weight:400;color:var(--n600)}
+#phone .ph-docs table.tbl[data-ph-table="cut"] td.ph-t .key{min-width:24px;font-size:14px;line-height:20px}
+#phone .ph-docs table.tbl[data-ph-table="cut"] td.ph-half{font-size:16px;font-variant-numeric:tabular-nums}
+#phone .ph-docs table.tbl[data-ph-table="cut"] td[data-label="Length"]{font-weight:600}
+/* the hardware: the item, and how many at the right of the same line */
+#phone .ph-docs table.tbl[data-ph-table="hw"] td.ph-t{flex:1 1 0;font-weight:400}
+#phone .ph-docs table.tbl[data-ph-table="hw"] td.ph-tl{flex:0 0 auto;font-weight:600;text-align:right}
+#phone .ph-docs table.tbl.half{min-width:0}
+/* the drill tables: the hexagon tag of a setting stays beside its words */
+#phone .ph-docs table.tbl[data-ph-table="holes"] td.ph-t:first-child{flex:0 0 auto}
+#phone .ph-docs table.tbl[data-ph-table="holes"] td.ph-t svg.tag,#phone .ph-docs table.tbl[data-ph-table="setups"] td.ph-t svg.tag{vertical-align:-4px}
+
+/* ---------- 3. Shopping ---------- */
+/* Update prices, Price book and Paste prices are the full program's */
+#phone .ph-docs [data-shop] .pbar{display:none}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.ph-t[data-label="Buy"] .pnote{display:block;font-size:13px;line-height:18px;font-weight:400;color:var(--n600)}
+/* a row in three lines, to read in a store aisle:
+     47 × 2x4, 8 ft long                 Total $183.30
+     Price each $ [3.90]   Price from est. Oct 2026
+     Look it up  [Home Depot] [Lowe's]                */
+#phone .ph-docs table.tbl[data-ph-table="shop"] td[data-label="Total"]{order:4;flex:0 0 auto;padding:0 0 4px;text-align:right;font-size:16px;line-height:22px;font-weight:600;font-variant-numeric:tabular-nums}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td[data-label]:not(.ph-t)::before{display:inline;margin-right:4px}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td[data-label="Total"]::before{font-size:13px;font-weight:400}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td[data-label="Price each"]{order:6;flex:0 0 auto;display:flex;align-items:center;gap:0}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td[data-label="Price from"]{order:7;flex:1 1 0;align-self:center;font-size:13px;line-height:18px;color:var(--n600)}
+#phone .ph-docs table.tbl[data-ph-table="shop"] input.price{width:96px;height:44px;padding:0 8px;font-size:16px}
+/* the store links: two buttons a thumb can hit */
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.noprint:not(:empty){display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding-top:6px}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.noprint::before{flex:0 0 auto}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.noprint a{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;min-width:0;max-width:150px;height:44px;margin:0;padding:0 4px;white-space:nowrap;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--blue-d);font-size:15px;text-decoration:none}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.noprint a:active{background:var(--n200)}
+#phone .ph-docs table.tbl[data-ph-table="shop"] td.noprint .pwords{flex:1 1 0;min-width:0;font-size:15px;color:var(--n800)}
+
+/* ---------- 4. Cut list and cutting diagrams ---------- */
+#phone .ph-docs .buy{flex-wrap:wrap;gap:6px 10px;margin:20px 0 6px;font-size:16px;line-height:22px}
+#phone .ph-docs .buy select.fld{height:44px;padding:0 28px 0 10px;font-size:16px}
+#phone .ph-docs .cut{display:block;margin-top:8px}
+#phone .ph-docs .cut>span{display:block;margin-bottom:2px;font-size:13px;line-height:18px}
+/* a board bar fits the screen, whole: each cut's letter over its length (js/phonepages.js phoneFitBoards keeps only
+   the letter where the length has no room, and leaves the shortest blank, as the desktop does) */
+#phone .ph-docs .board{height:42px}
+#phone .ph-docs .board div{flex-direction:column;gap:0;font-size:13px;line-height:17px;text-align:center}
+#phone .ph-docs .board div b{line-height:17px}
+#phone .ph-docs .board div.ph-short{font-size:0}
+#phone .ph-docs .board div.ph-short b{font-size:13px}
+#phone .ph-docs .board div.ph-blank,#phone .ph-docs .board div.ph-blank *{font-size:0}
+#phone .ph-docs .board .waste span{white-space:normal;line-height:15px}
+#phone .ph-docs .shape-cut h3{font-size:16px;line-height:22px}
+
+/* ---------- 5. drawings that slide sideways ---------- */
+#phone .ph-docs .ph-slide-line{margin:8px 0 4px;font-size:13px;line-height:18px;color:var(--n600)}
+#phone .ph-docs [data-ph-slide]{max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:6px}
+#phone .ph-docs [data-ph-slide]>*{width:var(--ph-slide-width,auto)}
+#phone .ph-docs [data-ph-slide="sheet"] svg.sheet{max-width:none}
+#phone .ph-docs [data-ph-slide="shape"] svg.shape-draw{max-width:none}
+#phone .ph-docs [data-ph-slide="drawing"]>svg.pd,#phone .ph-docs [data-ph-slide="drawing"]>.drill-legend{display:block;width:var(--ph-slide-width);max-width:none}
+#phone .ph-docs [data-ph-slide="drawing"]>.drill-legend svg.pd{width:100%}
+
+/* ---------- 6. Steps, and Drill your pieces ---------- */
+/* the list at the top of the Steps tab: a line for each step, that jumps to it */
+#phone .ph-docs .ph-jump{margin:8px 0 16px;border-top:1px solid var(--n300)}
+#phone .ph-docs .ph-jump .ph-jump-h{margin:12px 0 4px}
+#phone .ph-docs .ph-jump-row{display:flex;align-items:baseline;gap:10px;width:100%;min-height:44px;padding:10px 0;border:0;border-bottom:1px solid var(--n200);background:none;color:var(--n800);font:inherit;text-align:left}
+#phone .ph-docs .ph-jump-row:active{background:var(--n100)}
+#phone .ph-docs .ph-jump-row b{flex:0 0 24px;color:var(--blue-d);font-variant-numeric:tabular-nums}
+#phone .ph-docs .ph-jump-row span{flex:1 1 0;min-width:0}
+#phone .ph-docs .step,#phone .ph-docs .step.nopic{display:grid;grid-template-columns:36px minmax(0,1fr);gap:0 10px;padding:16px 0}
+#phone .ph-docs .step .no{width:32px;height:32px;font-size:16px}
+#phone .ph-docs .step>.step-text{grid-column:2}
+/* the picture, the marking views and the close-ups take the whole width, one under the other */
+#phone .ph-docs .step>figure,#phone .ph-docs .step>.markviews,#phone .ph-docs .step>.closeups{grid-column:1/-1}
+#phone .ph-docs .step.drill>.step-text{grid-column:1/-1}
+#phone .ph-docs .step.drill>.no{margin-bottom:8px}
+#phone .ph-docs .markviews,#phone .ph-docs .closeups,#phone .ph-docs .closeups .halves{grid-template-columns:minmax(0,1fr);gap:12px}
+#phone .ph-docs .step figcaption,#phone .ph-docs .closeups figcaption{font-size:13px;line-height:18px}
+#phone .ph-docs .need{font-size:15px;line-height:21px}
+#phone .ph-docs .need .pc{white-space:normal}
+#phone .ph-docs .step .was,#phone .ph-docs .put{font-size:13px;line-height:18px}
+#phone .ph-docs .drill-box,#phone .ph-docs .drill-fig .notes,#phone .ph-docs .drill .tail{font-size:15px;line-height:21px}
+#phone .ph-docs .fig-head{font-size:15px;line-height:21px}
+#phone .ph-docs .fig-head b{font-size:15px}
+/* the Done boxes of a part drawing: 44 px to tap */
+#phone .ph-docs .fig-head .done{min-height:44px;gap:2px}
+#phone .ph-docs .fig-head .done input{appearance:none;-webkit-appearance:none;width:44px;height:44px;margin:0;border:0;border-radius:0;cursor:pointer;
+  background:linear-gradient(#fff,#fff) center/22px 22px no-repeat,linear-gradient(var(--n500),var(--n500)) center/24px 24px no-repeat}
+#phone .ph-docs .fig-head .done input:checked{background:var(--tick-w) center/16px no-repeat,linear-gradient(var(--blue),var(--blue)) center/24px 24px no-repeat}
+#phone .ph-docs .drill-fig .tbl td:first-child{width:auto}
+#phone .ph-docs .drill-fig table.tbl[data-ph-table] tr{padding:10px}
+#phone .ph-docs .drill-fig table.tbl[data-ph-table] tr:last-child{border-bottom:0}
+/* the views with sizes: one under the other */
+#phone .ph-docs .views{grid-template-columns:minmax(0,1fr)}
+#phone .ph-docs .views .hint{padding:0}
+#phone .ph-docs img.wide{max-width:100%}
+#phone .ph-docs .term{padding:2px 2px}
+/* no words under 13 px on the phone (the desktop's small type is 11 px): letters of pieces, numbers in circles,
+   "Put in", "est." and the second line of a word */
+#phone .ph-docs .key{min-width:22px;font-size:13px;line-height:18px}
+#phone .ph-docs .bal{width:22px;height:22px;font-size:13px}
+#phone .ph-docs .put b,#phone .ph-docs .pmark,#phone .ph-docs .words dl.terms dt small{font-size:13px}
+/* the words of this design: each word over its meaning; "Show me" picks pieces in the full program's 3D view */
+#phone .ph-docs .words dl.terms{display:block;margin:0}
+#phone .ph-docs .words dl.terms dt{margin:12px 0 2px;font-weight:600}
+#phone .ph-docs .words dl.terms dd{margin:0}
+#phone .ph-docs [data-show-term]{display:none}
+#phone .ph-docs .words [data-open-words]{min-height:44px;font-size:13px}
+
+/* ---------- 7. the word cards and the large pictures, on the phone page ---------- */
+html.phone-page #infoCard{left:8px!important;right:8px;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-width:640px;max-height:70%;margin:0 auto;font-size:15px;line-height:21px}
+html.phone-page #infoCard.wide{width:auto}
+html.phone-page #infoCard .ic-h{min-height:48px;font-size:17px}
+html.phone-page #infoCard .ic-h .ib{width:44px;height:44px}
+html.phone-page #infoCard .jcard{font-size:15px;line-height:21px}
+html.phone-page #infoCard .jcard svg{max-width:100%;height:auto}
+html.phone-page #infoCard .ic-more .lnk{min-height:44px;font-size:15px}
+/* a tapped picture opens at its full size (it is taken 880 px wide), and slides both ways under the finger; a tap
+   anywhere closes it, as on the desktop */
+html.phone-page #picZoom{display:block;overflow:auto;background:#14181d;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:calc(8px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom))}
+html.phone-page #picZoom[hidden]{display:none}
+html.phone-page #picZoom figure{display:inline-block;max-width:none;margin:0}
+html.phone-page #picZoom img{max-width:none;max-height:none}
+html.phone-page #picZoom figcaption{position:sticky;left:0;flex-direction:column;align-items:flex-start;gap:4px;width:100vw;box-sizing:border-box;padding:0 12px;font-size:15px;line-height:21px}
+html.phone-page #picZoom .zwhere{position:sticky;left:0;width:100vw;box-sizing:border-box;padding:0 12px;font-size:15px;line-height:21px}

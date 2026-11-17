@@ -666,4 +666,4 @@ let saved=null;try{saved=localStorage.getItem('woodshop.autosave');}catch(e){}
 try{load(saved||JSON.stringify(blank()));}catch(e){load(JSON.stringify(blank()));}
 resize();fit('fit');
 syncRibbonEdge();
-if(!S.parts.length)openPresets();
+if(!S.parts.length&&!window.PHONE_PAGE)openPresets();   // (a phone opens on its own Pick screen: js/phone.js)
