@@ -53,7 +53,8 @@ function propsOfPiece(p){
       ['Direction',`<select class="fld" data-f="rax">${directions}</select>`]],'two')+
     // a piece that was turned together with what it is fastened to keeps its joints (a turned set, js/neighbors.js)
     (!tilted(p)?'':turnedSets(S.parts).of.get(p)?propsNote('This piece was turned together with the pieces it is fastened to. Its joints and fasteners are the same as before the turn.')
-      :propsNote('Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.'));
+      :propsNote('Angled pieces are drawn and added to the cut list, but their joints are not worked out automatically. Cut the ends to match the angle and add your own screws.'))+
+    (window.shapeSection?shapeSection(p):'');   // angled ends, round ends, holes and cut-outs by hand (js/shapeprops.js)
 }
 /* a fish tank, light, mattress or window: shown for reference, so only its position can change */
 function propsOfProp(p){

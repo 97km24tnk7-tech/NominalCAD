@@ -31,6 +31,13 @@ function boxOfPiece(p,index){
    used, so both give the same answer: the first direction in which a face of one lies on a face of the other,
    with the two faces overlapping. */
 function jointOfPair(a,b){
+  const joint=rawJointOfPair(a,b);
+  // a contact with a shaped piece is trimmed to where the wood really is (a rail under a hole, a cut end:
+  // trimJoint, js/shapes.js); pairs of plain pieces skip it
+  return joint&&(joint.a.shape||joint.b.shape)?trimJoint(joint,a,b):joint;
+}
+/* the contact of two blank boxes, before any shape is looked at */
+function rawJointOfPair(a,b){
   for(let k=0;k<3;k++){
     // apart in this direction: they cannot touch at all
     if(a.lo[k]>b.hi[k]+TOUCH_GAP||b.lo[k]>a.hi[k]+TOUCH_GAP)return null;
@@ -266,7 +273,8 @@ function turnedBoxesTouch(a,b){
   return true;
 }
 function findAngledTies(parts){
-  if(!parts.some(p=>tilted(p)&&!isProp(p)))return[]; // nothing is set at an angle: the usual case, and no work
+  // an end cut at an angle that only touches another piece is a tie too (shapeEndTies, js/shapes.js)
+  if(!parts.some(p=>tilted(p)&&!isProp(p)))return shapeEndTies(parts); // nothing is set at an angle: the usual case, and no work
   const boxes=[];
   for(const p of parts){
     if(!isProp(p))boxes.push(turnedBox(p,boxes.length));
@@ -280,7 +288,7 @@ function findAngledTies(parts){
     }
     if(turnedBoxesTouch(a,b))ties.push({key:a.p.id+'-'+b.p.id,a:a.p,b:b.p,tie:true});
   });
-  return ties;
+  return ties.concat(shapeEndTies(parts));
 }
 
 /* ---------- things that are not wood ----------

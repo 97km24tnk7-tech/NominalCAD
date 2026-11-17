@@ -109,11 +109,12 @@ function renderLegend(m){
 }
 /* takes everything out of a group of the scene and frees what it held */
 function emptyGroup(g){
-  while(g.children.length){const c=g.children.pop();c.traverse(o=>{o.geometry&&o.geometry.dispose();if(o.material){o.material.map&&o.material.map!==grainTex&&o.material.map.dispose();o.material.dispose();}});}
+  // (the solid of a shaped piece is shared by every piece of that shape and kept: js/shapeview.js)
+  while(g.children.length){const c=g.children.pop();c.traverse(o=>{o.geometry&&!o.geometry.userData.shared&&o.geometry.dispose();if(o.material){o.material.map&&o.material.map!==grainTex&&o.material.map.dispose();o.material.dispose();}});}
 }
 function rebuildScene(){
   for(const g of[partsGroup,dimGroup])emptyGroup(g); // fastGroup is kept by drawFasteners(), which only redraws it when something changed
-  meshes.clear();fastGroup.visible=true;
+  meshes.clear();fastGroup.visible=true;nextShapeGeneration();   // (js/shapeview.js)
   const real=viewMode==='real',shadows=real&&S.parts.length<=1500,blk=blockColors(),painted=FINISHES[look().finish][2]===2;
   renderLegend(real?null:blk);
   const bb=bbox(S.parts);if(bb){ // aim the sun and its shadow at the model
@@ -126,16 +127,17 @@ function rebuildScene(){
   for(const p of S.parts){if(hiddenIds.has(p.id))continue;
     // "Show me" (js/visibility.js): its pieces are drawn like selected ones, everything else nearly clear
     const lit=!!spotlightIds&&spotlightIds.has(p.id),ghost=!!spotlightIds&&!lit;
-    const s=size(p),geo=new THREE.BoxGeometry(s[0],s[1],s[2]),on=sel.has(p.id)||lit;
+    // a shaped piece (an angled end, a hole) is its real solid, shared by the pieces of that shape (js/shapeview.js)
+    const s=size(p),solid=p.shape&&!isProp(p)?pieceGeometry(p):null,geo=solid?solid.geometry:new THREE.BoxGeometry(s[0],s[1],s[2]),on=sel.has(p.id)||lit;
     let mat;
     if(propIsSolid(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color});   // a tank light: a dark fixture
     else if(isProp(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color,transparent:true,opacity:.35,depthWrite:false});
-    else if(real){grainUV(geo,s,p.ax[0],p.id);mat=new THREE.MeshStandardMaterial({color:on?VIEW_COL.selFill:partColor(p),map:painted?null:grainTex,roughness:.82,metalness:0});}
+    else if(real){if(!solid)grainUV(geo,s,p.ax[0],p.id);mat=new THREE.MeshStandardMaterial({color:on?VIEW_COL.selFill:partColor(p),map:painted?null:grainTex,roughness:.82,metalness:0});}
     else mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.selFill:blk.get(p.name)});
     if(!isProp(p)&&clash.has(p.id)&&!on)mat.color.setHex(VIEW_COL.clash);
     const mesh=new THREE.Mesh(geo,mat);
     mesh.userData.id=p.id;if(!isProp(p)){mesh.castShadow=mesh.receiveShadow=shadows&&!ghost;}   // a see-through piece throws no shadow
-    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial(real?{color:on?VIEW_COL.sel:0x3a2a18,transparent:true,opacity:on?1:.3}:{color:on?VIEW_COL.sel:0x222222}));
+    const edges=new THREE.LineSegments(solid?solid.edges:new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial(real?{color:on?VIEW_COL.sel:0x3a2a18,transparent:true,opacity:on?1:.3}:{color:on?VIEW_COL.sel:0x222222}));
     if(clash.has(p.id)&&!on){edges.material.color.setHex(VIEW_COL.clashEdge);edges.material.opacity=1;}
     // solid, see-through or outlines only (js/viewmodes.js); "Show me" draws its own picture whatever the view mode is
     if(!spotlightIds)dressForWoodMode(p,mesh,edges,on);
@@ -143,7 +145,8 @@ function rebuildScene(){
       mat.transparent=true;mat.opacity=.07;mat.depthWrite=false;
       edges.material.transparent=true;edges.material.opacity=.14;
     }
-    const g=new THREE.Group();g.add(mesh,edges);partsGroup.add(g);meshes.set(p.id,g);setMeshPos(p);}
+    const g=new THREE.Group();g.add(mesh,edges);partsGroup.add(g);meshes.set(p.id,g);setMeshPos(p);
+    const misfits=solid&&solid.bad.length?badOutlines(p):null;if(misfits)g.add(misfits);}   // a hole that no longer fits: drawn red, not cut
   drawFasteners(); // screws, pocket holes, dowels, brads, brackets and glue at their real size, into fastGroup: js/fastenerview.js
   for(const extra of SCENE_EXTRAS)extra();
   buildDims();buildHandles();buildGizmo();

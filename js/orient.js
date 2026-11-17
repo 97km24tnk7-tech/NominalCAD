@@ -14,6 +14,9 @@ const tilted=p=>!!(p.q||(p.rot&&p.rot.deg));
 function angleOf(p){const q=quatOf(p);return q?Math.round(2*Math.acos(Math.min(1,Math.abs(q.w)))*1800/Math.PI)/10:0;} // degrees off square
 function box(p){ // outer bounds of a piece in the world, allowing for any rotation
   const s=size(p),q=quatOf(p);if(!q)return{lo:p.pos,hi:p.pos.map((v,i)=>v+s[i])};
+  // a shaped piece that is turned: the bounds of its real corners (a leg with its foot cut flat stands on the
+  // floor, not on the sawn-off corner of its blank). Square-set, the blank is the tight box (js/shapes.js).
+  if(p.shape&&typeof shapedBox==='function')return shapedBox(p);
   const m=new THREE.Matrix4().makeRotationFromQuaternion(q).elements,e=[0,1,2].map(i=>Math.abs(m[i])*s[0]+Math.abs(m[4+i])*s[1]+Math.abs(m[8+i])*s[2]);
   return{lo:p.pos.map((x,i)=>x+s[i]/2-e[i]/2),hi:p.pos.map((x,i)=>x+s[i]/2+e[i]/2)};}
 function setQuat(p,q){ // store a rotation on a piece, folding quarter turns into p.ax
@@ -22,6 +25,9 @@ function setQuat(p,q){ // store a rotation on a piece, folding quarter turns int
   for(let j=0;j<3;j++){const i=[0,1,2].find(i=>Math.abs(Math.abs(m[j*4+i])-1)<1e-3);if(i===undefined)break;perm.push(i);}
   if(perm.length===3){const s0=size(p),c=p.pos.map((v,i)=>v+s0[i]/2);
     hardwareTurned(p,q); // what is mounted on the piece turns with it (js/hardware.js)
+    // ax has no sign, so a half turn leaves the blank looking the same: a local axis that now runs the other way
+    // takes the piece's shape with it (a hole 9" from the top end stays at the top: js/shapes.js)
+    if(p.shape)for(let k=0;k<3;k++)if(m[p.ax[k]*4+perm[p.ax[k]]]<0)mirrorShape(p,k);
     delete p.turned;     // it stands square again: no longer a piece of a turned set (js/neighbors.js)
     p.ax=p.ax.map(a=>perm[a]);const s=size(p);p.pos=c.map((v,i)=>r16(v-s[i]/2));return;}
   p.q=[q.x,q.y,q.z,q.w].map(v=>Math.round(v*1e6)/1e6);}

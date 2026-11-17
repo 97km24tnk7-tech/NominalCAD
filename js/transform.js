@@ -154,8 +154,9 @@ const snapAngle=(a,free)=>free?Math.round(a*180/Math.PI)*Math.PI/180:Math.round(
 /* Remember what is about to move or turn exactly as it is, so a turn can be previewed, redone from scratch, or
    cancelled. That is the selection and every piece fastened to it (movingParts, js/connections.js). Each entry
    keeps its piece (p), so nothing has to be looked up again on every mouse move. */
-function snapshot(){return new Map(movingParts().map(p=>{const s=size(p);return[p.id,{p,pos:p.pos.slice(),ax:p.ax.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),turned:!!p.turned,l:p.l,c:p.pos.map((v,i)=>v+s[i]/2)}];}));}
-function restore(snap){for(const s of snap.values()){const p=s.p;p.pos=s.pos.slice();p.ax=s.ax.slice();p.l=s.l;delete p.rot;delete p.q;delete p.turned;if(s.rot)p.rot={...s.rot};if(s.q)p.q=s.q.slice();if(s.turned)p.turned=true;}}
+function snapshot(){return new Map(movingParts().map(p=>{const s=size(p);return[p.id,{p,pos:p.pos.slice(),ax:p.ax.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),turned:!!p.turned,l:p.l,c:p.pos.map((v,i)=>v+s[i]/2),shape:p.shape&&JSON.stringify(p.shape)}];}));}
+function restore(snap){for(const s of snap.values()){const p=s.p;p.pos=s.pos.slice();p.ax=s.ax.slice();p.l=s.l;delete p.rot;delete p.q;delete p.turned;if(s.rot)p.rot={...s.rot};if(s.q)p.q=s.q.slice();if(s.turned)p.turned=true;
+  if(s.shape)p.shape=JSON.parse(s.shape);}}   // a half turn may have flipped the shape (setQuat): put it back as it was
 function applyRot(snap,k,ang,pivot){ // turn the remembered pieces by ang about axis k through pivot, all as one
   // The pivot sits on a sixteenth, so that after a quarter turn every face is on a sixteenth again and the
   // pieces of a fastened set still meet exactly.
@@ -255,7 +256,8 @@ function boxEnd(d){
 }
 
 /* ---------- copy tools: duplicate and drag, copy in a row, mirror ---------- */
-const clonePart=p=>({...p,ax:p.ax.slice(),pos:p.pos.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice()});
+const clonePart=p=>({...p,ax:p.ax.slice(),pos:p.pos.slice(),rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),
+  ...(p.shape?{shape:JSON.parse(JSON.stringify(p.shape))}:{})});   // a copy gets its own holes and cuts (js/shapes.js)
 function dupGrab(){ // make a copy on top of the selection and start moving it straight away (Shift+D)
   const ps=selParts();if(!ps.length||modal||tab!=='design')return;
   sel=new Set(addCopies(ps,ps.map(clonePart)));rebuildScene();if(startModal('g')&&modal)modal.isNew=true;} // addCopies: js/copies.js
@@ -272,6 +274,7 @@ function mirrorSel(k,about,keep){ // flip the selection across a plane square to
   // middle (or along the edge) of all of that: one door of a cabinet flips the cabinet where it stands.
   const b=bbox(about==='design'?S.parts:keep?ps:movingParts()),m=about==='lo'?b.lo[k]:about==='hi'?b.hi[k]:(b.lo[k]+b.hi[k])/2,out=keep?ps.map(clonePart):movingParts();
   for(const p of out){const s=size(p);p.pos[k]=placeRound(p,2*m-p.pos[k]-s[k]);
+    if(p.shape)mirrorShape(p,p.ax.indexOf(k));   // its cuts and holes flip with it (js/shapes.js)
     if(p.q)p.q=p.q.map((v,i)=>i<3&&i!==k?-v:v);else if(p.rot&&p.rot.k!==k)p.rot.deg=-p.rot.deg;}
   liftToFloor(out); // kept above the floor, as one
   if(keep){sel=new Set(addCopies(ps,out));bornLoose([...sel]);} // a copy is free of what it lands against (rule 4, js/connections.js)

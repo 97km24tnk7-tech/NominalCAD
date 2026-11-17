@@ -1440,6 +1440,7 @@ function stepTools(step){
   if(step.kind==='cut'){
     add('tape measure, pencil and square');add('saw');
     if(S.parts.some(p=>!isProp(p)&&M[p.mat].kind==='sheet'))add('straight-edge guide for the plywood');
+    for(const tool of shapeToolLines())add(shapeLower(tool));   // what the shaped pieces need: a miter saw, a hole saw (js/shapedrawings.js)
     add('safety glasses and hearing protection');
     return tools;
   }
@@ -1837,6 +1838,10 @@ function makeBuildPlan(graph){
     for(const pieces of suggestedOrder(S.parts,new Set(),graph))drafts.push({kind:'build',source:'generated',words:'',was:'',pieces,extra:[],preset:null});
     drafts.push({kind:'finish',source:'preset',words:finText(),was:'',pieces:[],extra:[],preset:FIN});
   }
+  // every cut and hole in a piece is made in the cutting work, before the piece is fastened to anything: the
+  // cutting step names the shaped rows as they are now (shapeCutStepLine, js/shapedrawings.js)
+  const shapedLine=shapeCutStepLine(cutList);
+  if(shapedLine)for(const draft of drafts)if(draft.kind==='cut')draft.words+=' '+shapedLine;
 
   // the step of every piece, then the joints and the hardware of every step
   const stepOfPiece=new Map();

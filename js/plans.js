@@ -31,11 +31,12 @@ function packSheetsIn(rects){const SW=96,SH=48,K=.125,sheets=[],over=[];
     let placed=false;
     outer:for(const sh of sheets){
       for(const sf of sh.shelves){const ft=opts.filter(([w,h])=>h<=sf.h+1e-6&&sf.x+w<=SW+1e-6).sort((p,q)=>p[0]-q[0])[0];
-        if(ft){sh.items.push({x:sf.x,y:sf.y,w:ft[0],h:ft[1],name:r.name});sf.x+=ft[0]+K;placed=true;break outer;}}
+        if(ft){sh.items.push({x:sf.x,y:sf.y,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal});sf.x+=ft[0]+K;placed=true;break outer;}}
       const ft=opts.filter(([w,h])=>sh.y+h<=SH+1e-6).sort((p,q)=>p[1]-q[1])[0];
-      if(ft){sh.shelves.push({y:sh.y,h:ft[1],x:ft[0]+K});sh.items.push({x:0,y:sh.y,w:ft[0],h:ft[1],name:r.name});sh.y+=ft[1]+K;placed=true;break;}
+      if(ft){sh.shelves.push({y:sh.y,h:ft[1],x:ft[0]+K});sh.items.push({x:0,y:sh.y,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal});sh.y+=ft[1]+K;placed=true;break;}
     }
-    if(!placed){const ft=opts.sort((p,q)=>p[1]-q[1])[0];sheets.push({y:ft[1]+K,shelves:[{y:0,h:ft[1],x:ft[0]+K}],items:[{x:0,y:0,w:ft[0],h:ft[1],name:r.name}]});}
+    // (piece, diagonal: a shaped piece drawn in its rectangle, and a square cut on the diagonal; js/shapedrawings.js)
+    if(!placed){const ft=opts.sort((p,q)=>p[1]-q[1])[0];sheets.push({y:ft[1]+K,shelves:[{y:0,h:ft[1],x:ft[0]+K}],items:[{x:0,y:0,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal}]});}
   }
   return{sheets,over};}
 /* What a list of pieces takes to buy: how many boards, how many plywood sheets, and roughly what they cost.
@@ -55,7 +56,7 @@ function lumberToBuy(parts,stock){
       boards+=count;
       cost+=count*priceOf(m.id,boardLength);
     }else{
-      const count=packSheets(pieces.map(p=>({a:p.l,b:p.w,name:''}))).sheets.length;
+      const count=packSheets(sheetRects(pieces,p=>p.name)).sheets.length;   // (corner shelves two to a square: js/shapedrawings.js)
       sheets+=count;
       cost+=count*priceOf(m.id,0);
     }
@@ -188,6 +189,7 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   if(/ladder/i.test(named))L.push('Stepladder');
   if(/right-angle drill/i.test(named))L.push('Right-angle drill attachment and a 3" driver bit, for pocket screws where a drill does not fit');
   if(/foam mat/i.test(named))L.push('A foam mat to go under a rimless tank');
+  L.push(...shapeToolLines());   // what the shaped pieces need: a hole saw, a compass and jigsaw (js/shapedrawings.js)
   return L;}
 
 /* ---------- what the three document pages share (Fasteners, Cut list & shopping, Build instructions) ----------
@@ -245,15 +247,26 @@ const keyBox=letter=>letter?`<span class="key">${letter}</span>`:'';
    the cutting diagrams and the steps. Also returns how to look a piece's letter up, and what the wood weighs. */
 function cutRows(){
   // (a strip of wood that is placed as hardware, a drawer runner or kicker, is cut like any piece: woodStrips, js/hardware.js)
-  const groups=new Map(),keyOf=p=>[p.mat,p.l,p.w,p.t,p.strip?0:angleOf(p)].join('|');
+  // A shaped piece (js/shapes.js) is a row of its own for each different shape. A piece whose shape is the mirror
+  // image of a row's shape joins that row as its "right" (g.mirrored counts them).
+  const blankKey=p=>[p.mat,p.l,p.w,p.t,p.strip?0:angleOf(p)].join('|');
+  const groups=new Map(),keyOf=p=>p.shape?blankKey(p)+'|'+shapeKey(p):blankKey(p),groupOf=new Map();
   let pounds=0;
   for(const p of S.parts.concat(woodStrips())){
     if(isProp(p))continue;
-    const k=keyOf(p);
-    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:p.strip?0:angleOf(p),qty:0,names:new Set(),strip:!!p.strip});
+    let k=keyOf(p),mirrored=false;
+    if(p.shape&&!groups.has(k)){
+      const twin=blankKey(p)+'|'+shapeKeyMirror(p);
+      if(groups.has(twin)){k=twin;mirrored=true;}
+    }
+    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:p.strip?0:angleOf(p),qty:0,names:new Set(),strip:!!p.strip,
+      ...(p.shape?{sample:p,mirrored:0}:{})});
     const g=groups.get(k);
     g.qty++;g.names.add(p.name);
-    pounds+=p.l*p.w*p.t*WOOD_RULES.DENSITY;   // the same weight for wood as the structural check uses (js/verify.js)
+    if(mirrored)g.mirrored++;
+    groupOf.set(p,g);
+    // the same weight for wood as the structural check uses (js/verify.js); a shaped piece weighs what is left of it
+    pounds+=(p.shape?pieceVolume(p):p.l*p.w*p.t)*WOOD_RULES.DENSITY;
   }
   const order=id=>MATS.findIndex(m=>m.id===id);
   const rows=[...groups.values()].sort((a,b)=>order(a.mat)-order(b.mat)||b.l-a.l);
@@ -261,7 +274,7 @@ function cutRows(){
   const byLength=new Map(); // material + length -> letter, for labelling the cuts on a board
   for(const g of rows)if(!byLength.has(g.mat+'|'+g.l))byLength.set(g.mat+'|'+g.l,g.id);
   const stripKey=item=>{const wood=HARDWARE[item.kind]&&HARDWARE[item.kind].wood;return wood?[wood.mat,item.size,wood.w,wood.t,0].join('|'):'';};
-  return{rows,pounds,byLength,letterOf:p=>isProp(p)?'':groups.get(keyOf(p)).id,
+  return{rows,pounds,byLength,letterOf:p=>isProp(p)?'':(groupOf.get(p)||groups.get(keyOf(p))||groups.get(blankKey(p)+'|'+shapeKeyMirror(p))).id,
     letterOfStrip:item=>groups.has(stripKey(item))?groups.get(stripKey(item)).id:''};
 }
 function cutListSection(list){
@@ -271,8 +284,12 @@ function cutListSection(list){
     // how (a rafter: slanted at the top, square at the bottom), so the note points there instead of guessing.
     // A sheet that lies on a slope (a roof deck) is cut square: it gets no note.
     const ownSteps=S.steps&&S.steps.length;
-    const angled=!g.deg||m.kind==='sheet'?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
-    const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled].filter(Boolean).join('. ');
+    // A shaped piece says how it is cut and points at its drawing (Shapes to cut, js/shapedrawings.js); a tilted one
+    // whose ends are cut no longer says "cut the ends at an angle to fit".
+    const shaped=g.sample&&g.sample.shape,endsCut=shaped&&(shapeEnd(g.sample,0)||shapeEnd(g.sample,1));
+    const angled=!g.deg||m.kind==='sheet'||endsCut?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
+    const shapeWords=shaped?shapeRowNote(g):[];   // js/shapedrawings.js
+    const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,...shapeWords].filter(Boolean).join('. ');
     return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
       `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td><td>${note}</td></tr>`;
   });
@@ -311,7 +328,8 @@ function diagramSection(list){
         h+=`<div class="cut"><span>Board ${i+1} of ${boards.length}</span><div class="board">${cuts}${waste}</div></div>`;
       });
     }else{
-      const{sheets,over}=packSheets(pieces.map(p=>({a:p.l,b:p.w,name:list.letterOf(p)+': '+p.name})));
+      // (a corner shelf cut corner to corner is packed two to a square: sheetRects, js/shapedrawings.js)
+      const{sheets,over}=packSheets(sheetRects(pieces,p=>list.letterOf(p)+': '+p.name));
       buy.push({m,qty:sheets.length,stock:0});
       h+=`<div class="buy">${sheets.length} × ${esc(m.short)}, 4 ft × 8 ft sheet${sheets.length>1?'s':''}</div>`;
       if(sheets.length===1&&sheets[0].items.every(i=>i.x+i.w<=48&&i.y+i.h<=48))h+=`<p class="hint">Everything fits on a half sheet (4 ft × 4 ft) if your store sells them.</p>`;
@@ -321,7 +339,9 @@ function diagramSection(list){
         const cuts=sheet.items.map(it=>{
           const size=`${fmt(it.w)} × ${fmt(it.h)}`,longest=Math.max(it.name.length,size.length);
           const type=Math.min(2.6,it.w/(longest*.56),it.h/3.2).toFixed(2),cx=it.x+it.w/2,cy=it.y+it.h/2;
-          return`<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}"><title>${esc(it.name)}, ${esc(size)}</title></rect>`+
+          // a shaped piece draws its real outline inside its rectangle, which is then thin and dashed
+          const outline=it.piece||it.diagonal?sheetShapePath(it):'';
+          return`<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}"${outline?' class="shaped"':''}><title>${esc(it.name)}, ${esc(size)}</title></rect>`+outline+
             `<text x="${cx}" y="${cy-type*.25}" font-size="${type}" text-anchor="middle">${esc(it.name)}</text>`+
             `<text x="${cx}" y="${cy+type*.95}" font-size="${type}" text-anchor="middle">${esc(size)}</text>`;
         }).join('');
@@ -495,7 +515,7 @@ function renderCut(instr){
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   const diagrams=diagramSection(list),hardware=hardwareTotals(joints);
-  h+=cutListSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js
+  h+=cutListSection(list)+shapesSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js; shapesSection: js/shapedrawings.js
   h+=`<h2>Hardware</h2>`+hwTable(hardware);
   if(instr)h+=stepsSection(buildPlan(),pics.steps);
   h+=fastenerSection(joints);

@@ -384,6 +384,11 @@ function jSpec(j,type,opts){
     hw.push(['1-1/2" L-brackets (corner braces)',n],[`#8 × ${screw.size} screws for brackets`,n*4]);}
   else if(type==='glue'){text='Wood glue and clamps';glue=true;}
   else text='No fastener: the pieces only touch';
+  // a shaped piece: counted as laid out, off its holes (js/shapes.js); a joint left with no fastener has no sunk head
+  if(j.shapes&&!(opts&&opts.asPlanned)){
+    const laidOut=shapedSpecAsLaidOut(j,type,{text,hw,n,deep});
+    return{...laidOut,glue,deep:laidOut.n?deep:0};
+  }
   return{text,hw,n,glue,deep};
 }
 /* Everything to buy that is not lumber: what the joints take, what the preset lists itself, and the finishing

@@ -65,13 +65,23 @@ function showPreview(holder,parts){
   while(kit.content.children.length){
     const old=kit.content.children.pop();
     if(old.isInstancedMesh){old.dispose();old.material.dispose();}
+    else if(old.userData.shapedPreview)old.material.dispose();   // (its geometry is shared: js/shapeview.js)
   }
   kit.canvas.hidden=!parts.length;
   if(!parts.length)return;
 
-  // all the wood as one mesh, everything that is not wood (tanks, a mattress, windows) as a see-through one, and the
+  // a shaped piece (a hole, an angled end) is a mesh of its own, from the same solid the main view draws
+  for(const p of parts.filter(p=>p.shape&&!isProp(p))){
+    const shapedSolid=pieceGeometry(p),s=size(p);
+    const mesh=new THREE.Mesh(shapedSolid.geometry,new THREE.MeshLambertMaterial({color:M[p.mat].color}));
+    mesh.userData.shapedPreview=true;
+    mesh.position.set(p.pos[0]+s[0]/2,p.pos[1]+s[1]/2,p.pos[2]+s[2]/2);
+    const q=quatOf(p);if(q)mesh.quaternion.copy(q);
+    kit.content.add(mesh);
+  }
+  // all the other wood as one mesh, everything that is not wood (tanks, a mattress, windows) as a see-through one, and the
   // things that are not wood but are drawn solid (tank lights: dark fixtures, propIsSolid in js/core.js) as a third
-  const wood=parts.filter(p=>!isProp(p)),solid=parts.filter(propIsSolid),other=parts.filter(p=>isProp(p)&&!propIsSolid(p)),color=new THREE.Color();
+  const wood=parts.filter(p=>!isProp(p)&&!p.shape),solid=parts.filter(propIsSolid),other=parts.filter(p=>isProp(p)&&!propIsSolid(p)),color=new THREE.Color();
   const groups=[
     [wood,new THREE.MeshLambertMaterial()],
     [solid,new THREE.MeshLambertMaterial()],

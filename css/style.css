@@ -324,6 +324,17 @@ aside.float.min .fh{border-bottom:0;border-radius:2px}
 .rng b{text-align:right;font-variant-numeric:tabular-nums}
 .f3 label{font-size:var(--fs-s);line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .note{font-size:var(--fs-s);line-height:15px;color:var(--n600);margin:4px 0}
+/* the Shape section of a piece (js/shapeprops.js): a label that may wrap, then a box 96px wide */
+.shp-f{display:grid;grid-template-columns:minmax(0,1fr) 112px;align-items:center;gap:6px;min-height:var(--h);margin-bottom:3px}
+.shp-f label{color:var(--n600);font-size:var(--fs-s);line-height:14px}
+.shp-g{margin:6px 0 3px;font-size:var(--fs-s);font-weight:600;color:var(--n800)}
+.shp-plain{display:flex;align-items:center;justify-content:space-between;min-height:var(--h)}
+.shp-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:4px;padding:2px 0;border-bottom:1px solid var(--n200);font-size:var(--fs-s);line-height:15px}
+.shp-line.on{color:var(--blue)}
+.shp-add{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
+.shp-msg{margin:4px 0;padding:4px 6px;border:1px solid var(--n300);font-size:var(--fs-s);line-height:15px}
+.shp-msg.stop{border-color:var(--danger);color:var(--danger);background:#fff}
+.shp-msg.warn{background:var(--warn-bg);color:var(--warn);border-color:#f0d27a}
 .note b{color:var(--n800)}
 
 /* ---------- 10. Status bar ---------- */
@@ -521,6 +532,17 @@ button.chk-i:focus-visible{outline:2px solid var(--blue-300);outline-offset:-2px
 svg.sheet{display:block;width:100%;max-width:440px;border:1px solid var(--n800)}
 svg.sheet rect{fill:#fff;stroke:var(--n800);stroke-width:.25}
 svg.sheet text{fill:var(--n900);font-family:var(--font)}
+/* shaped pieces (js/shapedrawings.js): the real outline inside its dashed rectangle on a cutting diagram, and the
+   drawings of "Shapes to cut" */
+svg.sheet rect.shaped{fill:none;stroke-dasharray:.8 .6;stroke-width:.15}
+svg.sheet .shape-out{fill:#fff;stroke:var(--n800);stroke-width:.3}
+.shape-cut{margin:10px 0 16px;break-inside:avoid}
+.shape-cut h3{margin:0 0 6px;font-size:var(--fs-m,13px)}
+.shape-cut h4{margin:8px 0 4px;font-size:var(--fs-s)}
+.shape-cut ol,.shape-cut ul{margin:4px 0 4px 20px;padding:0}
+.shape-cut li{margin:2px 0}
+svg.shape-draw{display:block;max-width:100%;height:auto;background:#fff;border:1px solid var(--n300)}   /* drawn at its own size (width and height on the svg), never wider than the page; it scales evenly */
+.shape-tools{margin:4px 0}
 
 /* a step: boxed number, what to do and what it takes, its picture on the right, and its close-ups under both */
 .step{display:grid;grid-template-columns:30px minmax(0,1fr) 310px;gap:0 14px;padding:14px 0;border-top:1px solid var(--n300)}

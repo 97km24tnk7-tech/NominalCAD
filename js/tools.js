@@ -231,6 +231,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(2500,Math.max(
 /* ---------- editing ops ---------- */
 function rotatePart(p,k){const s0=size(p),c=p.pos.map((v,i)=>v+s0[i]/2),[u,v]=[0,1,2].filter(i=>i!==k);
   hardwareTurned(p,new THREE.Quaternion().setFromAxisAngle(AXV[k],Math.PI/2)); // what is mounted on it turns with it (js/hardware.js)
+  if(p.shape)shapeQuarterTurned(p,k); // swapping two axes alone would make a shaped piece its own mirror image (js/shapes.js)
   p.ax=p.ax.map(a=>a===u?v:a===v?u:a);const s=size(p);p.pos=c.map((ci,i)=>r16(ci-s[i]/2));if(p.pos[1]<0)p.pos[1]=0;}
 function dropPart(p,skip){const b=box(p);let y=0; // skip: ids of the pieces that go down with it (the selection, when left out)
   for(const o of S.parts){if(o===p||(skip||sel).has(o.id))continue;const ob=box(o);
@@ -240,7 +241,8 @@ function dropPart(p,skip){const b=box(p);let y=0; // skip: ids of the pieces tha
 function selParts(){return S.parts.filter(p=>sel.has(p.id));}
 function delSel(){if(!sel.size)return;S.parts=S.parts.filter(p=>!sel.has(p.id));sel=new Set();commit();}
 function dupSel(){const ps=selParts();if(!ps.length)return;const b=bbox(ps),dx=b.hi[0]-b.lo[0]+2;
-  const ids=addCopies(ps,ps.map(p=>({...p,rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),ax:p.ax.slice(),pos:[p.pos[0]+dx,p.pos[1],p.pos[2]]})));sel=new Set(ids); // addCopies: js/copies.js
+  const ids=addCopies(ps,ps.map(p=>({...p,rot:p.rot&&{...p.rot},q:p.q&&p.q.slice(),ax:p.ax.slice(),pos:[p.pos[0]+dx,p.pos[1],p.pos[2]],
+    ...(p.shape?{shape:JSON.parse(JSON.stringify(p.shape))}:{})})));sel=new Set(ids); // addCopies: js/copies.js; a copy gets its own holes and cuts (js/shapes.js)
   bornLoose(ids);commit(); // a copy is free of what it lands against (rule 4, js/connections.js), and says so
   if(copiesLeftLoose())toast((ids.length>1?'Copies added.':'Copy added.')+LOOSE_COPY_WORDS);}
 function nudge(k,dir){ // the arrow keys: one snap step. The pieces fastened to the selection go along.

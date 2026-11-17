@@ -866,7 +866,7 @@ function fastenerLayout(j,type){
     f.type=type;
     if(j.frame)f.frame=j.frame;
   }
-  return list;
+  return j.shapes?keepOffOpenings(j,list):list;   // a joint with a shaped piece: no fastener in or beside a hole (js/shapes.js)
 }
 /* A fastener of a turned set as it is in the world: its place and its direction taken out of the frame of the set.
    (For drawing a single stick: the pocket and the plates of a bracket are not taken along.) A fastener of square
@@ -892,7 +892,7 @@ function glueFilm(j,type){
 const layoutMemo=new WeakMap(); // link -> layout, for as long as that graph lives
 const layoutCarry=new Map();    // joint key -> {what the layout was worked out from, list}
 let carryMiddle='';
-const CARRY_FIELDS=['k','plane','da','db','fa','fb'];
+const CARRY_FIELDS=['k','plane','da','db','fa','fb','shapes'];   // shapes: a hole added to a piece lays its joints out again (js/shapes.js)
 function sameJointAsBefore(old,j,type){
   if(old&&old.frame!==(j.frame?j.frame.id:''))return false;   // turned since, or turned differently
   if(!old||old.type!==type||old.a!==j.a||old.b!==j.b||old.nameA!==j.a.name||old.nameB!==j.b.name||old.thickA!==j.a.t||old.thickB!==j.b.t)return false;
@@ -920,12 +920,15 @@ function layoutAsLaidOut(link){
     if(j.frame)for(const f of list)f.frame=j.frame;   // the same set, as it was found this time
   }
   else{
-    list=fastenerLayout(j,link.type);
+    const planned=fastenerLayout(j,link.type);
+    list=planned;
     // two boards screwed through one upright from its two sides: the second is moved or angled (js/fastenerreach.js)
     if(typeof drivableLayout==='function')list=drivableLayout(link,list);
+    // a joint with a shaped piece: screws moved or angled there keep off its holes too (js/shapes.js)
+    if(j.shapes&&list!==planned)list=keepOffOpeningsAgain(j,list,planned);
     if(list.loose)layoutCarry.delete(link.key);
     else layoutCarry.set(link.key,{type:link.type,a:j.a,b:j.b,nameA:j.a.name,nameB:j.b.name,thickA:j.a.t,thickB:j.b.t,
-      ru0:j.ru[0],ru1:j.ru[1],rv0:j.rv[0],rv1:j.rv[1],k:j.k,plane:j.plane,da:j.da,db:j.db,fa:j.fa,fb:j.fb,frame:j.frame?j.frame.id:'',list});
+      ru0:j.ru[0],ru1:j.ru[1],rv0:j.rv[0],rv1:j.rv[1],k:j.k,plane:j.plane,da:j.da,db:j.db,fa:j.fa,fb:j.fb,shapes:j.shapes,frame:j.frame?j.frame.id:'',list});
   }
   layoutMemo.set(link,list);
   return list;
@@ -1044,6 +1047,8 @@ function settledLayouts(){
     return keys;
   };
   const meets=(f,own)=>{
+    // a place in or beside a hole or cut of a shaped piece of the joint is taken too (js/shapes.js)
+    if(own.joint&&own.joint.shapes&&fastenerInAnOpening(f,own.joint))return true;
     for(const key of cellsOf(f)){
       for(const other of cells.get(key)||[]){
         if(other.link===own)continue;

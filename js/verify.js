@@ -562,7 +562,8 @@ function verifyNode(p,i,id,own){   // own: what is declared for this piece (decl
     const turned=new THREE.Vector3(v[0],v[1],v[2]).applyQuaternion(q);
     return[turned.x,turned.y,turned.z];
   });
-  const volume=p.l*p.w*p.t;
+  // (a shaped piece weighs what is left after its cuts and holes: pieceVolume, js/shapes.js)
+  const volume=p.shape&&!prop?pieceVolume(p):p.l*p.w*p.t;
   let weight=0;
   if(p.mat==='tank')weight=(p.gal||volume/231)*WOOD_RULES.TANK_LB_PER_GAL;
   else if(p.mat==='mattress')weight=volume*WOOD_RULES.MATTRESS_DENSITY;
@@ -579,7 +580,18 @@ function verifyNode(p,i,id,own){   // own: what is declared for this piece (decl
   // A rotated piece with a corner on the floor (a ramp, a low brace) is carried there and nowhere else along
   // the floor: where that is, along its own length and width, [[from,to],[from,to]] measured from its middle.
   let floor=null;
-  if(q&&grounded&&!prop){
+  // a turned shaped piece stands on its real corners (a leg whose foot is cut flat stands on the whole cut), so its
+  // corners and the patch it stands on come from its solid (pieceCorners, js/shapes.js), not from its blank
+  const shapedCorners=q&&p.shape&&!prop?pieceCorners(p):null;
+  if(shapedCorners&&grounded){
+    floor=[[Infinity,-Infinity],[Infinity,-Infinity]];
+    toWorld(p,shapedCorners).forEach((point,k)=>{
+      if(point[1]>b.lo[1]+.3)return;
+      const along=shapedCorners[k][0]-p.l/2,across=shapedCorners[k][1]-p.w/2;
+      floor[0]=[Math.min(floor[0][0],along),Math.max(floor[0][1],along)];
+      floor[1]=[Math.min(floor[1][0],across),Math.max(floor[1][1],across)];
+    });
+  }else if(q&&grounded&&!prop){
     floor=[[Infinity,-Infinity],[Infinity,-Infinity]];
     for(const a of[-1,1])for(const c of[-1,1])for(const d of[-1,1]){
       if(s[1]/2+a*p.l/2*axes[0][1]+c*p.w/2*axes[1][1]+d*p.t/2*axes[2][1]+p.pos[1]>b.lo[1]+.3)continue;
@@ -588,6 +600,7 @@ function verifyNode(p,i,id,own){   // own: what is declared for this piece (decl
     }
   }
   return{i,id,p,name:p.name,mat,prop,tilt:!!q,cls,up,planW,sheet:mat.kind==='sheet',floor,laps:0,
+    ...(shapedCorners?{corners:toWorld(p,shapedCorners)}:{}),   // nodeCorners reads these first
     skin:mat.kind==='sheet'&&mat.t<=.3,                  // a 1/4" back or skin: it braces a frame but is never counted as carrying
     lo:b.lo.slice(),hi:b.hi.slice(),c:p.pos.map((v,k)=>v+s[k]/2),axes,h:[p.l/2,p.w/2,p.t/2],
     run:Math.sqrt(Math.max(0,1-axes[0][1]*axes[0][1])),  // how much of its length is level (1 = flat, less on a slope)
@@ -712,6 +725,8 @@ function verifyContacts(model,opt){
         // it is mentioned in the notes (code 'overlap'), and findClashes() lists it too.
         const deep=[0,1,2].map(k=>overlapOf(A,B,k));
         if(deep.some(v=>v<=VERIFY_OVERLAP))continue;
+        // (blanks that cross where the wood does not, as at a mitered corner: a cut-end tie below, not a housing)
+        if((A.p.shape||B.p.shape)&&!solidsOverlap(A.p,B.p))continue;
         // a pile of copies left on top of each other must not turn into millions of joints
         if(A.n.laps>=VERIFY_MAX_LAPS||B.n.laps>=VERIFY_MAX_LAPS)continue;
         A.n.laps++;
@@ -726,6 +741,19 @@ function verifyContacts(model,opt){
       const style=opt.style||'std',rule=styled[j.key];
       const type=joints[j.key]||(isStyleRule(rule)?typeForStyle(rule,style):'')||typeForStyle(namedType(j),style)||styleType(defaultType(j),j,style);
       verifyLink(first.n,second.n,j.k===1?'bear':'side',type,j);
+    }
+  }
+  // An end cut at an angle (or rounded, or pointed) that only touches another piece (shapeEndTies, js/shapes.js):
+  // the two touch, so the piece is not "floating", but nothing fastens them unless a fastener was chosen by hand.
+  // A cut end standing on a piece below rests on it (a post with a slanted top under a shelf: the shelf rests).
+  if(model.wood.some(n=>n.p.shape)){
+    const nodeOf=new Map(model.wood.map(n=>[n.p,n]));
+    for(const tie of shapeEndTies(model.wood.filter(n=>!n.tilt).map(n=>n.p))){
+      const a=nodeOf.get(tie.a),b=nodeOf.get(tie.b);
+      if(!a||!b||a.links.some(l=>l.a===b||l.b===b))continue;
+      const chosen=joints[tie.key]||'none';
+      const lower=Math.abs(a.hi[1]-b.lo[1])<.03?a:Math.abs(b.hi[1]-a.lo[1])<.03?b:null;
+      verifyLink(a,b,lower?'bear':'side',chosen,null,lower);
     }
   }
   // Pieces that hang on bought hardware are fastened, by that hardware, to another piece. With the hardware of
@@ -1382,7 +1410,8 @@ function verifySpans(model,found){
   }
 }
 function verifyBeam(X,useKey,model,found){
-  const p=X.p,section=X.up===1?sectionOf(p.t,p.w,X.sheet):sectionOf(p.w,p.t,X.sheet);
+  // (a hole or a notch takes wood out of the width over the whole span: the net width, js/shapecheck.js)
+  const p=X.p,netW=p.shape?shapeNetWidth(p):p.w,section=X.up===1?sectionOf(p.t,netW,X.sheet):sectionOf(netW,p.t,X.sheet);
   // under tanks the tanks are the load (their 11.25 lb per gallon allows for the shelf); otherwise the strip of
   // surface this member carries, plus its own weight
   // What hangs from it on bought hardware (a drawer on its slides) is spread along its length.
@@ -1462,7 +1491,8 @@ function verifyBeam(X,useKey,model,found){
 function verifyPlate(X,useKey,found){
   // a strip one inch wide, carrying what stands on it
   // (what hangs from it on bought hardware is spread over its whole face)
-  const p=X.p,section=sectionOf(1,p.t,X.sheet),load=X.tankPsf>0?X.tankPsf/144:USES[X.use].psf/144+WOOD_RULES.DENSITY*p.t+X.hungLb/(p.l*p.w);
+  // (an opening takes its share of the wood out of every strip: the worst share, js/shapecheck.js)
+  const p=X.p,section=sectionOf(p.shape?1-shapeOpenShare(p):1,p.t,X.sheet),load=X.tankPsf>0?X.tankPsf/144:USES[X.use].psf/144+WOOD_RULES.DENSITY*p.t+X.hungLb/(p.l*p.w);
   // how much of its length (0) and of its width (1) is level: 1 on the flat, less up a slope
   const flat=[X.run,Math.sqrt(Math.max(0,1-X.axes[1][1]*X.axes[1][1]))];
   // the longest stretch of a lane, worked out: { gap, result, n } or null when the lane has no open stretch
@@ -1967,6 +1997,8 @@ function verifyDesign(parts,options){
     verifyRoofBracing(model,found);
     verifyJoints(model,found,noted);
   }
+  // the rules of shaped pieces: wood left beside a hole, cuts that meet, saw limits (js/shapecheck.js)
+  if(typeof shapeFindings==='function')found.push(...shapeFindings(parts));
   if(model.wallScrewFacts)facts.wallScrews=model.wallScrewFacts;   // how many screws hold it to the wall, and where (verifyWallScrews)
   const problems=mergeFindings(found);
   return{ok:!problems.some(p=>p.level==='stop'),clean:!problems.length&&!skipped,problems,notes:mergeFindings(noted),facts,skipped};

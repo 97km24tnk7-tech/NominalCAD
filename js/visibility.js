@@ -15,7 +15,10 @@ function focusSel(){ // zoom to the selection, or to everything when nothing is 
 function findClashes(){ // pairs of square-set wooden pieces that occupy the same space
   const ps=S.parts.filter(p=>!isProp(p)&&!tilted(p)&&!hiddenIds.has(p.id));if(ps.length>900)return[];
   const B=ps.map(p=>{const s=size(p);return{p,lo:p.pos,hi:p.pos.map((v,i)=>v+s[i])};}),out=[];
-  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++)if([0,1,2].every(k=>B[i].lo[k]<B[j].hi[k]-.06&&B[j].lo[k]<B[i].hi[k]-.06))out.push([B[i].p,B[j].p]);
+  // (a pair where either piece is shaped is tested again on the real wood: a board in the cut-away corner of
+  // another is no clash, solidsOverlap in js/shapes.js)
+  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++)if([0,1,2].every(k=>B[i].lo[k]<B[j].hi[k]-.06&&B[j].lo[k]<B[i].hi[k]-.06)&&
+    (!B[i].p.shape&&!B[j].p.shape||solidsOverlap(B[i].p,B[j].p)))out.push([B[i].p,B[j].p]);
   return out;}
 
 /* ---------- "Show me" ----------
