@@ -88,6 +88,12 @@ const DESK_RULES={
   screwClear:.25,        // a hardware screw keeps this much wood between itself and any other fastener's hole
   banding:{roll:25,label:'Edge banding, 13/16" iron-on, 25 ft roll'},   // EDGEMATE 1SO [22 l.392]
   wallGap:1.5,           // leave this between the back of the desk and the wall, for the cables
+  armHoleClear:1.5,      // a monitor arm's grommet hole this far in front of the back apron's inside face, so the
+                         // arm's plate under the top (about 3" across, PRACTICE) clears the apron
+  // the pulls: their screws pass through the drawer front and the drawer box front behind it, so the short screws in
+  // a pull's package do not reach. Bought: #8-32 machine screws (the thread of US cabinet pulls), as long as the
+  // pull line of the step says (pullLine, js/buildsteps.js: the wood plus 3/8" into the pull, to the next 1/4").
+  pullScrewInPull:.375,
 };
 const COMPUTER_DESK_DEFAULTS={L:60,W:30,H:30,drawers:'right',N:'3',caseW:16,fh:7,slides:'slide',fronts:'overlay',
   riserBoard:'1x10',riserSpan:'full',riserW:36,towerSide:'left',hookSide:'away'};
@@ -146,7 +152,8 @@ function deskPlanFresh(raw,slideMost){
   const{L,W,H,legH,leg,over,apronDepth,apronT}=frame;
   problems.push(...frame.problems);
   const caseHeight=legH-apronDepth;   // floor to the underside of the aprons
-  const plan={v,frame,L,W,H,legH,leg,over,apronT,apronDepth,caseHeight,problems,changed,chose,stacks:[],tower:null,riser:null,strip:null,hook:null};
+  // (raw: the form values as given, so the room check can try the desk again at another width: deskSpaceFix)
+  const plan={raw,v,frame,L,W,H,legH,leg,over,apronT,apronDepth,caseHeight,problems,changed,chose,stacks:[],tower:null,riser:null,strip:null,hook:null};
 
   // ---- the drawer stacks, each in its own case at one end, its outer side against the end legs ----
   const ends=v.drawers==='both'?['left','right']:v.drawers==='none'?[]:[v.drawers];
@@ -494,20 +501,65 @@ function computerDeskTip(p){
 
 /* ---------- the room check (R1-R4) ----------
    Each measurement the person filled in gives one finding: {fits, text, fix}. 0 means "not measured": nothing is
-   said and nothing assumed. */
+   said and nothing assumed.
+   One way of writing a size in one sentence: a sentence that only compares boxes of the form (the width with the
+   space, the height with the sill) speaks the way the boxes do (typedLen); a sentence that compares a box with a
+   size the desk gives (the chair arms with the front apron, the chair with the knee space) is all in plain inches
+   (fmt), the way the remark gives the knee space, so the same size never reads two ways. */
+/* What to change when the desk is wider than the space (R1). Narrowing the desk to the space is the first answer,
+   but at that width the drawers (or a tower space, or a monitor shelf of its own width) may no longer leave a knee
+   space a chair fits: so the desk is tried again at the space's width, and when the warning box would refuse it
+   there, the fix also names each change that makes it work at that width, each one tried. Returns
+   {fix, tries}: tries are the form values each offered change gives (for the self-check computerDeskRoomWords). */
+function deskSpaceFix(plan){
+  const R=DESK_RULES,v=plan.v,raw=plan.raw||{};
+  if(v.space<R.minL)return{fix:`This desk is at least ${typedLen(R.minL)} wide. Measure the space again, or find a wider spot.`,tries:[]};
+  const width=Math.floor(v.space);
+  const works=change=>!computerDeskCheck({...raw,room:false,L:width,...change}).some(f=>f.level==='stop');
+  const narrower=`Make it ${typedLen(width)} wide or less`;
+  if(works({}))return{fix:narrower+'.',tries:[{L:width}]};
+  // the changes that may make it buildable at that width (the drawer case: the widest that works, in 1/2" steps
+  // down to the narrowest the form allows; or the narrowest the form allows when none works alone)
+  const candidates=[];
+  if(v.drawers==='both')candidates.push({change:{drawers:'right'},words:'put the drawers at one end only'});
+  if(v.drawers!=='none'){
+    let caseW=R.caseMinW;
+    for(let tried=v.caseW-.5;tried>=R.caseMinW-1e-6;tried-=.5)if(works({caseW:tried})){caseW=tried;break;}
+    if(caseW<v.caseW)candidates.push({change:{caseW},words:`make the drawer case ${typedLen(caseW)} wide or less (under More options)`});
+    candidates.push({change:{drawers:'none'},words:'choose No drawers'});
+  }
+  if(v.tower)candidates.push({change:{tower:false},words:'leave out the tower space'});
+  if(v.riser&&v.riserPart)candidates.push({change:{riserSpan:'full'},words:'make the monitor shelf As wide as the desk'});
+  // each change alone, each tried; when none works alone, two changes together (two that touch the same box, such as
+  // the drawer case and No drawers, are not paired)
+  let ways=candidates.filter(way=>works(way.change));
+  if(!ways.length){
+    for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+      const a=candidates[i],b=candidates[j];
+      if(Object.keys(a.change).some(key=>key in b.change)||(a.change.caseW&&b.change.drawers)||(b.change.caseW&&a.change.drawers))continue;
+      const change={...a.change,...b.change};
+      if(works(change))ways.push({change,words:`${a.words} and ${b.words}`});
+    }
+  }
+  if(!ways.length)return{fix:`At ${typedLen(width)} wide this desk cannot be built with the options ticked. Measure the space again, or find a wider spot.`,tries:[]};
+  const knee=computerDeskPlan({...raw,room:false,L:width}).knee.width<R.kneeLeast-1e-6;
+  const why=knee?'the knee space would be too narrow for a chair':'the options ticked would not fit';
+  return{fix:`${narrower}. At that width ${why}, so also ${listWithOr(ways.map(way=>way.words))}.`,
+    tries:ways.map(way=>({L:width,...way.change}))};
+}
 function deskRoomFindings(plan){
   const R=DESK_RULES,v=plan.v,found=[];
   if(!v.room)return found;
   if(v.space>0){
     const spare=r16(v.space-plan.L);
-    if(spare>=0)found.push({fits:true,text:`The desk is ${typedLen(plan.L)} wide and your space ${typedLen(v.space)}: ${spare?`${fmt(r16(spare/2))} to spare at each end when it is centered`:'it just fits, with nothing to spare'}.`});
-    else found.push({fits:false,text:`The desk is ${typedLen(plan.L)} wide and your space is ${typedLen(v.space)}: it is ${fmt(-spare)} too wide.`,
-      fix:v.space>=R.minL?`Make it ${typedLen(Math.floor(v.space))} wide or less.`:`This desk is at least ${typedLen(R.minL)} wide. Measure the space again, or find a wider spot.`});
+    if(spare>=0)found.push({fits:true,text:`The desk is ${typedLen(plan.L)} wide and your space ${typedLen(v.space)}: ${spare?`${typedLen(r16(spare/2))} to spare at each end when it is centered`:'it just fits, with nothing to spare'}.`});
+    else found.push({fits:false,text:`The desk is ${typedLen(plan.L)} wide and your space is ${typedLen(v.space)}: it is ${typedLen(-spare)} too wide.`,
+      ...deskSpaceFix(plan)});
   }
   if(v.sill>0){
     const spare=r16(v.sill-plan.H);
     if(spare>=R.sillRoom-1e-6){
-      found.push({fits:true,text:`The top is ${typedLen(plan.H)} high and the underside of your sill is at ${typedLen(v.sill)}: the back of the desk tucks under it with ${fmt(spare)} to spare.`});
+      found.push({fits:true,text:`The top is ${typedLen(plan.H)} high and the underside of your sill is at ${typedLen(v.sill)}: the back of the desk tucks under it with ${typedLen(spare)} to spare.`});
       if(plan.riser&&plan.riser.top>v.sill)found.push({fits:true,text:`The monitor shelf stands ${fmt(r16(plan.riser.top-v.sill))} above the sill and covers the bottom of the window by that much.`});
     }else{
       const lowest=floor16(v.sill-R.sillRoom);
@@ -517,23 +569,23 @@ function deskRoomFindings(plan){
   }
   if(v.arms>0){
     const apron=plan.knee.room,spare=r16(apron-v.arms);
-    if(spare>=R.armRoom-1e-6)found.push({fits:true,text:`Your chair arms (${typedLen(v.arms)}) slide under the front apron (${fmt(apron)}) with ${fmt(spare)} to spare.`});
+    if(spare>=R.armRoom-1e-6)found.push({fits:true,text:`Your chair arms (${fmt(v.arms)}) slide under the front apron (${fmt(apron)}) with ${fmt(spare)} to spare.`});
     else{
       // What really gives the arms room: a higher top raises the apron with it (the desk goes to 30" at most);
       // otherwise the chair has to change. The front apron stays: it is what holds up the front edge of the top.
       const higher=r16(tablePlan(tableArgs('Desk',{L:plan.L,W:plan.W,H:R.maxH})).kneeRoom),fitsHigher=plan.H<R.maxH-1e-6&&higher-v.arms>=R.armRoom-1e-6;
       const lowest=r16(apron-R.armRoom);
       const fix=fitsHigher
-        ?`Make the desk ${typedLen(R.maxH)} high: the front apron is then ${fmt(higher)} off the floor. Or lower the chair until its arms are ${fmt(lowest)} or lower.`
+        ?`Make the desk ${fmt(R.maxH)} high: the front apron is then ${fmt(higher)} off the floor. Or lower the chair until its arms are ${fmt(lowest)} or lower.`
         :`Lower the chair until its arms are ${fmt(lowest)} or lower, push the arms down or take them off if they adjust, or use a chair with lower arms. This desk keeps its front apron, which holds up the front edge of the top, so the room under it cannot be made higher than ${fmt(Math.max(apron,higher))}.`;
       found.push(spare>0
-        ?{fits:false,text:`Your chair arms (${typedLen(v.arms)}) only just pass under the front apron (${fmt(apron)} off the floor): ${fmt(spare)} to spare, so they may rub.`,fix}
-        :{fits:false,text:`Your chair arms are ${typedLen(v.arms)} high and the front apron is ${fmt(apron)} off the floor: the arms stop against it, ${fmt(-spare)} short, so the chair cannot pull in all the way.`,fix});
+        ?{fits:false,text:`Your chair arms (${fmt(v.arms)}) only just pass under the front apron (${fmt(apron)} off the floor): ${fmt(spare)} to spare, so they may rub.`,fix}
+        :{fits:false,text:`Your chair arms are ${fmt(v.arms)} high and the front apron is ${fmt(apron)} off the floor: the arms stop against it, ${fmt(-spare)} short, so the chair cannot pull in all the way.`,fix});
     }
   }
   if(v.chairW>0){
     const needed=v.chairW+2*R.chairSide,spare=r16((plan.knee.width-v.chairW)/2);
-    if(plan.knee.width>=needed-1e-6)found.push({fits:true,text:`Your chair (${typedLen(v.chairW)} across the arms) rolls into the ${fmt(plan.knee.width)} knee space with ${fmt(spare)} to spare at each side.`});
+    if(plan.knee.width>=needed-1e-6)found.push({fits:true,text:`Your chair (${fmt(v.chairW)} across the arms) rolls into the ${fmt(plan.knee.width)} knee space with ${fmt(spare)} to spare at each side.`});
     else{
       // only the ways that really give the room: each is worked out
       const short=needed-plan.knee.width,stacks=plan.stacks.length,towerTakes=plan.tower?R.towerInside+R.panel:0;
@@ -544,8 +596,8 @@ function deskRoomFindings(plan){
         stacks&&stacks*v.caseW>=short-1e-6?'choose No drawers':'',
         plan.tower&&towerTakes>=short-1e-6?'leave out the tower space':''].filter(Boolean);
       found.push({fits:false,text:plan.knee.width>v.chairW
-          ?`Your chair is ${typedLen(v.chairW)} across the arms and the knee space is ${fmt(plan.knee.width)} wide: it rolls in with less than ${fmt(R.chairSide)} each side and will knock the drawers or the legs.`
-          :`Your chair is ${typedLen(v.chairW)} across the arms and the knee space is ${fmt(plan.knee.width)} wide: it will not roll in.`,
+          ?`Your chair is ${fmt(v.chairW)} across the arms and the knee space is ${fmt(plan.knee.width)} wide: it rolls in with less than ${fmt(R.chairSide)} each side and will knock the drawers or the legs.`
+          :`Your chair is ${fmt(v.chairW)} across the arms and the knee space is ${fmt(plan.knee.width)} wide: it will not roll in.`,
         fix:capitalFirst(listWithOr(ways.length?ways:['use a narrower chair']))+'.'});
     }
   }
@@ -594,7 +646,8 @@ function deskFormNotes(plan){
   if((plan.stacks.length||plan.tower)&&plan.knee.width<R.kneeEasy-1e-6&&plan.knee.width>=R.kneeLeast-1e-6){
     const easy=Math.ceil(plan.L+R.kneeEasy-plan.knee.width-1e-6);
     // (the knee width itself is the first line of the remark: not said twice)
-    notes.push(`${fmt(R.kneeEasy)} or more of knee space lets a chair with arms swing in and out easily${easy<=R.maxL?`: a Width of ${typedLen(easy)} gives that`:''}.`);
+    // (the Width is quoted the way its box shows it, in a sentence of its own)
+    notes.push(`${fmt(R.kneeEasy)} or more of knee space lets a chair with arms swing in and out easily.${easy<=R.maxL?` A Width of ${typedLen(easy)} gives that.`:''}`);
   }
   if(plan.knee.room<TABLE_RULES.kneeRoom-1e-6)notes.push(`There is ${fmt(plan.knee.room)} of knee room under the aprons. Most chairs want about ${fmt(TABLE_RULES.kneeRoom)}, so try your chair first or raise the top.`);
   if(plan.tower)notes.push(`A full tower (about ${fmt(R.fullTower)} tall with its air space) does not fit under a ${typedLen(plan.H)} desk. Stand it on the floor beside the desk.`);
@@ -618,7 +671,9 @@ function computerDeskInfo(p){
   // What is typed is what is built (js/overallsizes.js): the Height is floor to the top of the desk, and a monitor
   // shelf stands on that top, so the piece as a whole is taller than the number typed. Say so, with the size.
   if(plan.riser&&!plan.riser.failed){
-    lines.push(`With the monitor shelf it comes out ${fmt(plan.riser.top)} tall overall instead of ${typedLen(plan.H)}: the top of the desk stays at the ${typedLen(plan.H)} typed in Height and the shelf stands ${fmt(plan.riser.rise)} above it.`);
+    // (the overall size is written as the "Overall size" line beside the form writes it; the Height is named, not
+    // quoted, so the sentence never writes one size as its box does and another in plain inches)
+    lines.push(`With the monitor shelf it comes out ${fmt(plan.riser.top)} tall overall instead of the Height typed: the top of the desk stays at that height and the shelf stands ${fmt(plan.riser.rise)} above it.`);
   }
   lines.push(tableTopWords('Desk','std'));
   const first=deskFormNotes(plan)[0];
@@ -636,6 +691,9 @@ function computerDeskNotes(p){
   if(plan.stacks.length){
     const s=plan.stacks[0],d=s.layout.drawer,all=plan.stacks.reduce((sum,stack)=>sum+stack.layout.drawers,0),pairs=`${all} pair${all>1?'s':''}`;
     notes.push(deskStackWords(plan));
+    // what the plan changed by itself (fewer drawers over the open shelf, shorter slides on a shallow desk): said in
+    // the notes as well as under the form, so the instructions explain why the count or the slides differ from the form
+    notes.push(...plan.changed);
     notes.push(d.kind==='slide'
       ?`Drawer slides: buy ${pairs} of ${d.length}" side-mount ball-bearing slides. They need ${fmt(DRAWER.slideSide)} between the drawer box and the case on each side, and the drawer boxes here are cut for exactly that. If the package says a different gap, change the width of the drawer box front, back and bottom to match before you cut.`
       :`Wooden runners: the drawers ride on strips of wood ${fmt(DRAWER.runnerStrip)} by ${fmt(DRAWER.runnerStrip)}, ${d.length}" long, screwed to the case sides. Rip a 1x2 down the middle, or buy 3/4" square stock. The drawers come out ${fmt(r16(d.travel))}, about two thirds of their depth.`);
@@ -646,7 +704,9 @@ function computerDeskNotes(p){
   }
   notes.push(...deskFormNotes(plan));
   notes.push(`The front apron leaves ${fmt(plan.knee.room)} for your legs and the chair arms. A tall person's thighs reach about ${fmt(R.thighTall)} when seated, so try your chair and your knees under it before you build: tick "Check it against my room" and fill in your chair's arm height.`);
-  notes.push(`A monitor arm's clamp needs about 4" of clear wood under the back edge. The back apron is ${fmt(plan.over)} in from the edge, so a clamp will not fit: use an arm with a grommet mount once the desk has cable holes.`);
+  // what to do today: this desk has no cable-hole option, so the person drills the one hole a grommet mount needs
+  const armHole=plan.over+plan.apronT+DESK_RULES.armHoleClear;
+  notes.push(`A monitor arm's clamp needs about 4" of clear wood under the back edge. The back apron is ${fmt(plan.over)} in from the edge, so a clamp will not fit. Use an arm with a grommet (through-the-desk) mount instead: drill the one hole its instructions ask for through the top, about ${fmt(armHole)} in from the back edge, over the knee space and clear of the cross rails, so its plate under the top sits clear of the back apron.${plan.riser?' The monitor shelf covers that part of the top, so with the shelf stand the monitor on it instead.':''}`);
   if(plan.strip)notes.push(`Power strip: any strip about ${fmt(R.strip.length)} long with keyhole slots on its back hangs on two screws low on the inside of the back apron, over the knee space, so the cords stay off the floor. Its screws go in under the pocket holes along the top of the apron.`);
   if(plan.hook)notes.push('Hook: a screw-on hook for headphones, low on the outside of one end, near the back, under the overhang of the top.');
   notes.push(`Edge banding: ${listWords(deskBandedEdges(plan))} get iron-on edge banding, so the layers of the plywood do not show.`);
@@ -666,6 +726,9 @@ function computerDeskHardware(p){
     const d=plan.stacks[0].layout.drawer;
     if(d.kind==='slide')rows.push([`Drawer slides, ${d.length}" side-mount ball-bearing (pair)`,drawers]);
     rows.push(['Drawer pulls',drawers]);
+    // the step that puts the pulls on asks for screws long enough to pass the drawer front and the box front:
+    // what a step uses, the list buys (two per pull)
+    rows.push([deskPullScrewLabel(),2*drawers]);
   }
   if(plan.strip){
     rows.push([HARDWARE.strip.buy(),1]);
@@ -675,6 +738,13 @@ function computerDeskHardware(p){
   rows.push([R.banding.label,Math.max(1,Math.ceil(deskBandingFeet(plan)/R.banding.roll-1e-6))]);
   return rows;
 }
+/* The pull screws: through the drawer front and the drawer box front, and 3/8" into the pull, to the next 1/4" up
+   (the length the step's pull line asks for, pullLine in js/buildsteps.js). "screws" keeps the line off the pulls
+   themselves (plainKinds, js/hardware.js), and its price row is 'pull-screws' in js/prices.js. */
+function deskPullScrewLength(){
+  return Math.ceil((DRAWER.frontThick+DRAWER.boxThick+DESK_RULES.pullScrewInPull)*4)/4;
+}
+const deskPullScrewLabel=()=>`Machine screws, #8-32 × ${fmt(deskPullScrewLength())}, for the drawer pulls (the ones in the package are too short)`;
 /* The plywood edges a person sees, each banded: [{words, inches}].
    The top: its front edge and both ends. Each drawer front: all four edges. The tower panel: its front edge.
    The drawer case: the front edges of its two sides always (below the bottom drawer front, along the gaps, and
@@ -758,7 +828,7 @@ function computerDeskSteps(p){
       steps.push(deskTopStep(plan,step));
       return;
     }
-    steps.push(step);
+    steps.push(deskRailFaceStep(step));
   });
   if(stacks.length)steps.push(...deskCaseSteps(plan));
   if(plan.riser)steps.push(...deskRiserSteps(plan));
@@ -776,6 +846,29 @@ function computerDeskSteps(p){
   }
   steps.push({t:`Stand the desk in its place. Leave about ${fmt(R.wallGap)} between the back of the desk and the wall, so the cables can drop down behind it. Run them over the back edge and under the back apron${plan.strip?' to the power strip':''}.`,add:[]});
   return steps;
+}
+/* A step's words changed in every style (its t and each of byStyle), and in its drill field too: the drill field
+   holds sentences of those words exactly (taken out while step 2 "Drill your pieces" holds the holes, js/drillplan.js),
+   so a sentence changed in the words must be changed there the same way or it would no longer be found. */
+function deskStepWords(step,change){
+  const changed={...step,t:change(step.t)};
+  if(step.byStyle)changed.byStyle=Object.fromEntries(Object.entries(step.byStyle).map(([style,words])=>[style,change(words)]));
+  if(step.drill)changed.drill=deskDrillWords(step.drill,change);
+  return changed;
+}
+/* the drill field of a step (a string, a list, or per style {std, fine, rustic}) with each sentence changed */
+function deskDrillWords(drill,change){
+  if(typeof drill==='string')return change(drill);
+  if(Array.isArray(drill))return drill.map(sentence=>deskDrillWords(sentence,change));
+  return Object.fromEntries(Object.entries(drill).map(([style,sentences])=>[style,deskDrillWords(sentences,change)]));
+}
+/* The Desk's end-frame step drills the pocket holes that hold the top "along the top edge of the inside face of
+   every apron and cross rail". A cross rail of this desk stands off the middle (two of them, or spaced from a tower
+   panel), so the holes the fastener list gives are on whichever of its faces it names, not on an "inside" face:
+   send the reader to that list instead of naming a face the list then contradicts. */
+function deskRailFaceStep(step){
+  return deskStepWords(step,words=>words.replace(' of every apron and cross rail, as many as',
+    ' of every apron and along the top edge of each cross rail, on the face of the rail that the step fastening the top names, as many as'));
 }
 /* the cross rails when a tower panel stands at one end: the places the plan gave them, from the outside face of the left end frame */
 function deskRailStep(plan){
@@ -807,7 +900,12 @@ function deskTopStep(plan,step){
     let text=words;
     if(panel)text=text.replace(' up into the underside of the top',', and from the holes along the top edge of the tower panel, up into the underside of the top')
       .replace(' along the aprons',' along the aprons and the tower panel');
-    if(withCase)text=text.replace(/ Turn it right side up\.$/,` Leave it upside down: the drawer case${plan.stacks.length>1?'s go':' goes'} in next, from this side.`);
+    // the case is built in the steps that follow, while the frame waits upside down: say so, so a beginner does
+    // not look for the case to go in at the very next step
+    if(withCase){
+      const cases=plan.stacks.length>1?'the two drawer cases':'the drawer case';
+      text=text.replace(/ Turn it right side up\.$/,` Leave it upside down on the blanket: the next steps build ${cases} on its own, and ${plan.stacks.length>1?'they go':'it goes'} in from this side before the desk is turned over.`);
+    }
     return text;
   };
   const byStyle=step.byStyle||{std:step.t,rustic:step.t,fine:step.t};
@@ -817,10 +915,19 @@ function deskCaseSteps(plan){
   const v=plan.v,R=DESK_RULES,two=plan.stacks.length===2;
   const theCase=two?'each drawer case':'the drawer case',cases=two?'the two drawer cases, the same way':'the drawer case';
   const s=plan.stacks[0],shelfHeight=s.layout.openHeight;
+  // each top rail lies partly under its apron: the screws that hold the case to the frame go in the middle of that
+  // strip. Their holes are drilled while the rails are loose (the owner: make every piece first, then assemble),
+  // not 2 ft deep inside the upside-down case.
+  const backStrip=r16(plan.over+plan.apronT-s.sidesFrom),frontStrip=r16(s.front-(plan.W-plan.over-plan.apronT));
+  const railLines=`${fmt(r16(backStrip/2))} in from the back edge of the back rail and ${fmt(r16(frontStrip/2))} in from the front edge of the front rail`;
+  // (these are clearance holes for plain wood screws, not pocket holes, so step 2 "Drill your pieces" does not hold
+  //  them and the sentence stays in the step: it is worded as one clearance hole per screw, not as an order to
+  //  drill pocket holes, which is what the drill check reads for)
+  const railHoles=` While the top rails are loose, drill a clearance hole for each screw that will hold the case to the aprons: through the rail, on a line ${railLines}, at the places the step that sets the case in gives, each countersunk on the underside.`;
   const steps=[];
   steps.push(styledStep({
-    std:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends. Then glue each joint and drive the pocket screws into the sides, so nothing shows on the outside.`,
-    rustic:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail'],
+    std:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.${railHoles} Then glue each joint and drive the pocket screws into the sides, so nothing shows on the outside.`,
+    rustic:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge.${railHoles} Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail'],
     [' First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.']));
   steps.push(styledStep({
     std:`Fasten the toe kick under the bottom panel of ${theCase}, on edge, set back ${fmt(NS.kickBack)} from the front. Hold it to the bottom panel and to the sides with the pocket screws listed below, from holes drilled in its back face.`,
@@ -835,9 +942,9 @@ function deskCaseSteps(plan){
   const front=v.style==='overlay'
     ?`the front edges of its sides ${fmt(R.overlaySetBack)} behind the front face of the front legs (hold a scrap of 3/4" plywood against the leg as a gauge)`
     :'the front edges of its sides flush with the front face of the front legs';
-  // each top rail lies partly under its apron: its screws go in the middle of that strip
-  const backStrip=r16(plan.over+plan.apronT-s.sidesFrom),frontStrip=r16(s.front-(plan.W-plan.over-plan.apronT));
-  const lines=`each screw in the middle of the strip of rail that lies under the apron: ${fmt(r16(backStrip/2))} in from the back edge of the back rail, ${fmt(r16(frontStrip/2))} in from the front edge of the front rail`;
+  // each top rail lies partly under its apron: its screws go in the middle of that strip, through the holes drilled
+  // in the rails while they were loose
+  const lines=`through the holes you drilled in the rails, each in the middle of the strip of rail that lies under the apron (${railLines})`;
   const setIn=`lower ${two?'each case':'the case'} in upside down ${where}, between the legs and under the aprons: its outer side against the inside faces of the two end legs, its back panel flush with the back faces of the back legs, and ${front}. Its two top rails lie on the long aprons. From inside the case, drive the screws listed below through each top rail into the apron, ${lines}. Then get a helper and turn the desk right side up: the case stands on the floor, and nothing of it is in the knee space.`;
   steps.push({...styledStep({std:`Set ${theCase} in. The desk is still upside down on its blanket from the step that put the top on: ${setIn}`,
     rustic:`Set ${theCase} in. Get a helper and turn the desk upside down on a blanket, then ${setIn}`},[]),bring:plan.stacks.map(deskCaseOf)});
@@ -878,7 +985,7 @@ function deskDrawerSteps(plan){
         :`No kicker strips are needed: the runners of the drawer above keep a drawer from tipping down when it is open, and the top rails do that for the top drawer. `)+
       `Rub the tops of the runners with candle wax, then slide each drawer in. The fit is right when it moves freely with about ${fmt(DRAWER.runnerSide)} of play on each side.`,add:[],hardware:['runner','kicker'],bring:[deskDrawerBox]});
   }
-  const pulls='Then drill for the pull in the middle of each front and bolt it on.';
+  const pulls=`Then drill for the pull in the middle of each front and screw it on from inside the drawer with the ${fmt(deskPullScrewLength())} machine screws on the shopping list: the short ones in the package do not reach through the front and the box.`;
   if(v.style==='overlay'){
     steps.push({t:`Put the drawer fronts on last, starting with the bottom one${two?' of each case':''}. Hold the front against the drawer box so it covers the edge of the bottom panel below it, ${fmt(NS.frontReveal)} in from the outside of each case side, with a ${fmt(DRAWER.frontGap)} gap between fronts (two stacked nickels make a good spacer). Clamp it or stick it with double-sided tape, open the drawer, and drive the short screws listed below from inside the drawer, through the drawer box front into the back of the drawer front. Do not use longer screws here: they would come out through the face. Work up, keeping the same gap. ${pulls}`,add:['Drawer front']});
   }else{
@@ -955,7 +1062,7 @@ PRESETS.push({
 const GAMING_DESK_START={L:72,riser:true,strip:true,tower:true,hook:true};
 /* its own description (the tile's tooltip and the line over the form): what it starts with, and where the options
    that are ticked but folded away are */
-const GAMING_DESK_WORDS='The Computer desk at 6 ft wide, set up for a gaming computer: a monitor shelf across the back, a power strip under the back of the top, a stack of drawers at the right end and a space for a computer tower at the left end, open at the front and the back for air, with a hook for headphones. The tower space and the hook are ticked under More options; untick anything you do not want.';
+const GAMING_DESK_WORDS='A 6 ft Computer desk set up for gaming: monitor shelf, power strip, drawers at the right, an open tower space at the left and a headphone hook (those two are under More options).';
 /* the rows the form shows at once; the rest are under "More options" (entry.short, js/presetentry.js) */
 const COMPUTER_DESK_SHORT=['L','W','H','drawers','riser','riserBoard','riserSpan','riserW','strip','room','space','sill','arms','chairW'];
 
@@ -1225,6 +1332,18 @@ SELFTESTS.push(function computerDeskRoomWords(problems){
     const warns=say(extra).filter(f=>f.level==='warn');
     if(fits?warns.length:!(warns.length===1&&warns[0].fix))wrong(`${JSON.stringify(extra)}: the warning box ${fits?'warns although it fits':'does not warn with a fix'}`);
   }
+  // a space narrower than the desk: every change the fix offers really fits the space and can be built (at 50"
+  // the drawers at the right leave too little knee space once the desk is narrowed to the space)
+  for(const extra of[{space:56},{space:50},{space:52,drawers:'both',L:72},{space:48,tower:true,drawers:'none'},{space:54,riser:true,riserSpan:'part',riserW:60}]){
+    const finding=notes(extra).find(f=>f.fits===false);
+    if(!finding){wrong(`${JSON.stringify(extra)}: no "too wide" finding`);continue;}
+    if(!finding.tries||!finding.tries.length){wrong(`${JSON.stringify(extra)}: the fix "${finding.fix}" offers no change that works`);continue;}
+    for(const change of finding.tries){
+      const vals={...extra,...change},stops=computerDeskCheck({...base,...vals}).filter(f=>f.level==='stop');
+      if(stops.length)wrong(`${JSON.stringify(extra)}: the fix "${finding.fix}" offers ${JSON.stringify(change)}, which is refused: ${stops[0].text}`);
+      if(computerDeskPlan({...base,...vals}).L>extra.space+1e-6)wrong(`${JSON.stringify(extra)}: the change ${JSON.stringify(change)} does not fit the space`);
+    }
+  }
   if(notes({}).length||say({}).length)wrong('with nothing measured the room check still says something');
   if(deskRoomFindings(computerDeskPlan({...base,room:false,space:20})).length)wrong('with the box unticked the room is still checked');
 });
@@ -1297,6 +1416,57 @@ SELFTESTS.push(function computerDeskShelfAtEveryWidth(problems){
     }
   }
 });
+/* What a step uses, the shopping list buys: a pull step that asks for screws longer than the ones in a pull's
+   package finds them on the shopping list, as many as the pulls need and with a price. */
+SELFTESTS.push(function computerDeskBuysThePullScrews(problems){withoutDrawing(()=>{
+  const preset=deskPreset(),wrong=text=>problems.push('computer desk pull screws: '+text);
+  const kept=JSON.stringify(S),tabKept=tab;
+  try{
+    for(const extra of[{},{drawers:'both',L:72},{N:'4',fronts:'inset'},{cub:true}]){
+      const vals={...presetDefaults(preset),...extra},label=JSON.stringify(extra)+': ';
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,preset.build(vals),false);
+      const pulls=hardwareList().filter(item=>item.kind==='pull').length;
+      const asked=[];
+      for(const step of buildPlan().steps)for(const line of step.hardware||[]){
+        const long=/use screws about (.+?) long/.exec(line.line||'');
+        if(line.kind==='pull'&&long)asked.push(parseLen(long[1]));
+      }
+      if(!pulls){wrong(label+'no pulls placed');continue;}
+      if(!asked.length){wrong(label+'no pull step says how long the pull screws must be');continue;}
+      const rows=hardwareTotals(findJoints()).rows;
+      for(const length of asked){
+        const row=rows.find(([words])=>/machine screws/i.test(words)&&words.includes(`× ${fmt(length)}`));
+        if(!row)wrong(label+`the step asks for ${fmt(length)} pull screws and the shopping list does not buy them`);
+        else{
+          if(row[1]<2*pulls)wrong(label+`the shopping list buys ${row[1]} pull screws for ${pulls} pulls`);
+          const family=typeof hardwareFamily==='function'?hardwareFamily(row[0]):null;
+          if(!family||family.id!=='pull-screws')wrong(label+`"${row[0]}" has no price of its own`);
+        }
+      }
+    }
+  }finally{load(kept,true);setTab(tabKept);}
+});});
+/* Words a person reads say what to do today: none promises a later version or points to an option the desk does
+   not have; and while the form is talking, no sentence writes one size as the boxes do (2'-6") and another in
+   plain inches over a foot (25 3/4"), so a size never reads two ways in one sentence. */
+SELFTESTS.push(function computerDeskWordsSayToday(problems){withoutDrawing(()=>{
+  const preset=deskPreset(),wrong=text=>{if(problems.length<60)problems.push('computer desk words: '+text);};
+  const promise=/later version|in a later stage|comes later|once the desk has|cable holes?/i;
+  const feet=/\d+'-\d/,inchesOverAFoot=/(?<![-'\d])(1[3-9]|[2-9]\d|\d{3})( \d+\/\d+)?"/;
+  const rooms=[{},{room:true,space:56,sill:29.5,arms:27,chairW:34},{room:true,space:100,sill:31,arms:25,chairW:28},{room:true,arms:26,chairW:31}];
+  for(const variant of[{}].concat(preset.variants))for(const room of rooms){
+    const vals={...presetDefaults(preset),...variant,...room},label=JSON.stringify({...variant,...room})+': ';
+    const formWords=speakAsBoxes(()=>[computerDeskInfo(vals),...computerDeskCheck(vals).flatMap(f=>[f.text,f.fix])]).filter(Boolean);
+    const pageWords=[...computerDeskNotes(vals),...computerDeskSteps(vals).flatMap(step=>[step.t,...Object.values(step.byStyle||{})])].filter(Boolean);
+    for(const words of formWords.concat(pageWords)){
+      if(promise.test(words))wrong(label+`"${promise.exec(words)[0]}" in: ${words.slice(0,120)}`);
+    }
+    for(const words of formWords)for(const sentence of words.split(/(?<=\.)\s+/)){
+      if(feet.test(sentence)&&inchesOverAFoot.test(sentence))wrong(label+`a size is written two ways in: ${sentence}`);
+    }
+  }
+});});
 /* With the open shelf the drawers keep the front height typed (fewer of them, never cut down to shallow boxes),
    unless not even one fits; and no front is ever cut under the 5" the Nightstand's rule takes as the least. */
 SELFTESTS.push(function computerDeskOpenShelfDrawers(problems){
@@ -1307,6 +1477,9 @@ SELFTESTS.push(function computerDeskOpenShelfDrawers(problems){
     const layout=plan.stacks[0].layout,d=layout.drawer,deep=d.boxHeight-d.bottomThick,label=JSON.stringify({...corner,fh,N})+': ';
     if(layout.drawers>1&&Math.abs(layout.frontHeight-floor16(fh))>1e-6)wrong(label+`${layout.drawers} drawers with ${fmt(layout.frontHeight)} fronts, not the ${fmt(fh)} typed`);
     if(layout.drawers>+N)wrong(label+`${layout.drawers} drawers, more than the ${N} asked for`);
+    // fewer drawers than asked is said, under the form and in the notes of the instructions
+    const said=new RegExp(`Only ${layout.drawers} drawers? with`);
+    if(layout.drawers<+N&&!(said.test(computerDeskInfo(vals))&&computerDeskNotes(vals).some(line=>said.test(line))))wrong(label+`${layout.drawers} drawers of the ${N} asked for, and the remark or the notes do not say why`);
     // (a 5" front, the least the form takes, gives the shallowest drawer the Nightstand's rule allows: never less)
     if(layout.frontHeight<NS.minFront-1e-6)wrong(label+`the drawer fronts were cut to ${fmt(layout.frontHeight)}, under the ${fmt(NS.minFront)} that leaves a useful drawer (${fmt(deep)} deep inside)`);
     if(layout.openHeight<NS.minShelf-1e-6)wrong(label+`the open shelf is only ${fmt(layout.openHeight)} tall`);

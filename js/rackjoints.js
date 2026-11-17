@@ -35,7 +35,8 @@
      rackBuildOf(p)                 'one' or 'sections' (a value saved before the choice existed reads as 'one')
      rackSplit(room, B, su, board, budget, build)
                                     -> { mods:[{nb, W, stretches:[bays of each rail piece]}], bays, W } or null
-     rackLines(pl, m)               the lines of uprights of one section: [{x, w, joint}] and the left edge of each bay
+     rackLines(pl, m)               the lines of uprights of one section: [{x, w, joint, center}] and the left edge of each bay
+                                    (center: the center posts of a stand, inside a bay)
      deckSeams(pl, m, lay)          where the decks are cut, from the left end of the section (see below)
      railJointWords(pl)             one sentence about the rail joints, for the notes and the steps
    The self-checks are at the bottom of the file (SELFTESTS). */
@@ -139,6 +140,9 @@ function rackLines(pl,m){
       lines.push({x:bayX+B,w:joint?jw:su,joint});
     }
   });
+  // the center posts of a stand stand inside the bays (standCenterLines, js/builders-fish.js): lines of their own
+  for(const bayX of bays)for(const left of pl.centers||[])lines.push({x:r16(bayX+left),w:su,joint:false,center:true});
+  lines.sort((a,b)=>a.x-b.x);
   return{lines,bays};
 }
 /* Where the decks of a section are cut. A sheet of plywood is 8 ft long (4 ft when the deck is deeper than 4 ft),
@@ -444,15 +448,18 @@ SELFTESTS.push(function backPanelsMeetOnWood(problems){
   for(let W=24;W<=600;W+=6)for(const build of['one','sections'])look(cabinet,{...presetDefaults(cabinet),W,build},`cabinet stand ${W} ${build}`,96);
   for(const key of['g10','g40b','g75'])for(let W=48;W<=600;W+=24)for(const build of['one','sections'])
     look(rack,{...presetDefaults(rack),...tankOf(key),W,build,base:'cabinet',brace:false},`rack ${key} ${W} ${build}`,96);
-  let studs=0;
+  // Tall cabinets of 125 gallon tanks: their backs are made of sheets standing up, 4 ft wide, so they have seams.
+  // A cabinet base is built as a stand, with center posts no more than 36" apart (STAND_RULES), so every seam finds
+  // an upright within a sheet; a panel stud is stood only where none does (none of these, since the center posts).
+  let seams=0;
   for(const changes of[{W:200},{W:96,maxD:60},{W:200,build:'sections',low:36}]){
     const vals={...presetDefaults(rack),...tankOf('g125'),H:120,base:'cabinet',brace:false,storeH:48,...changes},what=`a tall cabinet of 125 gallon tanks ${JSON.stringify(changes)}`;
-    // (the panel studs behind the back stand against it, at the back; those of the side panels stand inside the ends)
-    studs+=look(rack,vals,what,96).filter(p=>p.name==='Panel stud'&&p.pos[2]===0).length;
+    const backs=look(rack,vals,what,96).filter(p=>p.name==='Back panel');
+    seams+=backs.filter(panel=>backs.some(other=>Math.abs(other.pos[0]-(panel.pos[0]+size(panel)[0]))<.01)).length;
     const check=checkPreset(rack,vals);
     if(check.problems.length)say(`${what}: ${check.problems.map(f=>f.code).join(', ')}`);
   }
-  if(!studs)say('no tall cabinet got a panel stud behind a back seam, so that case is not checked');
+  if(!seams)say('no tall cabinet has a seam in its back, so that case is not checked');
 });
 /* Every width from 24" to 600" (in steps of 24"), each board length, each upright size, with and without a base,
    both ways of building, for the rack and the cabinet stand: the plan is sound, every rail piece is within the
@@ -501,17 +508,20 @@ SELFTESTS.push(function fishWallEveryWidth(problems){
     });
   }
   // cabinet bases whose bays are wide enough for door stiles, standing on feet and on the floor: each stile has a
-  // cross piece under it (and a foot under that, on feet), and nothing is held up by a stile standing on air
+  // cross piece under it (and a foot under that, on feet), and nothing is held up by a stile standing on air.
+  // (A cabinet base is built as a stand: a bay that wide has center posts, and its doors meet on those instead of
+  // on stiles, doorsAroundCenters in js/builders-fish.js. The center posts are uprights, so fishShopProblems holds
+  // them to the same: fully over wood, on a cross piece, on a foot when the rack stands on feet.)
   for(const[key,changes]of[['g100',{low:36,W:240}],['g10',{low:6,W:240}],['g125',{low:36,W:420}]]){
     const t=TANKS[key];
     let stiles=0;
     for(const build of['one','sections']){
       const vals={...presetDefaults(rack),size:key,tl:t[0],td:t[1],th:t[2],gal:t[3],clr:Math.max(8,Math.ceil(t[2]/2)),base:'cabinet',brace:false,storeH:16,build,...changes};
       const pl=rackPlan(vals);
-      if(pl)stiles+=pl.mods.reduce((sum,m)=>sum+rackLayout(pl,m).front.stiles.length,0);
+      if(pl)stiles+=pl.mods.reduce((sum,m)=>{const lay=rackLayout(pl,m);return sum+lay.front.stiles.length+lay.lines.filter(L=>L.center).length;},0);
       tryOne(rack,vals,vals,0,true);
     }
-    if(!stiles)say(`${key} ${JSON.stringify(changes)}: no door stile to check`);
+    if(!stiles)say(`${key} ${JSON.stringify(changes)}: no door stile or center post to check`);
   }
   // the small tanks make the narrow pairs of doors, so the most door stiles: their layout alone (no build) at
   // every 6" of width, both ways of building, on the rack and the cabinet stand

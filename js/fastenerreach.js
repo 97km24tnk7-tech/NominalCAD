@@ -210,8 +210,8 @@ function angledIntoUpright(joint,list,X,others){
   // screws on its top face, under the books. (Asked, not for all furniture: a design saved with the old Bookshelf
   // keeps its screws where its steps say, in the underside.)
   const owner=presetOfPiece(board);
-  if(s===1&&hidden<0&&owner&&owner.angledScrewsFollowRule13&&isHouseFurniturePiece(board)&&topFaceUnseen(board)&&
-    seenFromBelow([(box.lo[0]+box.hi[0])/2,box.lo[1],(box.lo[2]+box.hi[2])/2],[0,-1,0]))hidden=1;
+  // (undersideHoleFace asks along the whole board, not only at its middle, and is what the steps' words read)
+  if(s===1&&hidden<0&&owner&&owner.angledScrewsFollowRule13&&isHouseFurniturePiece(board)&&undersideHoleFace(board)==='top')hidden=1;
   // A face that will be covered for good is better still, as for pocket holes (coveredForGood, js/fasteners.js):
   // a bookshelf's back rail is screwed to a divider from its back face, before the back panel is nailed over it,
   // not from its front face, which is seen when one looks into the bay.

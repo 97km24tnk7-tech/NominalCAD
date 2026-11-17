@@ -336,19 +336,14 @@ function bookshelfHardware(p){
   const s=bookshelfPlan(p);
   return s.anchored?[['Wood screws, 3", through the back rail into the wall studs',2*s.studs]]:[];
 }
-/* Rule 13 (js/fasteners.js) for a board of a case, as the layout decides it: where the pocket holes of a board
-   whose underside is `under` inches above the floor go: 'under', 'top' (a shelf high up, under its books; the top
-   of the case when it is above the eye) or 'plugged' (the top of a case whose top face is lower than SEEN.topFrom). */
-function caseBoardHoleFace(under,top,topmost){
-  if(under<=SEEN.underAbove)return'under';
-  return!topmost||top>=SEEN.topFrom?'top':'plugged';
-}
 function bookshelfSteps(p){
   const s=bookshelfPlan(p),heights=s.shelfY.map(fmt),div=s.dividers;
   // shelves high enough to take their pocket holes on the top face, and where the holes of the top go
-  const highShelves=s.shelfY.filter(y=>caseBoardHoleFace(y,y+.75,false)==='top').map(fmt);
+  // (read from the pieces with the fastener layout's own rule, caseHoleFaces in js/casesteps.js, not from the heights)
+  const faces=caseHoleFaces(buildBookshelf(p));
+  const highShelves=s.shelfY.filter(faces.shelfOnTop).map(fmt);
   const highNote=highShelves.length?` (in its top face instead for the ${highShelves.length>1?'shelves':'shelf'} at ${listWords(highShelves)}: an underside more than ${SEEN.underAbove}" up is in plain sight from below, and the books cover the top face)`:'';
-  const topFace=caseBoardHoleFace(s.H-.75,s.H,true);
+  const topFace=faces.top;
   const topHoles=topFace==='top'?`from holes drilled in its top face near each end (the top is more than ${SEEN.topFrom}" up, above the eye, where nobody sees them; underneath they would be in plain sight from below), so nothing shows on the sides`
     :topFace==='plugged'?`from holes drilled in its underside near each end, so nothing shows on the top or on the sides. An underside this high is seen from below, so fill those holes with glued pocket-hole plugs, as the list says`
     :'from holes drilled in its underside near each end, so nothing shows on the top or on the sides';
@@ -713,8 +708,49 @@ function buildStorageBox(p){
   const P=[mk('Front',ply,[W,H,t],[0,0,D-t]),mk('Back',ply,[W,H,t],[0,0,0]),
     mk('Side',ply,[t,H,D-2*t],[0,0,t]),mk('Side',ply,[t,H,D-2*t],[W-t,0,t]),
     mk('Bottom',ply,[W-2*t,t,D-2*t],[t,0,t])];
-  if(s.lid)P.push(mk('Lid',s.lidPly,[W,s.lidT,D],[0,H,0]));
+  if(s.lid){
+    P.push(mk('Lid',s.lidPly,[W,s.lidT,D],[0,H,0]));
+    // a chest a child can be shut in gets its air holes, as real holes in the front and the two ends
+    for(const wall of P.filter(piece=>piece.name==='Front'||piece.name==='Side'))drillAirHoles(wall);
+  }
   return P;
+}
+/* ---- air holes of a toy chest ----
+   Reference sheet 20 (design\reference\20-boxes-and-chests.md): CPSC asks for "ventilation holes that are not blocked
+   by the floor or against the wall" (2a), and lists a toy chest "with no ventilation holes, or holes only in the
+   bottom or back where the floor or a wall blocks them" among the things that are wrong (5, item 3); its safety
+   words say to drill them "in the sides near the top" (6). So they go high on the front and on BOTH ends: a chest
+   pushed into a corner still has its front and one end open. Neither CPSC nor anything the sheet read gives a size
+   or a count (2a, and "still uncertain"), so these numbers are the program's own choice (PRACTICE), never a rule:
+     d       1": a common spade bit
+     down    the centers 1 1/4" below the top edge of the wall: high, just under the lid that lies on the walls, with
+             3/4" of wood left above each hole; and clear of the lid stay, which is screwed 2 1/2" below the lid
+     end     no hole nearer than 3 1/2" to an end of a wall, where the pocket screws of the corners go in
+     apart   about 6" apart along a wall, at least one hole in every wall
+   Every hole is measured from one named end and the top edge of its wall (the Front from its left end, a Side from
+   its front end), so the Shapes to cut drawing and the step give the same numbers. */
+const AIR_HOLES={d:1,down:1.25,end:3.5,apart:6};
+/* where the holes go along a wall this long: distances from the end they are measured from */
+function airHolePlaces(length){
+  const span=length-2*AIR_HOLES.end;
+  if(span<=0)return[r16(length/2)];
+  const count=Math.floor(span/AIR_HOLES.apart+1e-9)+1;
+  if(count===1)return[r16(length/2)];
+  const places=[];
+  for(let i=0;i<count;i++)places.push(r16(AIR_HOLES.end+i*span/(count-1)));
+  return places;
+}
+/* cuts the air holes in one wall (the Front or a Side, standing up): along its level direction from the left end
+   (the Front) or the front end (a Side), and down from its top edge */
+function drillAirHoles(wall){
+  const up=wall.ax.indexOf(1),level=up===0?1:0;            // which of the piece's length and width runs up
+  const levelAxis=wall.ax[level],length=level===0?wall.l:wall.w;
+  const fromHigh=levelAxis===2;                              // a Side runs front to back: measured from its front end
+  for(const place of airHolePlaces(length)){
+    const along={from:fromHigh?1:0,d:place},down={from:1,d:AIR_HOLES.down};
+    addHole(wall,{d:AIR_HOLES.d,at:up===0?{u:down,v:along}:{u:along,v:down}});
+  }
+  return wall;
 }
 function storageBoxInfo(p){
   const s=storageBoxPlan(p);
@@ -725,8 +761,22 @@ function storageBoxInfo(p){
 function storageBoxNotes(p){
   const s=storageBoxPlan(p);
   if(!s.lid)return[];
+  const holes=storageBoxAirHoles(p);
   return[(s.thickerLid?'The lid is cut from 3/4" plywood, because a thinner lid this wide would crack if someone sat on it. ':'')+'The lid is stiff enough for someone to sit on. Do not stand on it.',
-    'For a toy chest, fit a soft-close lid support so the lid cannot slam on fingers, and leave a finger gap or drill air holes so a child cannot be shut inside.'];
+    toyChestWarning(holes.total)];
+}
+/* reference sheet 20, section 6: the toy chest warnings (CPSC), for a chest with this many air holes (also written
+   into a design saved before the air holes, when it is opened: js/reviewupgrade.js) */
+function toyChestWarning(total){
+  return`A child can climb into a chest like this and be shut in. So it has ${total} air holes, ${fmt(AIR_HOLES.d)} across, high on the front and on both ends, where the floor or a wall cannot block them (the U.S. Consumer Product Safety Commission's advice for toy chests). Drill every one, and never move them to the back or the bottom only. `+
+    'Use a lid support that holds the lid open at any position (sold as a toy box lid support), so the lid cannot fall on a child, and do not fit a latch, hasp or lock.';
+}
+/* the air holes of the chest these values build: where along the front and along each side, and how many in all */
+function storageBoxAirHoles(p){
+  const s=storageBoxPlan(p);
+  if(!s.lid)return{front:[],side:[],total:0};
+  const front=airHolePlaces(s.W),side=airHolePlaces(s.D-2*s.t);
+  return{front,side,total:front.length+2*side.length};
 }
 function storageBoxHardware(p){
   return storageBoxPlan(p).lid?[['Hinges, 2 1/2", for the lid',2],['Soft-close lid support',1]]:[];
@@ -736,7 +786,27 @@ function storageBoxSteps(p){
   // The walls go together in two steps, so that only the last one is screwed from inside the closed box: the
   // sides onto the front first, while the drill has all the room it wants behind each pocket hole, then the back.
   // The bottom's holes are all on its underside and are driven with the chest upside down.
-  const steps=[STORAGE_CUT_STEP,
+  // the air holes, in a step of their own while the front and the sides lie flat (their drawings are in Shapes to
+  // cut on the cut list page, measured from the same end and edge as these words)
+  const holes=storageBoxAirHoles(p),built=buildStorageBox(p);
+  // the names of the top and of the end or edge each wall is measured from, as its drawing names them (a wall
+  // taller than it is long has its "ends" at the top and the bottom)
+  const sideNames=name=>{
+    const wall=built.find(piece=>piece.name===name);
+    if(!wall)return{top:'top',from:''};
+    const up=wall.ax.indexOf(1),level=up===0?1:0,fromHigh=wall.ax[level]===2;
+    const nameOf=(index,high)=>shapeLower(index===0?shapeEndName(wall,high?1:0):shapeEdgeName(wall,high?1:0));
+    return{top:nameOf(up,true),from:nameOf(level,fromHigh)};
+  };
+  const frontNames=sideNames('Front'),endNames=sideNames('Side');
+  const airStep={t:`The holes that Shapes to cut shows in the front and the sides are air holes. Drill them while those pieces lie flat on the bench, before anything goes together: ${holes.front.length} in the front and ${holes.side.length} in each side, ${fmt(AIR_HOLES.d)} across, `+
+    `each center ${fmt(AIR_HOLES.down)} down from the top of the piece. In the front: ${listWords(holes.front.map(fmt))} from its ${frontNames.from} (and ${fmt(AIR_HOLES.down)} from its ${frontNames.top}). In each side: ${listWords(holes.side.map(fmt))} from its ${endNames.from}, the one that meets the front (and ${fmt(AIR_HOLES.down)} from its ${endNames.top}). `+
+    `Shapes to cut is on the cut list page. Use a ${fmt(AIR_HOLES.d)} spade bit with a scrap clamped under the wood, so it does not splinter where the bit comes out. `+
+    'They let air in if a child is shut inside, so a chest that may hold toys must have them: never leave them out, and never put them only in the back or the bottom, where a wall or the floor can block them.',add:[],
+    // this step, not the cutting step, makes the shapes of these pieces (js/buildsteps.js: the cutting step leaves
+    // them out, and this step lists the bit they need)
+    shapes:['Front','Side']};
+  const steps=[STORAGE_CUT_STEP,...(s.lid?[airStep]:[]),
     styledStep({
       std:'Drill the pocket holes listed below on the inside face of each side, at both ends (the ends that meet the front and the back). Stand the front face down, glue the front end of each side and fasten the two sides to it with the pocket screws listed below, square to the front, so nothing shows on the outside of the chest.',
       rustic:'Stand the front face down and fasten the two sides to it, square to it. Glue each joint, drill pilot holes and screw through the front into the side edges, a screw every 6".'},['Front','Side'],
@@ -748,7 +818,7 @@ function storageBoxSteps(p){
       std:'Drill the pocket holes listed below in the underside of the bottom, along all four edges. Turn the chest upside down, drop the bottom in flush with the lower edges, glue it and drive the pocket screws into the front, the back and the two sides, so nothing shows on the outside of the chest.',
       rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom'],
       ['Drill the pocket holes listed below in the underside of the bottom, along all four edges. ']),
-    {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit a soft-close lid support inside so it cannot slam on fingers.',add:['Lid']},
+    {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit the lid support inside, one that holds the lid open at any position, so the lid cannot fall or slam on a child. Fit no latch or lock.',add:['Lid']},
     STORAGE_FINISH_STEP];
   return stepsForPieces(s.lid?steps:steps.filter(step=>!step.add.includes('Lid')),buildStorageBox(p));
 }
@@ -970,3 +1040,91 @@ SELFTESTS.push(function bookshelfSpacingFits(problems){
     if(now.length!==shelfY.length||now.some((y,i)=>Math.abs(y-shelfY[i])>1e-9))wrong(`${JSON.stringify(vals)} now puts the shelves at ${now.join(', ')}, before at ${shelfY.join(', ')}`);
   }
 });
+
+/* The woodworker's-eye review, E3 (child safety): the toy chest had no air holes, only a note that said "leave a
+   finger gap or drill air holes" as if it were a choice. Now the holes are real holes in the model. Tried at the
+   default size, at each limit of the form, at the smallest and the largest of all at once, and in 1/2" plywood:
+   the front and both ends have air holes and the back, the bottom and the lid none; each hole is high (its center
+   no more than 2" below the top of the wall, with wood above it); every hole fits its piece; no screw, pocket hole
+   or lid stay comes within 3/8" of a hole; the holes' drawing lines measure each one from one named end and one
+   named edge; a step of its own drills them, before the walls go together, and gives every place of the front's
+   holes; the notes count them as the model does and no longer offer them as a choice. A box with no lid has none. */
+SELFTESTS.push(function toyChestHasAirHoles(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('toy chest air holes: '+text);};
+  const preset=PRESETS.find(row=>row.name==='Storage box / toy chest');
+  if(!preset){wrong('the preset is missing');return;}
+  const kept=JSON.stringify(S),L=STORAGE_BOX_LIMITS,ROOM=SHAPE_RULE.safer;
+  const sizes=[{},{W:L.W[0]},{W:L.W[1]},{D:L.D[0]},{D:L.D[1]},{H:L.H[0]},{H:L.H[1]},{ply:'ply12'},
+    {W:L.W[0],D:L.D[0],H:L.H[0]},{W:L.W[1],D:L.D[1],H:L.H[1]},{W:L.W[0],D:L.D[1],H:L.H[0],ply:'ply12'}];
+  // a hole's center in the world (the walls stand square, unturned)
+  const holeCenter=(wall,f)=>{const c=featureCenter(wall,f),at=wall.pos.slice();at[wall.ax[0]]+=c.u;at[wall.ax[1]]+=c.v;return at;};
+  try{
+    for(const size of sizes){
+      const vals={...presetDefaults(preset),...size},label=JSON.stringify(size);
+      load(JSON.stringify(blank()),true);
+      placeInStyle(preset,vals,'std');
+      const walls=S.parts.filter(piece=>shapeFeatures(piece).length);
+      for(const name of['Front','Side'])for(const wall of S.parts.filter(piece=>piece.name===name))
+        if(!shapeFeatures(wall).some(f=>f.kind==='hole'))wrong(`${label}: a ${name} has no air hole`);
+      if(walls.some(wall=>!['Front','Side'].includes(wall.name)))wrong(`${label}: the ${walls.find(wall=>!['Front','Side'].includes(wall.name)).name} has holes (air holes only count high on the front and the ends)`);
+      const holes=walls.flatMap(wall=>shapeFeatures(wall).map(f=>({wall,f,at:holeCenter(wall,f)})));
+      for(const{wall,f,at}of holes){
+        const top=plainBox(wall).hi[1];
+        if(top-at[1]>2+1e-6||top-(at[1]+f.d/2)<ROOM-1e-6)wrong(`${label}: a hole in the ${wall.name} is not high, just under the lid (center ${fmt(top-at[1])} below the top)`);
+        if(f.d<AIR_HOLES.d-1e-6)wrong(`${label}: an air hole is only ${fmt(f.d)} across`);
+      }
+      for(const wall of walls){
+        const off=misfits(wall);
+        if(off.bad.length||off.overlaps.length)wrong(`${label}: a hole of the ${wall.name} does not fit it`);
+        // every hole located from one named end and one named edge on its drawing
+        for(const line of shapeHowLines(wall).filter(line=>/^Hole/.test(line)))
+          if(!/from the \w+ (end|edge) and [^"]+" from the \w+ (end|edge)/.test(line))wrong(`${label}: a hole of the ${wall.name} is not measured from one end and one edge: ${line}`);
+      }
+      if(shapeFindings().length)wrong(`${label}: the shape rules find ${shapeFindings()[0].text||shapeFindings()[0].code}`);
+      // nothing driven or mounted within 3/8" of a hole: every point along each fastener, and the lid stay
+      const nearAHole=(point,margin)=>holes.find(({wall,f,at})=>{
+        const b=plainBox(wall),t=wall.ax[2];
+        if(point[t]<b.lo[t]-.01||point[t]>b.hi[t]+.01)return false;
+        const along=[wall.ax[0],wall.ax[1]].map(k=>point[k]-at[k]);
+        return Math.hypot(...along)<f.d/2+margin-.01;
+      });
+      const fasteners=[...new Set(fastenerHeads().map(head=>head.f))];
+      for(const f of fasteners){
+        const points=[0,.25,.5,.75,1].map(share=>f.pos.map((v,k)=>v+f.dir[k]*f.len*share)).concat(f.pocket?[f.pocket.mouth]:[]);
+        const hit=points.map(point=>nearAHole(point,ROOM)).find(Boolean);
+        if(hit)wrong(`${label}: a ${f.kind} from the ${f.through.name} into the ${f.into.name} runs within 3/8" of an air hole in the ${hit.wall.name}`);
+      }
+      for(const item of hardwareList().filter(item=>item.kind==='stay')){
+        const host=byId(item.on),middle=pieceMiddle(host),center=[middle.x+item.at[0],middle.y+item.at[1],middle.z+item.at[2]];
+        const half=(item.size||8)/2,u=item.u||[0,0,1],ends=[-half,0,half].map(s=>center.map((v,k)=>v+u[k]*s));
+        // the stay and its screws stand about 0.3" above and below its line
+        const close=ends.some(point=>[-.3,0,.3].some(dy=>nearAHole([point[0],point[1]+dy,point[2]],ROOM)));
+        if(close)wrong(`${label}: the lid stay is screwed within 3/8" of an air hole`);
+      }
+      // the words: a step of its own before the walls go together, with every place of the front's holes; the notes
+      const plan=buildPlan(true),stepAt=plan.steps.findIndex(step=>/air holes/.test(step.words));
+      const frontStep=plan.steps.findIndex(step=>step.pieces.some(piece=>piece.name==='Front'));
+      if(stepAt<0||!(stepAt<frontStep))wrong(`${label}: no step drills the air holes before the walls go together`);
+      else{
+        const front=S.parts.find(piece=>piece.name==='Front'),datum=shapeDatum(front);
+        const missing=shapeFeatures(front).map(f=>fmt(featureFromDatum(front,f,datum).along[0].value)).filter(text=>!plan.steps[stepAt].words.includes(text));
+        if(missing.length)wrong(`${label}: the air holes step does not give the front's holes at ${missing.join(', ')}`);
+        // drilled in that step only: the cutting step does not also send a person to cut them, and the step names
+        // the bit they need (not a saw because its words mention "Shapes to cut")
+        const cutStep=plan.steps.find(step=>step.kind==='cut');
+        if(cutStep&&/Then cut the shape/.test(cutStep.words))wrong(`${label}: the cutting step also tells a person to cut the air holes: ${cutStep.words.slice(cutStep.words.indexOf('Then cut'))}`);
+        const tools=stepTools(plan.steps[stepAt]);
+        if(!tools.some(tool=>/spade bit|forstner/i.test(tool)))wrong(`${label}: the air holes step does not list the bit for them (it lists ${tools.join('; ')})`);
+        if(tools.includes('saw'))wrong(`${label}: the air holes step lists a saw`);
+      }
+      const notes=(S.notes||[]).join(' ');
+      if(/finger gap or drill air holes|or drill air holes/.test(notes))wrong(`${label}: the notes still offer the air holes as a choice`);
+      if(!notes.includes(`${holes.length} air holes`))wrong(`${label}: the notes do not say the chest has ${holes.length} air holes`);
+    }
+    // an open box (no lid) cannot shut a child in: no holes, and no step for them
+    load(JSON.stringify(blank()),true);
+    placeInStyle(preset,{...presetDefaults(preset),lid:false},'std');
+    if(S.parts.some(piece=>shapeFeatures(piece).length))wrong('a box with no lid has holes');
+    if((S.steps||[]).some(step=>/air holes/.test(stepText(step))))wrong('a box with no lid has a step for air holes');
+  }finally{load(kept,true);}
+});});

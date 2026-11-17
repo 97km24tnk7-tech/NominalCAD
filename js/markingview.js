@@ -216,6 +216,7 @@ function jointMarkPlan(group,letterOf){
     plan.words=(group.line||'')+' '+(group.whereKept||group.where||'');   // (whereKept: a line drilled in step 2, js/drillplan.js)
     plan.places=group.places||1;
     plan.sampleAt=group.sampleAt||null;   // (the place this view is for, when the places of the line have other numbers)
+    plan.sampleWords=group.sampleWords?(group.line||'')+' '+group.sampleWords:'';   // (then the words of that place alone)
     plan.rule=rule;
     addRefs(plan,letterOf);
     // a line whose words give no sizes for this joint gets no marking view: a picture with nothing measured on it
@@ -415,7 +416,9 @@ function rowMarkPlan(group,letterOf){
   const startHigh=row.startHigh,ordered=startHigh?sorted.slice().reverse():sorted;
   const start=ends[startHigh?1:0],end=ends[startHigh?0:1];
   const at=f=>pointFeature(frame,pointOf(f));
-  if(row.alongPiece||rule.alongPiece){
+  // (a line said once for many boards crossing the piece, crossingPocketWords in js/buildsteps.js: the words
+  //  measure from the edges of the board that crosses, so the view does too, below)
+  if((row.alongPiece||rule.alongPiece)&&!rule.crossing){
     /* the words give each place along the piece itself, from its start end (a row moved clear of another piece,
        or a joint over part of the piece: a top board crossing a cross rail): every size from that end, one to
        each hole of this joint. Up the paper they are running sizes on one line (each number beside its own tick);
@@ -1713,7 +1716,8 @@ function markLayoutProblems(layout,label){
     if(!laid.ref.named&&!laid.ref.label.startsWith(`${plan.frame.nameOf(feature.axis,feature.high)} ${word} of ${feature.piece.name}`))found.push(`${label}: the edge named "${laid.ref.label}" is not what the view calls it`);
     // and the words never call it the other way: the picture says 'top end of Back panel' where the line says
     // 'the bottom end of the Back panel' and not the top one
-    const said=high=>plan.words.includes(`${plan.frame.nameOf(feature.axis,high)} ${word}`);
+    // (where the places of a line are marked in different ways, the words of the place the picture shows)
+    const said=high=>(plan.sampleWords||plan.words).includes(`${plan.frame.nameOf(feature.axis,high)} ${word}`);
     if(!laid.ref.named&&feature.piece===plan.piece&&said(!feature.high)&&!said(feature.high))found.push(`${label}: the picture names the "${laid.ref.label}", its line names the other one: ${plan.words.slice(0,200)}`);
     if(laid.side!==plan.frame.screenSide(feature.axis,feature.high))found.push(`${label}: "${laid.ref.label}" is drawn on the ${laid.side} of the piece`);
   }

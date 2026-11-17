@@ -30,6 +30,9 @@
                                                          not in a project, or a project from before hardware was
                                                          drawn), the hardware is assumed: see WHAT IS ASSUMED
            wallFixed  false                              true: the whole design is tied back to the wall so it cannot tip
+           stand      false                              true: the design is an aquarium stand, and a long one needs
+                                                         center posts ('center-posts', STAND_RULES); a set says it as
+                                                         sets[n].stand (a set saved before that is read from its preset)
            sets       { 3: { uses, wall, hung, wallFixed } }  what each preset placed in the project declared, under the
                                                          number its pieces carry (piece.set). A piece with a set is read
                                                          by that entry alone; uses, wall and hung above are for the pieces
@@ -120,6 +123,9 @@
        rail-joint      two rails under tanks meet end to end with      stop
                        nothing screwed across them, or with a deck
                        seam on the joint (RAIL_RULES)
+       center-posts    an aquarium stand (options.stand, sets[n].stand) stop
+                       48" or longer has a rail under tanks that runs
+                       more than 36" between uprights (STAND_RULES)
        post-offset     an upright under tanks does not stand straight  stop
                        over an upright, a post or a frame on the floor
        tips-over       the weight is centered outside the footprint    stop
@@ -246,6 +252,13 @@ const WOOD_RULES={
 };
 /* a rail under fish tanks is never allowed to span further than this, however light the tanks (inches) */
 const TANK_RAIL_MAX_SPAN={'2x4':60,'2x6':84,'2x8':96,'2x10':96};
+/* Center posts under an aquarium stand (reference sheet 08): extra uprights at the front and the back, in the middle
+   of the length, on stands 48" and longer (one pair at 48", two pairs at 72", none on a stand up to 36"). Builders
+   say a 48" 2x4 span sags over the years and can crack the front glass of the tank. So on a design that is a stand
+   (a preset that declares `stand`) and is `from` long or longer, no rail under tanks may run more than `most`
+   between the middles of the uprights that hold it up (verifyStandCenters, code 'center-posts'). The stand builders
+   put the posts under the seam between two tanks where there is one (standCenterLines, js/builders-fish.js). */
+const STAND_RULES={from:48,most:36};
 /* safe load on one upright or post under fish tanks (lb) */
 const POST_SAFE_LOAD={'2x4':1340,'4x4':3100};
 /* The safe load on a post of a given lumber and length (lb). A long thin post buckles before it crushes: up to
@@ -544,14 +557,23 @@ function sectionText(n){
    the project-wide lists, by name. */
 function declarationsOf(opt){
   const list=value=>new Set(Array.isArray(value)?value:[]);
-  const whole={uses:opt.uses||{},wall:list(opt.wall),hung:list(opt.hung),tied:false};
+  const whole={uses:opt.uses||{},wall:list(opt.wall),hung:list(opt.hung),tied:false,stand:!!opt.stand};
   const bySet=new Map();
   return p=>{
     const own=opt.sets&&p.set!==undefined&&p.set!==null?opt.sets[p.set]:null;
     if(!own||typeof own!=='object')return whole;
-    if(!bySet.has(p.set))bySet.set(p.set,{uses:own.uses||{},wall:list(own.wall),hung:list(own.hung),tied:!!own.wallFixed});
+    if(!bySet.has(p.set))bySet.set(p.set,{uses:own.uses||{},wall:list(own.wall),hung:list(own.hung),tied:!!own.wallFixed,stand:standOfSet(own)});
     return bySet.get(p.set);
   };
+}
+/* Whether a placement is an aquarium stand (STAND_RULES): what it saved, or, for a design saved before stands
+   declared it, what its preset declares for the values it was made with. */
+function standOfSet(own){
+  if(own.stand!==undefined)return!!own.stand;
+  const preset=typeof PRESETS!=='undefined'&&typeof own.name==='string'?PRESETS.find(candidate=>candidate.name===own.name):null;
+  if(!preset||preset.stand===undefined)return false;
+  try{return!!presetOptions(preset,{...presetDefaults(preset),...(own.vals||{})}).stand;}
+  catch(e){return false;}
 }
 function verifyNode(p,i,id,own){   // own: what is declared for this piece (declarationsOf)
   const mat=M[p.mat]||M['2x4'],s=size(p),q=quatOf(p),b=box(p),prop=mat.kind==='prop';
@@ -609,6 +631,7 @@ function verifyNode(p,i,id,own){   // own: what is declared for this piece (decl
     screwed:!prop&&own.wall.has(WALL_BY_SCREWS),         // its design is held to the wall by its wall screws alone (WALL_SCREW_RULES)
     own,wallZ:0,                                         // what is declared for it, and where the wall of its design is (verifyModel)
     tied:own.tied,                                       // its whole design is tied back to the wall (wall: true on its preset)
+    stand:!prop&&!!own.stand,                            // its design is an aquarium stand (stand on its preset; STAND_RULES)
     onHardware:!prop&&own.hung.has(p.name),              // hangs on bought hardware (options.hung)
     hungLb:0,                                            // weight that hangs from this piece on bought hardware
     noMount:false,                                       // hangs on hardware by its name, but has no piece beside it to mount to
@@ -1656,6 +1679,41 @@ function verifyRailJoints(model,found){
     }
   }
 }
+/* ---------- Check c, continued: center posts under an aquarium stand (STAND_RULES) ----------
+   On a design that is a stand (its preset declares `stand`) and is STAND_RULES.from long or longer along its rails,
+   every rail that carries tanks is held up by uprights no more than STAND_RULES.most apart, middle to middle. The
+   load check alone (a 2x4 at 70% over 51 1/2") let a stand of two 20 gallon tanks through with nothing under the
+   middle, where the seam between the two tanks lands. A stop of its own, 'center-posts'. */
+function verifyStandCenters(model,found){
+  const stands=model.wood.filter(n=>n.stand);
+  if(!stands.length)return;
+  // how long each stand is, along each axis: the wood of its own placement (the pieces that share its declarations)
+  const reach=new Map();
+  for(const n of stands){
+    if(!reach.has(n.own))reach.set(n.own,{lo:n.lo.slice(),hi:n.hi.slice()});
+    const r=reach.get(n.own);
+    for(let k=0;k<3;k++){r.lo[k]=Math.min(r.lo[k],n.lo[k]);r.hi[k]=Math.max(r.hi[k],n.hi[k]);}
+  }
+  for(const X of stands){
+    if(!isTankRail(X)||!(X.tankW>0)||!X.supported||X.grounded||X.hung)continue;
+    const k=runAxis(X),r=reach.get(X.own),length=r.hi[k]-r.lo[k];
+    if(length<STAND_RULES.from-.05)continue;
+    // the stretches of its length that sit on wood, merged, and the middle of each
+    const bear=X.sup.filter(s=>s.how==='bear').map(s=>s.iv[0].slice()).sort((a,b)=>a[0]-b[0]),merged=[];
+    for(const iv of bear){
+      const last=merged[merged.length-1];
+      if(last&&iv[0]<=last[1]+.05)last[1]=Math.max(last[1],iv[1]);
+      else merged.push(iv);
+    }
+    if(merged.length<2)continue;   // held at one end or on fasteners: the bearing and tank-on-screws checks say so
+    const middles=merged.map(iv=>(iv[0]+iv[1])/2);
+    const apart=Math.max(...middles.slice(1).map((x,i)=>x-middles[i]));
+    if(apart<=STAND_RULES.most+.05)continue;
+    found.push({level:'stop',code:'center-posts',ids:[X.id],group:'center|'+X.name,rank:apart/STAND_RULES.most,
+      text:`The ${X.name} under the tanks runs ${fmt(r16(apart))} from one upright to the next, on a stand ${fmt(r16(length))} long. A stand ${fmt(STAND_RULES.from)} or longer needs center posts: an upright at the front and one at the back, at least every ${fmt(STAND_RULES.most)} along the rails, and under the seam between two tanks where there is one. A longer span sags over the years, and the front glass of a tank can crack.`,
+      fix:`Stand center posts (an upright at the front and one at the back, straight down to the floor) under the middle of the rails, or under the seam between the tanks, so that no rail runs more than ${fmt(STAND_RULES.most)} between uprights. Making the stand again from the presets window puts them in.`});
+  }
+}
 function verifyPostsStacked(model,found){
   if(!model.reactions.length)return;
   // the pieces that can carry a post from below: other posts, and anything that lies on the floor; sorted along x
@@ -1990,6 +2048,7 @@ function verifyDesign(parts,options){
     verifyPosts(model,found);
     verifyRailEnds(model,found);
     verifyRailJoints(model,found);
+    verifyStandCenters(model,found);
     verifyPostsStacked(model,found);
     verifyComponents(model,false);
     verifyTipping(model,opt,found);
@@ -2015,7 +2074,8 @@ function verifyOptionsOf(project){
 function presetOptions(preset,vals){
   const of=field=>typeof field==='function'?field(vals):field;
   const wall=of(preset.wall),hung=of(preset.hung);
-  return{uses:of(preset.uses)||{},wall:Array.isArray(wall)?wall:[],wallFixed:wall===true,hung:Array.isArray(hung)?hung:[]};
+  return{uses:of(preset.uses)||{},wall:Array.isArray(wall)?wall:[],wallFixed:wall===true,hung:Array.isArray(hung)?hung:[],
+    stand:!!of(preset.stand)};   // an aquarium stand: the center-post rule applies (STAND_RULES)
 }
 function presetDefaults(preset){
   const vals={};

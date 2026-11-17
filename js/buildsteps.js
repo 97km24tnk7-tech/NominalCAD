@@ -595,7 +595,10 @@ function faceWords(piece,out,withDirection){
     return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face`;
   }
   const inward=high===(middle[axis]>(b.lo[axis]+b.hi[axis])/2);
-  return`${inward?'inside':'outside'} face`+(withDirection?` (the one that faces the ${DIRECTION_ENDS[axis][high?1:0]})`:` (the one that faces ${inward?'the middle of the design':'out'})`);
+  // "faces out" means nothing on a piece inside the design (two cross rails under a desk top, each off the middle):
+  // say which way out is, the nearer end (left or right) or away from the middle (front or back)
+  const outward=axis===0?'the nearer end of the design':'away from the middle of the design';
+  return`${inward?'inside':'outside'} face`+(withDirection?` (the one that faces the ${DIRECTION_ENDS[axis][high?1:0]})`:` (the one that faces ${inward?'the middle of the design':outward})`);
 }
 /* Screws driven at an angle start on one side of their piece or on both in turn (rule 7 in js/fasteners.js); a
    board screwed at an angle into an upright that is covered on its other side starts them all on its hidden side
@@ -816,6 +819,11 @@ function whereWords(places,here,group){
     // measures the holes it shows along the piece too (running sizes from its start end), as the words do
     const rows=pocketRowsWords(places);
     if(rows){group.sample.rule={row:true,alongPiece:true};return rows;}
+    // many boards that each cross the piece with the holes, every one held by holes laid out alike from its own
+    // edges (the slats of a lower shelf on its stretchers): said once, from the edges of the board that crosses,
+    // and the marking view measures one crossing the same way (crossingPocketWords)
+    const crossing=crossingPocketWords(places);
+    if(crossing){group.sample.rule={row:true,crossing:true};return crossing;}
     if(texts.size>SORTS_MAX){group.sample.rule={free:true,gap:null};return'';}
     // each sort said for the piece it is on when it is one piece ("On the back Long apron: ..."), so a beginner
     // knows which is which; else by count
@@ -916,6 +924,7 @@ function sortsByPlace(loose,group){
   group.sample.rule=placesWords(sorts[0].spots).rule||group.sample.rule;
   group.sampleAt=names[0];
   group.sampleOneOf=sorts[0].places.length>1;   // (the close-up shows one of several places of that name: its caption says so)
+  group.sampleWords=texts[0];   // the words of the places the close-up shows, alone (the marking view is checked against them)
   const each=sorts.map((sort,index)=>`At ${names[index]}${index>0?'':sort.places.length>1?' (the close-up shows one of them)':' (the close-up shows this one)'}: ${texts[index].slice(lead.length)}`);
   return(lead?lead.slice(0,-2)+'. ':'')+'The marks are not the same at every place. '+each.join(' ');
 }
@@ -997,6 +1006,46 @@ function pocketRowsWords(places){
   const why=clear.length||passEnds.length||pastBolt?' '+notEvenlyWords([{clear,passEnds,pastBolt}],name):'';
   const seen=first.row.frame.mirrored&&!eitherEnd?` Left and right are as you look at it ${first.row.frame.from}.`:'';
   return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from ${eitherEnd?'either':'its '+first.row.startEnd} ${first.row.side}.`+why+seen;
+}
+/* Pocket holes of many joints along one piece, where at each joint another board crosses that piece from edge to
+   edge of the board (the slats of a lower shelf lying across its stretchers: 16 joints and 32 holes, too many to
+   give as places along the stretcher). When the holes of every joint sit alike from the edges of the board that
+   crosses there, measured from its edge nearer the end of the piece with the holes (so the joints at the two ends
+   of a stretcher, mirror images, read the same), one sentence says it for all of them:
+     'Where each Shelf slat crosses the Long stretcher: put one pocket hole 7/8" in from each edge of the Shelf slat
+      (1 3/4" apart).'
+   The marking view then draws one crossing, the board that crosses dashed behind, with its sizes from the edges of
+   that board (rule.crossing in rowMarkPlan, js/markingview.js). Where the boards cross is for the step to say (the
+   Coffee table's shelf step gives the place of every slat). null when the joints are not alike. */
+function crossingPocketWords(places){
+  if(places.length<2||!places.every(place=>place.row&&place.row.at&&place.facts&&place.facts.layout&&place.facts.layout.length))return null;
+  const sorts=[];
+  for(const place of places){
+    const row=place.row,axis=row.axis,layout=place.facts.layout,through=layout[0].through,into=layout[0].into;
+    if(!layout.every(f=>f.kind==='pocket'))return null;
+    // the joint runs from one edge of the board that crosses to its other edge
+    const intoBox=plainBox(into),throughBox=plainBox(through);
+    if(Math.abs(row.range[0]-intoBox.lo[axis])>.07||Math.abs(row.range[1]-intoBox.hi[axis])>.07)return null;
+    // measured from the edge of that board nearer an end of the piece with the holes
+    const middle=(throughBox.lo[axis]+throughBox.hi[axis])/2,lowOuter=(row.range[0]+row.range[1])/2<middle;
+    const from=lowOuter?row.range[0]:row.range[1];
+    const spots=layout.map(f=>Math.round(Math.abs(f.pocket.mouth[axis]-from)*16)/16).sort((a,b)=>a-b);
+    sorts.push({through:through.name,into:into.name,width:Math.round((row.range[1]-row.range[0])*16)/16,spots});
+  }
+  const one=sorts[0];
+  const alike=sorts.every(sort=>sort.through===one.through&&sort.into===one.into&&sort.width===one.width&&
+    sort.spots.length===one.spots.length&&sort.spots.every((v,index)=>Math.abs(v-one.spots[index])<.03));
+  if(!alike)return null;
+  const n=one.spots.length,far=one.spots.map(v=>Math.round((one.width-v)*16)/16);
+  const lead=`Where each ${one.into} crosses the ${one.through}: put `;
+  if(n===2&&Math.abs(one.spots[0]-far[1])<.03)
+    return lead+`one pocket hole ${inchWords(one.spots[0])} in from each edge of the ${one.into} (${inchWords(one.spots[1]-one.spots[0])} apart).`;
+  if(n===1&&Math.abs(one.spots[0]-far[0])<.03)
+    return lead+`the pocket hole in the middle of the ${one.into} (${inchWords(one.spots[0])} from either edge).`;
+  // otherwise every hole from the edge nearer the end of the piece, and from the other edge too, so the marking view
+  // (which measures from both edges of the board) gives no number the words do not
+  return lead+`the pocket hole${n>1?'s':''} ${listWords(one.spots.map(inchWords))} in from the edge of the ${one.into} nearer the end of the ${one.through}`+
+    ` (${listWords(far.slice().reverse().map(inchWords))} from its other edge)`+(n>1?`, ${listWords(one.spots.slice(1).map((v,index)=>inchWords(v-one.spots[index])))} apart`:'')+'.';
 }
 /* Why a row of pocket holes is not evenly spaced (rules 10 and 11 in js/fasteners.js): a hole was moved off a piece
    that lies against the face, or past the pocket holes in the ends of the piece. */
@@ -1456,7 +1505,16 @@ function stepTools(step){
   if(step.kind==='cut'){
     add('tape measure, pencil and square');add('saw');
     if(S.parts.some(p=>!isProp(p)&&M[p.mat].kind==='sheet'))add('straight-edge guide for the plywood');
-    for(const tool of shapeToolLines())add(shapeLower(tool));   // what the shaped pieces need: a miter saw, a hole saw (js/shapedrawings.js)
+    for(const tool of shapeToolLines(null,step.shapesElsewhere||[]))add(shapeLower(tool));   // what the shaped pieces need: a miter saw, a hole saw (js/shapedrawings.js)
+    add('safety glasses and hearing protection');
+    return tools;
+  }
+  // a preset step of its own that makes the shapes of some pieces (`shapes`: the toy chest's air holes): the tools
+  // those shapes need, nothing that its words only mention ("Shapes to cut" is not a saw)
+  if(step.preset&&Array.isArray(step.preset.shapes)&&!step.groups.length){
+    add('tape measure, pencil and square');add('drill/driver');
+    for(const tool of shapeToolLines(step.preset.shapes))add(shapeLower(tool));
+    if(/\bclamp/i.test(step.words))add(STEP_TOOLS.clamps);
     add('safety glasses and hearing protection');
     return tools;
   }
@@ -1781,6 +1839,16 @@ function suggestedOrder(pieces,builtIds,graph){
 }
 
 /* ---------- the plan ---------- */
+/* The words of step 2 "Drill your pieces". DRILL_WORDS ends "After this step you only put the pieces together",
+   which is not true when the step after it is a preset step that makes the shapes of some pieces (its `shapes`:
+   the toy chest's air holes, drilled while the front and the sides are still flat). Then step 2 says so. */
+function drillStepWords(next){
+  const shapes=next&&next.source!=='generated'&&next.preset&&Array.isArray(next.preset.shapes)?next.preset.shapes:[];
+  if(!shapes.length)return DRILL_WORDS;
+  const names=listWords(shapes.map(name=>name.toLowerCase()));
+  return DRILL_WORDS.replace('After this step you only put the pieces together',
+    `The next step drills the other holes, in the ${names} pieces, while those pieces are still flat. After that you only put the pieces together`);
+}
 let planMemo=null;
 const SUGGESTED_NOTE='Suggested order. The program worked this order out from what touches what: what stands on the floor first, then what is fastened to that, tops after the frame, doors and drawers last. Before each step, check that you can reach every screw of that step with the drill. Where you cannot, fasten that piece one step earlier.';
 function buildPlan(fresh){
@@ -1859,13 +1927,19 @@ function makeBuildPlan(graph){
   }
   // every cut and hole in a piece is made in the cutting work, before the piece is fastened to anything: the
   // cutting step names the shaped rows as they are now (shapeCutStepLine, js/shapedrawings.js)
-  const shapedLine=shapeCutStepLine(cutList);
-  if(shapedLine)for(const draft of drafts)if(draft.kind==='cut')draft.words+=' '+shapedLine;
+  // (except the pieces whose shapes a preset step of their own makes, named in its `shapes`: the toy chest's air
+  // holes; that step lists their tools too, stepTools)
+  const shapesElsewhere=[...new Set(drafts.flatMap(draft=>draft.source!=='generated'&&draft.preset&&Array.isArray(draft.preset.shapes)?draft.preset.shapes:[]))];
+  const shapedLine=shapeCutStepLine(cutList,shapesElsewhere);
+  for(const draft of drafts)if(draft.kind==='cut'){
+    if(shapedLine)draft.words+=' '+shapedLine;
+    draft.shapesElsewhere=shapesElsewhere;
+  }
   // Drill your pieces (js/drillplan.js): right after cutting, when the design has a hole that is drilled ahead
   const drill=drillPlan(graph,letterOf);
   if(drill.total){
     const cutAt=drafts.findIndex(draft=>draft.kind==='cut');
-    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:DRILL_WORDS,was:'',pieces:[],extra:[],preset:null});
+    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:drillStepWords(drafts[cutAt+1]),was:'',pieces:[],extra:[],preset:null});
   }
 
   // the step of every piece, then the joints and the hardware of every step
@@ -1873,21 +1947,38 @@ function makeBuildPlan(graph){
   drafts.forEach((draft,index)=>draft.pieces.forEach(p=>stepOfPiece.set(p.id,index)));
   /* Parts that are built in one step and set in place in a later one (step.bring, see stampSteps): the piece is
      "in place" from that later step on. A joint between two pieces of one such part is made where the part is
-     built; a joint between the part and anything else is made where the part is set in place. */
-  const placedAt=new Map(),partOf=new Map();   // piece id -> index of the step that sets it in place; -> which part it belongs to
+     built; a joint between the part and anything else is made where the part is set in place.
+     Parts can sit inside bigger parts: the upper frames of one section of a fish wall are set on its uprights in
+     one step, and the whole section is stood beside the next in a later one. So a piece may be set in place more
+     than once, and each time is kept (placements, in step order). Moving a part both pieces belong to does not
+     make the joint between them: the joint is made at the latest step where one of them is set in place by a
+     part the other is not in (or where it is built). */
+  const placements=new Map();   // piece id -> [{at: index of the step, group: which part}], in step order
   drafts.forEach((draft,index)=>{
     const groups=draft.preset&&draft.source!=='generated'&&Array.isArray(draft.preset.bring)?draft.preset.bring:[];
     groups.forEach((ids,number)=>{
       for(const id of ids){
-        if(!stepOfPiece.has(id)||stepOfPiece.get(id)>=index||placedAt.has(id))continue;
-        placedAt.set(id,index);
-        partOf.set(id,index+':'+number);
+        if(!stepOfPiece.has(id)||stepOfPiece.get(id)>=index)continue;
+        if(!placements.has(id))placements.set(id,[]);
+        const list=placements.get(id);
+        if(list.some(placed=>placed.at===index))continue;   // (one step sets a piece in place once)
+        list.push({at:index,group:index+':'+number});
       }
     });
   });
-  const inPlaceAt=piece=>placedAt.has(piece.id)?placedAt.get(piece.id):stepOfPiece.get(piece.id);
-  const stepOfJoint=(a,b)=>partOf.has(a.id)&&partOf.get(a.id)===partOf.get(b.id)
-    ?Math.max(stepOfPiece.get(a.id),stepOfPiece.get(b.id)):Math.max(inPlaceAt(a),inPlaceAt(b));
+  // the last placement is when the piece is finally where it belongs (the pictures and the drill room read it)
+  const placedAt=new Map(),partOf=new Map();   // piece id -> step index; -> which part it belongs to last
+  for(const[id,list]of placements){
+    placedAt.set(id,list[list.length-1].at);
+    partOf.set(id,list[list.length-1].group);
+  }
+  const groupsOf=piece=>(placements.get(piece.id)||[]).map(placed=>placed.group);
+  const inPlaceAt=(piece,shared)=>(placements.get(piece.id)||[]).filter(placed=>!shared.has(placed.group))
+    .reduce((latest,placed)=>Math.max(latest,placed.at),stepOfPiece.get(piece.id));
+  const stepOfJoint=(a,b)=>{
+    const shared=new Set(groupsOf(a).filter(group=>groupsOf(b).includes(group)));
+    return Math.max(inPlaceAt(a,shared),inPlaceAt(b,shared));
+  };
   const linksOf=drafts.map(()=>[]);
   for(const link of graph.links){
     if(!link.joint||!link.fastened||!stepOfPiece.has(link.a.id)||!stepOfPiece.has(link.b.id))continue;
@@ -1924,7 +2015,7 @@ function makeBuildPlan(graph){
   drafts.forEach((draft,index)=>{
     // brought: the pieces of earlier steps that this step sets in place; apart: every piece of this step is part
     // of something that is set in place later, so the step builds a part by itself (a drawer box, a wall)
-    const brought=S.parts.filter(p=>placedAt.get(p.id)===index);
+    const brought=S.parts.filter(p=>(placements.get(p.id)||[]).some(placed=>placed.at===index));
     const apart=draft.pieces.length>0&&draft.pieces.every(p=>placedAt.has(p.id));
     finalDrafts.push({...draft,links:linksOf[index],items:hardwareOf[index],brought,apart,draftIndex:index});
     for(const extra of extraSteps.values()){
@@ -1941,7 +2032,8 @@ function makeBuildPlan(graph){
   finalDrafts.forEach((draft,index)=>{if(draft.draftIndex!==undefined)finalIndexOf.set(draft.draftIndex,index);});
   for(const draft of finalDrafts){
     const step={no:steps.length+1,kind:draft.kind,source:draft.source,words:draft.words,was:draft.was,pieces:draft.pieces,groups:[],extra:draft.extra,hardware:[],need:null,
-      brought:draft.brought||[],apart:!!draft.apart,preset:draft.preset||null,extraUses:draft.extraUses||[],uncounted:!!draft.uncounted,stale:!!draft.stale};
+      brought:draft.brought||[],apart:!!draft.apart,preset:draft.preset||null,extraUses:draft.extraUses||[],uncounted:!!draft.uncounted,stale:!!draft.stale,
+      shapesElsewhere:draft.shapesElsewhere||[]};
     const before=new Set(built);
     draft.pieces.forEach(p=>{built.add(p.id);pieceStep.set(p.id,steps.length);});
     // the "Fasten with" lines, numbered: the joints that take the same fastener between the same kinds of piece share one
@@ -1992,20 +2084,33 @@ function makeBuildPlan(graph){
   // setInPlace: piece id -> index of the step that sets it in place, for the parts that are built apart first
   const setInPlace=new Map();
   for(const[id,draftIndex]of placedAt)if(finalIndexOf.has(draftIndex))setInPlace.set(id,finalIndexOf.get(draftIndex));
+  // placedIn: every time it is set in place, [{at: step index, group: the part}] (a part can sit inside a bigger one)
+  const placedIn=new Map();
+  for(const[id,list]of placements)placedIn.set(id,list.filter(placed=>finalIndexOf.has(placed.at)).map(placed=>({at:finalIndexOf.get(placed.at),group:placed.group})));
   // added: the steps the program wrote for pieces that were added to a preset design (rule 4)
   const added=own?steps.filter(step=>step.source==='generated'&&step.kind==='build').length:0;
-  const plan={steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,partOf,letterOf,note:own?'':SUGGESTED_NOTE,drill};
+  const plan={steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,placedIn,partOf,letterOf,note:own?'':SUGGESTED_NOTE,drill};
   for(const step of steps)step.put=step.kind==='build'?placementWords(step,plan):'';
   return plan;
 }
 /* The pieces that are not to be seen at one step (index from 0): those of later steps, and a part that was built
    apart in an earlier step and is not set in place yet (the top frame of a stand while the posts go on). */
 function piecesNotYetThere(plan,index){
+  const placedIn=plan.placedIn||new Map();
+  // the parts this step works on (a piece of them is built in it): they are shown as far as they are built, where
+  // they end up (the decks go on the frames that are set on the uprights later: the frames are drawn under them)
+  const working=new Set();
+  for(const p of S.parts)if(plan.stepOfPiece.get(p.id)===index)for(const placed of placedIn.get(p.id)||[])working.add(placed.group);
   const away=new Set();
   for(const p of S.parts){
-    const own=plan.stepOfPiece.get(p.id),placed=plan.setInPlace.get(p.id);
+    const own=plan.stepOfPiece.get(p.id);
     if(own===undefined)continue;
-    if(own>index||(placed!==undefined&&own<index&&placed>index))away.add(p.id);
+    if(own>index){away.add(p.id);continue;}
+    // built earlier and set in place by a part later on, and that part is not being worked on now: not there yet
+    // (with parts inside parts, every part it is still to be set in place by counts: the upper frames of one
+    // section of a fish wall are away while its posts go on, though the posts are of the same section)
+    const later=own<index?(placedIn.get(p.id)||[]).filter(placed=>placed.at>index):[];
+    if(later.some(placed=>!working.has(placed.group)))away.add(p.id);
   }
   return away;
 }
@@ -2027,6 +2132,11 @@ function partBuiltApart(plan,index){
       for(const link of graph.of.get(p.id)||[]){
         const other=link.a===p?link.b:link.a;
         if(!link.joint||!link.fastened||cluster.has(other.id)||plan.stepOfPiece.get(other.id)>index||plan.partOf.get(other.id)!==plan.partOf.get(start.id))continue;
+        // (a smaller part inside this one that is set on it in a later step is not there yet: the upper frames of a
+        // section of a fish wall while its posts go on)
+        const groupsOfStart=(plan.placedIn&&plan.placedIn.get(start.id)||[]).map(placed=>placed.group);
+        const laterOwn=(plan.placedIn&&plan.placedIn.get(other.id)||[]).filter(placed=>placed.at>index&&!groupsOfStart.includes(placed.group));
+        if(laterOwn.length&&plan.stepOfPiece.get(other.id)<index)continue;
         cluster.add(other.id);seen.add(other.id);todo.push(other);
       }
     }

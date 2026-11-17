@@ -407,8 +407,8 @@ function showPresetSummary(){
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
   sum.innerHTML=cell('Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
-    cell('Pieces to cut',wood.toLocaleString())+cell('Lumber to buy',lumber||'none')+cell('About','$'+Math.round(buy.cost).toLocaleString());
-  sum.title='Overall size is width × depth × height. The cost is a rough guess for the lumber only.';
+    cell('Pieces to cut',wood.toLocaleString())+cell('Lumber to buy',lumber||'none')+cell('Lumber, about','$'+Math.round(buy.cost).toLocaleString());
+  sum.title='Overall size is width × depth × height. The cost is a rough guess for the lumber only, the "Lumber, before tax" line of the shopping list. Screws, glue and finish come on top.';
   foot.textContent=rating?`${rating.level} · about ${rating.hours} hour${rating.hours>1?'s':''} of work`:'';
 }
 /* Create (add = false) or Add beside the current design (add = true).
@@ -471,6 +471,7 @@ function placePreset(preset,vals,parts,add,entryName){
   // brought up to a new rule for fasteners, js/fasteningupgrade.js)
   S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings,vals:{...vals}};
   if(entryName)S.sets[setNumber].entry=entryName;
+  if(declared.stand)S.sets[setNumber].stand=true;   // an aquarium stand: long ones need center posts (STAND_RULES, js/verify.js)
   parts.forEach(p=>{p.set=setNumber;});
   const hwBefore=S.hw||[],hwOwn=preset.hw?preset.hw(vals):[];
   S.hw=hwBefore.concat(hwOwn);   // while the doors are hung: whether the preset lists a catch decides whether they get one

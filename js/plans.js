@@ -6,63 +6,9 @@ const STOCKS=[72,96,120,144,192];
 // the month named in PRICE_BASELINE (js/prices.js). Everything else about prices is in js/prices.js: priceOf, the
 // prices the person types, Update prices, and the shopping list itself.
 const PRICE8={'1x2':2.5,'1x3':4,'1x4':6,'1x6':10,'1x8':14,'1x10':19,'1x12':25,'2x2':3.5,'2x3':3.3,'2x4':3.9,'2x6':6.5,'2x8':9,'2x10':13,'2x12':17,'4x4':10,ply34:55,ply12:40,ply14:25};
-function packBoards(lens,stock){const K=.125,bins=[];
-  lens.slice().sort((a,b)=>b-a).forEach(l=>{let b=bins.find(b=>b.used+(b.cuts.length?K:0)+l<=stock+1e-6);
-    if(!b){b={used:0,cuts:[]};bins.push(b);}b.used+=(b.cuts.length?K:0)+l;b.cuts.push(l);});return bins;}
-/* How the panels are laid out on 4 x 8 sheets. Rows are filled left to right, and the order the panels are
-   taken in decides how well they pack, so three orders are tried (longest side first, widest first, biggest
-   first) and the one that needs the fewest sheets is kept. Longest side first wins a tie. */
-const SHEET_ORDERS=[
-  (p,q)=>Math.max(q.a,q.b)-Math.max(p.a,p.b),
-  (p,q)=>Math.min(q.a,q.b)-Math.min(p.a,p.b)||Math.max(q.a,q.b)-Math.max(p.a,p.b),
-  (p,q)=>q.a*q.b-p.a*p.b];
-function packSheets(rects){
-  let best=null;
-  for(const order of SHEET_ORDERS){
-    const tried=packSheetsIn(rects.slice().sort(order));
-    if(!best||tried.sheets.length<best.sheets.length)best=tried;
-  }
-  return best;
-}
-function packSheetsIn(rects){const SW=96,SH=48,K=.125,sheets=[],over=[];
-  for(const r of rects){
-    const opts=[[r.a,r.b],[r.b,r.a]].filter(([w,h])=>w<=SW+1e-6&&h<=SH+1e-6);
-    if(!opts.length){over.push(r);continue;}
-    let placed=false;
-    outer:for(const sh of sheets){
-      for(const sf of sh.shelves){const ft=opts.filter(([w,h])=>h<=sf.h+1e-6&&sf.x+w<=SW+1e-6).sort((p,q)=>p[0]-q[0])[0];
-        if(ft){sh.items.push({x:sf.x,y:sf.y,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal});sf.x+=ft[0]+K;placed=true;break outer;}}
-      const ft=opts.filter(([w,h])=>sh.y+h<=SH+1e-6).sort((p,q)=>p[1]-q[1])[0];
-      if(ft){sh.shelves.push({y:sh.y,h:ft[1],x:ft[0]+K});sh.items.push({x:0,y:sh.y,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal});sh.y+=ft[1]+K;placed=true;break;}
-    }
-    // (piece, diagonal: a shaped piece drawn in its rectangle, and a square cut on the diagonal; js/shapedrawings.js)
-    if(!placed){const ft=opts.sort((p,q)=>p[1]-q[1])[0];sheets.push({y:ft[1]+K,shelves:[{y:0,h:ft[1],x:ft[0]+K}],items:[{x:0,y:0,w:ft[0],h:ft[1],name:r.name,piece:r.piece,diagonal:r.diagonal}]});}
-  }
-  return{sheets,over};}
-/* What a list of pieces takes to buy: how many boards, how many plywood sheets, and roughly what they cost.
-   stock = the board length chosen for each material, e.g. {'2x4':120}; anything not listed is bought as 8 ft boards,
-   or as the shortest board that is long enough for the longest piece. */
-function lumberToBuy(parts,stock){
-  let boards=0,sheets=0,cost=0;
-  for(const m of MATS){
-    if(m.kind==='prop')continue;
-    const pieces=parts.filter(p=>p.mat===m.id);
-    if(!pieces.length)continue;
-    if(m.kind==='board'){
-      const lengths=pieces.map(p=>p.l),longest=Math.max(...lengths);
-      let boardLength=(stock&&stock[m.id])||96;
-      if(longest>boardLength)boardLength=STOCKS.find(s=>s>=longest)||192;
-      const count=packBoards(lengths.filter(l=>l<=boardLength),boardLength).length;
-      boards+=count;
-      cost+=count*priceOf(m.id,boardLength);
-    }else{
-      const count=packSheets(sheetRects(pieces,p=>p.name)).sheets.length;   // (corner shelves two to a square: js/shapedrawings.js)
-      sheets+=count;
-      cost+=count*priceOf(m.id,0);
-    }
-  }
-  return{boards,sheets,cost};
-}
+/* STOCKS: the board lengths the store sells and the program prices, in inches. How the pieces are laid on boards
+   of those lengths and on plywood sheets, and what that costs (buyBoards, packSheets, materialBuy, lumberToBuy),
+   is in js/buying.js. */
 /* ---------- the flat views of the plans: Front, Side and Top, drawn like a shop drawing ----------
    Each looks square at the design with no perspective and carries the two sizes of that view on lines below
    and to the right of it.
@@ -305,36 +251,42 @@ function cutListSection(list){
 const BAR_WIDTH=568; // how wide a cutting bar is drawn on the sheet, in pixels; decides which cuts have room for a label
 function diagramSection(list){
   const buy=[];
-  let h=`<h2>Cutting diagrams</h2><p class="hint">Diagrams allow 1/8" for each saw cut. Striped areas are leftover.</p>`;
+  // (the grain rule of the sheets: js/buying.js)
+  const plywood=S.parts.some(p=>M[p.mat].kind==='sheet'&&M[p.mat].t>SHEET_SKIN_T);
+  // (END_TRIM: the spare kept on a board that carries two or more pieces, js/buying.js)
+  let h=`<h2>Cutting diagrams</h2><p class="hint">Diagrams allow 1/8" for each saw cut, and at least ${fmt(END_TRIM)} spare on a board cut into two or more pieces, to square up the end first. Striped areas are leftover.`+
+    (plywood?' On 1/2" and 3/4" plywood the grain of the face runs left to right, and every piece lies with its grain along its length.':'')+`</p>`;
   for(const m of MATS){
     const pieces=S.parts.concat(woodStrips()).filter(p=>p.mat===m.id);
     if(!pieces.length||m.kind==='prop')continue;
+    // what to buy and where each piece is cut from: the one plan the shopping list and the estimate also use (js/buying.js)
+    const chosen=STOCKS.includes(S.stock[m.id])?S.stock[m.id]:0;
+    const plan=materialBuy(m,pieces,p=>list.letterOf(p),chosen);
+    buy.push(...plan.buy);
     if(m.kind==='board'){
-      const lengths=pieces.map(p=>p.l),longest=Math.max(...lengths);
-      let stock=S.stock[m.id]||96;
-      if(longest>stock)stock=STOCKS.find(s=>s>=longest)||192;
-      const boards=packBoards(lengths.filter(l=>l<=stock),stock),tooLong=lengths.filter(l=>l>stock);
-      buy.push({m,qty:boards.length,stock});
-      const lengthChoices=STOCKS.map(s=>`<option value="${s}"${s===stock?' selected':''}>${s/12} ft</option>`).join('');
-      // the board length is a choice on screen and plain words on paper (class "printonly")
+      const{boards,tooLong}=plan,longest=Math.max(...boards.map(board=>board.length),1);
+      // The lengths are a choice on screen ("Best mix", or one length for all) and plain words on paper (class "printonly").
+      const lengthChoices=`<option value="0"${chosen?'':' selected'}>Best mix</option>`+
+        STOCKS.map(s=>`<option value="${s}"${s===chosen?' selected':''}>All ${s/12} ft</option>`).join('');
       const wood=m.treated?'':WOOD_ROW_WORDS[look().wood]||'';   // "Cedar 2x6", as on the shopping list (js/prices.js)
-      h+=`<div class="buy">${boards.length} × ${esc((wood?wood+' ':'')+m.short)}, <select class="fld noprint" data-stock="${m.id}" title="The length of board you will buy">${lengthChoices}</select><span class="printonly">${stock/12} ft</span> long</div>`;
-      if(tooLong.length)h+=`<p class="warn">${plural(tooLong.length,'piece')} ${tooLong.length>1?'are':'is'} longer than 16 ft and cannot be cut from one board.</p>`;
+      const bought=plan.buy.slice().reverse().map(row=>`${row.qty} × ${row.stock/12} ft`).join(', ');
+      h+=`<div class="buy">${esc((wood?wood+' ':'')+m.short)}: ${bought||'none'} <select class="fld noprint" data-stock="${m.id}" title="The lengths of board you will buy: the cheapest mix, or every board the same length">${lengthChoices}</select></div>`;
+      if(plan.mixed)h+=`<p class="hint">The pieces longer than ${chosen/12} ft are on longer boards.</p>`;
+      if(tooLong.length)h+=`<p class="warn">${plural(tooLong.length,'piece')} ${tooLong.length>1?'are':'is'} longer than ${STOCKS[STOCKS.length-1]/12} ft and cannot be cut from one board.</p>`;
       boards.forEach((board,i)=>{
-        const left=stock-board.used;
-        const cuts=board.cuts.map(l=>{
-          const letter=list.byLength.get(m.id+'|'+l)||'',length=fmt(l),room=l/stock*BAR_WIDTH;
+        const stock=board.length,left=stock-board.used,share=stock/longest;   // a shorter board is drawn shorter
+        const cuts=board.cuts.map(item=>{
+          const letter=item.letter||'',length=fmt(item.l),room=item.l/stock*BAR_WIDTH*share;
           // a short cut has no room for its length, and a very short one not even for its letter; the tooltip has both
           const label=room>=(letter.length+length.length)*6+12?`<b>${letter}</b>${length}`:room>=letter.length*7+4?`<b>${letter}</b>`:'';
-          return`<div style="width:${l/stock*100}%" title="${letter} ${esc(length)}">${label}</div>`;
+          return`<div style="width:${item.l/stock*100}%" title="${letter} ${esc(length)}">${label}</div>`;
         }).join('');
-        const waste=left>.01?`<div class="waste" title="${esc(fmt(left))} left over">${left/stock*BAR_WIDTH>=76?`<span>${fmt(left)} left</span>`:''}</div>`:'';
-        h+=`<div class="cut"><span>Board ${i+1} of ${boards.length}</span><div class="board">${cuts}${waste}</div></div>`;
+        const waste=left>.01?`<div class="waste" title="${esc(fmt(left))} left over">${left/stock*BAR_WIDTH*share>=76?`<span>${fmt(left)} left</span>`:''}</div>`:'';
+        h+=`<div class="cut"><span>Board ${i+1} of ${boards.length}, ${stock/12} ft</span><div class="board" style="width:${(share*100).toFixed(2)}%">${cuts}${waste}</div></div>`;
       });
     }else{
       // (a corner shelf cut corner to corner is packed two to a square: sheetRects, js/shapedrawings.js)
-      const{sheets,over}=packSheets(sheetRects(pieces,p=>list.letterOf(p)+': '+p.name));
-      buy.push({m,qty:sheets.length,stock:0});
+      const{sheets,over}=plan;
       h+=`<div class="buy">${sheets.length} × ${esc(m.short)}, 4 ft × 8 ft sheet${sheets.length>1?'s':''}</div>`;
       if(sheets.length===1&&sheets[0].items.every(i=>i.x+i.w<=48&&i.y+i.h<=48))h+=`<p class="hint">Everything fits on a half sheet (4 ft × 4 ft) if your store sells them.</p>`;
       if(over.length)h+=`<p class="warn">${over.map(o=>esc(o.name)).join(', ')}: larger than a 4 × 8 sheet.</p>`;
@@ -532,7 +484,11 @@ function renderCut(instr){
 
   page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)
   if(instr)fillMarkViews(page);   // the marking views are drawn as they are seen (js/markingview.js)
-  page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{S.stock[choice.dataset.stock]=+choice.value;commit();});
+  // a board length chosen on the cutting diagrams; "Best mix" (0) takes the choice away again (js/buying.js)
+  page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{
+    if(+choice.value)S.stock[choice.dataset.stock]=+choice.value;else delete S.stock[choice.dataset.stock];
+    commit();
+  });
 }
 
 /* ---------- self-check: the steps and the lists under them say the same thing ----------

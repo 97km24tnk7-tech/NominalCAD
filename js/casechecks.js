@@ -20,6 +20,9 @@
                                      their limits clean or refused with a reason and a fix, named after the entry
      caseNoHeadsShowing              Everyday and Fine: no head on a top, front or side, for every top and recipe;
                                      Rustic shows the side screws; Fine plugs the pocket holes under the shelves
+     caseHoleWordsMatchTheLayout     the face the steps name for the pocket holes of the top and the high shelves (and
+                                     their plugs, and the angled screws at a divider) is the face the layout drills,
+                                     over a sweep of widths and heights (the 40" x 84" case of the review, E1)
      caseJointsReachable             in step order, a drill reaches every fastener when its step comes
      caseShelfSpacingFits            "At a spacing I choose": every opening the spacing, the leftover where asked and
                                      never under 7", no shelf more would fit, and the words say what was built
@@ -432,6 +435,9 @@ SELFTESTS.push(function caseNoHeadsShowing(problems){withoutDrawing(()=>{
       // case whose high shelves take their holes in the top face
       caseEntryVals('bookshelf',{W:72,H:36,n:1,back:'rails'}),caseEntryVals('bookshelf',{W:72,H:48,bays:'3',fillMid:'open'}),
       caseEntryVals('bookshelf',{W:72,H:84,n:6}),{...presetDefaults(builder),W:60,bays:'5',fill:'shelves',fillMid:'open',n:2},
+      // one divider right under the middle of the top (the woodworker's-eye review, E1): tall, and with a top
+      // between 54" and 68" up, whose holes are plugged
+      caseEntryVals('bookshelf',{W:40,H:84}),caseEntryVals('bookshelf',{W:40,H:60}),
       ...['inside','over','rails'].flatMap(top=>caseRecipeKeys().map(fill=>({...presetDefaults(builder),top,fill,bays:'3',W:60}))),
       {...presetDefaults(builder),top:'rails',back:'rails',W:30,H:30}];
     for(const vals of cases){
@@ -455,6 +461,68 @@ SELFTESTS.push(function caseNoHeadsShowing(problems){withoutDrawing(()=>{
       }
       placeInStyle(builder,vals,'rustic');
       if(!showingHeads().some(head=>head.face==='side'))wrong(`${label} in Rustic / rough: no screw goes in through the sides`);
+    }
+  }finally{load(kept,true);}
+});});
+
+/* The woodworker's-eye review, E1: on a 40" x 84" Bookshelf the step said "the top's pocket holes go in its top
+   face" while the fastener layout put them under it, in plain sight, because the layout asked about the middle of
+   the top only, and a divider stood there. Now both read one rule (undersideHoleFace, js/fasteners.js; the words
+   through caseHoleFaces). Over a sweep of widths (one bay, a divider under the middle, two and more dividers) and
+   heights (a top below 54", between 54" and 68" where its holes are plugged, and above the eye), in Everyday:
+   the words of the marking step and of the top's step name the face the layout drills the top on, they say
+   "plugs" exactly when the layout plugs them, the shelves said to take their holes (and their angled screws at a
+   divider) in the top face are exactly those the layout drills there, and no head shows. */
+SELFTESTS.push(function caseHoleWordsMatchTheLayout(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('cabinet hole faces: '+text);};
+  const builder=caseBuilder();
+  if(!builder)return;
+  const kept=JSON.stringify(S);
+  // the face a group of pocket holes or screws starts on, as the layout has it: 'top', 'under', 'plugged', or 'mixed'
+  const faceOfHeads=heads=>{
+    if(!heads.length)return'';
+    if(heads.every(head=>head.out[1]>.5))return'top';
+    if(heads.every(head=>head.out[1]<-.5))return heads.every(head=>head.f.pocket&&head.f.pocket.plugged)?'plugged':heads.some(head=>head.f.pocket&&head.f.pocket.plugged)?'mixed':'under';
+    return'mixed';
+  };
+  try{
+    for(const W of[32,40,48,72,96])for(const H of[48,60,66,84,96]){
+      const vals=caseEntryVals('bookshelf',{W,H});
+      if(caseCheck(vals).some(f=>f.level==='stop'))continue;
+      placeInStyle(builder,vals,'std');
+      const label=`${W}" x ${H}"`;
+      const words=(S.steps||[]).map(stepText);
+      const heads=fastenerHeads();
+      // the top between the sides
+      const topHeads=heads.filter(head=>head.f.kind==='pocket'&&head.f.through.name==='Top');
+      const layoutTop=faceOfHeads(topHeads);
+      const topStep=words.find(text=>/^Fasten the top between the sides/.test(text))||'';
+      const saidTop=/holes in its top face/.test(topStep)?'top':/pocket-hole plugs/.test(topStep)?'plugged':'under';
+      if(layoutTop&&layoutTop!==saidTop)wrong(`${label}: the top's step says its pocket holes are ${saidTop==='top'?'in its top face':saidTop==='plugged'?'under it and plugged':'under it'}, the layout has them ${layoutTop==='top'?'in its top face':layoutTop==='plugged'?'under it, plugged':layoutTop}`);
+      const marking=words.find(text=>/^Lay the two sides/.test(text))||'';
+      const saidAhead=(marking.match(/near both ends of the top, in its (top face|underside)/)||[])[1];
+      if(layoutTop&&saidAhead&&(saidAhead==='top face')!==(layoutTop==='top'))wrong(`${label}: the marking step drills the top's holes in its ${saidAhead}, the layout does not`);
+      // the shelves whose pocket holes, and whose angled screws at a divider, start in their top face
+      const shelfHeights=kind=>{
+        const byHeight=new Map();
+        for(const head of heads){
+          if(head.f.through.name!=='Shelf'||!(kind==='pocket'?head.f.kind==='pocket':head.f.angledAt))continue;
+          const y=head.f.through.pos[1];
+          if(!byHeight.has(y))byHeight.set(y,[]);
+          byHeight.get(y).push(head);
+        }
+        const faces=[...byHeight].map(([y,list])=>[y,faceOfHeads(list)]);
+        faces.filter(([,face])=>face==='mixed').forEach(([y])=>wrong(`${label}: the shelves at ${fmt(y)} start their ${kind==='pocket'?'pocket holes':'angled screws'} on more than one face`));
+        return faces.filter(([,face])=>face==='top').map(([y])=>y).sort((a,b)=>a-b).map(fmt);
+      };
+      const pocketsOnTop=shelfHeights('pocket'),angledOnTop=shelfHeights('angled');
+      const shelfStep=words.find(text=>/^Fasten the shel/.test(text))||'';
+      const saidPockets=(shelfStep.match(/in its top face instead for the shel(?:f|ves) at ([^:]+):/)||[])[1]||'';
+      if(saidPockets!==listWords(pocketsOnTop))wrong(`${label}: the shelves' step says the shelves at "${saidPockets}" take their pocket holes in the top face, the layout drills "${listWords(pocketsOnTop)}" there`);
+      const saidAngled=(shelfStep.match(/\(for the shel(?:f|ves) at (.+?), start them in the top face/)||[])[1]||'';
+      if(saidAngled!==listWords(angledOnTop))wrong(`${label}: the shelves' step starts the angled screws in the top face for "${saidAngled}", the layout for "${listWords(angledOnTop)}"`);
+      const showing=headsOnShowFaces();
+      if(showing.length)wrong(`${label}: ${showing.length} heads show on the ${showing[0].face} (${showing[0].f.through.name} into ${showing[0].f.into.name})`);
     }
   }finally{load(kept,true);}
 });});

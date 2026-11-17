@@ -109,15 +109,44 @@ const SEEN={underAbove:54,topFrom:68};
 /* Is a hole that opens at `at`, on a face looking `out`, seen by a person standing in front of the design? Only
    faces that look down or sideways (not up, not to the back) higher than SEEN.underAbove, with nothing in front
    of them (a door), count. */
-function seenFromBelow(at,out){
+function seenFromBelow(at,out,parts=S.parts){
   if(at[1]<=SEEN.underAbove||out[1]>.5||out[2]<-.5)return false;
   const from=pointPlus(at,out,.06),forward=[0,0,1];
-  return!S.parts.some(p=>!isProp(p)&&!tilted(p)&&rayHitsBox(from,forward,plainBox(p)));
+  return!parts.some(p=>!isProp(p)&&!tilted(p)&&rayHitsBox(from,forward,plainBox(p)));
 }
 /* Is the top face of this piece out of sight: as high as SEEN.topFrom, or with another piece standing over it? */
-function topFaceUnseen(piece){
+function topFaceUnseen(piece,parts=S.parts){
   const b=plainBox(piece);
-  return b.hi[1]>=SEEN.topFrom-1e-6||faceIsInside(piece,1,1);
+  return b.hi[1]>=SEEN.topFrom-1e-6||faceIsInside(piece,1,1,parts);
+}
+/* Is the underside of this board seen from below ANYWHERE along it? Asking at its middle alone is not enough: on a
+   bookcase with one divider, the middle of the top's underside lies on the divider, while both bays leave the rest
+   of it open to anyone looking up (the woodworker's-eye review, E1). So it is asked every UNDERSIDE_LOOK_EVERY
+   inches along the board's length, on the line across the middle of its depth. A point right over another piece
+   (a side, a divider) is covered there and does not count; a door in front of a point hides it. */
+const UNDERSIDE_LOOK_EVERY=3;
+function undersideSeen(piece,parts=S.parts){
+  const b=plainBox(piece);
+  if(b.lo[1]<=SEEN.underAbove)return false;
+  // along the longer of the two level directions, at the middle of the other
+  const along=b.hi[0]-b.lo[0]>=b.hi[2]-b.lo[2]?0:2,across=2-along;
+  const length=b.hi[along]-b.lo[along],count=Math.max(1,Math.ceil(length/UNDERSIDE_LOOK_EVERY));
+  for(let i=0;i<count;i++){
+    const point=[0,b.lo[1],0];
+    point[along]=b.lo[along]+length*(i+.5)/count;
+    point[across]=(b.lo[across]+b.hi[across])/2;
+    if(seenFromBelow(point,[0,-1,0],parts))return true;
+  }
+  return false;
+}
+/* Rule 13 for one board, as ONE answer that the fastener layout and the words of a preset's steps both read, so
+   the two can never disagree: where the pocket holes go that would otherwise open on the board's underside.
+   'under' (out of sight there), 'top' (the underside is seen, nobody sees the top face) or 'plugged' (seen
+   either way: drilled underneath and filled with plugs). parts: the pieces around it (the design; or the pieces a
+   preset is about to place, when its steps are written before they are in the design). */
+function undersideHoleFace(piece,parts=S.parts){
+  if(!undersideSeen(piece,parts))return'under';
+  return topFaceUnseen(piece,parts)?'top':'plugged';
 }
 /* The preset that placed this piece (its placement, S.sets), or null for a piece drawn by hand. */
 function presetOfPiece(piece){
@@ -521,11 +550,9 @@ function pocketScrews(j,shape,n,len,label){
   const house=isHouseFurniturePiece(through);
   let plugged=false;
   if(house&&s===1&&hidden<0){
-    const under=[(box.lo[0]+box.hi[0])/2,box.lo[1],(box.lo[2]+box.hi[2])/2];
-    if(seenFromBelow(under,[0,-1,0])){
-      if(topFaceUnseen(through))hidden=1;
-      else plugged=true;
-    }
+    const face=undersideHoleFace(through);
+    if(face==='top')hidden=1;
+    else if(face==='plugged')plugged=true;
   }
   let crossS=crossFor(hidden);
   if(toFaceOf(hidden,crossS)<headOff&&toFaceOf(-hidden,crossFor(-hidden))>toFaceOf(hidden,crossS)){
@@ -677,12 +704,12 @@ function endHoleSpans(piece,j,out,t){
    4 ft)? Then a pocket hole there is out of sight as much as one on the other face. Looks at every piece, so it
    is only asked about pieces held by pocket holes at both ends, and not in a very big design. */
 const INSIDE_LOOK=48,INSIDE_MAX_PIECES=1500;
-function faceIsInside(piece,axis,side){
-  if(S.parts.length>INSIDE_MAX_PIECES)return false;
+function faceIsInside(piece,axis,side,parts=S.parts){
+  if(parts.length>INSIDE_MAX_PIECES)return false;
   const b=plainBox(piece),from=b.lo.map((v,k)=>(v+b.hi[k])/2);
   from[axis]=side>0?b.hi[axis]+.05:b.lo[axis]-.05;
   const way=alongAxis(axis,side);
-  return S.parts.some(other=>{
+  return parts.some(other=>{
     if(other===piece||isProp(other)||tilted(other))return false;
     const o=plainBox(other);
     if(!rayHitsBox(from,way,o))return false;

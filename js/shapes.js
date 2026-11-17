@@ -1556,11 +1556,17 @@ SELFTESTS.push(function shapeWordsExplained(problems){
    its fingerprint was recorded there the same way, and the other 22 read back from main 63756c1 exactly as below.)
    (The "Computer desk" came from the compdesk branch, which never had the shaped-piece code: its fingerprint was
    recorded on that branch's c3f4315, before it was merged with main b76a291, from an empty design, twice the same,
-   and the merged code reads it back exactly.) */
+   and the merged code reads it back exactly.)
+   (Branch fix-fish, review item E4: the Cabinet stand of two 20 gallon tanks now has a pair of center posts under the
+   seam between its tanks, two more uprights, so its fingerprint was recorded again the same way, twice the same; the
+   other 22 read back unchanged first.)
+   (Branch fix-house, the woodworker's-eye review E3: the Storage box / toy chest got real air holes in its front and
+   ends on purpose, so its cut list and 3D scene changed; only its fingerprint was recorded again, from an empty
+   design, twice, with the same result, after a full selfTest showed every other preset still reading back exactly.) */
 const PRESET_PRINTS={
   "Fish tank wall / rack":[94,178,352,"131vjz0","1ej6odg"],
   "Single aquarium stand":[26,86,169,"v10vc9","1636v6l"],
-  "Cabinet stand with a row of tanks":[33,98,243,"1pnhk3","yxrr1s"],
+  "Cabinet stand with a row of tanks":[35,107,255,"nreo4t","wwhyft"],
   "Platform bed":[28,95,142,"1hachhz","1agns1k"],
   "Shed":[124,356,1407,"1fct8b8","t4pvx6"],
   "Bird feeder":[9,12,16,"1mh07bv","3ds3br"],
@@ -1573,7 +1579,7 @@ const PRESET_PRINTS={
   "Five-board bench":[5,8,20,"dbcrj0","1hvsbq8"],
   "Workbench":[19,49,115,"d4wis","uaazbz"],
   "Garage shelves":[28,92,194,"ohine2","1klmv0d"],
-  "Storage box / toy chest":[6,12,28,"1j7e04h","1w8rx6u"],
+  "Storage box / toy chest":[6,12,28,"1j7uql2","3m9e2j"],   // recorded again on branch fix-house: its air holes (review E3)
   "Planter box":[20,62,78,"w1hui8","1vjtz3k"],
   "Raised garden bed":[12,28,48,"urv8mo","yfeo9i"],
   "Entryway shoe bench":[24,54,94,"18cr36y","i0c8pa"],
@@ -1583,6 +1589,10 @@ const PRESET_PRINTS={
   "Cabinet / case":[10,24,77,"1pz6vmn","963zac"],
   "Computer desk":[36,79,175,"1mw3u3l","v2v1rt"],
 };
+/* The presets that build shaped pieces on purpose, and the only pieces of each that may have a shape. Every other
+   preset still builds none. The Storage box / toy chest: the air holes in its front and its two ends (the
+   woodworker's-eye review, E3; buildStorageBox in js/builders-storage.js). */
+const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side']};
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same
    way: main's loading now adds fields of its own, so the text read back is longer than it was on 40ae483) */
 const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg","mat":"2x4","l":30,"w":3.5,"t":1.5,"ax":[1,2,0],"pos":[0,0,0]},{"id":2,"name":"Top","mat":"ply34","l":24,"w":18,"t":0.75,"ax":[0,2,1],"pos":[0,30,0]},{"id":3,"name":"Brace","mat":"1x4","l":20,"w":3.5,"t":0.75,"ax":[0,1,2],"pos":[2,10,4],"rot":{"k":2,"deg":30}}],"joints":{},"stock":{},"notes":[],"steps":[],"hw":[],"nextId":4,"nextGrp":1}';
@@ -1632,7 +1642,8 @@ SELFTESTS.push(function presetsKeepTheirCutLists(problems){
       let got=presetPrint(preset);
       // (once, on main, the very first pass of a fresh page gave one different layout; a second look settles it)
       if(JSON.stringify(got)!==JSON.stringify(want))got=presetPrint(preset);
-      if(S.parts.some(p=>'shape' in p))problems.push(`shapes: ${preset.name} builds a piece with a shape`);
+      const shapedOnPurpose=PRESETS_SHAPED_ON_PURPOSE[preset.name]||[];
+      if(S.parts.some(p=>'shape' in p&&!shapedOnPurpose.includes(p.name)))problems.push(`shapes: ${preset.name} builds a piece with a shape`);
       const names=['pieces','joints','fasteners','cut list','3D scene'];
       got.forEach((value,i)=>{
         if(value!==want[i])problems.push(`shapes: ${preset.name} changed its ${names[i]} (${value}, was ${want[i]})`);

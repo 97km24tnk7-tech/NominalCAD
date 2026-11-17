@@ -75,20 +75,44 @@ function rackBase(p){
    Where two pairs meet inside a bay there is no upright, so a door stile is stood there, under the front rail.
    Where the rails are joined over a pair of uprights, the door on each side covers the upright on its side (the
    doors meet over the middle of the joint line), so each still hinges on wood.
+   A bay with center posts (a long stand) has its doors meet in front of them instead (doorsAroundCenters).
    Returns { doors:[{x, w}], stiles:[x] } with x measured from the left end of the section. */
 const DOOR_SINGLE_MAX=20,DOOR_PAIR_MAX=54,DOOR_GAP=.125;
 const cabinetDoors=(pl,m)=>rackLayout(pl,m).front;
 function doorsAlong(pl,m,lines,bays){
   const doors=[],stiles=[];
+  // (the lines that bound the bays; a stand's center posts stand inside a bay, and its doors meet on them: see below)
+  const ends=lines.filter(L=>!L.center);
   bays.forEach((b0,j)=>{
     // the stretch of front this bay's doors cover: to the middle of the line of uprights it shares with the next bay
-    const left=lines[j],right=lines[j+1];
+    const left=ends[j],right=ends[j+1];
     const from=j===0?0:left.x+left.w/2,to=j===bays.length-1?m.W:right.x+right.w/2;
+    // A bay with center posts (a long stand): the doors meet in front of every center post (doorsAroundCenters)
+    const centers=lines.filter(L=>L.center&&L.x>b0-1e-6&&L.x<b0+pl.B+1e-6);
+    if(centers.length){doorsAroundCenters(from,to,centers,doors);return;}
     const pairs=pl.B<=DOOR_SINGLE_MAX?0:Math.ceil(pl.B/DOOR_PAIR_MAX-1e-6),count=pairs?2*pairs:1,wide=(to-from-DOOR_GAP*count)/count;
     for(let i=0;i<count;i++)doors.push({x:from+DOOR_GAP/2+i*(wide+DOOR_GAP),w:wide});
+    // a door stile where two pairs meet
     for(let q=1;q<pairs;q++)stiles.push(r16(from+q*(to-from)/pairs-.75));
   });
   return{doors,stiles};
+}
+/* The doors of a bay that has center posts (standCenterLines). The center posts stand at the front like any upright,
+   and the doors follow them, the way the center posts of a real stand split its front into door openings (reference
+   sheet 08): the front from `from` to `to` is cut at the middle of every center post, so two doors meet in front of
+   each one and close against it, and no door has a post standing behind the middle of it. Each stretch gets one door
+   hinged at its outer side when it is no wider than DOOR_ONE_SIDE_MAX (a door of a pair in a bay without center posts
+   is as wide), else a pair that meets in the middle. The posts are never more than STAND_RULES.most apart, so no
+   stretch needs a door stile. Adds {x, w} to doors. */
+const DOOR_ONE_SIDE_MAX=29;
+function doorsAroundCenters(from,to,centers,doors){
+  const cuts=[from,...centers.map(L=>L.x+L.w/2),to];
+  for(let s=0;s<cuts.length-1;s++){
+    const start=cuts[s],stretch=cuts[s+1]-start;
+    const count=stretch<=DOOR_ONE_SIDE_MAX+1e-6?1:2*Math.ceil(stretch/(2*DOOR_ONE_SIDE_MAX)-1e-6);
+    const wide=(stretch-DOOR_GAP*count)/count;
+    for(let i=0;i<count;i++)doors.push({x:start+DOOR_GAP/2+i*(wide+DOOR_GAP),w:wide});
+  }
 }
 const doorTotal=pl=>pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).doors.length,0);
 /* a plywood door taller than 40" wants a third hinge in the middle or it bows away from the frame */
@@ -246,7 +270,34 @@ function rackPlan(p){
   rackPlanMemo.set(key,plan);
   return plan;
 }
+/* Center posts of a stand (STAND_RULES in js/verify.js, from reference sheet 08). In a bay of B between two lines of
+   uprights su across, the extra lines of uprights a stand needs so that no rail runs more than STAND_RULES.most
+   between the middles of the uprights under it. They go under a seam between two tanks where there is one (the
+   row with the most tanks in a bay decides; a cabinet stand of two 20 gallon tanks gets one pair, right under the
+   seam), and otherwise share the bay evenly (a single 48" tank gets one pair under its middle, a 72" tank two).
+   rows: the rows of the plan, each with c, its tanks in a bay. Returns {left: the left edge of each, measured from
+   the left edge of the bay, span: the longest the rails now run, middle to middle}. A bay short enough gets none. */
+function standCenterLines(B,su,rows){
+  const most=STAND_RULES.most,end=B+su/2;
+  const busiest=rows.filter(row=>!row.store&&row.c>1).sort((a,b)=>b.c-a.c)[0];
+  const seams=busiest?Array.from({length:busiest.c-1},(_,q)=>(q+1)*B/busiest.c):[];   // middles, from the bay's left edge
+  const middles=[];
+  let last=-su/2;   // the middle of the line of uprights on the left of the bay
+  for(let guard=0;guard<50&&end-last>most+1e-6;guard++){
+    const reachable=seams.filter(x=>x>last+su&&x-last<=most+1e-6);
+    // the farthest seam within reach, else an even share of what is left
+    const next=reachable.length?reachable[reachable.length-1]:last+(end-last)/Math.ceil((end-last)/most-1e-6);
+    middles.push(next);
+    last=next;
+  }
+  const points=[-su/2,...middles,end];
+  const span=Math.max(...points.slice(1).map((x,i)=>x-points[i]));
+  return{left:middles.map(x=>r16(x-su/2)),span};
+}
+/* a rack is built as a stand (center posts, STAND_RULES) when a stand preset says so, or on a cabinet base */
+const isStandPlan=p=>!!p.stand||p.base==='cabinet';
 function rackPlanFresh(p){
+  const stand=isStandPlan(p);
   p=rackBase(p);
   // every size is taken to the 1/16" the pieces are cut to, so that parts meet exactly
   const above=r16(p.light+p.clr),board=+p.board||96,fixedRows=+p.levels||0,capTanks=+p.perRow||0;
@@ -350,7 +401,9 @@ function rackPlanFresh(p){
           if(!split)continue;
           const{mods,bays,W:Wt}=split;
           const rr=rows.map(r=>{const c=r.store?0:Math.floor(B/r.sl+1e-6);return{...r,c,cnt:Math.min(capTanks||1e9,c*bays)};});
-          const count=rr.reduce((a,r)=>a+r.cnt,0),span=B+su;
+          // a stand gets center posts in a long bay: the rails then span from one to the next (standCenterLines)
+          const centers=stand?standCenterLines(B,su,rr):{left:[],span:B+su};
+          const count=rr.reduce((a,r)=>a+r.cnt,0),span=centers.span;
           const util={rail:beamCheck({S:Sx,I},span,wmax,'tankRail').ratio,up:upNeed*span};
           const pastCap=carried.length>0&&span>capSpan+1e-6;   // a rail may never span further than its size allows, unless the floor carries it
           const over=util.rail>VERIFY_OVER||util.up>VERIFY_OVER||pastCap;
@@ -361,6 +414,7 @@ function rackPlanFresh(p){
           const pl={worst,narrow,pastCap,capSpan,o:words,end,rows:rr,n:rr.length,D,y0,B,su,ud,rail,rh,rb,up,postMat:ud>3.5?up:'2x4',mods,bays,W:Wt,board,count,manual,span,util,
             raised:y0-wanted,   // how much higher than "Lowest tank off floor" the feet put the tanks (0 almost always)
             build:rackBuildOf(p),doors:p.base==='cabinet'||!!p.doors,   // how it is built along its length; whether it has cabinet doors (they need door stiles in wide bays)
+            stand,centers:centers.left,   // built as a stand; the left edges of its center posts in each bay, from the bay's left edge (none in a short bay)
             brace:!!p.brace,    // it gets diagonal back braces (rackBraces; the screws into the wall keep clear of them, js/rackwall.js)
             upLoad:upWorst.load*span,upSafe:upWorst.safe,upLength:upWorst.length, // the hardest-working upright: what it carries, what it may, how long it is
             gallons:rr.reduce((a,r)=>a+r.cnt*r.gal,0),total:rr.reduce((a,r)=>a+r.cnt*r.wt,0),
@@ -404,8 +458,13 @@ function rackLayout(pl,m){
     }
   }
   for(const b0 of bays){
-    const nc=Math.ceil(B/16-1e-6)-1;
-    for(let q=1;q<=nc;q++)inBay.push(r16(b0+q*B/(nc+1)-.75));
+    // the stretches of the bay between its lines of uprights (the center posts of a stand split a bay in two or three)
+    const inside=lines.filter(L=>L.center&&L.x>b0&&L.x<b0+B);
+    const cuts=[b0,...inside.flatMap(L=>[L.x,L.x+L.w]),b0+B];
+    for(let s=0;s<cuts.length;s+=2){
+      const from=cuts[s],length=cuts[s+1]-from,nc=Math.ceil(length/16-1e-6)-1;
+      for(let q=1;q<=nc;q++)inBay.push(r16(from+q*length/(nc+1)-.75));
+    }
   }
   const lay={pl,lines,sup,bay:bays,under,inBay,added:[],railJoints,front:pl.doors?doorsAlong(pl,m,lines,bays):{doors:[],stiles:[]}};
   // A door stile stands on the bottom deck: wood right under it puts wood under its whole foot. Where a cross
@@ -461,6 +520,35 @@ function braceEndName(pl,m,x1){
   if(!line.joint)return`the uprights at ${at}`;
   return pl.su<3?`the left-hand upright of the rail joint at ${at}`:`the ${pl.up} upright of the rail joint at ${at}`;
 }
+/* The note on the center posts of a stand (standCenterLines), or '' when it has none. what: "stand", "cabinet stand". */
+function centerPostsNote(pl,what){
+  const pairs=pl.centers.length*pl.bays;
+  if(!pairs)return'';
+  const seam=pl.rows.some(row=>!row.store&&row.c>1);
+  return`Center posts: ${pairs===1?'one pair of uprights stands':`${pairs} pairs of uprights stand`}, one at the front and one at the back, inside the length of the ${what}${seam?', under the seam between two tanks':', under the middle of the tank'}, so no rail runs more than ${fmt(STAND_RULES.most)} from one upright to the next. A stand ${fmt(STAND_RULES.from)} or longer needs them: a longer span sags over the years and can crack the front glass of a tank.`+
+    (pl.doors?' The doors close in front of them.':'');
+}
+/* A stand saved before stands had center posts. Its pieces are left as they were saved (the person may have built it,
+   or changed it by hand), but it must not open as if nothing were wrong: when a design is opened that has a stand
+   placed in it which does not yet say it is a stand (S.sets[n].stand, written by placePreset since center posts
+   came in) and the structural check stops it for 'center-posts', one line says so and what to do. Undo and redo read
+   the same design again, so it is said once for each design opened (oldStandSaidFor). sayOldStand is how the line
+   is shown; the self-check standsHaveCenterPosts listens in. */
+let sayOldStand=text=>toast(text);
+let oldStandSaidFor='';
+function oldStandNotice(){
+  if(!S.sets||typeof S.sets!=='object')return;
+  // (standOfSet, js/verify.js: what its preset declares for the values it was made with; a rack on legs is no stand)
+  const old=Object.values(S.sets).filter(set=>set&&typeof set==='object'&&set.stand===undefined&&standOfSet(set));
+  if(!old.length)return;
+  const key=`${S.name}|${S.parts.length}|${old.map(set=>set.name).join(',')}`;
+  if(key===oldStandSaidFor)return;
+  oldStandSaidFor=key;
+  const found=verifyDesign(S.parts,verifyOptionsOf(S)).problems.some(f=>f.code==='center-posts');
+  if(!found)return;
+  sayOldStand(`This aquarium stand was saved before long stands got center posts, and it has none: a rail under its tanks runs more than ${fmt(STAND_RULES.most)} between uprights. Check my design explains why. Make the stand again from the presets window to get the center posts, or add them yourself.`);
+}
+ON_LOAD.push(oldStandNotice);
 /* why the tanks stand a little higher than "Lowest tank off floor" (rackPlan's raised) */
 const footRaisedWords=pl=>`The feet under the bottom frame are ${fmt(pl.y0)} tall, so the lowest tank sits ${fmt(pl.raised)} higher than "Lowest tank off floor" asks: a block of wood shorter than ${fmt(RACK_RULES.FOOT_MIN)} is too short to drill pocket holes in, and the feet are held on by pocket screws.`;
 const pct=v=>Math.round(v*100)+'%';
@@ -535,7 +623,9 @@ function rackNotes(p,fields){
   const lights=lightsNote(p,pl);
   if(lights)N.push(lights);
   if(pl.raised>0)N.push(footRaisedWords(pl));
-  if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${fmt(pl.span)} apart. The weight goes straight down through wood, not through screws.`);
+  if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${pl.centers.length?'no more than ':''}${fmt(r16(pl.span))} apart. The weight goes straight down through wood, not through screws.`);
+  const centers=centerPostsNote(pl,thing);
+  if(centers)N.push(centers);
   if(joined)N.push(`Where two rail pieces meet, each end sits on ${fmt(pl.su<3?pl.su:pl.su/2)} of upright and is screwed into a cross piece of its own; the two cross pieces are screwed to each other, and the plywood deck runs across the joint. The joints of every row and of the front and back rails are at the same places, not staggered: no rail runs on past a joint (each piece is a span of its own that ends on its own upright), and the uprights of a joint stand straight above the ones below, down to the floor. Staggering them would take a doubled line of uprights under every joint of every row.`);
   if(pl.rows.some(r=>r.doubled))N.push('Some rows hold tanks a little shallower than the rack. Their frames have doubled rails front and back, so the edges of those tanks still sit over wood.');
   if(pl.rows.some(r=>r.inset>0))N.push(`The rows hold tanks of different depths. Each tank must have a rail under its front and back edge, so the frames of the shallower rows are built narrower and the ${pl.up} uprights are deep enough to carry them. The plywood decks are all the full ${fmt(pl.D)} deep.`);
@@ -637,7 +727,9 @@ function doorStepText(pl,doorHeight){
     // (how far each hinge is from the ends of its door is read from the model: the hardware line under the step, js/buildsteps.js)
     `Lay a door face down, drill the cup holes along that side, ${three?'one near the top, one near the bottom and the third halfway between':'one near the top and one near the bottom'}, at the distances from the ends of the door that the hardware line under this step gives, and screw a hinge into each. `+
     `Stand the door in place on a scrap 1/2" thick, so it clears the floor, with its hinged side even with the outside of the post, and screw the plates of the hinges to the post. Turn the adjusting screws until the gaps are even. `+
-    (paired?'Hang the second door of each pair the same way: the two meet in the middle of the opening with a gap of about 1/8". ':'Leave a gap of about 1/8" between doors. ')+
+    // (with center posts the doors follow them, doorsAroundCenters: two doors meet in front of each center post)
+    (pl.centers&&pl.centers.length?`Hang the next door the same way (a door that hangs on a center post has its hinged side over the middle of that post instead). Where two doors meet in front of a center post, they close against it: leave a gap of about 1/8" between them, over the middle of the post. `
+      :paired?'Hang the second door of each pair the same way: the two meet in the middle of the opening with a gap of about 1/8". ':'Leave a gap of about 1/8" between doors. ')+
     `Screw a magnetic catch inside, under the frame above, where the free side of each door closes, and its metal plate to the back of the door. Then drill for the pulls and screw them on.`;
 }
 /* Fasteners the racks and stands name themselves (joints on the presets; see namedJointType in js/joints.js).
@@ -670,6 +762,13 @@ const RACK_JOINTS=[['Post','Shelf deck','none','face-edge'],['Post','Shelf deck'
 /* In the single stand every upright stands in a corner against a post and is screwed to it, so it needs no other
    fastener: the frame above rests on it, and is held by the screws through the posts. */
 const STAND_JOINTS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','none'],['Rail','Upright','none'],['Cross piece','Upright','none'],['Shelf deck','Shelf deck','none']];
+/* A stand long enough for center posts (standCenterLines): those stand in the middle of the length, against no post,
+   so like the uprights of a rack they are held by pocket screws at their foot, down through the deck into the
+   frame, and at their top into the frame above. The corner ones get the same, besides their screws into the posts. */
+const STAND_JOINTS_CENTERS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','pocket','face-end'],['Upright','Rail','bracketInFine'],
+  ['Upright','Cross piece','pocket'],['Upright','Filler block','bracketInFine'],['Shelf deck','Shelf deck','none']];
+const standHasCenters=p=>{const a=standArgs(p);return!!a&&rackPlan(a).centers.length>0;};
+const standJoints=p=>standHasCenters(p)?STAND_JOINTS_CENTERS:STAND_JOINTS;
 /* The thin plywood ends of a cabinet base or a closed stand are nailed on from the outside (there is no other way
    to hold a 1/4" panel), so the brad heads are on the ends: the owner's rule is to hide them or say how to cover
    them. This sentence says how, in the steps that nail those panels on. */
@@ -740,6 +839,9 @@ function rackSteps(p,unused,thing){
     ?`Screw diagonal 1x4 braces across the back. Each length of the wall between its ends and the rail joints is braced on its own, so no brace crosses a joint: ${lengths.length} brace${lengths.length>1?'s':''}, ${lengths.map(lengthWords).join('; ')} (where an upright is named by a number, that is its left edge from the left end of the frame, as in the step that stands the uprights).`
     :'Screw a diagonal 1x4 brace across the back of each section, '+braceWords+'.';
   const tallSides=p.base==='cabinet'&&n>1&&!fitsSheet(rows[1].y+pl.rb,pl.D); // side panels too big for one sheet
+  // the center posts of a stand (standCenterLines): which of the pairs they are, and why
+  const centerAt=kinds.map(m=>rackLayout(pl,m).lines.filter(L=>L.center).map(L=>fmt(r16(L.x-1.5)))).filter(list=>list.length);
+  const centerWords=centerAt.length?` The ${centerAt.flat().length>1?`pairs at ${listWords([...new Set(centerAt.flat())])} are center posts`:`pair at ${centerAt[0][0]} is a pair of center posts`}: they stand under the middle of a long bay${pl.rows.some(r=>!r.store&&r.c>1)?', under the seam between two tanks,':''} and hold the rails up there, so no rail runs more than ${fmt(STAND_RULES.most)} between uprights and sags under the water over the years.`:'';
   return[CUT,
    styledStep(frameWords(`Build ${n*M0} shelf frames (${n} for ${M0>1?'each of the '+M0+' sections':'the '+thing}). Each one is two ${rail} rails on edge with cross pieces between them. Left edge of each cross piece, measured from the left end of the frame: ${pos}. `,jointWords+stileWords+depthWords),['Rail','Cross piece','Filler block']),
    {t:'Glue and screw a plywood deck onto the top of each frame'+(pl.D>SHEET_W?', with every seam between two pieces centered on a cross piece':', with the grain of its face running the length of the rack')+'. The deck spreads the weight of the tanks and keeps the frame square.'+seamWords+(mixed?` Every deck is the full ${fmt(pl.D)} deep: center the narrower frames under their decks.`:''),add:['Shelf deck']},
@@ -748,9 +850,12 @@ function rackSteps(p,unused,thing){
        :'through the end cross piece into the post from the inside, and through the post into the rail ends from the outside (those heads show on the outside of the ends; in the Fine furniture style they are pocket screws driven from the inside).')+
      ' Check with a level that each post is plumb (straight up and down).'
      :`Screw the four short end posts (${fmt(pl.postH)} long) to the outside of the frame's ends, flush with the top of the rails, so the ends of the deck rest on them. Screw the ends of the top deck down into the tops of the posts.`)),['Foot','Post']),
-   ...(n>1?[styledStep(byStyleWords(style=>`Stack upward one row at a time. Stand the ${up} uprights (${ups.length>1?'lengths, bottom row first: '+rows.slice(0,-1).map(r=>fmt(r.th+r.ab)).join(', '):ups[0]+' long'}) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}. Screw the end ones to the posts from the inside (through the upright into the post).${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
-     `Fasten the foot of every upright with 2 1/2" pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock, so each screw goes through the 1/2" deck and on into the rail or the cross piece under it; a short screw would end in the deck, and 1/2" of plywood is too little for a screw to hold in). `+
-     `Set the next frame on top of the uprights, fasten the top of each upright to it ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}, and fasten the ends of its rails to the posts as you did on the bottom frame${style==='fine'?' (pocket screws from the inside)':' (through the posts)'}. When the top frame is on, screw the ends of its deck down into the tops of the posts. Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright'])]:[]),
+   // (the upper frames were built with the bottom one and are set on the uprights here: the step brings them, so the
+   // screws between them and the posts are listed here, where they are driven, and the post step's picture leaves
+   // them out)
+   ...(n>1?[Object.assign(styledStep(byStyleWords(style=>`Stack upward one row at a time. Stand the ${up} uprights (${ups.length>1?'lengths, bottom row first: '+rows.slice(0,-1).map(r=>fmt(r.th+r.ab)).join(', '):ups[0]+' long'}) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}.${centerWords} Screw the end ones to the posts from the inside (through the upright into the post).${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
+     `Fasten the foot of every upright with pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through the 1/2" deck and on into the rail or the cross piece under it, because a short screw would end in the deck, and 1/2" of plywood is too little for a screw to hold in).`+
+     `Set the next frame on top of the uprights, fasten the top of each upright to it ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}, and fasten the ends of its rails to the posts as you did on the bottom frame${style==='fine'?' (pocket screws from the inside)':' (through the posts)'}. When the top frame is on, screw the ends of its deck down into the tops of the posts. Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright']),{bring:rows.slice(1).map(row=>upperFrame(row,pl))})]:[]),
    ...(braced?[{t:braceStep+' Hold each board in place, mark where it crosses the posts, trim the ends flush, then drive two screws into every post, upright and rail it crosses. This is what stops the '+thing+' from leaning sideways.',add:['Back brace'],
      fasten:braceScrewCount(p)?[{line:`${fastenerPhrase(braceScrewCount(p),BRACE_SCREW)}: two through the Back brace into every Post, Upright, Rail and Foot it crosses (the brace is set at an angle, so these are counted here).`,uses:[[BRACE_SCREW,braceScrewCount(p)]]}]:[]}]:[]),
    ...(p.base==='cabinet'?[{t:'Close in the cabinet base. '+(tallSides?'Each end is too big for one sheet of plywood, so first stand a 2x4 panel stud flat against the ends of the frames, midway between the two end posts, and screw it to the end cross piece of every frame it passes. The two halves of each side panel meet on it. ':'')+'Glue and nail the thin plywood panels onto the outer ends'+(braced?'':' and the back')+'.'+(braced?'':backSeamWords(pl,rows[1].y+pl.rb))+PANEL_NAIL_HEADS+' '+doorStepText(pl,rows[1].y+pl.rb-1)+' Paint or seal every plywood edge so splashed water cannot soak in.',add:['Panel stud','Side panel','Back panel','Door stile','Door']}]:[]),
@@ -781,12 +886,36 @@ function standTopFrame(piece,parts){
   const lowest=Math.min(...railHeights),highest=Math.max(...railHeights);
   return highest>lowest+6&&piece.pos[1]>=highest-.01;   // the top rails and everything level with or above them
 }
+/* One frame of a rack above the bottom one (row: a row of rackPlan, pl: the plan): its rails, cross pieces, filler
+   blocks and deck, in every section. The frames are all built in one step and each is set on the uprights in the
+   stacking step, which "brings" them (stampSteps, js/buildsteps.js), so the screws between a frame and the posts
+   are listed in the step that drives them, not in the step that stands the posts. */
+const FRAME_PIECES=['Rail','Cross piece','Shelf deck','Filler block'];
+const upperFrame=(row,pl)=>piece=>FRAME_PIECES.includes(piece.name)&&piece.pos[1]>=row.y-.01&&piece.pos[1]<=row.y+pl.rh+.01;
 /* the rack's frame step in the stand's own words, in every build style */
 function standFrameStep(frames){
   const say=text=>text.replace(/^Build 2 shelf frames \(2 for the stand\)\./,'Build the two shelf frames. They are alike: one becomes the bottom of the stand and the other the top. (The picture of each step shows the pieces where they end up in the finished stand.)');
   const step={t:say(frames.t),add:frames.add};
   if(frames.byStyle)step.byStyle=Object.fromEntries(Object.entries(frames.byStyle).map(([style,text])=>[style,say(text)]));
   return step;
+}
+/* The step of the single stand that stands the uprights and lowers the top frame onto them. A stand long enough for
+   center posts (standCenterLines) gets them here too, with the pocket screws that hold every upright at its foot
+   and its top (STAND_JOINTS_CENTERS), in the words of each build style. */
+function standUprightStep(pl,uprightLength){
+  const centerLines=rackLayout(pl,pl.mods[0]).lines.filter(L=>L.center);
+  const corners=`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". `;
+  const lower=`Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws through the end cross piece into the post, then drive two 1 1/4" screws down through the deck into the top of each post. `;
+  const weight='The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.';
+  if(!centerLines.length)return{t:corners+lower+weight,add:['Upright'],bring:[standTopFrame]};
+  const places=listWords(centerLines.map(L=>fmt(r16(L.x-1.5))));
+  const pairs=centerLines.length===1?'one pair of center posts':`${centerLines.length} pairs of center posts`;
+  const say=style=>corners+
+    `The stand is ${fmt(pl.W)} long, so it gets ${pairs}: ${pl.up} uprights of the same length, one at the front and one at the back, flush with the front and the back of the frame, with ${centerLines.length===1?'the left edge of the pair':'the left edge of each pair'} at ${places} from the left end of the frame (inside the left posts). They hold the rails up in the middle, so the long span cannot sag over the years and crack the glass of the tank. `+
+    `Fasten the foot of every upright with pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, on its inside face, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through the deck and on into the frame). `+
+    lower+
+    `Fasten the top of every upright to the top frame ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}. `+weight;
+  return{...styledStep(byStyleWords(say),['Upright']),bring:[standTopFrame]};
 }
 function standSteps(p){
   const a=standArgs(p);
@@ -805,7 +934,7 @@ function standSteps(p){
           ' Drive a 1 1/4" screw about every 8" into the rails and two into each cross piece. The grain of the plywood face runs the long way. The deck spreads the weight of the tank and keeps the frame square.',add:['Shelf deck']},
       {t:(feet?`Glue a ${pl.up} foot (${fmt(pl.y0)} long) under each corner of the bottom frame, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). Stand the frame on its feet, deck up. `:'Set the bottom frame on the floor, deck up. ')+
           `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws from the inside through the cross piece at that end of the frame into the post. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`,add:['Foot','Post']},
-      {t:`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws through the end cross piece into the post, then drive two 1 1/4" screws down through the deck into the top of each post. The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.`,add:['Upright'],bring:[standTopFrame]});
+      standUprightStep(pl,uprightLength));
   }else{
     steps.push(...rack.slice(1).filter(step=>['Rail','Shelf deck','Post','Upright'].some(name=>step.add.includes(name))));
   }
@@ -986,10 +1115,12 @@ function standArgs(p){
   // An open stand (a shelf or a second tank underneath) has no plywood skin to keep it square, so it gets the
   // diagonal brace across its back. A closed one is braced by its back and side panels.
   const open=p.under==='tank'||p.under==='shelf';
-  // (doors: a cabinet stand gets a door stile in a bay too wide for one pair of doors, with a cross piece under it)
+  // (doors: a cabinet stand gets a door stile in a bay too wide for one pair of doors, with a cross piece under it;
+  // a stand long enough for center posts has its doors meet on those instead: doorsAroundCenters)
   const a=p.under==='tank'?{...p,W:p.tl+12,H:999,maxD:p.td+2,light:3,clr:Math.max(8,Math.ceil(p.th/2)),low:6,board:192,orient:'long',levels:2,r1:'',r2:'',perRow:1,brace:open}
     :{...p,W:p.tl+12,H:999,maxD:p.td+2,light:0,clr:0,low:0,board:192,orient:'long',levels:2,r1:'store',r2:'',perRow:1,brace:open};
   a.doors=p.under==='cabinet';
+  a.stand=true;   // center posts on a long one (standCenterLines)
   return rackPlan(a)?a:null;
 }
 const STAND_FIELDS={W:'',H:'',maxD:'',rows:'',thing:'stand',lower:'make the stand lower or pick a shorter tank'};
@@ -1012,8 +1143,8 @@ function standCheck(p){
     found[0]=enough
       ?stop(`A stand ${typedLen(p.standH)} tall is too low for this tank. It weighs about ${Math.round(pl.total).toLocaleString()} lb full and needs deeper rails than fit in that height with ${fmt(RACK_RULES.MIN_STORAGE)} of space between the two frames. With the ${pl.rail} rails that do fit, the rails are at ${pct(pl.util.rail)} of the rule-of-thumb limit.`,`Make the stand at least ${typedLen(enough)} tall.`)
       :pl.pastCap
-      ?stop(`This tank is too long for a stand held up only at its ends: the rails would span ${fmt(pl.span)}, and no rail may span more than ${fmt(pl.capSpan)} under a full tank.`,`Pick a tank no longer than ${typedLen(pl.capSpan-pl.su-1)}. A longer one needs a stand with legs under its middle, which this design does not draw.`)
-      :stop(`This tank is too long or too heavy for a stand held up only at its ends: about ${Math.round(pl.total).toLocaleString()} lb across ${fmt(pl.span)}. Even the biggest rail here is past its rule-of-thumb limit (${pct(pl.util.rail)}).`,'Pick a shorter or lighter tank. A tank this size needs a stand with legs under its middle, which this design does not draw.');
+      ?stop(`This tank is too long for this stand: the rails would span ${fmt(pl.span)} between uprights, and no rail may span more than ${fmt(pl.capSpan)} under a full tank.`,`Pick a tank no longer than ${typedLen(pl.capSpan-pl.su-1)}.`)
+      :stop(`This tank is too heavy for this stand: about ${Math.round(pl.total).toLocaleString()} lb with the rails spanning ${fmt(pl.span)} between uprights${pl.centers.length?' (center posts included)':''}. Even the biggest rail here is past its rule-of-thumb limit (${pct(pl.util.rail)}).`,'Pick a shorter or lighter tank.');
   }
   return found;
 }
@@ -1025,6 +1156,8 @@ function standNotes(p){const a=standArgs(p);if(!a)return[standCheck(p).map(f=>f.
   if(pl.wall)N.push(wallNote(pl,'stand',standWallGap(p)));
   N.push(pl.over?`OVERLOADED. The rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger size, set them back to Auto, or make the stand taller so deeper rails fit.`
     :`Load check: rails at ${pct(pl.util.rail)} and uprights at ${pct(pl.util.up)} of the rule-of-thumb limit.`);
+  const centers=centerPostsNote(pl,'stand');
+  if(centers)N.push(centers);
   const lights=lightsNote(a,pl);
   if(lights)N.push(lights);
   N.push(p.under==='tank'?'Both tanks are counted in the weight above. Leave room to reach into the lower one. With a second tank underneath, the height of the stand comes from the two tanks, not from Stand height.':'The lower shelf is for storage (filter, food, buckets), not a second tank.',
@@ -1144,7 +1277,8 @@ function selfTestFish(problems){
   expectRefusal(rack,'g5',{levels:'4',orient:'long',H:120,board:'192'},'Too tall for its depth'); // 7 ft 7" tall on a 9" base
   expectRefusal(rack,'g20h',{levels:'4'},'need');                                 // more rows than the height allows
   expectRefusal(rack,'g20h',{gal:5},'Gallons says');                              // gallons typed far too low for the tank's size
-  expectRefusal(stand,'g125',{standH:STAND_MIN_HEIGHT},'too low for this tank');
+  // (a 125 gallon tank fits on 2x4 frames 14" tall now that a long stand has center posts: a tank twice as heavy does not)
+  expectRefusal(stand,'g125',{size:'custom',tl:96,td:24,th:30,gal:300,standH:STAND_MIN_HEIGHT},'too low for this tank');
   expectRefusal(cabinet,'g20h',{levels:'3'},'Too tall for its depth');
   // the wall: a rack or a stand is fastened only when it is more than 4 times as tall as it is deep, and then it is
   // held by the screws into the wall studs that are in it (WALL_BY_SCREWS: js/rackwall.js)
@@ -1156,7 +1290,10 @@ function selfTestFish(problems){
   // narrower than it is deep: a stand for a tank 8" long and 36" front to back would fall over sideways
   const sideways={...presetDefaults(stand),size:'custom',tl:8,td:36,th:36,gal:44.9};
   if(!presetOptions(stand,sideways).wall.includes(WALL_BY_SCREWS)||checkPreset(stand,sideways).problems.length)say('wall',{},'a stand 66" tall and 15" wide must be on the wall, and clean once it is');
-  expectRefusal(stand,'g5',{size:'custom',tl:96,td:12,th:12,gal:60},'too long for a stand');      // no rail may span 8 ft under a tank
+  // An 8 ft tank was refused ("too long for a stand held up only at its ends"): no rail may span 8 ft under a tank. A
+  // long stand now has center posts (STAND_RULES), so it is built, with its rails held up at least every 36".
+  const eightFoot={size:'custom',tl:96,td:12,th:12,gal:60},eightCheck=tryOne(stand,'g5',eightFoot),eightPlan=rackPlan(standArgs(valuesFor(stand,'g5',eightFoot)));
+  if(!eightCheck||eightCheck.refused||!eightPlan||eightPlan.centers.length<2||eightPlan.span>STAND_RULES.most+1e-6)say('8 ft tank',eightFoot,'a stand for a 96" tank should be built with two pairs of center posts or more, its rails held up at least every 36"');
   expectRefusal(rack,'g75',{W:120,H:60,base:'shelf',low:0},'needs 2x6 rails');                    // the reason is the height the deeper rails take
   // sizes that are not on a 1/16": pieces must still meet exactly (no piece drawn into another)
   const odd={...presetDefaults(rack),size:'custom',tl:20.3,td:10.37,th:9.6,gal:8.5,low:5.3,clr:7.7,W:97.3};
@@ -1258,7 +1395,9 @@ SELFTESTS.push(function uprightsAndFeetAreHeld(problems){
 /* A door stile (where two pairs of doors meet in a wide bay of a cabinet base) is a piece of the frame: it is not
    put in the Doors with the doors (SUB_BY_NAME, js/components.js), so hanging the doors does not free it from the
    deck and the rail, and it is held by its own fasteners in every style. It was held by nothing: the 125 gallon
-   single stand and a rack of 125 gallon tanks on a cabinet base were found "only resting in place". */
+   single stand and a rack of 125 gallon tanks on a cabinet base were found "only resting in place". (Since stands
+   have center posts, those two cases have their doors meeting on the front center posts instead of on stiles: the
+   same is asked of those posts.) */
 SELFTESTS.push(function doorStilesAreHeld(problems){
   const say=text=>problems.push('door stiles: '+text);
   const named=name=>PRESETS.find(preset=>preset.name===name);
@@ -1269,8 +1408,15 @@ SELFTESTS.push(function doorStilesAreHeld(problems){
     if(!preset){say('a fish preset is missing');continue;}
     const vals={...presetDefaults(preset),...changes};
     placePreset(preset,vals,preset.build(vals),false);
-    const stiles=S.parts.filter(p=>p.name==='Door stile');
-    if(!stiles.length){say(`${preset.name}: the case has no door stile to check`);continue;}
+    // What the doors meet on inside a bay: a door stile, or, on a stand long enough for center posts (all of these
+    // cases since stands have them), the front center posts, which the doors follow instead (doorsAroundCenters).
+    // Either is a frame piece that must be held and must not be put in the Doors.
+    const args=preset.name==='Single aquarium stand'?standArgs(vals):vals,pl=rackPlan(args);
+    const centerXs=pl?pl.mods.flatMap((m,i)=>rackLayout(pl,m).lines.filter(L=>L.center).map(L=>pl.mods.slice(0,i).reduce((sum,s)=>sum+s.W,0)+L.x)):[];
+    const frontZ=Math.max(...S.parts.filter(p=>p.name==='Upright').map(p=>box(p).hi[2]));
+    const frontCenter=p=>p.name==='Upright'&&box(p).hi[2]>=frontZ-.01&&centerXs.some(x=>Math.abs(p.pos[0]-x)<.01);
+    const stiles=S.parts.filter(p=>p.name==='Door stile'||frontCenter(p));
+    if(!stiles.length){say(`${preset.name}: the case has no door stile or front center post to check`);continue;}
     if(stiles.some(p=>compChain(p.id).some(c=>c.name==='Doors')))say(`${preset.name}: a door stile is put in the Doors`);
     // (the brads of the thin end panels are on the outside of the ends: the steps say how to hide them)
     if(!buildPlan().steps.some(step=>/nail set and fill the holes/.test(step.words)))say(`${preset.name}: the steps do not say how to hide the brad heads on the ends`);
@@ -1284,4 +1430,208 @@ SELFTESTS.push(function doorStilesAreHeld(problems){
     }
   }
   look().style=styleKept;
+});
+/* Center posts under a long stand (woodworker's eye review, E4; reference sheet 08). A cabinet stand of two 20 gallon
+   tanks once stood on uprights at its two ends only, 51 1/2" apart, with the seam between the tanks right over the
+   middle of that span, and the structural check passed it. For the three stand designs (the Cabinet stand, the Single
+   aquarium stand and the rack on a cabinet base), at the sizes the forms start with and at longer and shorter ones:
+     - a stand STAND_RULES.from long or longer has no rail under tanks that runs more than STAND_RULES.most from one
+       upright to the next, and each pair of center posts has an upright at the front and one at the back;
+     - where a center post was needed in a bay that holds two tanks or more, it stands under a seam between two tanks;
+     - a stand up to 36" long gets none (the sheet: none up to 36");
+     - the same stand with its center posts taken out is refused by the structural check, with the code 'center-posts',
+       and so is a stand saved before stands said so (its set has no `stand`): Check my design finds it;
+     - the doors still hang on hinges, and every door opens all the way without hitting a center post. */
+SELFTESTS.push(function standsHaveCenterPosts(problems){
+  const say=text=>problems.push('center posts: '+text);
+  const named=name=>PRESETS.find(preset=>preset.name===name);
+  const rack=named('Fish tank wall / rack'),stand=named('Single aquarium stand'),cabinet=named('Cabinet stand with a row of tanks');
+  if(!rack||!stand||!cabinet){say('a fish preset is missing');return;}
+  const tankOf=key=>{const t=TANKS[key];return{size:key,tl:t[0],td:t[1],th:t[2],gal:t[3]};};
+  // [preset, changes, the plan's arguments of the form values]
+  const cases=[[cabinet,{},cabArgs],[cabinet,{W:48},cabArgs],[cabinet,{W:100},cabArgs],[cabinet,{W:144},cabArgs],[cabinet,{levels:'2'},cabArgs],
+    [cabinet,tankOf('g55'),cabArgs],[cabinet,{...tankOf('g10'),W:60},cabArgs],[cabinet,{...tankOf('g40b'),W:144},cabArgs],
+    [stand,{},standArgs],[stand,tankOf('g40b'),standArgs],[stand,tankOf('g55'),standArgs],[stand,{...tankOf('g55'),under:'tank'},standArgs],
+    [stand,{...tankOf('g125'),under:'panels'},standArgs],[stand,{...tankOf('g75'),under:'shelf'},standArgs],
+    // (doors over two pairs of center posts; three small tanks in a bay, a pair of doors in one stretch)
+    [stand,tankOf('g125'),standArgs],[cabinet,{...tankOf('g125'),W:84},cabArgs],[cabinet,{...tankOf('g5'),W:60},cabArgs],
+    [rack,{base:'cabinet',orient:'long',brace:false},p=>p],[rack,{base:'cabinet'},p=>p],[rack,{...tankOf('g55'),base:'cabinet',W:60,H:72},p=>p]];
+  const offsetOf=(pl,m)=>pl.mods.slice(0,pl.mods.indexOf(m)).reduce((sum,s)=>sum+s.W,0);   // where a section starts
+  const centerLines=pl=>pl.mods.flatMap(m=>rackLayout(pl,m).lines.filter(L=>L.center).map(L=>({x:offsetOf(pl,m)+L.x,w:L.w})));
+  const kept=JSON.stringify(S),styleKept=look().style;
+  let long=0,withPosts=0,seamChecked=0,shortChecked=0,doorsChecked=0;
+  try{
+    look().style='std';
+    for(const[preset,changes,argsOf]of cases){
+      const vals={...presetDefaults(preset),...changes},what=`${preset.name} ${JSON.stringify(changes)}`;
+      const args=argsOf(vals),pl=args?rackPlan(args):null;
+      const check=checkPreset(preset,vals);
+      if(!pl||check.refused){say(`${what}: not built (${check.stops.map(f=>f.text).join(' ')})`);continue;}
+      if(check.problems.length){say(`${what}: ${check.problems.map(f=>f.code).join(', ')}`);continue;}
+      const parts=check.parts,wood=parts.filter(p=>!isProp(p));
+      const length=Math.max(...wood.map(p=>box(p).hi[0]))-Math.min(...wood.map(p=>box(p).lo[0]));
+      const lines=centerLines(pl);
+      if(length<STAND_RULES.from-1e-6){
+        if(length<=36+1e-6){shortChecked++;if(lines.length)say(`${what}: a stand ${fmt(length)} long has center posts`);}
+        continue;
+      }
+      long++;
+      if(pl.span>STAND_RULES.most+1e-6)say(`${what}: the rails run ${fmt(pl.span)} between uprights`);
+      if(!lines.length)continue;   // its bays are short enough already (a cabinet stand with a line of uprights between every two tanks)
+      withPosts++;
+      // every pair of center posts has an upright at the front and one at the back
+      const uprights=parts.filter(p=>p.name==='Upright').map(box);
+      const standsAt=(x,atFront)=>uprights.some(b=>b.lo[0]<=x+1e-6&&b.hi[0]>=x-1e-6&&(atFront?b.hi[2]>=pl.D-.01:b.lo[2]<=.01));
+      for(const line of lines){
+        const x=line.x+line.w/2;
+        for(const atFront of[true,false])if(!standsAt(x,atFront))say(`${what}: the center posts at ${fmt(r16(line.x))} have no upright at the ${atFront?'front':'back'}`);
+      }
+      // a center post in a bay of two tanks or more stands under the seam between two of them
+      const busiest=pl.rows.filter(row=>!row.store&&row.c>1)[0];
+      if(busiest){
+        const tanks=parts.filter(p=>p.name==='Tank'&&Math.abs(p.pos[1]-(busiest.y+pl.rb))<.01).sort((a,b)=>a.pos[0]-b.pos[0]);
+        const seams=tanks.slice(1).map((t,i)=>(tanks[i].pos[0]+size(tanks[i])[0]+t.pos[0])/2);
+        for(const line of lines){
+          const near=seams.filter(x=>x>line.x-6&&x<line.x+line.w+6);
+          if(!near.length)continue;
+          seamChecked++;
+          if(!near.some(x=>x>=line.x-1e-6&&x<=line.x+line.w+1e-6))say(`${what}: the center posts at ${fmt(r16(line.x))} are not under the seam between the tanks (${near.map(x=>fmt(r16(x))).join(', ')})`);
+        }
+      }
+      // without its center posts, the structural check refuses it, with a stop of its own
+      const isCenter=p=>(p.name==='Upright'||p.name==='Foot')&&lines.some(L=>Math.abs(p.pos[0]-L.x)<.01);
+      const refused=checkPreset(preset,vals,parts.filter(p=>!isCenter(p))).problems.filter(f=>f.code==='center-posts');
+      if(!refused.length||refused.some(f=>f.level!=='stop'||!f.text||!f.fix))say(`${what}: without its center posts the structural check does not stop it with a reason and a fix`);
+      // placed: it says it is a stand, and its doors hang and open all the way, past the center posts
+      placePreset(preset,vals,preset.build(vals),false);
+      const set=S.sets[S.nextSet];
+      if(!set||set.stand!==true)say(`${what}: the placed stand does not say it is a stand`);
+      if(pl.doors){
+        const swings=movers().filter(mover=>mover.kind==='swing');
+        if(!swings.length)say(`${what}: the doors do not swing`);
+        for(const mover of swings){
+          doorsChecked++;
+          const reach=openReach(mover);
+          if(mover.stuck||reach.free<1)say(`${what}: ${mover.name} opens only ${Math.round(reach.free*100)}% of the way${reach.hit?`: it hits the ${reach.hit.other.name}`:''}`);
+        }
+        // the doors follow the center posts: two doors meet in front of every one (doorsAroundCenters), so no post
+        // stands behind the middle of a door, and no door stile stands between two center posts
+        const doorBoxes=S.parts.filter(p=>p.name==='Door').map(box).sort((a,b)=>a.lo[0]-b.lo[0]);
+        const meetings=doorBoxes.slice(1).map((door,i)=>(doorBoxes[i].hi[0]+door.lo[0])/2);
+        for(const line of lines)if(!meetings.some(x=>x>=line.x-1e-6&&x<=line.x+line.w+1e-6))say(`${what}: no two doors meet in front of the center posts at ${fmt(r16(line.x))}`);
+        if(S.parts.some(p=>p.name==='Door stile'))say(`${what}: a door stile stands beside the center posts`);
+        doorsChecked++;
+      }
+      // a stand saved before stands said so, without center posts: Check my design still finds it
+      S.parts=S.parts.filter(p=>!isCenter(p));
+      if(set)delete set.stand;
+      const saved=verifyDesign(S.parts,designCheckOptions());
+      if(!saved.problems.some(f=>f.code==='center-posts'))say(`${what}: a stand saved before stands said so, without center posts, passes Check my design`);
+      // and opening it says so in one line (oldStandNotice), once, not again on undo
+      const said=[],sayKept=sayOldStand;
+      sayOldStand=text=>said.push(text);
+      try{
+        oldStandSaidFor='';
+        oldStandNotice();
+        oldStandNotice();
+      }finally{sayOldStand=sayKept;}
+      if(said.length!==1||!/center posts/.test(said[0]||''))say(`${what}: opening a stand saved before center posts says ${said.length} lines about it, not one`);
+    }
+  }finally{
+    look().style=styleKept;
+    load(kept,true);
+  }
+  if(long<10)say(`only ${long} of the cases are 48" or longer, so the rule was hardly checked`);
+  if(withPosts<8)say(`only ${withPosts} of the cases have center posts, so they were hardly checked`);
+  if(!seamChecked)say('no center post was checked against the seam between two tanks');
+  if(!shortChecked)say('no stand up to 36" long was checked');
+  if(!doorsChecked)say('no door in front of a center post was opened');
+});
+/* Every step fastens only what is in place by then (woodworker's eye review, E5). The rack's step 4 stood the posts
+   and listed the screws through them into the TOP frame, which a beginner sets on the uprights only in step 5. A piece
+   is in place once the step that builds it, and, for a piece set in place later as part of something (the upper
+   frames, a section), once that step; a piece that rests on others is in place once one of them is. Every
+   "Fasten with" line of every step must join two pieces that are both in place at that step, and the picture of the
+   step that stands the posts must not show the upper frames. Tried on the rack, the rack with its tanks long side
+   out, on a cabinet base, with three rows, as one long wall with joined rails and as separate sections, and on the
+   Cabinet stand and the Single aquarium stand, short and long. */
+SELFTESTS.push(function stepsFastenOnlyWhatIsThere(problems){
+  const say=text=>problems.push('steps in order: '+text);
+  const named=name=>PRESETS.find(preset=>preset.name===name);
+  const cases=[['Fish tank wall / rack',{}],['Fish tank wall / rack',{orient:'long'}],['Fish tank wall / rack',{base:'cabinet',brace:false}],
+    ['Fish tank wall / rack',{levels:'3',H:110}],['Fish tank wall / rack',{W:240}],['Fish tank wall / rack',{W:240,build:'sections'}],
+    ['Cabinet stand with a row of tanks',{}],['Cabinet stand with a row of tanks',{levels:'2'}],
+    ['Single aquarium stand',{}],['Single aquarium stand',{under:'tank'}],['Single aquarium stand',{size:'g55',tl:48,td:13,th:21,gal:55}]];
+  const kept=JSON.stringify(S);
+  let links=0,postSteps=0;
+  try{
+    for(const[name,changes]of cases){
+      const preset=named(name);
+      if(!preset){say(`${name} is missing`);continue;}
+      const vals={...presetDefaults(preset),...changes},what=`${name} ${JSON.stringify(changes)}`;
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,preset.build(vals),false);
+      const plan=buildPlan(true),wood=S.parts.filter(p=>!isProp(p)&&plan.stepOfPiece.has(p.id));
+      // what each piece rests on: wood right under it that it overlaps
+      const boxes=new Map(wood.map(p=>[p.id,box(p)]));
+      const overlap=(b,c,k)=>Math.min(b.hi[k],c.hi[k])-Math.max(b.lo[k],c.lo[k]);
+      const restsOn=p=>{const b=boxes.get(p.id);return wood.filter(o=>{const c=boxes.get(o.id);return o!==p&&Math.abs(c.hi[1]-b.lo[1])<.02&&overlap(b,c,0)>.1&&overlap(b,c,2)>.1;});};
+      // When a piece is in place, seen from inside a part both pieces of a joint belong to (`shared`: a section of a
+      // fish wall is built as a rack of its own, so moving the whole section later does not count): the step that
+      // builds it, the steps that set it in place by a part not shared, and, for a piece that rests on others, the
+      // step where the first of them is in place.
+      const groupsOf=p=>((plan.placedIn&&plan.placedIn.get(p.id))||[]).map(placed=>placed.group);
+      // A piece off the floor that is set in place by no part and rests on nothing, or only on such pieces (a cross
+      // piece in the middle of a bay), hangs on its joints alone: it says nothing about when the rest is in place.
+      const hangMemo=new Map();
+      const hangs=(p,shared)=>{
+        const key=p.id+'|'+[...shared].sort().join(',');
+        if(hangMemo.has(key))return hangMemo.get(key);
+        hangMemo.set(key,true);
+        const result=boxes.get(p.id).lo[1]>.02&&!groupsOf(p).some(g=>!shared.has(g))&&restsOn(p).every(o=>hangs(o,shared));
+        hangMemo.set(key,result);
+        return result;
+      };
+      const memo=new Map();
+      const inPlace=(p,shared)=>{
+        const key=p.id+'|'+[...shared].sort().join(',');
+        if(memo.has(key))return memo.get(key);
+        let at=plan.stepOfPiece.get(p.id);
+        memo.set(key,at);   // (nothing rests on itself through a loop)
+        for(const placed of(plan.placedIn&&plan.placedIn.get(p.id))||[])if(!shared.has(placed.group))at=Math.max(at,placed.at);
+        const under=boxes.get(p.id).lo[1]>.02?restsOn(p).filter(o=>!hangs(o,shared)):[];
+        if(under.length)at=Math.max(at,Math.min(...under.map(o=>inPlace(o,shared))));
+        memo.set(key,at);
+        return at;
+      };
+      // A joint in a step fastens a piece that is in place to one that is not yet: the second one is in the air
+      // (two pieces that are both not in place yet are being put together on the bench, like a frame and its deck).
+      plan.steps.forEach((step,index)=>{
+        for(const group of step.groups)for(const link of group.links){
+          if(!boxes.has(link.a.id)||!boxes.has(link.b.id))continue;
+          links++;
+          const shared=new Set(groupsOf(link.a).filter(g=>groupsOf(link.b).includes(g)));
+          if(hangs(link.a,shared)||hangs(link.b,shared))continue;
+          const atA=inPlace(link.a,shared),atB=inPlace(link.b,shared);
+          if((atA<=index)!==(atB<=index)){
+            const late=atA>index?link.a:link.b;
+            say(`${what}: step ${index+1} fastens the ${link.a.name} to the ${link.b.name}, but the ${late.name} is not in place until step ${Math.max(atA,atB)+1}`);
+          }
+        }
+      });
+      // the step that stands the posts shows no frame above the bottom one
+      const postStep=plan.steps.findIndex(step=>step.pieces.some(p=>p.name==='Post'));
+      if(postStep<0){say(`${what}: no step stands the posts`);continue;}
+      postSteps++;
+      const away=piecesNotYetThere(plan,postStep),apart=partBuiltApart(plan,postStep);
+      const shown=p=>apart?apart.ids.has(p.id):!away.has(p.id);
+      const lowest=Math.min(...S.parts.filter(p=>p.name==='Rail').map(p=>p.pos[1]));
+      const upper=S.parts.filter(p=>FRAME_PIECES.includes(p.name)&&p.pos[1]>lowest+6&&plan.stepOfPiece.get(p.id)<postStep);
+      if(upper.some(shown))say(`${what}: the picture of step ${postStep+1}, where the posts go on, shows ${upper.filter(shown).length} pieces of the upper frames already in place`);
+    }
+  }finally{
+    load(kept,true);
+  }
+  if(links<200)say(`only ${links} fastened joints were looked at`);
+  if(postSteps<cases.length)say('a case was not checked');
 });

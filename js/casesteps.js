@@ -24,6 +24,21 @@
    have a shelf on both faces (the others stand beside an open bay). */
 const CASE_SECOND_BOARD=(high,some)=>`At each divider${some?' with a shelf on both of its faces':''}, screw through the divider into the end of the board in the bay on its left first (left as you face the front of the case), as the list below says. That board then covers the spot where a straight screw into the board on its right would go in. So glue the board on the right and fasten it with two of the same screws driven at an angle: start each one in the underside of the board, near its end, and slant it up into the divider`+
   (high.length?` (for the ${high.length>1?'shelves':'shelf'} at ${listWords(high)}, start them in the top face instead and slant them down: an underside that high is in plain sight from below)`:'')+'. Drill the pilot holes at the same slant.';
+/* Rule 13 (js/fasteners.js) as the fastener layout decides it, asked of the very pieces this case is built from:
+   the words read the same function as the layout (undersideHoleFace), so a step can never say "in its top face"
+   while its "Fasten with" lines say "the underside" (the woodworker's-eye review, E1: the top of a 40" x 84"
+   case with a divider, whose middle lies on the divider). parts: buildCase(p).
+     top          'under', 'top' or 'plugged', for the top that sits between the sides
+     shelfOnTop(y) true when every shelf whose underside is at height y takes its holes in its top face */
+function caseHoleFaces(parts){
+  const faceOf=piece=>undersideHoleFace(piece,parts);
+  const top=parts.find(piece=>piece.name==='Top');
+  const shelfOnTop=y=>{
+    const shelves=parts.filter(piece=>piece.name==='Shelf'&&Math.abs(piece.pos[1]-y)<.01);
+    return shelves.length>0&&shelves.every(piece=>faceOf(piece)==='top');
+  };
+  return{top:top?faceOf(top):'under',shelfOnTop};
+}
 const CASE_SECOND_RAIL='the one in the bay on its left (as you face the front) is screwed through the divider, and the one in the bay on its right gets its two screws driven at an angle through its end into the divider';
 
 /* Everyday and Fine furniture: every pocket hole is drilled in the marking step, before anything goes together
@@ -31,13 +46,14 @@ const CASE_SECOND_RAIL='the one in the bay on its left (as you face the front) i
    after it name the holes again with their screws. Returns {words, drill}: drill is the sentence that tells to
    drill the pocket holes, the step's drill field (styledStep, js/style.js), which the step leaves out while step 2
    "Drill your pieces" (js/drillplan.js) holds every pocket hole on its drawings. The screw holes through the sides
-   of a narrow bay are not pocket holes: their sentence always stays. */
-function casePocketHolesAhead(s,heights,highShelves){
-  const words=casePocketHolesAheadWords(s,heights,highShelves);
+   of a narrow bay are not pocket holes: their sentence always stays. faces: caseHoleFaces, the faces the fastener
+   layout really drills (the top's face named from it). */
+function casePocketHolesAhead(s,heights,highShelves,faces){
+  const words=casePocketHolesAheadWords(s,heights,highShelves,faces);
   const at=words.indexOf(' Then drill ');
   return{words,drill:at<0?[]:[words.slice(at)]};
 }
-function casePocketHolesAheadWords(s,heights,highShelves){
+function casePocketHolesAheadWords(s,heights,highShelves,faces){
   const div=s.dividers,bottoms=div?'each bottom board':'the bottom board',where=[];
   const shelvesToo=heights.length?(heights.length>1?' and of every shelf':' and of the shelf'):'';
   if(!s.narrow){
@@ -48,7 +64,7 @@ function casePocketHolesAheadWords(s,heights,highShelves){
     :`in each toe kick${s.baseRail?' and base rail':''}, on the face that will look into the space under the bottom, near its ends and along it`);
   if(s.backRail)where.push('in each back rail, on its back face, near its ends and along it');
   if(!s.narrow&&s.top==='inside'){
-    const face=caseBoardHoleFace(s.Hc-s.T,s.Hc,true)==='top'?'top face':'underside';
+    const face=faces.top==='top'?'top face':'underside';
     where.push(`near both ends of the top, in its ${face}`);
   }
   if(!s.narrow&&s.top==='over')where.push('near both ends of the two top rails, in their undersides');
@@ -61,6 +77,7 @@ function casePocketHolesAheadWords(s,heights,highShelves){
 
 function caseSteps(p){
   const s=casePlan(p),div=s.dividers,heights=s.shelfY.map(fmt);
+  const parts=buildCase(p),faces=caseHoleFaces(parts);   // the faces of the holes, as the fastener layout puts them
   const bottomWord=s.boards?'bottom board':'bottom panel',bottomWords=div?bottomWord+'s':bottomWord;
   const shelfWord=heights.length===1?'shelf':'shelves';
   const uprights=div?`the two sides and the ${div>1?div+' dividers':'divider'}`:'the two sides';
@@ -70,7 +87,7 @@ function caseSteps(p){
   const atDivider=div?' '+CASE_SECOND_BOARD([],false):'';
   // the shelves: the second board only at the dividers that have a shelf on both faces
   const pairedDividers=caseDividersWithPairedShelves(s);
-  const seenUnder=s.shelfY.filter(y=>y>SEEN.underAbove).map(fmt);
+  const seenUnder=s.shelfY.filter(faces.shelfOnTop).map(fmt);
   const atDividerHigh=pairedDividers?' '+CASE_SECOND_BOARD(seenUnder,pairedDividers<div):'';
   const railAtDivider=div?` At each divider, ${CASE_SECOND_RAIL}.`:'';
   const steps=[STORAGE_CUT_STEP];
@@ -82,7 +99,7 @@ function caseSteps(p){
 
   // marking: the heights of the bottom and every shelf, measured from the bottom end of the sides; in Everyday and
   // Fine furniture every pocket hole is drilled now too
-  const highShelves=s.shelfY.filter(y=>caseBoardHoleFace(y,y+s.T,false)==='top').map(fmt);
+  const highShelves=s.shelfY.filter(faces.shelfOnTop).map(fmt);
   const highNote=highShelves.length?` (in its top face instead for the ${highShelves.length>1?'shelves':'shelf'} at ${listWords(highShelves)}: an underside more than ${SEEN.underAbove}" up is in plain sight from below, and the books cover the top face)`:'';
   const openings=s.fit&&s.shelves?` Every opening between the boards is ${fmt(s.fit.gap)} clear${s.fit.alike?'':`, except the ${s.fit.at} one, which is ${fmt(s.fit.leftover)}`}. From the bottom up: ${caseBuiltOpenings(s).map(fmt).join(', ')}.`
     :s.customOpenings&&!s.fit?` The shelves are not evenly spaced. The clear openings between the boards are, from the bottom up: ${caseBuiltOpenings(s).map(fmt).join(', ')}.`:'';
@@ -90,7 +107,7 @@ function caseSteps(p){
   const shorter=!div?'':s.top==='rails'?` The ${div>1?'dividers are':'divider is'} as tall as the sides: the top rails fit between them.`
     :` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the ${s.top==='over'?'top rails sit':'top sits'} on ${div>1?'them':'it'}.`;
   const marking=`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: ${bottomMark}${heights.length?`, ${shelfWord} `+heights.join(', '):''}.`+openings+shorter;
-  const ahead=casePocketHolesAhead(s,heights,highShelves);
+  const ahead=casePocketHolesAhead(s,heights,highShelves,faces);
   steps.push(styledStep({std:marking+ahead.words,rustic:marking},['Side','Divider'],ahead.drill));
 
   // the bottoms
@@ -131,7 +148,7 @@ function caseSteps(p){
 
   // the top: a board between the sides, two flat rails under a top that lies on the case, or rails on edge
   if(s.top==='inside'){
-    const topFace=caseBoardHoleFace(s.Hc-s.T,s.Hc,true);
+    const topFace=faces.top;
     const topHoles=topFace==='top'?`from the holes in its top face near each end (the top is more than ${SEEN.topFrom}" up, above the eye, where nobody sees them; underneath they would be in plain sight from below), so nothing shows on the sides`
       :topFace==='plugged'?'from the holes in its underside near each end, so nothing shows on the top or on the sides. An underside this high is seen from below, so fill those holes with glued pocket-hole plugs, as the list says'
       :'from the holes in its underside near each end, so nothing shows on the top or on the sides';
@@ -203,5 +220,5 @@ function caseSteps(p){
   }
   if(s.top==='rails')stand+=' Then set the top you bought on the rails, as its maker says.';
   steps.push({t:stand,add:[]});
-  return stepsForPieces(steps,buildCase(p));
+  return stepsForPieces(steps,parts);
 }

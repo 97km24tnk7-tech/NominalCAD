@@ -213,8 +213,12 @@ function presetGate(preset,vals,build,note){
     return;
   }
   if(check.warns.length){
-    askConfirm(`It can be built, but look at ${check.warns.length===1?'this':'these'} first:\n\n${findingsText(check.warns)}\n\n${RULE_OF_THUMB}${note?'\n\n'+note:''}`,
-      {title:'This design is marginal',action:'Build anyway',cancel:'Go back',wide:true},()=>build(check.parts,true));
+    // Warnings that carry their own first word (f.word: "Does not fit." for a measured room, js/computerdesk.js) are
+    // not a design that is weak by rule of thumb: the window says what they are, and leaves out the rule-of-thumb line
+    const ownWords=[...new Set(check.warns.map(f=>f.word||''))];
+    const ownWord=ownWords.length===1&&ownWords[0]?ownWords[0].replace(/\.$/,''):'';
+    askConfirm(`It can be built, but look at ${check.warns.length===1?'this':'these'} first:\n\n${findingsText(check.warns)}${ownWord?'':'\n\n'+RULE_OF_THUMB}${note?'\n\n'+note:''}`,
+      {title:ownWord||'This design is marginal',action:'Build anyway',cancel:'Go back',wide:true},()=>build(check.parts,true));
     return;
   }
   build(check.parts,false);

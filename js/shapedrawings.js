@@ -12,11 +12,13 @@
                                left, with extension lines, slash ticks and the number on its own line
      shapesSection(list)       "Shapes to cut" on the cut list page: one drawing per shaped row, its numbered
                                "How to cut" lines and its tools
-     shapeCutStepLine(list)    the line the cutting step gets: "Then cut the shapes of C, E and F ..."
+     shapeCutStepLine(list, elsewhere)  the line the cutting step gets: "Then cut the shapes of C, E and F ...",
+                               leaving out the pieces whose shapes a later step of their own makes
      sheetRects(pieces, nameOf) the rectangles a list of plywood pieces is packed as: one per piece, except that a
                                piece cut once from corner to corner (a corner shelf) is packed two to a square
      sheetShapePath(item)      the outline of a shaped piece inside its rectangle on a cutting diagram
-     shapeToolLines()          the tools the shaped pieces of the design need (toolList, js/plans.js)
+     shapeToolLines(only, leaving)  the tools the shaped pieces of the design need (toolList, js/plans.js); of
+                               some pieces only, or leaving some out (the cutting step and a step of their own)
 
    The drawing here is a self-contained SVG shop drawing, not the marking-view layout of js/markingview.js, but it
    keeps the same rules: no text touches a line or another text, and every text is inside the picture (the picture
@@ -760,15 +762,19 @@ function shapesSection(list){
   }
   return h;
 }
-function shapeCutStepLine(list){
-  const letters=list.rows.filter(g=>g.sample&&g.sample.shape).map(g=>g.id);
+/* elsewhere: names of pieces whose shapes a later step of their own makes (a preset step's `shapes`, such as the
+   toy chest's air holes, js/builders-storage.js): the cutting step leaves them to that step */
+function shapeCutStepLine(list,elsewhere=[]){
+  const letters=list.rows.filter(g=>g.sample&&g.sample.shape&&!elsewhere.includes(g.sample.name)).map(g=>g.id);
   if(!letters.length)return'';
   const named=letters.length===1?letters[0]:letters.slice(0,-1).join(', ')+' and '+letters[letters.length-1];
   return`Then cut the shape${letters.length>1?'s':''} of ${named} as ${letters.length>1?'their drawings show':'its drawing shows'} (Shapes to cut, on the cut list page).`;
 }
-function shapeToolLines(){
+/* the tools the shaped pieces need; only: names to ask about (a step that makes the shapes of those pieces), or
+   leaving out: names whose shapes another step makes */
+function shapeToolLines(only=null,leaving=[]){
   const out=new Set();
-  for(const p of S.parts)if(p.shape&&!isProp(p))shapeTools(p).forEach(t=>out.add(t));
+  for(const p of S.parts)if(p.shape&&!isProp(p)&&(!only||only.includes(p.name))&&!leaving.includes(p.name))shapeTools(p).forEach(t=>out.add(t));
   return[...out];
 }
 

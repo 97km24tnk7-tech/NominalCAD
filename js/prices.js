@@ -130,6 +130,10 @@ const HARDWARE_PRICES=[
   {id:'slides',name:'Drawer slides',match:/drawer slide/i,pack:1,sold:'pair',price:15},
   {id:'drawer-runners',name:'Wooden drawer runners',match:/drawer runners?/i,pack:1,sold:'each (cut from a 1x2)',price:1,search:'1x2 hardwood board'},
   {id:'drawer-kickers',name:'Wooden drawer kickers',match:/drawer kickers?/i,pack:1,sold:'each (cut from a 1x2)',price:1,search:'1x2 hardwood board'},
+  // the longer screws for pulls on a drawer front with the drawer box front behind it (the Computer desk buys them,
+  // js/computerdesk.js): Everbilt #8-32 x 1-3/4 in. combo truss head zinc machine screws, 4-pack, Home Depot $1.38
+  // (model 804941, search snapshot, Nov 2026). Before 'pulls', whose words would match the line first.
+  {id:'pull-screws',name:'Machine screws, #8-32, for pulls',match:/machine screws?, #8-32/i,pack:4,sold:'pack of 4',price:1.38,search:'#8-32 x 1-3/4 in. machine screw'},
   {id:'pulls',name:'Door and drawer pulls',match:/pulls?\b|knobs?\b/i,pack:1,sold:'each',price:3.5},
   {id:'catches',name:'Magnetic door catches',match:/catch/i,pack:1,sold:'each',price:2.5},
   {id:'latch',name:'Gate latch or hasp',match:/latch|hasp/i,pack:1,sold:'each',price:9},
@@ -655,12 +659,13 @@ function shoppingModel(buy,hardware){
   }
   // the total is the sum of the row totals as they are shown, so the page always adds up
   const counts={yours:0,estimates:0,none:0};
-  let total=0;
+  let total=0,lumber=0;
   for(const row of rows){
     total+=row.total||0;
+    if(row.group==='lumber')lumber+=row.total||0;   // the lumber alone: the figure the presets window shows ("Lumber, about")
     counts[row.info.source==='yours'?'yours':row.info.source==='none'?'none':'estimates']++;
   }
-  return{rows,total:cents(total),counts};
+  return{rows,total:cents(total),lumber:cents(lumber),counts};
 }
 const dollars=amount=>amount===null?'':'$'+cents(amount).toFixed(2);
 /* what a price box shows: "3.98", or nothing when there is no price */
@@ -682,7 +687,10 @@ function shoppingSection(buy,hardware){
   const model=shoppingModel(buy,hardware);
   shopNow={buy,hardware,model};
   const rows=[];
+  // under the last lumber row, what the lumber alone comes to: the presets window quotes this ("Lumber, about")
+  const lumberRow=`<tr class="total"><td colspan="4">Lumber, before tax</td><td class="num c-lumber">${dollars(model.lumber)}</td><td class="noprint"></td></tr>`;
   model.rows.forEach((row,i)=>{
+    if(row.group==='hardware'&&i>0&&model.rows[i-1].group==='lumber')rows.push(lumberRow);
     if(row.group==='hardware'&&(i===0||model.rows[i-1].group!=='hardware'))rows.push(`<tr class="sub"><td colspan="6">Hardware and supplies</td></tr>`);
     rows.push(`<tr data-row="${i}"><td>${esc(row.name)}${row.note?` <span class="pnote">${esc(row.note)}</span>`:''}</td><td class="num">${row.qty}</td>`+
       // the price is a box to type in on screen and one plain number on paper (class "printonly")
@@ -719,6 +727,8 @@ function syncShopping(section){
     tr.querySelector('.c-total').textContent=dollars(row.total);
   });
   section.querySelector('.c-grand').textContent=dollars(model.total);
+  const lumberCell=section.querySelector('.c-lumber');
+  if(lumberCell)lumberCell.textContent=dollars(model.lumber);
   section.querySelector('.psrc').textContent=shoppingSourceSentence(model.counts);
   section.querySelector('.psum').textContent=shoppingCountSentence(model.counts);
   section.querySelector('.pnotice').textContent=priceNotice;

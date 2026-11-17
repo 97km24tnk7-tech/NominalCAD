@@ -34,6 +34,7 @@ const PRESETS=[
    num('storeH','Storage or cabinet height',16,6,48)],
   info:p=>rackNotes(p).slice(0,5).join(' '),notes:p=>rackNotes(p),build:buildRack,hw:p=>rackHw(p),
   uses:RACK_USES,wall:rackWallIfNeeded,check:p=>rackCheck(p),joints:RACK_JOINTS,
+  stand:p=>isStandPlan(p),   // on a cabinet base it is built as a stand: center posts in a long bay (STAND_RULES, js/verify.js)
   ...rackPresetHooks(p=>p,(p,args,pl)=>rackWallGap(args,pl))},   // wallScrews and place: the screws into the wall studs and the section bolts (js/rackwall.js)
  {name:'Single aquarium stand',spec:'One tank, cabinet below',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
   params:[{head:'Tank'},
@@ -46,7 +47,7 @@ const PRESETS=[
    {head:'Do it by hand (leave on Auto to let the program decide)'},
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
-  info:p=>standNotes(p).slice(0,3).join(' '),notes:p=>standNotes(p),uses:RACK_USES,wall:standWall,check:standCheck,joints:STAND_JOINTS,
+  info:p=>standNotes(p).slice(0,3).join(' '),notes:p=>standNotes(p),uses:RACK_USES,wall:standWall,check:standCheck,joints:standJoints,stand:true,
   ...rackPresetHooks(standArgs,p=>standWallGap(p)),
   hw(p){
     const a=standArgs(p),list=[];
@@ -73,7 +74,7 @@ const PRESETS=[
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
   info:p=>rackNotes(cabArgs(p),CABINET_FIELDS).slice(0,4).join(' '),notes:p=>rackNotes(cabArgs(p),CABINET_FIELDS),build:p=>buildRack(cabArgs(p)),hw:p=>rackHw(cabArgs(p)),steps:p=>rackSteps(cabArgs(p),false,'cabinet stand'),
-  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:RACK_JOINTS,
+  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:RACK_JOINTS,stand:true,
   ...rackPresetHooks(cabArgs,(p,args,pl)=>rackWallGap(args,pl))},
  {name:'Platform bed',spec:'2x6 frame, 1x4 slats',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
   params:[{k:'size',label:'Mattress',opts:[['twin','Twin'],['twinxl','Twin XL'],['full','Full'],['queen','Queen'],['king','King'],['calking','California king'],['custom','Custom (type below)']],v:'queen',
@@ -212,6 +213,28 @@ const FIN={t:'Sand everything: 80 grit, then 120, then 180, and round over the s
    top on from underneath with pocket screws in the aprons and cross rails (TABLE_HOUSE_JOINTS in
    js/builders-furniture.js), and in Rustic / rough it is screwed down through the top, heads showing. A shop
    workbench (TABLE_KINDS: shop) keeps its top screwed down in Everyday too. */
+/* The slatted lower shelf of a Coffee table or an Entryway shoe bench, built as one piece upside down on the bench
+   before it goes into the table (see tableSteps). Where each slat goes is given as numbers along the stretchers,
+   from the pieces as buildTable places them (the same rounding to 1/16"), so the pencil marks match the model; where
+   the pocket holes go under each slat is the "Fasten with" line's, with its "Where to mark" view (one crossing,
+   measured from the edges of the slat: crossingPocketWords in js/buildsteps.js). */
+function slattedShelfStep(plan){
+  const shelf=plan.shelf,slatW=M[shelf.mat].w,start=r16(plan.over+plan.leg);
+  const edges=[];
+  for(let i=0;i<shelf.slats;i++)edges.push(fmt(r16(plan.over+plan.leg+shelf.slatGap+i*(slatW+shelf.slatGap))-start));
+  // (the shoe bench is named "shoe bench", never plain "bench": "your bench" in these words is the workbench)
+  const low=fmt(shelf.low),piece=plan.topName==='Seat board'?'shoe bench':'table';
+  const why=`Build the lower shelf as one piece now, upside down on your bench, before it goes into the ${piece}: once it stands on its legs, a drill cannot get under stretchers only ${low} off the floor.`;
+  // Rustic screws go down through the slats, face up: no turning over, so its own reason for the bench
+  const rusticWhy=`Build the lower shelf as one piece now, on your bench, before it goes into the ${piece}: the slats are easier to space and to screw at bench height than down between the legs, ${low} off the floor.`;
+  const mark=` Clamp the two long stretchers side by side, ends lined up, and from one end mark across both at once where each slat starts: ${listWords(edges)}. Each slat covers ${fmt(slatW)} from its mark (the gaps between the slats are about ${fmt(shelf.slatGap)}, the same at each end).`;
+  const drill=` On the inside face of each stretcher, drill the pocket holes listed below for the slats, at each slat's marks as the "Where to mark" view of each line shows, and the two at each end that will hold the stretcher to the legs.`;
+  const assemble=` Then lay the slats best face down on the bench, side by side. Stand the two stretchers on edge on them, the drilled faces toward each other and the outside faces flush with the ends of the slats, and line the slats up with the marks. Glue each joint and drive the pocket screws listed below down into the slats. The bench holds the slats flat; press each stretcher down on its marks as you drive (or clamp it to the slat), because a pocket screw pulls the piece it starts in a little as it tightens.`;
+  const rustic=`${rusticWhy} Stand the two long stretchers on edge on the bench, parallel, as far apart as the slats are long. Lay the slats across them, best face up, flush with the outside faces of the stretchers, the first and the last ${fmt(shelf.slatGap)} in from the ends and the rest spaced evenly (their edges ${listWords(edges)} from one end). Glue each joint and drive two screws down through each end of every slat into the stretcher under it.`;
+  // drill: the sentence that drills the pocket holes is the step's drill field (styledStep, js/style.js), left out
+  // of what the step shows while step 2 "Drill your pieces" holds those holes on its drawings (js/drillplan.js)
+  return styledStep({std:why+mark+drill+assemble,rustic},['Long stretcher','Shelf slat'],[drill]);
+}
 function tableSteps(plan){
   const shelf=plan.shelf,low=fmt(shelf?shelf.low:plan.lowY),seat=plan.topName==='Seat board';
   const shop=!!(TABLE_KINDS[plan.name]&&TABLE_KINDS[plan.name].shop),surface=seat?'seat':'top';
@@ -239,14 +262,25 @@ function tableSteps(plan){
     fine:endFrames+(shortEnds?dowelWords+shortWhy:pocketWords)+drillForTop+square,
     rustic:endFrames+throughLeg+square},
     ['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[]),[drillInside,drillForTop]));
-  const longAprons='Stand the end frames up and join them with the two long aprons, flush with the top of the legs and with their outside faces.'+
+  // A slatted lower shelf is built as one piece first, upside down on the bench (the woodworker's-eye review, E2):
+  // its pocket screws go UP into the slats, and with the table on its legs no drill fits under stretchers 3" off
+  // the floor. On the bench, upside down, every screw is driven down, the slats lie flat on the bench and the
+  // stretchers stand on them (a hand on each stretcher, or one clamp, keeps it on its marks). The shelf is then set between the end frames on blocks as
+  // tall as its stretchers are off the floor, and its stretchers are fastened to the legs (bring: those joints are
+  // listed in that step, where they are driven).
+  const slatted=!!(shelf&&shelf.slats);
+  if(slatted)steps.push(slattedShelfStep(plan));
+  const shelfIn=`Stand the end frames up with the lower shelf you built between them, slats up: its stretchers rest on two scrap blocks ${low} tall, so their undersides are ${low} up from the floor, flush with the outside faces of the legs. Join the end frames with the two long aprons, flush with the top of the legs and with their outside faces.`;
+  const longAprons=slatted?shelfIn:'Stand the end frames up and join them with the two long aprons, flush with the top of the legs and with their outside faces.'+
     (shelf?` Add the long stretchers with their undersides ${low} up from the floor.`:'');
+  const reachIn=slatted?' Reach in under the slats to drive the pocket screws at the ends of the stretchers.':'';
   const squareFrame=' Measure corner to corner both ways: the frame is square when the two measurements match.';
   steps.push(styledStep({
     std:longAprons+(shortEnds?' Glue these joints and fasten them with two pocket screws at each end, from holes drilled on the inside face of the long apron, where they will not show.'
-      :' Glue these joints and fasten them with two pocket screws at each end, the same way.')+squareFrame,
+      :' Glue these joints and fasten them with two pocket screws at each end, the same way.')+reachIn+squareFrame,
     rustic:longAprons+' Glue these joints and screw them through the legs the same way, with the screws listed below.'+squareFrame},
-    ['Long apron'].concat(shelf?['Long stretcher']:[])));
+    ['Long apron'].concat(shelf&&!slatted?['Long stretcher']:[])));
+  if(slatted)steps[steps.length-1].bring=[piece=>piece.name==='Long stretcher'||piece.name==='Shelf slat'];
   if(plan.railCount){
     // where the middle of each cross rail goes, measured along a long apron from the outside face of one end frame
     const middles=[];
@@ -274,13 +308,6 @@ function tableSteps(plan){
       fine:railPlace+' Drive the pocket screws listed below from holes in each end of a rail into the stretchers (drill them before the rails go in),'+toLegs},
       ['Shelf rail'],[' (drill them before the rails go in)']));
   }
-  if(shelf&&shelf.slats){
-    const lay=`Lay the shelf slats across the long stretchers with even gaps of about ${fmt(shelf.slatGap)}`;
-    const down=`${lay}, and drive two screws down through each end of every slat into the stretcher under it.`;
-    const drillSlats=' Drill those holes before the stretchers go in, at the places the list gives.';
-    const below=`${lay}, and fasten each one from below: drive the pocket screws listed below from the holes on the inside face of the long stretchers up into the ends of the slats.${drillSlats}`;
-    steps.push(styledStep({std:below,fine:below,rustic:down},['Shelf slat'],[drillSlats]));
-  }
   if(shelf&&shelf.sheet){
     const drop='Drop the lower shelf onto the stretchers and shelf rails, between the legs, and ';
     steps.push(styledStep({
@@ -304,6 +331,75 @@ function tableSteps(plan){
   steps.push(FIN);
   return steps;
 }
+/* The woodworker's-eye review, E2: the slat step of the Coffee table and the Entryway shoe bench gave no places for
+   its pocket holes, had no "Where to mark" view, and drove the screws up from under stretchers 3" off the floor.
+   Now the shelf is built first, upside down on the bench (slattedShelfStep). Tried at the default size and at the
+   corners of each form's limits, in all three styles: the stretchers and the slats go in one step, before the long
+   aprons, and that step has no leg in it; the slats' screws are all in that step and the stretchers' joints with
+   the legs in the step that sets the shelf in place; the words give where every slat starts, as built; and in
+   Everyday and Fine every line of screws into the slats says where its holes go in numbers and has a marking view
+   with sizes. */
+SELFTESTS.push(function slattedShelfBuiltOnTheBench(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('slatted shelf: '+text);};
+  const kept=JSON.stringify(S);
+  try{
+    for(const name of['Coffee table','Entryway shoe bench']){
+      const preset=PRESETS.find(row=>row.name===name);
+      if(!preset){wrong(`${name} is missing`);continue;}
+      const limits=preset.params.filter(q=>q.min!==undefined);
+      const corners=[{}].concat(limits.map(q=>({[q.k]:q.min})),limits.map(q=>({[q.k]:q.max})),
+        [Object.fromEntries(limits.map(q=>[q.k,q.min])),Object.fromEntries(limits.map(q=>[q.k,q.max]))]);
+      let tried=0;
+      for(const corner of corners){
+        const vals={...presetDefaults(preset),...corner};
+        if((preset.check(vals)||[]).some(f=>f.level==='stop'))continue;
+        const parts=preset.build(vals);
+        if(!parts.some(piece=>piece.name==='Shelf slat'))continue;
+        tried++;
+        for(const style of Object.keys(STYLES)){
+          const label=`${name} ${JSON.stringify(corner)} in ${STYLES[style][0]}`;
+          load(JSON.stringify(blank()),true);
+          placeInStyle(preset,vals,style);
+          const plan=buildPlan(true);
+          const stepOf=new Map();
+          plan.steps.forEach((step,index)=>step.pieces.forEach(piece=>stepOf.set(piece.id,index)));
+          const of=pieceName=>[...new Set(S.parts.filter(piece=>piece.name===pieceName).map(piece=>stepOf.get(piece.id)))];
+          const shelfStep=of('Shelf slat'),stretcherStep=of('Long stretcher'),apronStep=of('Long apron');
+          if(shelfStep.length!==1||stretcherStep.length!==1||shelfStep[0]!==stretcherStep[0]){wrong(`${label}: the stretchers and the slats are not built in one step`);continue;}
+          const shelf=plan.steps[shelfStep[0]];
+          if(!(shelfStep[0]<apronStep[0]))wrong(`${label}: the shelf is built after the long aprons`);
+          if(shelf.pieces.some(piece=>piece.name!=='Shelf slat'&&piece.name!=='Long stretcher'))wrong(`${label}: the shelf step also adds ${shelf.pieces.find(piece=>piece.name!=='Shelf slat'&&piece.name!=='Long stretcher').name}`);
+          // Everyday and Fine drive the pocket screws down with the shelf upside down; Rustic screws down through
+          // the slats face up, so its words must not tell anyone to turn it over
+          if(style!=='rustic'&&!/upside down on your bench/.test(shelf.words))wrong(`${label}: the shelf step does not say to build it upside down on the bench`);
+          if(style==='rustic'&&(!/on your bench/.test(shelf.words)||/upside down/.test(shelf.words)))wrong(`${label}: the Rustic shelf step says to turn the shelf upside down, but its screws go down through the slats face up`);
+          if(/nothing needs a clamp/.test(shelf.words))wrong(`${label}: the shelf step says pocket screws need no clamp or hand to hold them`);
+          // the screws of the shelf in its own step, and those of the stretchers into the legs where the shelf is set in
+          const linesOf=step=>step.groups.flatMap(group=>group.links);
+          const slatLinks=plan.steps.flatMap((step,index)=>linesOf(step).filter(link=>[link.a.name,link.b.name].includes('Shelf slat')).map(()=>index));
+          if(slatLinks.some(index=>index!==shelfStep[0]))wrong(`${label}: a joint of a slat is fastened outside the shelf step`);
+          const legLinks=plan.steps.flatMap((step,index)=>linesOf(step).filter(link=>[link.a.name,link.b.name].includes('Long stretcher')&&[link.a.name,link.b.name].includes('Leg')).map(()=>index));
+          if(!legLinks.length||legLinks.some(index=>index!==apronStep[0]))wrong(`${label}: the stretchers are not fastened to the legs in the step that sets the shelf in place`);
+          // where each slat starts, as built, from the end of the stretchers
+          const stretcher=S.parts.find(piece=>piece.name==='Long stretcher');
+          const missing=S.parts.filter(piece=>piece.name==='Shelf slat').map(slat=>fmt(r16(slat.pos[0]-stretcher.pos[0]))).filter(text=>!shelf.words.includes(text));
+          if(missing.length)wrong(`${label}: the shelf step does not give where the slats start at ${missing.join(', ')}`);
+          if(style==='rustic')continue;
+          // every line of pocket screws into the slats: the places in numbers, and a marking view with sizes
+          for(const group of shelf.groups){
+            if(!group.links.some(link=>[link.a.name,link.b.name].includes('Shelf slat')))continue;
+            if(!/\d/.test(group.where||''))wrong(`${label}: line ${group.no} (${group.line.slice(0,60)}) does not say where its holes go`);
+            const view=jointMarkPlan(group,plan.letterOf);
+            if(!view||!view.dims.length)wrong(`${label}: line ${group.no} has no "Where to mark" view with sizes`);
+          }
+          // no step tells anyone to drive screws up into the slats with the piece standing
+          if(plan.steps.some(step=>/fasten each one from below/.test(step.words)))wrong(`${label}: a step still fastens the slats from below`);
+        }
+      }
+      if(tried<3)wrong(`${name}: only ${tried} sizes with a slatted shelf were tried`);
+    }
+  }finally{load(kept,true);}
+});});
 function bedSteps(p){
   const plan=bedPlan(p),beams=plan.beamXs.length,legs=plan.beamLegZs.length;
   // The head and the foot are the ends people look at: in Everyday and Fine nothing goes through the end rails
@@ -393,6 +489,8 @@ const STEPS={
         A design held by screws into the wall studs that are placed in it as hardware (the fish presets) declares
         wall:[WALL_BY_SCREWS], wallScrews(p, parts) for the screws placing it will drive, and place(p, parts), which
         puts its own hardware into the design once its pieces are in (js/rackwall.js): the check counts the screws.
+        stand:true (or a function of the form values) says the design is an aquarium stand: one 48" or longer must
+        have center posts, so no rail under tanks runs more than 36" between uprights (STAND_RULES in js/verify.js).
         variants:[{roof:'lean'}] lists other settings of the form that selfTest must also try at every limit.
         selfTest().structural lists every preset that does not pass yet.
       - joints:[['Side','Top','glue']] names the fastener between two kinds of piece (a key of JTYPES in js/joints.js)
