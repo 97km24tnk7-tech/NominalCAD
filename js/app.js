@@ -221,20 +221,21 @@ function presetField(q,index){
     return`<div class="sec" ${row}>${esc(title)}${remark?`<i>${esc(remark)}</i>`:''}</div>`;
   }
   const[label,remark]=splitLabel(q.label),id='pf-'+q.k,hint=remark?`<i>${esc(remark)}</i>`:'';
+  const frow=q.sub?'frow sub':'frow';   // sub: a row of an option, drawn indented under it (under() in js/presets.js)
   if(q.opts){
     const options=q.opts.map(([value,text])=>`<option value="${value}"${value===q.v?' selected':''}>${esc(text)}</option>`).join('');
-    return`<div class="frow" ${row}><label for="${id}">${esc(label)} ${hint}</label><select class="fld" id="${id}" data-k="${q.k}">${options}</select></div>`;
+    return`<div class="${frow}" ${row}><label for="${id}">${esc(label)} ${hint}</label><select class="fld" id="${id}" data-k="${q.k}">${options}</select></div>`;
   }
   if(q.check){
-    return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><span class="ck"><input type="checkbox" id="${id}" data-k="${q.k}"${q.v?' checked':''}>${hint}</span></div>`;
+    return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><span class="ck"><input type="checkbox" id="${id}" data-k="${q.k}"${q.v?' checked':''}>${hint}</span></div>`;
   }
   // A count (int) or a plain number (dec: gallons, a roof slope) shows as typed. A size shows the way every
   // length box does, 2'-8" over 12" (boxLen, js/core.js), and is tidied into that form when the box is left
   // (data-len, js/lengthboxes.js).
   if(q.int||q.dec){
-    return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${q.v}">${hint}</div>`;
+    return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${q.v}">${hint}</div>`;
   }
-  return`<div class="frow" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" data-len value="${esc(boxLen(q.v))}">${hint}</div>`;
+  return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" data-len value="${esc(boxLen(q.v))}">${hint}</div>`;
 }
 /* A row of the form may only make sense with some of the other choices: the Bookshelf's "Opening 3" box needs
    three shelves and the choice to set the heights by hand. Such an entry of params carries show(p), which is
@@ -441,7 +442,7 @@ function placePreset(preset,vals,parts,add,entryName){
   // Bookshelf is screwed to the wall. The marginal findings of the preset's own check(p) (a nightstand that a
   // full open drawer nearly tips) are kept with it too, so that Check my design can repeat them.
   const declared=presetOptions(preset,vals);
-  const ownWarnings=(preset.check?preset.check(vals)||[]:[]).filter(f=>f.level==='warn').map(f=>({text:f.text,fix:f.fix||''}));
+  const ownWarnings=(preset.check?preset.check(vals)||[]:[]).filter(f=>f.level==='warn').map(f=>({text:f.text,fix:f.fix||'',...(f.word?{word:f.word}:{})}));
   if(add){
     const b=bbox(S.parts),dx=b?b.hi[0]+8:0;
     parts.forEach(p=>p.pos[0]=r16(p.pos[0]+dx));

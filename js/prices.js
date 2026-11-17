@@ -151,6 +151,14 @@ const HARDWARE_PRICES=[
   {id:'blocks',name:'Solid concrete blocks',match:/concrete blocks/i,pack:1,sold:'each',price:2.5,search:'solid concrete block 4 in. x 8 in. x 16 in.'},
   {id:'screw-eyes',name:'Screw eyes',match:/screw eyes/i,pack:1,sold:'each',price:1},
   {id:'chain',name:'Chain or rope',match:/chain or rope/i,pack:1,sold:'per foot',price:1,search:'chain by the foot'},
+  // the Computer desk (js/computerdesk.js), each price from reference sheet 22 (design\reference\22-computer-desks.md, sources 59 and 61-63):
+  // edge banding EDGEMATE 13/16" x 25 ft, $10-$13 [22 l.392]; the power strip Digital Energy 15 ft 6-outlet, two
+  // keyhole mounting holes on the back, Home Depot $18.96; round-head screws Everbilt #8 x 3/4" 6-pack, Home Depot
+  // $1.38; the hook a screw-mount under-desk headphone hook, $29 online (Home Depot lists clamp-on hooks only).
+  {id:'edge-banding',name:'Edge banding, 13/16" iron-on',match:/edge banding/i,pack:1,sold:'25 ft roll',price:12,search:'13/16 in. iron-on edge banding 25 ft.'},
+  {id:'power-strip',name:'Power strip, 6 outlets',match:/^power strip/i,pack:1,sold:'each',price:18.96,search:'6 outlet power strip surge protector keyhole mounting'},
+  {id:'desk-hook',name:'Screw-on hook for headphones',match:/screw-on hook/i,pack:1,sold:'each',price:29,search:'screw mount under desk headphone hook'},
+  {id:'round-head-screws',name:'Round-head wood screws, #8 × 3/4"',match:/round-head (wood )?screws/i,pack:6,sold:'pack of 6',price:1.38,search:'#8 x 3/4 in. Phillips round head zinc plated wood screw'},
   {id:'sandpaper',name:'Sandpaper',match:/sandpaper/i,pack:1,sold:'pack',price:6,search:'sandpaper assorted grit pack'},
   {id:'filler',name:'Wood filler',match:/wood filler/i,pack:1,sold:'small tub',price:6,search:'wood filler'},
   {id:'conditioner',name:'Pre-stain wood conditioner',match:/conditioner/i,pack:1,sold:'quart',price:16,search:'pre-stain wood conditioner quart'},

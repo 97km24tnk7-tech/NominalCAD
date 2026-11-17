@@ -27,7 +27,8 @@ const RULE_OF_THUMB='These are rule-of-thumb checks, not an engineer\'s certific
 /* ---------- findings as HTML and as text ---------- */
 function findingsHtml(problems,clickable){
   return problems.map((f,n)=>{
-    const body=`${icon('i-warn')}<span><b>${FINDING_WORDS[f.level]}</b> ${esc(f.text)}<small>${esc(f.fix)}</small></span>`;
+    // f.word: a finding may carry its own first word ("Does not fit." for a measured room, js/computerdesk.js)
+    const body=`${icon('i-warn')}<span><b>${esc(f.word||FINDING_WORDS[f.level])}</b> ${esc(f.text)}<small>${esc(f.fix)}</small></span>`;
     if(clickable&&f.ids.length){
       const what=f.ids.length===1?'this piece':`these ${f.ids.length} pieces`;
       return`<button class="chk-i ${f.level}" data-n="${n}" title="Select and zoom to ${what}">${body}</button>`;
@@ -59,7 +60,7 @@ function keptWarnings(){
     const ids=S.parts.filter(p=>String(p.set)===number).map(p=>p.id);
     if(!ids.length)continue;
     for(const warning of set.warnings){
-      out.push({level:'warn',code:'preset',ids,text:String(warning.text||''),
+      out.push({level:'warn',code:'preset',ids,text:String(warning.text||''),...(warning.word?{word:String(warning.word)}:{}),
         fix:[warning.fix,`This was worked out for the sizes the ${set.entry||set.name||'preset'} was made with.`].filter(Boolean).join(' ')});
     }
   }

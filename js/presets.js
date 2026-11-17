@@ -186,6 +186,20 @@ const PRESETS=[
   uses:WALL_SHELF_USES,wall:WALL_SHELF_ON_WALL,joints:WALL_SHELF_JOINTS},
 ];
 
+/* ---------- an option's own rows ----------
+   A check box (or a choice) that reveals its own rows: under('riser', [rows]) gives each row a show(p) that keeps it
+   on the form only while the row `key` above it is ticked (or, with test, while test(p[key]) is true), and its own
+   show(p) as well when it has one. The rows carry sub:1, and the form draws them indented under their option
+   (presetField, js/app.js; .frow.sub in css/style.css). A hidden row hands build(p) its start value, as every
+   hidden row does. The owner: "i want most of the options hidden behind check boxes". Used by the Computer desk
+   (js/computerdesk.js); every other form can take it later. */
+function under(key,rows,test){
+  return rows.map(row=>{
+    const own=row.show;
+    return{...row,sub:1,show:p=>(test?test(p[key]):!!p[key])&&(own?own(p):true)};
+  });
+}
+
 /* ---------- step-by-step instructions for presets ----------
    A sentence in a step never states a count or a size that the "Fasten with" list under it contradicts: the
    numbers below are the ones jSpec (js/style.js) works out for these joints, and where a size depends on the

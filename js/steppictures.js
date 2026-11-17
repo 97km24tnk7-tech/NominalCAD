@@ -432,7 +432,10 @@ function hardwareCloseupPlan(row){
     if(!side)return null;
     const mine=row.items.filter(other=>(kicker?other.on:other.to)===side.id);
     const sideBox=plainBox(side),inner=side.ax[2];   // the way through the thickness of the side: toward the drawers
-    const middle=designMiddle(),insideSign=middle[inner]>(sideBox.lo[inner]+sideBox.hi[inner])/2?1:-1;
+    // the face the strips are on: the side of the panel where the first one sits (the middle of the design is not
+    // always inside the cabinet: a drawer case at one end of a desk has the knee space beside it)
+    const firstStrip=hardwarePose(mine[0]).at.getComponent(inner);
+    const insideSign=firstStrip>(sideBox.lo[inner]+sideBox.hi[inner])/2?1:-1;
     const insideFace=insideSign>0?sideBox.hi[inner]:sideBox.lo[inner];
     const travel=[0,2].find(k=>k!==inner);
     const dims=[],show=[side.id];

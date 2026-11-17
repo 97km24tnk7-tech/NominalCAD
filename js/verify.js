@@ -2024,7 +2024,8 @@ function presetDefaults(preset){
 }
 function checkPreset(preset,vals,parts,extra){
   parts=parts||preset.build(vals);
-  const own=(preset.check?preset.check(vals)||[]:[]).map(f=>({level:f.level==='warn'?'warn':'stop',code:f.code||'input',ids:f.ids||[],text:f.text,fix:f.fix||''}));
+  // (word: a preset may name a warning its own way, "Does not fit." for a room it was measured against; findingsHtml, js/checkui.js)
+  const own=(preset.check?preset.check(vals)||[]:[]).map(f=>({level:f.level==='warn'?'warn':'stop',code:f.code||'input',ids:f.ids||[],text:f.text,fix:f.fix||'',...(f.word?{word:f.word}:{})}));
   // the pieces are not in a project yet, so the fasteners the preset names (its `joints`) are handed over by name
   // (a preset's `joints` may be a function of the form values, like its uses and wall)
   const options=Object.assign(presetOptions(preset,vals),{namedJoints:typeof preset.joints==='function'?preset.joints(vals)||[]:preset.joints||[]},extra||{});

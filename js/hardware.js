@@ -177,6 +177,18 @@ const HARDWARE={
     buy:()=>'Shelf pins, 1/4"',screws:'None: it pushes into a 1/4" hole',
     mount:'Drill 1/4" holes, 3/8" deep, at the same height on both sides (four per shelf). Push the pins in and rest the shelf on them.',
     shape:s=>({on:[cyl3([0,.2,0],s/2,.4,'y','steel'),box3([0,.33,.16],[.3,.06,.36],'steel')],to:[]})},
+  /* The Computer desk's (js/computerdesk.js): a 6-outlet power strip hung on the inside of the back apron, and a
+     screw-on hook on the outside of a short apron [reference sheet 22 l.198, l.292]. Neither moves nor holds a piece. */
+  strip:{name:'Power strip',group:'Desk',sizes:[[11.5,'6 outlets']],size:11.5,term:'Power strip',plain:/^Power strip/i,
+    buy:()=>'Power strip, 6 outlets, keyhole slots on the back (or use your own)',screws:'2 round-head wood screws, #8 × 3/4", for its keyhole slots',
+    mount:'Hold the strip where it goes and mark through its two keyhole slots, drive the screws until the heads stand out about 1/8", and hang the strip on them.',
+    // x along the apron, y out of its face toward you, z up and down
+    shape:s=>({on:[box3([0,.625,0],[s,1.25,1.75],'white'),...[-3.75,-2.25,-.75,.75,2.25,3.75].map(x=>box3([x,1.26,0],[.55,.04,.7],'dark'))],to:[]})},
+  hook:{name:'Desk hook',group:'Desk',sizes:[[1.8,'about 1 3/4" wide']],size:1.8,term:'Desk hook',plain:/^Screw-on hook/i,
+    buy:()=>'Screw-on hook for headphones',screws:'2 wood screws (in the package)',
+    mount:'Hold it level where it goes, mark the two holes, drill small pilot holes and screw it on.',
+    // x up and down, y out of the face, z along the apron: a plate, an arm out from its lower half, a tip turned up
+    shape:s=>({on:[box3([0,.06,0],[1.6,.12,s],'dark'),box3([-.45,.82,0],[.25,1.4,.35],'dark'),box3([-.2,1.45,0],[.65,.2,.35],'dark')],to:[]})},
 };
 /* A plain line of a preset's hardware list (S.hw) that means one of these kinds. What is placed in the model is
    counted there, so that many are taken off the plain line (hardwareRows). A line that names screws or nails is

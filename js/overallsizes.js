@@ -28,6 +28,9 @@ const OVERALL_SIZES={
   'Coffee table':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Side table / nightstand':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Desk':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
+  // the Computer desk and the Gaming desk (js/computerdesk.js): the Height is floor to the top of the desk; with the
+  // monitor shelf ticked the remark says how tall it comes out overall
+  'Computer desk':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Workbench':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Sturdy bench':{L:OVERALL_AXIS.across},
   'Five-board bench':{L:OVERALL_AXIS.across},

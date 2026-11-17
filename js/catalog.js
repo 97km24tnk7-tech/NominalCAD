@@ -98,7 +98,13 @@ const CATALOG=[
   {id:'side-table',name:'Side table / nightstand',group:'tables',spec:'2x2 legs, board top',icon:'i-presets',
     builder:'Side table / nightstand',tags:['beginner','table','end table','bedside','nightstand']},
   {id:'desk',name:'Desk',group:'tables',spec:'4x4 legs, plywood top',icon:'i-presets',
-    builder:'Desk',tags:['beginner','table','office','computer','study']},
+    builder:'Desk',tags:['beginner','table','office','study']},
+  // the computer desk (js/computerdesk.js): the plain Desk with drawers and a knee space; the Gaming desk is the same
+  // builder started with its options shown off. Both open with a short form (COMPUTER_DESK_SHORT).
+  {id:'computer-desk',name:'Computer desk',group:'tables',spec:'Drawers and a knee space',icon:'i-presets',
+    builder:'Computer desk',short:COMPUTER_DESK_SHORT,tags:['doors','computer','office','desk','drawers','study','home office']},
+  {id:'gaming-desk',name:'Gaming desk',group:'tables',spec:'Drawers, shelf, tower bay',icon:'i-presets',
+    builder:'Computer desk',start:GAMING_DESK_START,short:COMPUTER_DESK_SHORT,desc:GAMING_DESK_WORDS,tags:['doors','gaming','computer','pc','tower','monitor shelf','desk','drawers']},
   // Seating
   {id:'sturdy-bench',name:'Sturdy bench',group:'seating',spec:'4x4s, 2x4s and 2x6s',icon:'i-p-bench',
     builder:'Sturdy bench',tags:['beginner','bench','seat','patio']},
@@ -985,7 +991,9 @@ SELFTESTS.push(function catalogSearchAndKeys(problems){
     type('bookshelves');
     if(shownIds()[0]!=='bookshelf')wrong(`"bookshelves" should find the Bookshelf first, it found ${shownIds().join(', ')}`);
     type('drawer');
-    if(shownIds().join()!=='drawer-nightstand')wrong(`"drawer" should find only the piece with drawers, it found ${shownIds().join(', ')}`);
+    // (the pieces with drawers carry the word in their tags: the Drawer nightstand, the Computer desk, the Gaming desk)
+    const withDrawers=CATALOG.filter(entry=>entry.tags.includes('drawers')).map(entry=>entry.id).sort().join();
+    if(shownIds().slice().sort().join()!==withDrawers)wrong(`"drawer" should find only the pieces with drawers (${withDrawers}), it found ${shownIds().join(', ')}`);
     type('door');
     if(shownIds().includes('drawer-nightstand')||!shownIds().includes('base-cabinet'))wrong(`"door" should find the pieces with doors and not the drawer nightstand: ${shownIds().join(', ')}`);
     type('terrarium');

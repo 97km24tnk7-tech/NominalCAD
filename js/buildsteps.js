@@ -471,6 +471,12 @@ function placesWords(spots){
     across=s.acrossNear.length>1?`in two rows, ${said(s.acrossNear)} ${which} of the ${name}, in a zig-zag`
       :`on a line ${inchWords(s.acrossNear[0])} ${which} of the ${name}${middleNote}`;
     acrossRule={kind:'from',side:named?(high?'high':'low'):'near'};
+  }else if(spots.length===2&&spots[0].marked!==spots[1].marked&&spots.every(spot=>spot.acrossLow.length===1)&&!same(spot=>spot.nearLowW)&&!same(spot=>spot.acrossNear)){
+    // Pieces of one name, each fastened near its own outer edge with its own number (the front and back top
+    // rails of a drawer case, each screwed up into its own apron, 5/8" from the back edge of one and 3/8" from
+    // the front edge of the other): one sentence "on two lines, 5/8" and 2 5/8" from the back edge" would have a
+    // beginner mark both lines on both. The caller says each place on its own (whereWords).
+    return{fromJoint,text:''};
   }else if(s.acrossLow.length===1&&distinct(spot=>spot.acrossLow[0]).length<=LIST_MAX){
     const lines=distinct(spot=>spot.acrossLow[0]);
     across=`on ${countWord(lines.length)} lines, ${said(lines)} ${off(s.W,false)} the ${sideName(s.W,false)} ${s.sideW} of the ${name}`+(spots.every(spot=>spot.overInto)?` (each is the middle of a ${s.into.name} ${s.beyond})`:'');
@@ -1433,6 +1439,7 @@ const STEP_TOOLS={
   toenail:'framing hammer',
   clamps:'clamps',
   glue:'wood glue',
+  banding:'household iron, and an edge banding trimmer or a sharp chisel',   // iron-on edge banding (the Computer desk)
 };
 function stepTools(step){
   const tools=[];
@@ -1472,6 +1479,7 @@ function stepTools(step){
     if(/\bfoam mat\b/i.test(words))add('a foam mat, if the tank is rimless');
     if(/\bstaple/i.test(words))add('staple gun');
     if(/\bpulls?\b|\bknobs?\b|\bhinges?\b/i.test(words))add('screwdriver');
+    if(/\bedge banding\b/i.test(words)&&/\biron\b/i.test(words))add(STEP_TOOLS.banding);
   };
   if(!step.groups.length&&!step.hardware.length&&(!step.pieces.length||step.pieces.every(isProp))){
     named();

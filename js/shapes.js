@@ -1553,7 +1553,10 @@ SELFTESTS.push(function shapeWordsExplained(problems){
    vertex count, place and turn)]. presetsKeepTheirCutLists fails when any of them changes, so a change made for
    shaped pieces cannot move, add or drop anything in a design that has none. When main changes a preset on purpose,
    record these again from main's own code, never from this file's. (Main 63756c1 added the "Cabinet / case" entry;
-   its fingerprint was recorded there the same way, and the other 22 read back from main 63756c1 exactly as below.) */
+   its fingerprint was recorded there the same way, and the other 22 read back from main 63756c1 exactly as below.)
+   (The "Computer desk" came from the compdesk branch, which never had the shaped-piece code: its fingerprint was
+   recorded on that branch's c3f4315, before it was merged with main b76a291, from an empty design, twice the same,
+   and the merged code reads it back exactly.) */
 const PRESET_PRINTS={
   "Fish tank wall / rack":[94,178,352,"131vjz0","1ej6odg"],
   "Single aquarium stand":[26,86,169,"v10vc9","1636v6l"],
@@ -1578,6 +1581,7 @@ const PRESET_PRINTS={
   "Wall shelf":[4,5,14,"171rfgs","s79we0"],
   "Nightstand with drawers":[21,43,94,"1amjky2","uhgody"],
   "Cabinet / case":[10,24,77,"1pz6vmn","963zac"],
+  "Computer desk":[36,79,175,"1mw3u3l","v2v1rt"],
 };
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same
    way: main's loading now adds fields of its own, so the text read back is longer than it was on 40ae483) */

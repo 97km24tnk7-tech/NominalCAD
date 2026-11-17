@@ -187,6 +187,7 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   if(/3\/16" drill bit/.test(named))L.push('3/16" drill bit, for the screws of pulls and knobs');
   if(/spacer block/i.test(named))L.push('A scrap of wood for a spacer block');
   if(/ladder/i.test(named))L.push('Stepladder');
+  if(/household iron/i.test(named))L.push('Household iron and an edge banding trimmer (or a sharp chisel), for the iron-on edge banding');
   if(/right-angle drill/i.test(named))L.push('Right-angle drill attachment and a 3" driver bit, for pocket screws where a drill does not fit');
   if(/foam mat/i.test(named))L.push('A foam mat to go under a rimless tank');
   L.push(...shapeToolLines());   // what the shaped pieces need: a hole saw, a compass and jigsaw (js/shapedrawings.js)

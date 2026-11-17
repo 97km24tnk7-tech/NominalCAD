@@ -653,7 +653,9 @@ function slideMarkPlan(row,letterOf){
   if(!side)return null;
   const mine=row.items.filter(other=>(kicker?other.on:other.to)===side.id);
   const sideBox=plainBox(side),inner=side.ax[2];
-  const middle=designMiddle(),insideSign=middle[inner]>(sideBox.lo[inner]+sideBox.hi[inner])/2?1:-1;
+  // the face the strips are on: the side of the panel where the first one sits (not the middle of the design: a
+  // drawer case at one end of a desk has the knee space beside it)
+  const insideSign=hardwarePose(mine[0]).at.getComponent(inner)>(sideBox.lo[inner]+sideBox.hi[inner])/2?1:-1;
   const frame=markingFrame(inner,-insideSign,side);
   const travel=[0,2].find(k=>k!==inner);
   const plan=newMarkPlan(frame,side,letterOf,kicker?'Where the kickers go':row.kind==='runner'?'Where the runners go':'Where the slides go');
