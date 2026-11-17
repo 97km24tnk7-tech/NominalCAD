@@ -11,7 +11,7 @@ html.phone-page body{background:#fff;overflow:hidden}
 /* a drag down on the bars must not reload the page (Chrome on Android) or rubber-band the whole shell (iPhone) */
 html.phone-page,html.phone-page body{overscroll-behavior:none}
 html.phone-page #phone{position:fixed;inset:0}
-html.phone-page #toast{bottom:calc(72px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);font-size:15px;line-height:21px}
+html.phone-page #toast{bottom:calc(128px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);font-size:15px;line-height:21px}
 /* the desktop's own dialogs (Build anyway, This cannot be built) sized for a thumb */
 html.phone-page dialog.dlg{width:calc(100% - 16px);max-width:640px;max-height:calc(100% - 32px);font-size:16px;line-height:22px}
 html.phone-page dialog.dlg .dlg-h{height:48px;padding-left:16px;font-size:17px}
@@ -139,11 +139,55 @@ html.phone-page dialog.dlg .fld{height:44px;font-size:16px}
 #phone .ph-view{position:relative;height:100%;overflow:hidden;background:var(--view-bg)}
 #phone[data-section="3d"] .ph-docs,#phone:not([data-section="3d"]) .ph-view{display:none}
 #phone .ph-view #cvWrap{position:absolute;inset:0}
-#phone #left,#phone #right,#phone #axisSym,#phone #legend,#phone #priceLine,#phone #stepPanel,#phone #boxSel,#phone #viewTip{display:none!important}
+#phone #left,#phone #right,#phone #axisSym,#phone #priceLine,#phone #stepPanel,#phone #boxSel{display:none!important}
+/* the desktop's color key (Color blocks), over the top of the view under the line that says what is on, two names
+   to a line, so the key and the model are seen together (js/phoneview.js sets --ph-key-top) */
+#phone .ph-view #legend{left:8px;right:8px;top:var(--ph-key-top,36px);bottom:auto;z-index:4;max-width:none;max-height:30%;overflow-y:auto;overscroll-behavior:contain;grid-template-columns:repeat(2,14px minmax(0,1fr));gap:4px 8px;padding:6px 8px;font-size:13px;line-height:18px;pointer-events:auto}
+/* (a long key scrolls under the finger; in Build step by step the pieces are colored by the step, not the key) */
+#phone .ph-view.ph-stepping #legend{display:none!important}
+#phone .ph-view #legend i{width:14px;height:14px}
+#phone .ph-view #legend .rest{grid-column:1/-1}
+/* the desktop's tip for a tapped fastener (js/phoneview.js phoneViewTip) */
+#phone .ph-view #viewTip{max-width:calc(100% - 16px);padding:6px 10px;font-size:15px;line-height:21px}
 #phone .ph-touch{position:absolute;inset:0;z-index:3;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #phone .ph-hint{position:absolute;left:0;right:0;top:8px;z-index:4;margin:0;padding:0 12px;text-align:center;font-size:13px;line-height:18px;color:var(--n600);pointer-events:none}
 #phone .ph-reset{position:absolute;left:12px;bottom:12px;z-index:4;height:44px;padding:0 16px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--n800);font-size:15px}
 #phone .ph-reset:active{background:var(--n200)}
+/* the View button (js/phoneview.js), bottom right; marked while a view other than the usual one is on */
+#phone .ph-viewbtn{position:absolute;right:12px;bottom:12px;z-index:4;height:44px;padding:0 16px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--n800);font-size:15px;font-weight:600}
+#phone .ph-viewbtn.on{border-color:var(--blue);color:var(--blue-d);box-shadow:inset 0 0 0 1px var(--blue)}
+#phone .ph-viewbtn:active{background:var(--n200)}
+/* the line at the top of the view says what is on: it has a backing so it reads over the model */
+#phone .ph-hint{left:8px;right:8px;padding:2px 8px;border-radius:var(--r);background:rgba(255,255,255,.8)}
+/* Build step by step: a bar across the top of the view, the step's number and first sentence, Back, Read it,
+   Leave and Next */
+#phone .ph-stepbar{position:absolute;left:0;right:0;top:0;z-index:5;padding:8px 8px 8px;border-bottom:1px solid var(--n300);background:rgba(255,255,255,.96)}
+#phone .ph-view.ph-stepping .ph-hint{display:none}
+/* (and above the strip of Reset view and View: the steps' model is framed between the two) */
+#phone .ph-view.ph-stepping #cvWrap{top:var(--ph-bar-h,0px);bottom:68px}
+#phone .ph-step-words{display:flex;flex-direction:column;margin-bottom:6px;font-size:15px;line-height:20px;color:var(--n800)}
+#phone .ph-step-count{font-size:13px;line-height:18px;color:var(--blue-d)}
+#phone .ph-step-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+#phone .ph-step-btns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#phone .ph-step-btns .btn{height:44px;padding:0 4px;font-size:15px;justify-content:center}
+/* the View sheet: from the bottom, over a shade, as the size pad */
+#phone .ph-viewsheet{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:flex-end;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+#phone .ph-viewsheet[hidden],#phone:not([data-screen="result"]) .ph-viewsheet,#phone:not([data-section="3d"]) .ph-viewsheet{display:none}
+#phone .ph-viewsheet-body{flex:none;width:100%;max-width:640px;max-height:85%;margin:0 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--n400);background:#fff}
+#phone .ph-viewsheet-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;margin:0 -12px;padding:8px 12px;border-bottom:1px solid var(--n200);background:#fff}
+#phone .ph-viewsheet-head b{font-size:17px;line-height:22px;color:var(--n900)}
+#phone .ph-viewsheet-head .btn{min-width:88px;height:44px}
+#phone .ph-vrow{padding:10px 0 4px}
+#phone .ph-vrow-h{margin-bottom:6px;font-size:13px;line-height:18px;font-weight:600;color:var(--n600)}
+#phone .ph-vchoices{display:flex;flex-wrap:wrap;gap:6px}
+#phone .ph-vchoice{flex:1 1 0;min-width:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44px;padding:4px 6px;border:1px solid var(--n400);border-radius:var(--r);background:#fff;color:var(--n800);font-size:15px;line-height:19px}
+#phone .ph-vchoice small{font-size:13px;line-height:16px;color:var(--n600)}
+#phone .ph-vchoice.on{border-color:var(--blue);background:var(--blue-50);color:var(--blue-d);font-weight:600}
+#phone .ph-vchoice.on small{color:var(--blue-d)}
+#phone .ph-vchoice:disabled{border-color:var(--n200);background:var(--n100);color:var(--n400)}
+#phone .ph-vlooks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+#phone .ph-vlooks .ph-vchoice{min-width:0}
+#phone .ph-vreset{width:100%;height:44px;margin-top:4px}
 /* the document pages sit in the body and scroll with it (css/phonepages.css lays them out) */
 #phone .ph-docs .page{height:auto;overflow:visible}
 

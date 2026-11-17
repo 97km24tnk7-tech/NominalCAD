@@ -36,11 +36,13 @@ const PHONE_PARTS={
   'Steps':'steps',
   'Which fastener goes where':'steps',
 };
-/* What the top of a page becomes: the line of facts under the title shows on every tab; the title, the title block
-   and the big picture do not (the top bar and the 3D tab show them). */
+/* The top of a page, before its first heading, shows on every tab of that page: the title, the line of facts, and
+   the big picture with its facts (wood, finish, weight; on Build instructions also the skill and the working time).
+   The title block is drawn for paper only, on the phone as on the desktop (its facts are the title and the line of
+   facts). Anything else before the first heading also shows on every tab, and the self-check phonePagePartsArePlaced
+   fails until it has a row here. */
 const PHONE_PAGE_TOP=[
-  {match:'.meta',part:'top'},
-  {match:'h1,.titleblock,.lead',part:'none'},
+  {match:'h1,.meta,.titleblock,.lead',part:'top'},
 ];
 /* How each table of the pages is drawn as stacked rows, found by the heading of its first column.
      title  the columns that make the title line of a row, in the order shown (the rest are "Label value" lines)
@@ -71,6 +73,12 @@ const PHONE_WORDS=[
   ['The Drill first column says which pieces','The Drill first line of each piece says which pieces'],
   [/Build instructions, step (\d+), has a drawing of each\./,'the Steps tab, step $1, has a drawing of each.'],
 ];
+/* What the pages offer that does not fit a phone without being made again for it. Each is left out on the phone and
+   one plain line says the full program has it (phoneFullProgramLines); the self-check phoneShowsEverythingTheDesktopShows
+   accepts it only while that line shows. The Price book is a wide table of every price in a dialog of its own. */
+const PHONE_FULL_PROGRAM_ONLY=[
+  {match:'[data-shop] .pbar [data-cmd="priceBook"]',line:'The Price book, with every price the program uses, is in the full program.'},
+];
 /* the line over the list of steps at the top of the Steps tab (phoneStepList) */
 const PHONE_STEP_LIST_TITLE='Jump to a step';
 const PHONE_STATE_KEY='woodshop.phone.state';
@@ -98,8 +106,24 @@ function phoneLayOutDoc(doc){
   doc.querySelectorAll('table.tbl').forEach(phoneStackTable);
   phoneSlideWide(doc);
   phoneStepList(doc);
+  phoneFullProgramLines(doc);
   // a price box brings up the phone's number keys with a decimal point
   doc.querySelectorAll('input.price').forEach(box=>box.setAttribute('inputmode','decimal'));
+}
+
+/* Each thing of PHONE_FULL_PROGRAM_ONLY is left out (class ph-full-only, css/phonepages.css) and its line put just
+   after it. */
+function phoneFullProgramLines(doc){
+  for(const row of PHONE_FULL_PROGRAM_ONLY){
+    for(const node of doc.querySelectorAll(row.match)){
+      node.classList.add('ph-full-only');
+      const line=document.createElement('p');
+      line.className='ph-full-line';
+      line.textContent=row.line;
+      const after=node.closest('p,div')||node;   // (a button's line goes under its row of buttons)
+      after.parentNode.insertBefore(line,after.nextSibling);
+    }
+  }
 }
 
 /* The guidance sentences of PHONE_WORDS, in the hints of a page, in the phone's words. Each text node changed is
@@ -116,19 +140,74 @@ function phoneSwapWords(doc){
   }
 }
 
+/* Words of the price tools that name a key or the Price book (which the phone leaves to the full program), and
+   what the phone page says instead. They are written while the page is in use (the Paste prices dialog, the line
+   after Update prices), so the phone page watches those two places; only on a phone (window.PHONE_PAGE). */
+const PHONE_PRICE_WORDS=[
+  [' (Ctrl+V).',' (press and hold in the box, then Paste).'],
+  ['type hardware prices in the Price book or the shopping list.','type hardware prices in the shopping list.'],
+  ['The price index was asked within the last day','The price index was checked within the last day'],
+];
+function phoneSwapPriceWords(root){
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  for(let node=walker.nextNode();node;node=walker.nextNode()){
+    let text=node.nodeValue;
+    for(const[desktop,phoneWords]of PHONE_PRICE_WORDS)text=text.replace(desktop,phoneWords);
+    if(text===node.nodeValue)continue;
+    phoneSwapped.push({node,text:node.nodeValue});
+    node.nodeValue=text;
+  }
+}
+function phoneWatchPriceWords(){
+  if(!window.PHONE_PAGE||typeof MutationObserver!=='function')return;
+  const places='#pastePricesDlg,.pnotice';
+  const swapAll=()=>document.querySelectorAll(places).forEach(phoneSwapPriceWords);
+  swapAll();
+  new MutationObserver(records=>{
+    for(const record of records){
+      const at=record.target.nodeType===1?record.target:record.target.parentNode;
+      if(at&&at.closest&&at.closest(places)){swapAll();return;}
+      for(const added of record.addedNodes)if(added.nodeType===1&&(added.matches(places)||added.querySelector(places))){swapAll();return;}
+    }
+  }).observe(document.body,{subtree:true,childList:true,characterData:true});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',phoneWatchPriceWords);
+else setTimeout(phoneWatchPriceWords,0);
+
 /* The board bars, each drawn to the width of the screen (css/phonepages.css): a cut's letter stands over its
    length. A label the desktop drew for its wider bar that has no room here keeps its letter only, and one with no
    room even for that is left blank, as the desktop does for its shortest cuts (the length is on the cut list and
    in the cut's own tip). Measured, so it is done while the Cut list tab shows, and again when the phone is turned. */
 function phoneFitBoards(holder){
-  for(const cut of holder.querySelectorAll('.page .board>div')){
-    if(!cut.getClientRects().length)continue;   // (not showing: measured when it is)
-    cut.classList.remove('ph-short','ph-blank');
-    const fits=()=>cut.scrollWidth<=cut.clientWidth+1&&cut.scrollHeight<=cut.clientHeight+1;
-    if(fits())continue;
-    cut.classList.add('ph-short');
-    if(!fits()){cut.classList.remove('ph-short');cut.classList.add('ph-blank');}
+  for(const bar of holder.querySelectorAll('.page .board')){
+    if(!bar.getClientRects().length)continue;   // (not showing: measured when it is)
+    const squeezed=[];
+    for(const cut of bar.children){
+      cut.classList.remove('ph-short','ph-blank');
+      const fits=()=>cut.scrollWidth<=cut.clientWidth+1&&cut.scrollHeight<=cut.clientHeight+1;
+      if(fits())continue;
+      cut.classList.add('ph-short');
+      if(!fits()){cut.classList.remove('ph-short');cut.classList.add('ph-blank');}
+      squeezed.push(cut);
+    }
+    phoneBarRest(bar,squeezed);
   }
+}
+/* What a squeezed cut of a board bar had to leave out (its length, or its letter and length, or "16 1/2" left")
+   is written in one line under the bar, in the desktop's own words, so the phone leaves out no number. */
+function phoneBarRest(bar,squeezed){
+  const old=bar.nextElementSibling;
+  if(old&&old.classList.contains('ph-bar-rest'))old.remove();
+  const labels=squeezed.filter(cut=>cut.textContent.trim());
+  if(!labels.length)return;
+  const line=document.createElement('p');
+  line.className='ph-bar-rest';
+  for(const cut of labels){
+    const item=document.createElement('span');
+    for(const node of cut.childNodes)item.appendChild(node.cloneNode(true));
+    line.appendChild(item);
+  }
+  bar.parentNode.insertBefore(line,bar.nextSibling);
 }
 window.addEventListener('resize',()=>{
   if(phone.root&&phone.section==='cut')phoneFitBoards(phone.root.querySelector('.ph-docs'));
@@ -149,8 +228,9 @@ function phoneStepList(doc){
   list.dataset.phPart='steps';
   list.setAttribute('aria-label',PHONE_STEP_LIST_TITLE);
   list.innerHTML=`<h2 class="ph-jump-h">${esc(PHONE_STEP_LIST_TITLE)}</h2>${rows}`;
-  const top=doc.querySelector(':scope>.meta');
-  doc.insertBefore(list,top?top.nextSibling:doc.firstChild);
+  // under the top of the page (title, facts, the picture with its facts), before Notes
+  const children=[...doc.children],first=children.find(child=>!PHONE_PAGE_TOP.some(row=>child.matches(row.match)));
+  doc.insertBefore(list,first||null);
 }
 document.addEventListener('click',event=>{
   const row=event.target.closest&&event.target.closest('.ph-jump-row');
@@ -159,9 +239,31 @@ document.addEventListener('click',event=>{
   if(step)step.scrollIntoView({block:'start'});
 });
 
-/* Tags each top-level child of a page with data-ph-part: 'shop' | 'cut' | 'steps' | 'top' | 'none'. */
+/* "Show me" beside a word of "Words used in this design": the desktop's own showTermPieces (js/glossary.js, whose
+   listener runs first) has gone to its 3D view with those pieces drawn blue and the rest see-through; the phone
+   then opens its 3D tab to show it. A tap on the picture puts it back to normal, as a click does on the desktop. */
+/* (the desktop's listener hides the page it is on, which takes the Steps tab's scroll to its top: the place is read
+   before it runs, so the Steps tab opens again at the word that was tapped) */
+let phoneShowMeScroll=null;
+document.addEventListener('click',event=>{
+  const link=event.target.closest&&event.target.closest('[data-show-term]');
+  phoneShowMeScroll=link&&phone.root&&phone.root.contains(link)?{key:phoneScrollKey(),top:phone.root.querySelector('.ph-body').scrollTop}:null;
+},true);
+document.addEventListener('click',event=>{
+  const link=event.target.closest&&event.target.closest('[data-show-term]');
+  if(!link||!phone.root||!phone.root.contains(link))return;
+  if(typeof spotlightIds==='undefined'||!spotlightIds)return;
+  const kept=phoneShowMeScroll;
+  phoneShowMeScroll=null;
+  phoneShowSection('3d');
+  if(kept)phone.scrolls[kept.key]=kept.top;
+  phoneUprightBack();   // (the desktop placed the camera for its wide window)
+});
+
+/* Tags each top-level child of a page with data-ph-part: 'shop' | 'cut' | 'steps' | 'top'. Nothing is left out:
+   what comes before the first heading shows on every tab, what follows an unknown heading shows under Steps. */
 function phoneTagParts(doc){
-  let part='none';
+  let part='top';
   for(const child of[...doc.children]){
     const top=PHONE_PAGE_TOP.find(row=>child.matches(row.match));
     if(top){child.dataset.phPart=top.part;continue;}
@@ -182,6 +284,26 @@ function phonePageHeadings(page){
   const doc=page.querySelector('.doc');
   return doc?[...doc.children].map(phoneHeadingOf).filter(text=>text!==null):[];
 }
+/* The top-level parts of a page (.doc) that the phone has not placed on purpose: a heading with no row in
+   PHONE_PARTS, or something before the first heading that PHONE_PAGE_TOP does not name. Each is described in a few
+   words, for the self-check. (The phone still shows them, so nothing is lost meanwhile.) */
+function phoneUnplacedParts(doc){
+  const unplaced=[];
+  let headingSeen=false;
+  for(const child of[...doc.children]){
+    if(child.matches('.ph-jump,.ph-slide-line,[data-ph-slide]'))continue;   // (the phone's own)
+    const heading=phoneHeadingOf(child);
+    if(heading!==null){
+      headingSeen=true;
+      if(!(heading in PHONE_PARTS))unplaced.push(`the heading "${heading}"`);
+      continue;
+    }
+    if(!headingSeen&&!PHONE_PAGE_TOP.some(row=>child.matches(row.match))){
+      unplaced.push(`a ${child.tagName.toLowerCase()}${child.className?'.'+String(child.className).trim().split(/\s+/).join('.'):''} before the first heading`);
+    }
+  }
+  return unplaced;
+}
 
 /* A table drawn as stacked rows: each cell gets its column heading in data-label, the title cells class ph-t (and
    their place on the line in --ph-order), the cells that share a line class ph-half. Same cells, same text. */
@@ -189,6 +311,14 @@ function phoneStackTable(table){
   const headings=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
   const layout=PHONE_TABLES.find(row=>row.first===headings[0])||{kind:'plain',title:[headings[0]],half:[]};
   table.dataset.phTable=layout.kind;
+  // the headings of the title cells stay, as one small line over the rows ("Label  Qty  Piece"); every other
+  // cell carries its own heading
+  table.querySelectorAll('thead th').forEach((th,column)=>{
+    const at=layout.title.indexOf(headings[column]);
+    if(at<0)return;
+    th.classList.add('ph-t');
+    th.style.setProperty('--ph-order',String(at));
+  });
   table.querySelectorAll('tbody tr').forEach(tr=>{
     // a total, a subtotal or a group line (a cell across several columns) is one line: its words, then its number
     if([...tr.children].some(td=>td.colSpan>1)){
@@ -257,7 +387,9 @@ function phonePagesUndo(){
     });
     page.querySelectorAll('[data-ph-part]').forEach(node=>{delete node.dataset.phPart;});
     page.querySelectorAll('[data-ph-table]').forEach(node=>{delete node.dataset.phTable;});
-    page.querySelectorAll('td[data-label],td.ph-t,td.ph-half,td.ph-wide').forEach(td=>{
+    page.querySelectorAll('.ph-bar-rest,.ph-full-line').forEach(node=>node.remove());
+    page.querySelectorAll('.ph-full-only').forEach(node=>node.classList.remove('ph-full-only'));
+    page.querySelectorAll('td[data-label],td.ph-t,td.ph-half,td.ph-wide,th.ph-t').forEach(td=>{
       delete td.dataset.label;
       td.classList.remove('ph-t','ph-tl','ph-half','ph-wide');
       if(!td.classList.length)td.removeAttribute('class');
@@ -474,6 +606,153 @@ SELFTESTS.push(function phoneListsMatchTheDesktop(problems){
   });
 });
 
+/* ---------- nothing on the desktop's pages is missing on the phone ----------
+   The owner tried the phone page and found less on it than on the desktop. These two checks hold the phone to the
+   desktop: everything a person can read or use on "Cut list & shopping" and "Build instructions" (every text, in
+   the order of the page, every picture and every button, link, box and choice) must be readable somewhere under the
+   phone's tabs, with nothing hidden by a style rule; and every part of a page must have its place on the phone. */
+
+/* the designs the first check builds: one with a drill step and words, the one with the biggest lists, one with a
+   fish tank */
+const PHONE_WHOLE_DESIGNS=['Desk','Shed','Single aquarium stand'];
+/* can a person see this element: it takes room, is not made invisible, and its text is not shrunk to nothing */
+function phoneReadable(element,page){
+  if(!element||!element.getClientRects().length)return false;
+  const style=getComputedStyle(element);
+  if(style.visibility==='hidden'||parseFloat(style.fontSize)===0)return false;
+  for(let node=element;node&&node!==page;node=node.parentElement)if(getComputedStyle(node).opacity==='0')return false;
+  return true;
+}
+/* Everything a person can read or use on a page, in its order: {key, node, where}. key is "text: ..." for words
+   and numbers (with the phone's guidance words for those of PHONE_WORDS), "picture: ..." and "control: ...". */
+function phoneReadableItems(page){
+  const items=[];
+  const walker=document.createTreeWalker(page,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);
+  for(let node=walker.nextNode();node;node=walker.nextNode()){
+    if(node.nodeType===Node.TEXT_NODE){
+      let text=node.nodeValue.replace(/\s+/g,' ').trim();
+      if(!text||!phoneReadable(node.parentElement,page))continue;
+      for(const[desktop,phoneWords]of PHONE_WORDS)text=text.replace(desktop,phoneWords);
+      items.push({key:'text: '+text,node,element:node.parentElement});
+    }else if(node.matches('img,canvas,svg:not(.i)')&&!(node.parentElement&&node.parentElement.closest('svg'))){
+      if(phoneReadable(node,page))items.push({key:`picture: ${node.tagName.toLowerCase()} ${node.getAttribute('alt')||node.getAttribute('class')||''}`,node,element:node});
+    }else if(node.matches('button,a[href],select,input')){
+      const what=node.dataset.cmd||(node.dataset.showTerm!=null?'show me':'')||node.dataset.stock&&'board lengths'||node.getAttribute('class')||'';
+      if(phoneReadable(node,page))items.push({key:`control: ${node.tagName.toLowerCase()} ${what}`,node,element:node});
+    }
+  }
+  return items;
+}
+/* the column headings a phone table shows through its cells (data-label, drawn by css/phonepages.css), each as
+   "part | text: heading" */
+function phoneShownHeadings(page){
+  const shown=new Set();
+  for(const cell of page.querySelectorAll('td[data-label]')){
+    if(!phoneReadable(cell,page))continue;
+    const before=getComputedStyle(cell,'::before');
+    if(before.content&&before.content!=='none'&&before.display!=='none')shown.add(phoneSectionOf(cell)+' | text: '+cell.dataset.label);
+  }
+  return shown;
+}
+/* the heading of a column whose cells are all empty says nothing: the phone may leave it out */
+function phoneEmptyColumn(th){
+  const table=th.closest('table'),column=[...th.parentNode.children].indexOf(th);
+  return[...table.querySelectorAll('tbody tr')].every(tr=>{
+    if([...tr.children].some(td=>td.colSpan>1))return true;
+    const cell=tr.children[column];
+    return!cell||!cell.textContent.trim();
+  });
+}
+/* Builds a design through the phone, reads what each tab shows, then what the desktop's two pages show for the same
+   design, and returns what the desktop has that the phone does not show: ['Cut list & shopping, under "Notes":
+   text: ...', ...], in the order of the pages. (Inside phoneCheckAround, the shell mounted.) */
+function phoneMissingFromTheDesktop(builder){
+  if(!phoneBuildThrough(builder))return[`the ${builder} could not be built through the phone`];
+  // the phone: every tab, the node of each thing shown (the cut list page shows under two tabs: counted once)
+  const onPhone=new Map(),headings=new Set(),linesShown=new Set();   // (linesShown: the "is in the full program" lines)
+  for(const[section,id]of[['shop','#cutPage'],['cut','#cutPage'],['steps','#instrPage']]){
+    phoneShowSection(section);
+    // (each thing is counted within its part: a length on a board bar is not stood in for by the same length in
+    // the cut list)
+    for(const item of phoneReadableItems($(id)))if(!onPhone.has(item.node))onPhone.set(item.node,phoneSectionOf(item.element)+' | '+item.key);
+    phoneShownHeadings($(id)).forEach(heading=>headings.add(heading));
+    for(const line of $(id).querySelectorAll('.ph-full-line'))if(phoneReadable(line,$(id)))linesShown.add(line.textContent);
+  }
+  const have=new Map();
+  for(const key of onPhone.values())have.set(key,(have.get(key)||0)+1);
+  // the desktop: the same design, its pages drawn where they always are
+  const holder=phone.holder;
+  phoneUnmount();
+  const need=new Map(),first=new Map();   // key -> how many times one page shows it; key -> where it is first
+  try{
+    for(const[tabName,id,sheet]of[['cut','#cutPage','Cut list & shopping'],['instr','#instrPage','Build instructions']]){
+      setTab(tabName);
+      const counts=new Map();
+      for(const item of phoneReadableItems($(id))){
+        const th=item.element.closest('thead th'),part=phoneSectionOf(item.element);
+        if(th&&(headings.has(part+' | '+item.key)||phoneEmptyColumn(th)))continue;
+        // left to the full program, and the phone says so in its place
+        if(PHONE_FULL_PROGRAM_ONLY.some(row=>item.element.closest(row.match)&&linesShown.has(row.line)))continue;
+        const key=part+' | '+item.key;
+        counts.set(key,(counts.get(key)||0)+1);
+        if(!first.has(key))first.set(key,`${sheet}, under "${part}": ${item.key.slice(0,90)}`);
+      }
+      for(const[key,count]of counts)need.set(key,Math.max(need.get(key)||0,count));
+    }
+  }finally{
+    setTab('design');
+    phoneMount(holder);
+  }
+  const missing=[];
+  for(const[key,count]of need){
+    const shown=have.get(key)||0;
+    if(shown<count)missing.push(`${first.get(key)}${count>1?` (${shown} of ${count} show)`:''}`);
+  }
+  return missing;
+}
+/* the heading of the part of a page an element is in, or "the top" */
+function phoneSectionOf(element){
+  let child=element;
+  while(child&&!(child.parentElement&&child.parentElement.classList.contains('doc')))child=child.parentElement;
+  for(let node=child;node;node=node.previousElementSibling){
+    const heading=phoneHeadingOf(node);
+    if(heading!==null)return heading;
+  }
+  return'the top';
+}
+
+/* 10. Everything the desktop's two pages show for the Desk, the Shed and the Single aquarium stand is readable
+   somewhere under the phone's tabs. */
+SELFTESTS.push(function phoneShowsEverythingTheDesktopShows(problems){
+  phoneCheckAround(()=>{
+    for(const builder of PHONE_WHOLE_DESIGNS){
+      const missing=phoneMissingFromTheDesktop(builder);
+      if(missing.length)problems.push(`phone shows less: ${builder}: ${missing.length} thing${missing.length>1?'s':''} of the desktop's pages ${missing.length>1?'do':'does'} not show on the phone, the first: ${missing[0]}`);
+    }
+  });
+});
+
+/* 11. Every top-level part of the two pages has its place on the phone (PHONE_PAGE_TOP or PHONE_PARTS), and the check
+   itself fails on a page that gains a part the phone has not placed. */
+SELFTESTS.push(function phonePagePartsArePlaced(problems){
+  const wrong=text=>problems.push('phone page parts: '+text);
+  phoneCheckAround(()=>{
+    for(const builder of PHONE_WHOLE_DESIGNS){
+      if(!phoneBuildThrough(builder)){wrong(`the ${builder} was not built through the phone`);continue;}
+      for(const[section,id]of[['shop','#cutPage'],['steps','#instrPage']]){
+        phoneShowSection(section);
+        const doc=$(id+' .doc'),unplaced=phoneUnplacedParts(doc);
+        if(unplaced.length)wrong(`${builder}: the phone has no place for ${unplaced.join(', ')}`);
+        // the check sees a new part: a copy of the page with one thing before the first heading and one new heading
+        const copy=doc.cloneNode(true);
+        copy.insertBefore(document.createElement('aside'),copy.querySelector(':scope>h2,:scope>section,:scope>[data-shop]'));
+        copy.appendChild(Object.assign(document.createElement('h2'),{textContent:'A part made up by the self-check'}));
+        if(phoneUnplacedParts(copy).length!==unplaced.length+2)wrong('a page with a new part before its first heading and a new heading was not caught');
+      }
+    }
+  });
+});
+
 /* 8. The page remembers where it was: the Sizes of a design with what was typed, and the Result tab, across a
    reload; with storage refused nothing breaks. */
 SELFTESTS.push(function phoneRemembers(problems){
@@ -527,7 +806,8 @@ SELFTESTS.push(function phoneRemembers(problems){
    phone left on the pages, the form typed in again, and Reset sizes and Create in the presets window build. */
 SELFTESTS.push(function phoneLeavesTheDesktopAsItWas(problems){
   const wrong=text=>problems.push('phone leaves the desktop: '+text);
-  const places=['#presetForm','#presetFoot','#cvWrap','#cutPage','#instrPage'].map(id=>{
+  // (#legend: the color key, moved into the View sheet by js/phoneview.js)
+  const places=['#presetForm','#presetFoot','#cvWrap','#cutPage','#instrPage','#legend'].map(id=>{
     const node=$(id);
     return{id,node,parent:node&&node.parentNode,next:node&&node.nextSibling};
   });

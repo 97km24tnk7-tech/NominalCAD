@@ -14,7 +14,14 @@
 #phone .ph-docs .doc .hint{font-size:13px;line-height:18px}
 #phone .ph-docs .doc .meta{margin:8px 0 0;padding-bottom:8px;border-bottom:1px solid var(--n300);font-size:13px;line-height:18px}
 #phone .ph-docs .doc ul.cols{columns:1}
-/* a part shows only under its own tab; the facts line under the title shows under all three */
+/* the top of a page (title, facts, the big picture with its facts) shows on every tab of that page */
+#phone .ph-docs .doc>h1{margin:12px 0 0;font-size:17px;line-height:22px}
+/* the big picture the whole width of the screen (the desktop shows it 400 px wide), its facts under it, two to a line */
+#phone .ph-docs .doc>.lead{grid-template-columns:minmax(0,1fr);gap:8px;margin:12px 0 4px}
+#phone .ph-docs .doc>.lead .facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;margin:0}
+#phone .ph-docs .doc>.lead .facts dt{font-size:13px;line-height:18px;color:var(--n600)}
+#phone .ph-docs .doc>.lead .facts dd{margin:0 0 6px;font-size:15px;line-height:20px}
+/* a part shows only under its own tab; the top shows under all of them */
 #phone .ph-docs .doc>[data-ph-part="none"]{display:none}
 #phone[data-section="shop"] .ph-docs .doc>[data-ph-part]:not([data-ph-part="shop"]):not([data-ph-part="top"]),
 #phone[data-section="cut"] .ph-docs .doc>[data-ph-part]:not([data-ph-part="cut"]):not([data-ph-part="top"]),
@@ -26,7 +33,13 @@
    Each row is a block: its title line (the cells marked ph-t, in their --ph-order), then one line for each other cell,
    its column heading (data-label) small above the value; cells marked ph-half share a line, two to a line. */
 #phone .ph-docs table.tbl[data-ph-table]{display:block;width:100%;min-width:0;border-top:1px solid var(--n400)}
-#phone .ph-docs table.tbl[data-ph-table]>thead{display:none}
+/* of the column headings, only those of the title cells show, as one small line over the rows ("Label Qty Piece");
+   every other cell carries its own heading */
+#phone .ph-docs table.tbl[data-ph-table]>thead{display:block}
+#phone .ph-docs table.tbl[data-ph-table]>thead tr{display:flex;column-gap:12px;padding:6px 0 4px;border-bottom:1px solid var(--n300)}
+#phone .ph-docs table.tbl[data-ph-table]>thead th{display:none}
+#phone .ph-docs table.tbl[data-ph-table]>thead th.ph-t{display:block;order:var(--ph-order);height:auto;padding:0;border:0;background:none;font-size:13px;line-height:18px;font-weight:400;color:var(--n600);text-align:left}
+#phone .ph-docs table.tbl[data-ph-table="hw"]>thead th.ph-t:nth-child(2){margin-left:auto}
 #phone .ph-docs table.tbl[data-ph-table]>tbody{display:block}
 #phone .ph-docs table.tbl[data-ph-table] tr{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;padding:10px 0;border-bottom:1px solid var(--n300)}
 #phone .ph-docs table.tbl[data-ph-table] tr:hover{background:none}
@@ -65,8 +78,17 @@
 #phone .ph-docs table.tbl[data-ph-table="holes"] td.ph-t svg.tag,#phone .ph-docs table.tbl[data-ph-table="setups"] td.ph-t svg.tag{vertical-align:-4px}
 
 /* ---------- 3. Shopping ---------- */
-/* Update prices, Price book and Paste prices are the full program's */
-#phone .ph-docs [data-shop] .pbar{display:none}
+/* Update prices, Price book and Paste prices, and the line that says how the last update went: the desktop's own
+   buttons, 44 px to tap, two to a line where they fit */
+#phone .ph-docs [data-shop] .pbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+#phone .ph-docs [data-shop] .pbar .btn{flex:1 1 140px;height:44px;font-size:15px;justify-content:center}
+#phone .ph-docs [data-shop] .pbar .pnotice{flex:1 1 100%;font-size:13px;line-height:18px;color:var(--n600)}
+#phone .ph-docs [data-shop] .pbar .pnotice:empty{display:none}
+/* what is left to the full program (PHONE_FULL_PROGRAM_ONLY: the Price book), and the one line that says so */
+#phone .ph-docs .ph-full-only{display:none}
+#phone .ph-docs .ph-full-line{margin:0 0 8px;font-size:13px;line-height:18px;color:var(--n600)}
+/* Paste prices on the phone: room to see what was pasted */
+html.phone-page dialog.dlg textarea.fld{height:auto;min-height:132px;padding:8px 10px}
 #phone .ph-docs table.tbl[data-ph-table="shop"] td.ph-t[data-label="Buy"] .pnote{display:block;font-size:13px;line-height:18px;font-weight:400;color:var(--n600)}
 /* a row in three lines, to read in a store aisle:
      47 × 2x4, 8 ft long                 Total $183.30
@@ -99,6 +121,9 @@
 #phone .ph-docs .board div.ph-short b{font-size:13px}
 #phone .ph-docs .board div.ph-blank,#phone .ph-docs .board div.ph-blank *{font-size:0}
 #phone .ph-docs .board .waste span{white-space:normal;line-height:15px}
+/* under a board bar: the lengths its squeezed cuts had no room for (js/phonepages.js phoneBarRest) */
+#phone .ph-docs .ph-bar-rest{display:flex;flex-wrap:wrap;gap:2px 14px;margin:4px 0 0;font-size:13px;line-height:18px;color:var(--n800)}
+#phone .ph-docs .ph-bar-rest b{margin-right:4px}
 #phone .ph-docs .shape-cut h3{font-size:16px;line-height:22px}
 
 /* ---------- 5. drawings that slide sideways ---------- */
@@ -151,11 +176,11 @@
 #phone .ph-docs .key{min-width:22px;font-size:13px;line-height:18px}
 #phone .ph-docs .bal{width:22px;height:22px;font-size:13px}
 #phone .ph-docs .put b,#phone .ph-docs .pmark,#phone .ph-docs .words dl.terms dt small{font-size:13px}
-/* the words of this design: each word over its meaning; "Show me" picks pieces in the full program's 3D view */
+/* the words of this design: each word over its meaning; "Show me" opens the 3D tab with those pieces in blue */
 #phone .ph-docs .words dl.terms{display:block;margin:0}
-#phone .ph-docs .words dl.terms dt{margin:12px 0 2px;font-weight:600}
+#phone .ph-docs .words dl.terms dt{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;margin:8px 0 2px;font-weight:600}
 #phone .ph-docs .words dl.terms dd{margin:0}
-#phone .ph-docs [data-show-term]{display:none}
+#phone .ph-docs [data-show-term]{min-height:44px;padding:0 8px;font-size:15px;font-weight:400}
 #phone .ph-docs .words [data-open-words]{min-height:44px;font-size:13px}
 
 /* ---------- 7. the word cards and the large pictures, on the phone page ---------- */

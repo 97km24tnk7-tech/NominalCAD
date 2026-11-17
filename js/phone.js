@@ -27,6 +27,7 @@ const PHONE_VIEW={
   wheel:.001,         // the wheel zooms by exp(deltaY * .001)
   deadZone:4,         // pixels a finger may wander before a press becomes a turn (tools.js: drag.moved)
   uprightBack:2,      // Reset view on an upright screen steps back at most this many times Fit view's distance
+  margin:8,           // pixels kept clear between the framed model and the buttons, lines and edges around it
 };
 const PHONE_REPEAT={after:450,every:120};   // holding - or + still steps: the first step after 450 ms, then every 120 ms
 const PHONE_STEP_SLOP=10;                   // pixels a finger on - or + may move before the press is a scroll, not a hold
@@ -40,6 +41,13 @@ const PHONE_STOP_LINE='These sizes cannot be built. Tap Build it to see why.';
 const PHONE_STOP_ROW_LINE='This cannot be built with these sizes. The red box at the end of the form says why.';
 /* the desktop's advice when the browser will not store the design names its File menu; the phone page has none */
 const PHONE_KEEP_ADVICE='The design stays only while this page is open. In a private window, open the link in a normal window instead to keep your designs.';
+/* The desktop's short messages that name a key or a click, in words for a phone (the View sheet of the 3D tab,
+   js/phoneview.js, and Show me). Only on the phone page; the desktop's own words are not changed. */
+const PHONE_TOAST_WORDS=[
+  [/ Shift\+[SF] goes back\./,' View, then Solid, goes back.'],
+  [' Alt+O closes them again.',' Close all, under View, closes them again.'],
+  ['Click anywhere to go back to normal.','Tap the picture to go back to normal.'],
+];
 /* the closing words of a large picture on a phone (the desktop's say Click and Esc) */
 const PHONE_PICTURE_CLOSE='Slide to see all of it. Tap anywhere to close.';
 /* the fractions of the size pad: eighths (and "None", which takes the fraction off) or the odd sixteenths */
@@ -105,6 +113,7 @@ function phoneMount(holder){
   phoneTouchLayer(root.querySelector('.ph-touch'));
   phoneWirePad(root.querySelector('.ph-pad'));
   phoneWireSteppers(root);
+  if(typeof window.phoneViewMount==='function')window.phoneViewMount(root);   // the View sheet of the 3D tab (js/phoneview.js)
   // a call, the app switcher or the screen locking: a held - or + stops, the fingers on the 3D view are forgotten,
   // and the place is saved now; the phone's Back steps back through the screens
   phone.listeners=[
@@ -140,6 +149,7 @@ function phoneUnmount(){
   for(const[target,type,handler]of phone.listeners)target.removeEventListener(type,handler);
   phone.listeners=[];
   phone.touchReset=null;
+  if(typeof window.phoneViewUnmount==='function')window.phoneViewUnmount();   // steps and Show me end (js/phoneview.js)
   phoneUndecorateForm();
   if(typeof window.phonePagesUndo==='function')window.phonePagesUndo();   // the pages as renderCut drew them (js/phonepages.js)
   for(const record of phone.moved.slice().reverse()){
@@ -251,7 +261,11 @@ function phoneClick(event){
   else if(word==='last')phoneOpenResult('3d');
   else if(word==='sizes')phoneBackToSizes();
   else if(word==='build')phoneBuild();
-  else if(word==='reset')phoneFitView();
+  else if(word==='reset'){
+    // everything the View sheet changed goes back too (js/phoneview.js), then the design is framed
+    if(typeof window.phoneViewReset==='function')window.phoneViewReset();
+    phoneFitView();
+  }
 }
 /* stores the choice of page on this device and opens it */
 function phoneGoTo(choice){
@@ -349,11 +363,25 @@ function phonePictureClick(event){
     phone.pictureOpen=true;
     const words=large.querySelector('.zclose');
     if(words)words.textContent=PHONE_PICTURE_CLOSE;
+    phoneCenterLargePicture(large);
     phoneHistoryTo('picture');
   }else if(!open&&phone.pictureOpen){
     phone.pictureOpen=false;
     phoneHistoryTo(phone.screen);
   }
+}
+/* A large picture is bigger than the screen: it opens with its middle in the middle of the screen (where the
+   design is), not at its top left corner, which is mostly floor. Done again once the picture has its size. */
+function phoneCenterLargePicture(large){
+  const image=large.querySelector('img');
+  if(!image)return;
+  const center=()=>{
+    if(large.hidden)return;
+    large.scrollLeft=Math.max(0,image.offsetLeft+image.offsetWidth/2-large.clientWidth/2);
+    large.scrollTop=Math.max(0,image.offsetTop+image.offsetHeight/2-large.clientHeight/2);
+  };
+  if(image.complete&&image.naturalWidth)center();
+  else image.addEventListener('load',center,{once:true});
 }
 /* the phone's Back on a large picture closes it */
 function phoneCloseLargePicture(){
@@ -742,6 +770,7 @@ function phoneBuild(){
   presetGate(preset,vals,parts=>{
     placePreset(preset,vals,parts,false,entryName);
     phone.builtEntry=entryId||'';
+    if(typeof phoneView!=='undefined')phoneView.resumeStep=null;   // (a new design starts its 3D tab afresh: js/phoneview.js)
     // shared with the full program's Recent; the self-check builds are not something this device "made"
     if(entryId&&catalogEntry(entryId)&&(!autoConfirm||catalogState.rememberInCheck))rememberRecent(entryId);
     phoneOpenResult('3d');
@@ -765,6 +794,8 @@ function phoneShowSection(id,force){
   // a tap on the tab that shows already goes back to its top (to the list of steps, on Steps), as phone apps do
   if(!force&&phone.section===id&&phone.root.dataset.section===id){phone.root.querySelector('.ph-body').scrollTop=0;return;}
   phoneKeepScroll();
+  // the 3D tab is left: Build step by step remembers its step (js/phoneview.js), as setTab ends it
+  if(phone.section==='3d'&&id!=='3d'&&typeof window.phoneViewLeaving==='function')window.phoneViewLeaving();
   phone.section=id;
   const root=phone.root;
   root.dataset.section=id;
@@ -775,7 +806,10 @@ function phoneShowSection(id,force){
   });
   // (the 3D view must have its size before setTab('design') measures it)
   if(tab!==section.tab)setTab(section.tab);
-  if(id==='3d')resize();
+  if(id==='3d'){
+    resize();
+    if(typeof window.phoneViewShown==='function')window.phoneViewShown();
+  }
   const fill=section.shown&&window[section.shown];
   if(typeof fill==='function')fill(id,root.querySelector('.ph-docs'));
   phoneRestoreScroll();
@@ -790,6 +824,7 @@ function phoneTouchLayer(layer){
   const fingers=new Map();     // pointerId -> {x, y}
   let one=null;                // one finger: {sx, sy, lx, ly, moved}
   let two=null;                // two fingers: {dist, mx, my} at the last move
+  let several=false;           // more than one finger has been down since the first one landed (then it is no tap)
   const pair=()=>{
     const[a,b]=[...fingers.values()];
     return{dist:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2};
@@ -805,10 +840,11 @@ function phoneTouchLayer(layer){
   layer.addEventListener('pointerdown',event=>{
     event.preventDefault();
     if(event.isPrimary)fingers.clear();   // a first finger: any finger still held is one whose lift was lost
+    if(typeof window.phoneViewPressed==='function')window.phoneViewPressed();   // (Show me stays while the view turns: js/phoneview.js)
     try{layer.setPointerCapture(event.pointerId);}catch(e){}
     fingers.set(event.pointerId,{x:event.clientX,y:event.clientY});
-    if(fingers.size===1)one={sx:event.clientX,sy:event.clientY,lx:event.clientX,ly:event.clientY,moved:false};
-    else settle();
+    if(fingers.size===1){one={sx:event.clientX,sy:event.clientY,lx:event.clientX,ly:event.clientY,moved:false};several=false;}
+    else{several=true;settle();}
   });
   layer.addEventListener('pointermove',event=>{
     if(!fingers.has(event.pointerId))return;
@@ -818,7 +854,11 @@ function phoneTouchLayer(layer){
   });
   const lift=event=>{
     if(!fingers.delete(event.pointerId))return;
+    // one finger down and up without turning the view: a tap (js/phoneview.js: it ends Show me; two make a double
+    // tap, which opens a door or drawer)
+    const tapped=event.type==='pointerup'&&!fingers.size&&!several&&one&&!one.moved;
     settle();
+    if(tapped&&typeof window.phoneViewTapped==='function')window.phoneViewTapped(event.clientX,event.clientY);
   };
   layer.addEventListener('pointerup',lift);
   layer.addEventListener('pointercancel',lift);
@@ -832,9 +872,70 @@ function phoneTouchLayer(layer){
 }
 /* Reset view: the desktop's Fit view (fit('fit'), js/view3d.js), which is made for a wide window. On an upright
    screen the same distance cuts the sides off, so the camera steps back by the narrowness of the view (at most
-   twice as far), until the whole width shows. */
-function phoneFitView(){
-  fit('fit');
+   twice as far), until the whole width shows. dir: the desktop's fit() direction ('fit', 'front', 'side', 'top'),
+   for the standard views of the View sheet (js/phoneview.js). */
+function phoneFitView(dir){
+  resize();   // (the step bar or the color key may have come or gone since the view was last measured)
+  fit(dir||'fit');
+  phoneUprightBack();
+  phoneKeepInFree();
+}
+/* The part of the 3D view no button, line or bar covers, in pixels of the canvas: under the line at the top (or
+   the step bar) and the color key, over Reset view and View. js/phoneview.js lists the things that cover it. */
+function phoneFreeArea(){
+  const canvas=$('#cv').getBoundingClientRect();
+  if(!canvas.width||!canvas.height)return null;
+  const margin=PHONE_VIEW.margin;
+  let top=canvas.top,bottom=canvas.bottom;
+  for(const node of phone.root.querySelectorAll('.ph-view .ph-hint,.ph-view .ph-stepbar,.ph-view #legend')){
+    const box=node.getBoundingClientRect();
+    if(box.height)top=Math.max(top,box.bottom);   // (all three sit at the top of the view)
+  }
+  for(const node of phone.root.querySelectorAll('.ph-view .ph-reset,.ph-view .ph-viewbtn')){
+    const box=node.getBoundingClientRect();
+    if(box.height)bottom=Math.min(bottom,box.top);
+  }
+  return{left:margin,right:canvas.width-margin,top:top-canvas.top+margin,bottom:bottom-canvas.top-margin,width:canvas.width,height:canvas.height};
+}
+/* Keeps the whole model (as it is drawn now: pulled apart, doors open, and its size lines) inside the free area:
+   the camera only steps back, never in, and the model is slid to the middle of that area. Used after every
+   framing, so Reset view, a standard view and leaving Build step by step show all of it. */
+function phoneKeepInFree(){
+  const free=phoneFreeArea();
+  if(!free||free.right<=free.left||free.bottom<=free.top)return;
+  const box=new THREE.Box3();
+  meshes.forEach(group=>box.expandByObject(group));
+  if(typeof dimGroup!=='undefined'&&dimGroup.visible)box.expandByObject(dimGroup);
+  if(box.isEmpty())return;
+  const corners=[];
+  for(const x of[box.min.x,box.max.x])for(const y of[box.min.y,box.max.y])for(const z of[box.min.z,box.max.z])corners.push(new THREE.Vector3(x,y,z));
+  const right=new THREE.Vector3(),up=new THREE.Vector3(),point=new THREE.Vector3();
+  // a few rounds: each steps back and slides by what the last one measured (a perspective view is not linear)
+  for(let round=0;round<4;round++){
+    camera.updateMatrixWorld();
+    let left=Infinity,rightmost=-Infinity,top=Infinity,bottom=-Infinity,behind=false;
+    for(const corner of corners){
+      point.copy(corner).project(camera);
+      if(point.z>1||point.z<-1){behind=true;break;}
+      const x=(point.x+1)/2*free.width,y=(1-point.y)/2*free.height;
+      left=Math.min(left,x);rightmost=Math.max(rightmost,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+    }
+    if(behind){cam.r=Math.min(PHONE_VIEW.far,cam.r*1.5);updateCam();continue;}
+    const step=Math.max(1,(rightmost-left)/(free.right-free.left),(bottom-top)/(free.bottom-free.top));
+    const slideX=(left+rightmost)/2-(free.left+free.right)/2,slideY=(top+bottom)/2-(free.top+free.bottom)/2;
+    if(step<1.001&&Math.abs(slideX)<1&&Math.abs(slideY)<1)break;
+    // pixels to inches at the distance of the target
+    const perPixel=2*cam.r*Math.tan(camera.fov*Math.PI/360)/free.height;
+    right.setFromMatrixColumn(camera.matrixWorld,0);
+    up.setFromMatrixColumn(camera.matrixWorld,1);
+    cam.target.addScaledVector(right,slideX*perPixel).addScaledVector(up,-slideY*perPixel);
+    cam.r=Math.min(PHONE_VIEW.far,cam.r*step);
+    updateCam();
+  }
+}
+/* steps the camera back by the narrowness of an upright view (at most PHONE_VIEW.uprightBack times), for a camera
+   the desktop placed for its wide window (Fit view, Show me) */
+function phoneUprightBack(){
   const aspect=camera.aspect;
   if(aspect>0&&aspect<1){
     cam.r=Math.min(PHONE_VIEW.far,cam.r*Math.min(PHONE_VIEW.uprightBack,1/aspect));
@@ -846,6 +947,7 @@ function phoneTurn(drag,x,y){
   const dx=x-drag.lx,dy=y-drag.ly;
   drag.lx=x;drag.ly=y;
   if(!drag.moved&&Math.hypot(x-drag.sx,y-drag.sy)<PHONE_VIEW.deadZone)return;
+  if(typeof window.phoneViewTurned==='function')window.phoneViewTurned();   // (the line over the view stops naming a standard view)
   drag.moved=true;
   cam.th+=dx*PHONE_VIEW.turn;
   cam.ph=Math.min(Math.PI/2+PHONE_VIEW.below,Math.max(PHONE_VIEW.lowest,cam.ph-dy*PHONE_VIEW.turn));
@@ -918,7 +1020,8 @@ function phoneStart(){
 function phoneToastWords(){
   if(typeof KEEP_ADVICE!=='string')return;
   const phoneWords=message=>{
-    const text=String(message);
+    let text=String(message);
+    for(const[desktop,phoneSays]of PHONE_TOAST_WORDS)text=text.replace(desktop,phoneSays);
     return text.endsWith(KEEP_ADVICE)?text.slice(0,-KEEP_ADVICE.length)+PHONE_KEEP_ADVICE:text;
   };
   // the autosave's toast (js/state.js) and the "Could not save" message (js/app.js)
