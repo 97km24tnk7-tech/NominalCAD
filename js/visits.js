@@ -41,7 +41,10 @@ const VISIT_TABS={cut:'cut list',instr:'instructions'};
 /* The preset names that may be sent: the catalog as the program wrote it, copied once now (this file loads after
    every preset has added itself). A name changed or added in PRESETS later, by code or from the console, is not
    in this list and so is never sent. */
-const VISIT_PRESET_NAMES=Object.freeze(PRESETS.map(preset=>preset.name).filter(name=>typeof name==='string'));
+// (and the names of the catalog's entries, js/catalog.js: an entry of a builder that serves several, a Dresser of
+// the cabinet builder, is counted under its own name; placePreset in js/app.js)
+const VISIT_PRESET_NAMES=Object.freeze(PRESETS.map(preset=>preset.name)
+  .concat(typeof CATALOG!=='undefined'?CATALOG.map(entry=>entry.name):[]).filter(name=>typeof name==='string'));
 
 /* ---------- is a self-test running? ---------- */
 let visitsQuiet=0; // how many self-tests are running right now

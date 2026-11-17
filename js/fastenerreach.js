@@ -205,10 +205,19 @@ function angledIntoUpright(joint,list,X,others){
   const t=[0,1,2].find(k=>k!==shape.k&&k!==s);
   let hidden=hiddenSide(board,s);
   const box=plainBox(board);
+  // Rule 13 (js/fasteners.js) holds for these heads too, for a preset that asks (angledScrewsFollowRule13: the
+  // cabinet builder): an underside higher than SEEN.underAbove is seen from below, so a shelf up there takes the
+  // screws on its top face, under the books. (Asked, not for all furniture: a design saved with the old Bookshelf
+  // keeps its screws where its steps say, in the underside.)
+  const owner=presetOfPiece(board);
+  if(s===1&&hidden<0&&owner&&owner.angledScrewsFollowRule13&&isHouseFurniturePiece(board)&&topFaceUnseen(board)&&
+    seenFromBelow([(box.lo[0]+box.hi[0])/2,box.lo[1],(box.lo[2]+box.hi[2])/2],[0,-1,0]))hidden=1;
   // A face that will be covered for good is better still, as for pocket holes (coveredForGood, js/fasteners.js):
   // a bookshelf's back rail is screwed to a divider from its back face, before the back panel is nailed over it,
   // not from its front face, which is seen when one looks into the bay.
   if(coveredForGood(board,s,-hidden)&&!coveredForGood(board,s,hidden))hidden=-hidden;
+  // and the face the preset says stays out of sight wins (hiddenFaceByPreset: a back rail with no back panel)
+  if(hiddenFaceByPreset(board,s))hidden=hiddenFaceByPreset(board,s);
   const where=boardFace==='end'?`the end of ${board.name}`:`the edge of ${board.name}`;
   // all of them on the hidden side first: into the end of a board, and through its edge too (a toe kick 3 1/2"
   // tall meets a divider with what counts as its edge; started on both of its faces in turn, one head would be

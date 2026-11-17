@@ -21,7 +21,8 @@
                                    along world direction axis (0 left-right, 1 up, 2 back-front), sign +1 or -1.
                                      opts.size, opts.along (world direction its length runs in),
                                      opts.offset [a, b] from the middle of the face along the two other directions
-     addPull(piece, opts)          a pull in the middle of the outer face of a drawer front or door
+                                     opts.to     the id of the piece it carries (a shelf pin's shelf)
+     addPull(piece, opts)         a pull in the middle of the outer face of a drawer front or door
      hangPresetDoors(ids)          what makePreset calls: hangs every piece named Door or Lid among the new pieces
    All of them only add to S.hardware; call commit() afterwards (the commands openHang here and mountDrawerOfSel in js/drawertool.js do).
 
@@ -386,7 +387,11 @@ function hangPresetDoors(ids){
   for(const door of doors){
     const lid=door.ax[2]===1;
     // a catch only where the preset's own list asks for one (cup hinges close by themselves); a lid always gets its stay
-    const result=hangDoor(door,{catch:lid||/catch|latch|hasp/i.test(listed)});
+    const opts={catch:lid||/catch|latch|hasp/i.test(listed)};
+    // a builder may say which edge a door hangs on (piece.hinge: 'left' or 'right'); when that edge has nothing
+    // to hang it on, the edge is found as for any other door. Older designs have no such field.
+    let result=door.hinge==='left'||door.hinge==='right'?hangDoor(door,{...opts,side:door.hinge}):null;
+    if(!result||!result.ok)result=hangDoor(door,opts);
     if(!result.ok)failed.push(result.message);
   }
   return failed;
@@ -563,7 +568,8 @@ function addOnFace(kind,piece,axis,sign,opts){
   const longWay=b.hi[others[0]]-b.lo[others[0]]>=b.hi[others[1]]-b.lo[others[1]]?others[0]:others[1];
   const along=opts.along!==undefined&&opts.along!==axis?opts.along:longWay,middle=middleOf(b);
   // measured in the piece's own frame (the directions of the world before any free rotation of the piece)
-  return addHardware({kind,size:opts.size,on:piece.id,to:null,at:point.map((v,k)=>v-middle[k]),n:unit(axis,sign),u:unit(along,1),geo:{}});
+  // opts.to: the piece it carries (a shelf pin's shelf), for hardware that holds (HARDWARE[kind].holds)
+  return addHardware({kind,size:opts.size,on:piece.id,to:opts.to==null?null:opts.to,at:point.map((v,k)=>v-middle[k]),n:unit(axis,sign),u:unit(along,1),geo:{}});
 }
 function addPull(piece,opts){
   opts=opts||{};

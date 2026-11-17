@@ -91,7 +91,8 @@ function nightstandOverall(cabinet,style){
   return{W:cabinet.W+2*NS.topSide,D:cabinet.D+NS.back+nightstandTopPast(style),H:cabinet.H+NS.top};
 }
 /* One layout, with no tip check. `force` lets nightstandPlan try lighter drawers: {frontHeight} with an open
-   shelf, {drawers} without one. */
+   shelf, {drawers} without one. The cabinet's own numbers are worked out here; the stack of drawers is
+   drawerStackLayout's (below), which the cabinet builder shares. */
 function nightstandLayout(p,force){
   const changed=[];
   const within=(value,lo,hi,what)=>{
@@ -105,53 +106,111 @@ function nightstandLayout(p,force){
   const overall={W:within(p.W,NS.minWidth,NS.maxWidth,'Width'),D:within(p.D,NS.minDepth,NS.maxDepth,'Depth'),H:within(p.H,NS.minHeight,NS.maxHeight,'Height')};
   const{W,D,H}=nightstandCase(overall,style);
   const gap=DRAWER.frontGap,panel=.75;
-  /* Where the stack of drawer fronts ends, top and bottom.
-     Overlay: the top front stops one gap under the top, and the bottom front covers the edge of the panel below it.
-     Inset:   the fronts sit between the top rails and the panel below, one gap away from each. */
-  const capTop=style==='overlay'?gap:panel+gap;
-  const capBottom=style==='overlay'?0:panel+gap;
-  const minFront=style==='overlay'?NS.minFront:NS.minFrontInset;
   const floorOfCabinet=NS.kick+panel;                  // top of the bottom panel
-  const frontsTo=H-capTop;                             // the top edge of the top drawer front
-  const stack=(n,frontHeight)=>n*frontHeight+(n-1)*gap; // height of n drawer fronts with their gaps
+  /* The zone the drawers fill: between the two sides, from the top of the bottom panel up to the underside of the
+     top rails. How far the fronts reach past it:
+       Overlay: the bottom front covers the whole edge of the panel below it, the top front stops one gap under
+                the top (the rails less one gap), and each side keeps NS.frontReveal of the cabinet side showing.
+       Inset:   the fronts sit inside, one gap away from the panel below and from the rails. */
+  const zone={x:panel,width:W-2*panel,depth:D,floorTop:floorOfCabinet,ceilUnder:H-panel,
+    lapBelow:style==='overlay'?panel:-gap,lapAbove:style==='overlay'?panel-gap:-gap,lapSide:panel-NS.frontReveal,
+    panel,style,kind,open:!!p.cub};
   const asked=Math.min(NS.maxDrawers,Math.max(1,parseInt(p.N,10)||1));
-  let drawers=p.cub?asked:(force.drawers||asked),frontHeight,shelfHeight=0,frontsFrom;
+  const stack=drawerStackLayout(zone,{drawers:asked,frontHeight:p.fh,forceFrontHeight:force.frontHeight,forceDrawers:force.drawers},within);
+  changed.push(...stack.changed);
+  const{drawers,frontHeight,fronts,openingOf,drawer}=stack;
+  return{W,D,H,overall,kind,style,minFront:stack.minFront,shelf:!!p.cub,shelfHeight:stack.openHeight,floorOfCabinet,
+    frontsFrom:stack.frontsFrom,drawers,frontHeight,fronts,changed,
+    kickerPairs:stack.kickerPairs,   // how many drawers get a pair of kicker strips above them (the lower ones, on runners, behind overlay fronts)
+    openingOf,drawerOptions:stack.drawerOptions,drawer,
+    // the numbers of every drawer, under the names the rest of this file uses
+    slide:drawer.length,travel:drawer.travel,boxWidth:drawer.boxWidth,boxHeight:drawer.boxHeight,bottomThick:drawer.bottomThick,
+    boxBottom:front=>r16(openingOf(front).y+drawer.boxBottom),
+    // what the heights of the slides are measured from in the steps: the panel right under the drawers
+    underDrawers:openingOf(fronts[0]).y};
+}
 
-  if(p.cub){
-    // With an open shelf: the drawers take the front height asked for, counted down from the top, and the open
-    // shelf gets what is left. It must keep at least NS.minShelf, so drawers give way first: shorter, then fewer.
-    frontHeight=force.frontHeight||floor16(within(p.fh,minFront,NS.maxFront,'Drawer front height'));
-    const room=frontsTo-floorOfCabinet-NS.minShelf-capBottom;    // the most the drawer fronts can take
+/* The words drawerStackLayout says when it had to change what was asked. A caller may hand its own in
+   zone.words (the cabinet builder speaks of an open space, not of a tick box); what it leaves out is said
+   this way, the Nightstand's words. */
+const DRAWER_STACK_WORDS={
+  fewerOverOpen:drawers=>`Only ${drawers} drawer${drawers>1?'s fit':' fits'} above an open shelf at this height. Make it taller, or leave out the open shelf, for more.`,
+  cutBackOverOpen:(frontHeight,least)=>`The drawer fronts were cut back to ${typedLen(frontHeight)} tall so the open shelf keeps ${fmt(least)}.`,
+  moreDrawers:(drawers,most)=>`${drawers} drawers were used: with fewer, each drawer front would be over ${fmt(most)} tall, heavy enough to pull the cabinet over when open. Tick the open shelf if you want fewer drawers.`,
+  fewerDrawers:(drawers,least)=>`Only ${drawers} drawer${drawers>1?'s fit':' fits'} at this height: each drawer front has to be at least ${fmt(least)} tall.`,
+  frontHeight:'Drawer front height',
+};
+/* A stack of drawers in one zone between two uprights: how many, how tall their fronts are, where each front
+   starts, the space each drawer box is built in, and what had to change and why. The Nightstand's rules:
+   overlay fronts at least NS.minFront, inset fronts at least NS.minFrontInset, none taller than NS.maxFront;
+   with an open space under them the fronts give way first (shorter), then fewer drawers; with drawers only,
+   more drawers while a front would pass NS.maxFront.
+     zone  {x, width, depth   the space between the two uprights, from the back to their front edges (z, optional:
+                              where that space starts front to back, 0 when left out)
+            floorTop          the top of the panel under the drawers
+            ceilUnder         the underside of what is over them (rails, a top, a panel)
+            lapBelow          how far the bottom front reaches below floorTop (an inset front: -1/8, it stops short)
+            lapAbove          how far the top front reaches above ceilUnder (the same way)
+            lapSide           how far an overlay front covers each upright
+            panel             the thickness of the panel that goes between the drawers and an open space under them
+            style             'overlay' | 'inset';  kind  'slide' | 'runner'
+            open              true when an open space stays under the drawers (it keeps at least NS.minShelf)
+            maxDrawers        optional, NS.maxDrawers when left out
+            firstNumber       optional: the number of the bottom drawer ("Drawer 1" when left out)
+            words             optional, see DRAWER_STACK_WORDS}
+     ask   {drawers: how many were asked for; frontHeight: the front height asked for (read with an open space);
+            forceFrontHeight, forceDrawers: what nightstandPlan tries when a full open drawer would tip it}
+     within(value, lo, hi, what)  optional: puts a typed value inside its limits and says so
+   Returns {drawers, frontHeight, fronts (the bottom edge of each front, bottom one first), frontsFrom,
+            openHeight (the clear height of the open space: the panel over it has its underside at
+            floorTop + openHeight; 0 without one), minFront, kickerPairs, openingOf(front), drawerOptions(index),
+            drawer (drawerPlan of the bottom one: every box of a stack comes out alike), changed}. */
+function drawerStackLayout(zone,ask,within){
+  const changed=[],words={...DRAWER_STACK_WORDS,...(zone.words||{})};
+  within=within||((value,lo,hi)=>Math.min(hi,Math.max(lo,value)));
+  const gap=DRAWER.frontGap,style=zone.style,kind=zone.kind;
+  const maxDrawers=zone.maxDrawers||NS.maxDrawers;
+  const minFront=style==='overlay'?NS.minFront:NS.minFrontInset;
+  const frontsTo=zone.ceilUnder+zone.lapAbove;          // the top edge of the top drawer front
+  const capBottom=zone.panel-zone.lapBelow;             // from the top of the panel over an open space to the bottom front
+  const stack=(n,frontHeight)=>n*frontHeight+(n-1)*gap; // height of n drawer fronts with their gaps
+  const asked=ask.drawers;
+  let drawers=zone.open?asked:(ask.forceDrawers||asked),frontHeight,openHeight=0,frontsFrom;
+
+  if(zone.open){
+    // With an open space: the drawers take the front height asked for, counted down from the top, and the open
+    // space gets what is left. It must keep at least NS.minShelf, so drawers give way first: shorter, then fewer.
+    frontHeight=ask.forceFrontHeight||floor16(within(ask.frontHeight,minFront,NS.maxFront,words.frontHeight));
+    const room=frontsTo-zone.floorTop-NS.minShelf-capBottom;    // the most the drawer fronts can take
     while(drawers>1&&stack(drawers,minFront)>room)drawers--;
-    if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} above an open shelf at this height. Make it taller, or leave out the open shelf, for more.`);
+    if(drawers<asked)changed.push(words.fewerOverOpen(drawers));
     if(stack(drawers,frontHeight)>room){
       frontHeight=floor16((room-(drawers-1)*gap)/drawers);
-      changed.push(`The drawer fronts were cut back to ${typedLen(frontHeight)} tall so the open shelf keeps ${fmt(NS.minShelf)}.`);
+      changed.push(words.cutBackOverOpen(frontHeight,NS.minShelf));
     }
-    shelfHeight=r16(frontsTo-stack(drawers,frontHeight)-capBottom-floorOfCabinet);
-    frontsFrom=floorOfCabinet+shelfHeight+capBottom;   // shelfHeight is the clear height under the shelf panel
+    openHeight=r16(frontsTo-stack(drawers,frontHeight)-capBottom-zone.floorTop);
+    frontsFrom=zone.floorTop+openHeight+capBottom;   // openHeight is the clear height under the panel over it
   }else{
-    // With no open shelf the drawers share the whole height above the bottom panel.
-    frontsFrom=NS.kick+capBottom;
+    // With no open space the drawers share the whole height above the panel under them.
+    frontsFrom=zone.floorTop-zone.lapBelow;
     const share=n=>floor16((frontsTo-frontsFrom-(n-1)*gap)/n);
-    while(drawers<NS.maxDrawers&&share(drawers)>NS.maxFront)drawers++;
-    if(drawers>asked)changed.push(`${drawers} drawers were used: with fewer, each drawer front would be over ${fmt(NS.maxFront)} tall, heavy enough to pull the cabinet over when open. Tick the open shelf if you want fewer drawers.`);
+    while(drawers<maxDrawers&&share(drawers)>NS.maxFront)drawers++;
+    if(drawers>asked)changed.push(words.moreDrawers(drawers,NS.maxFront));
     while(drawers>1&&share(drawers)<minFront)drawers--;
-    if(drawers<asked)changed.push(`Only ${drawers} drawer${drawers>1?'s fit':' fits'} at this height: each drawer front has to be at least ${fmt(minFront)} tall.`);
+    if(drawers<asked)changed.push(words.fewerDrawers(drawers,minFront));
     frontHeight=share(drawers);
   }
   const fronts=[];
   for(let i=0;i<drawers;i++)fronts.push(r16(frontsFrom+i*(frontHeight+gap)));
 
-  /* The space each drawer is built for (the "opening" of js/drawers.js), between the two sides. There are no
+  /* The space each drawer is built for (the "opening" of js/drawers.js), between the two uprights. There are no
      panels between the drawers, so every drawer gets a space of the same height: the one the top drawer has
-     under the rails. All the boxes then come out alike, and all the drawer parts are cut alike.
-       Overlay: from the top of the panel its front covers (3/4" above the bottom edge of the front) up to the
-                underside of the rails (3/4" less one gap below the top edge of the top front).
-       Inset:   one gap below the front to one gap above it. */
-  const openingOf=front=>style==='overlay'
-    ?{x:panel,y:r16(front+panel),z:0,width:W-2*panel,height:r16(frontHeight-panel-(panel-gap)),depth:D}
-    :{x:panel,y:r16(front-gap),z:0,width:W-2*panel,height:r16(frontHeight+2*gap),depth:D};
+     under what is over it. All the boxes then come out alike, and all the drawer parts are cut alike.
+       Overlay: from the top of the panel its front covers (lapBelow above the bottom edge of the front) up to
+                the underside of what is over it (lapAbove below the top edge of the top front).
+       Inset:   one gap below the front to one gap above it (both laps are minus one gap). */
+  const openingOf=front=>({x:zone.x,y:r16(front+zone.lapBelow),z:zone.z||0,width:zone.width,
+    height:r16(frontHeight-zone.lapBelow-zone.lapAbove),depth:zone.depth});
   /* Wooden runners with no rail between two drawers: what keeps a lower drawer from tipping when it is open?
        Overlay: its space ends 1 1/2" under the space above, so a kicker strip goes on each side there.
        Inset:   the spaces lie right on top of each other (they share the one gap between two fronts), so the
@@ -161,19 +220,14 @@ function nightstandLayout(p,force){
                 air under the rails, which still keep it from tipping (KICKER_REACH, js/drawers.js). */
   const stackedOnRunners=kind==='runner'&&drawers>1;
   const kickerPairs=stackedOnRunners&&style==='overlay'?drawers-1:0;
-  const drawerOptions=index=>({name:`Drawer ${index+1}`,slide:kind,front:style,
+  const firstNumber=zone.firstNumber||1;
+  // overlay: the front laps the uprights by lapSide, what is over the drawers by lapAbove, the panel under them by lapBelow
+  const drawerOptions=index=>({name:`Drawer ${index+firstNumber}`,slide:kind,front:style,
     topTaken:stackedOnRunners&&style==='inset'?gap:0,
-    lap:{side:panel-NS.frontReveal,top:panel-gap,bottom:panel}});   // overlay: all but the reveal of each side, the rail less the gap, the whole panel edge
+    lap:{side:zone.lapSide,top:zone.lapAbove,bottom:zone.lapBelow}});
   const drawer=drawerPlan(openingOf(fronts[0]),drawerOptions(0));   // every clearance comes from DRAWER (js/drawers.js)
   if(drawer.bottomThick>.25)changed.push('The drawer bottoms are 1/2" plywood: in a drawer this size a 1/4" bottom would sag when the drawer is full.');
-  return{W,D,H,overall,kind,style,minFront,shelf:!!p.cub,shelfHeight,floorOfCabinet,frontsFrom,drawers,frontHeight,fronts,changed,
-    kickerPairs,   // how many drawers get a pair of kicker strips above them (the lower ones, on runners, behind overlay fronts)
-    openingOf,drawerOptions,drawer,
-    // the numbers of every drawer, under the names the rest of this file uses
-    slide:drawer.length,travel:drawer.travel,boxWidth:drawer.boxWidth,boxHeight:drawer.boxHeight,bottomThick:drawer.bottomThick,
-    boxBottom:front=>r16(openingOf(front).y+drawer.boxBottom),
-    // what the heights of the slides are measured from in the steps: the panel right under the drawers
-    underDrawers:openingOf(fronts[0]).y};
+  return{drawers,frontHeight,fronts,frontsFrom,openHeight,minFront,kickerPairs,openingOf,drawerOptions,drawer,changed};
 }
 
 /* The pieces for the form as it stands. Returns nothing when the tip check fails (nightstandInfo then says why). */
@@ -211,14 +265,24 @@ function nightstandPieces(plan){
    safe side. Returns {factor: holding / tipping, load}. A factor over 1 stays put; NS.tipStop is the least
    that is built. */
 function nightstandTip(plan){
-  const parts=nightstandPieces(plan),edge=plan.D,topDrawer=`Drawer ${plan.drawers}`;
-  const cubicFeet=(plan.boxWidth-1)*(plan.slide-1)*(plan.boxHeight-plan.bottomThick)/1728;
+  return drawerTipFactor(nightstandPieces(plan),plan.drawer,plan.D,`Drawer ${plan.drawers}`);
+}
+/* The tip check of one open drawer, for any case (the cabinet builder runs it for every drawer in turn).
+     pieces     every piece of the case and its drawers, as built (each drawer's pieces carry sub: its name)
+     drawer     drawerPlan of the drawer that is pulled out (its length, travel, box sizes)
+     edge       z of the front bottom edge the case would turn about (the front edge of its sides)
+     openName   the subcomponent name of the open drawer ("Drawer 2")
+     openingZ   optional: z of the back of that drawer's opening (drawer.boxFace is measured from there), 0 when
+                left out (the Nightstand's openings start at the back of the sides)
+   The open drawer and its load try to tip it, everything else holds it down. Returns {factor, load}. */
+function drawerTipFactor(pieces,drawer,edge,openName,openingZ){
+  const cubicFeet=(drawer.boxWidth-1)*(drawer.length-1)*(drawer.boxHeight-drawer.bottomThick)/1728;
   const load=Math.max(NS.minLoad,Math.round(cubicFeet*NS.loadPerCubicFoot));
   // the load sits in the middle of the open box
-  let holding=0,tipping=load*(plan.drawer.boxFace-plan.slide/2+plan.travel-edge);
-  for(const part of parts){
+  let holding=0,tipping=load*((openingZ||0)+drawer.boxFace-drawer.length/2+drawer.travel-edge);
+  for(const part of pieces){
     const s=size(part),weight=s[0]*s[1]*s[2]*NS.plyDensity,middle=part.pos[2]+s[2]/2;
-    if(part.sub===topDrawer)tipping+=weight*(middle+plan.travel-edge);
+    if(part.sub===openName)tipping+=weight*(middle+drawer.travel-edge);
     else holding+=weight*(edge-middle);
   }
   return{factor:holding/tipping,load};

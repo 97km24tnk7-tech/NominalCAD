@@ -60,7 +60,7 @@ function keptWarnings(){
     if(!ids.length)continue;
     for(const warning of set.warnings){
       out.push({level:'warn',code:'preset',ids,text:String(warning.text||''),
-        fix:[warning.fix,`This was worked out for the sizes the ${set.name||'preset'} was made with.`].filter(Boolean).join(' ')});
+        fix:[warning.fix,`This was worked out for the sizes the ${set.entry||set.name||'preset'} was made with.`].filter(Boolean).join(' ')});
     }
   }
   return out;

@@ -16,7 +16,8 @@
 'use strict';
 
 const HOUSE_FURNITURE=['Desk','Dining table','Coffee table','Side table / nightstand','Sturdy bench','Five-board bench',
-  'Entryway shoe bench','Bookshelf','Nightstand with drawers','Base cabinet with doors','Storage box / toy chest','Wall shelf','Platform bed'];
+  'Entryway shoe bench','Bookshelf','Nightstand with drawers','Base cabinet with doors','Storage box / toy chest','Wall shelf','Platform bed',
+  'Cabinet / case'];   // the cabinet builder (js/casebuild.js): the Bookshelf and the cases to come
 /* the faces a head may never show on, in those presets, in these styles: the top, the front and the sides (the
    owner, on the heads on the outside of a bookshelf side: "hide those too, or mention and explain how to cover").
    The back is left out: a piece for the house stands with its back to a wall, and the brads of a back panel or the

@@ -409,6 +409,8 @@ textarea.fld.area.wrap{white-space:pre-wrap;word-break:break-all} /* one very lo
 .pform .frow{grid-template-columns:170px 96px minmax(0,1fr);column-gap:8px}
 .pform .frow select,.pform .frow .ck{grid-column:2/4}
 .pform .frow i,.sec i{font-style:normal;font-weight:400;font-size:var(--fs-s);color:var(--n500)}
+/* "More options": the rows a catalog entry keeps folded away (js/presetentry.js) */
+.pform-fold{display:block;height:20px;line-height:20px;margin:8px 0 4px;font-size:var(--fs-s)}
 /* the live summary under the form: what the design comes to with the sizes typed so far */
 .pform-s{flex:none;padding:8px 16px 10px;border-top:1px solid var(--n300);background:var(--n50)}
 .sum{display:grid;grid-template-columns:repeat(4,auto);justify-content:space-between;column-gap:12px}

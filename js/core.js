@@ -33,6 +33,10 @@ const isProp=p=>M[p.mat].kind==='prop';
 const propIsSolid=p=>isProp(p)&&!!M[p.mat].opaque;
 const M=Object.fromEntries(MATS.map(m=>[m.id,m]));
 const isSquare=m=>m.kind==='board'&&m.t===m.w;
+/* Plywood comes in 4 ft x 8 ft sheets, so no piece may be wider than 4 ft one way and 8 ft the other. Shared by
+   the fish racks and the cabinet builder. */
+const SHEET_W=48,SHEET_L=96;
+const fitsSheet=(a,b)=>Math.min(a,b)<=SHEET_W+1e-6&&Math.max(a,b)<=SHEET_L+1e-6;
 
 /* ---------- helpers ---------- */
 const $=s=>document.querySelector(s);

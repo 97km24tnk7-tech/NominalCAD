@@ -20,6 +20,9 @@ const OVERALL_SIZES={
   'Base cabinet with doors':{W:OVERALL_AXIS.across,D:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Storage box / toy chest':{W:OVERALL_AXIS.across,D:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Bookshelf':{W:OVERALL_AXIS.across,H:OVERALL_AXIS.up},
+  // the cabinet builder (js/casebuild.js), which makes the Bookshelf of the catalog; its depth box is the depth of
+  // the sides and says so ("Depth of the sides")
+  'Cabinet / case':{W:OVERALL_AXIS.across,H:OVERALL_AXIS.up},
   'Garage shelves':{W:OVERALL_AXIS.across,D:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Dining table':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},
   'Coffee table':{L:OVERALL_AXIS.across,W:OVERALL_AXIS.deep,H:OVERALL_AXIS.up},

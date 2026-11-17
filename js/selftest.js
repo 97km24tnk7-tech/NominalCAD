@@ -416,6 +416,7 @@ function selfTest(opt){
   try{
     PRESETS.forEach((pr,i)=>{
       if(opt.only&&!opt.only.includes(pr.name))return;
+      if(pr.retired)return;   // not in the window any more (its entry has another builder); the structural sweep still runs it
       try{
         if(!$('#presetDlg').open)$('#bPreset').click();
         const tile=presetTileInWindow(i); // js/catalog.js: clicks the preset's group on the left, gives back its tile
@@ -429,7 +430,7 @@ function selfTest(opt){
         if([...tile.querySelectorAll('b,small')].some(line=>line.scrollWidth>line.clientWidth))note(pr.name,'the name or the short line on its tile does not fit and is cut off');
         $('#bPGo').click();checked++;
         autoMessages.splice(0).forEach(m=>note(pr.name,'message: '+m.slice(0,160)));
-        if(S.name!==pr.name)return note(pr.name,`did not build (the project is still "${S.name}")`);
+        if(S.name!==presetTitle(pr))return note(pr.name,`did not build (the project is still "${S.name}")`);   // (a hidden builder's design is named after its entry)
         if(!S.parts.length)return note(pr.name,'built no pieces');
         const cl=findClashes();if(cl.length)note(pr.name,`${cl.length} overlapping pairs, for example ${cl[0][0].name} / ${cl[0][1].name}`);
         for(const p of S.parts){const m=M[p.mat];if(!m){note(pr.name,`${p.name} has an unknown material "${p.mat}"`);break;}

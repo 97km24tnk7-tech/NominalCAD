@@ -37,15 +37,16 @@ function presetPlacements(){
   for(const piece of S.parts){
     const set=S.sets&&piece.set!==undefined?S.sets[piece.set]:null;
     if(!set)continue;
-    if(!bySet.has(piece.set))bySet.set(piece.set,{name:set.name,parts:[]});
+    if(!bySet.has(piece.set))bySet.set(piece.set,{name:set.name,entry:set.entry,parts:[],vals:set.vals});
     bySet.get(piece.set).parts.push(piece);
   }
-  const list=[...bySet.values()].map(entry=>({preset:PRESETS.find(candidate=>candidate.name===entry.name),parts:entry.parts}));
+  const list=[...bySet.values()].map(entry=>({preset:PRESETS.find(candidate=>candidate.name===entry.name),parts:entry.parts,vals:entry.vals,entry:entry.entry}));
   if(!bySet.size){
     const preset=PRESETS.find(candidate=>candidate.name===S.name);
     if(preset)list.push({preset,parts:S.parts.slice()});
   }
-  return list.filter(entry=>entry.preset&&Array.isArray(entry.preset.joints)&&entry.parts.length);
+  // (a preset's joints may be a list, or a function of the form values: presetJointList, js/joints.js)
+  return list.filter(entry=>entry.preset&&(Array.isArray(entry.preset.joints)||typeof entry.preset.joints==='function')&&entry.parts.length);
 }
 /* the faces that showed screw heads, counted (showingHeads, js/showfaces.js) */
 function headsByFace(){
@@ -108,15 +109,16 @@ function upgradeFastening(){
   connCache=null;
   const typesBefore=fastenerTypes(),headsBefore=headsByFace(),plugsBefore=coveredHeads().length;
   const pocketRules=[],keptByHand=new Set();
-  for(const{preset,parts}of placements){
-    const own=new Set(parts);
+  for(const{preset,parts,vals}of placements){
+    const own=new Set(parts),list=presetJointList(preset,vals);
     for(const j of findJoints()){
       if(!own.has(j.a)||!own.has(j.b))continue;
       const key=j.key,chosen=S.joints[key];
       const byHand=chosen!==undefined&&S.named[key]!==chosen;
       if(byHand){keptByHand.add(key);continue;}             // the person's choice is kept
-      const today=namedJointType(j,preset.joints);
+      const row=namedJointRow(j,list),today=row?row[2]:'';
       if(leftToMissingHardware(preset,j,today,typesBefore.get(key)))continue;   // the old fastener still holds it
+      rememberThrough(j,row);   // the piece the screws go through, as the preset says today ({through})
       if(isStyleRule(today)){
         delete S.joints[key];delete S.named[key];
         S.styled[key]=today;
@@ -139,7 +141,7 @@ function upgradeFastening(){
   for(const[key,type]of typesAfter)if(typesBefore.get(key)!==type)changedKeys.push(key);
   if(!changedKeys.length)return;
   const words=bringWordsUpToDate(placements,changedKeys);
-  const names=[...new Set(placements.map(entry=>entry.preset.name))];
+  const names=[...new Set(placements.map(entry=>entry.entry||entry.preset.name))];   // (an entry's name, never a hidden builder's: "this Bookshelf")
   const text=`Updated the fasteners of this ${names.join(' and ')} to the current way: ${upgradeWords(keptByHand,plugsBefore,changedKeys.length)}.`+
     (words==='preset'?' Its build steps and notes were written again to match.':words==='notes'?' Its notes were written again to match.':
      words==='refreshed'?' The build steps for those joints were written again to match.':'');

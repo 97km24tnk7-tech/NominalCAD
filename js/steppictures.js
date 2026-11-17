@@ -235,6 +235,13 @@ function drawMarks(pen,lines){
 /* ---------- the close-up of one joint ---------- */
 /* Where the eye is for a close-up, as a direction from the joint: on the side the fastener is driven from, off
    to one side so the fastener is seen from the side as well, and always from a little above. */
+/* Is the close-up of a joint whose faces meet along k looked at from the front, along this axis? A joint of two
+   pieces side by side (k is left to right: a shelf against a divider) is, so the board the steps call "the one on
+   the left" is on the left in the picture too; seen from the back it would be on the right. Not when the fastener
+   is driven from the back (from: the way back out of the wood). */
+function frontSeen(k,axis,from){
+  return k===0&&axis===2&&!(from[2]<-.5);
+}
 function closeupEye(f,joint,center){
   const middle=designMiddle(),k=joint.k;
   if(f.kind==='pocket'){
@@ -245,7 +252,9 @@ function closeupEye(f,joint,center){
     const across=[0,1,2].find(axis=>axis!==k&&Math.abs(out[axis])<.5);   // the direction the holes are spread along
     for(let axis=0;axis<3;axis++)eye[axis]=out[axis]*.62;
     eye[k]-=Math.sign(f.dir[k]||1)*.42;                                  // from the piece with the holes, looking toward the joint
-    eye[across]+=(across===1?1:center[across]>=middle[across]-1?1:-1)*.5; // and from one side (from above when the row of holes is upright)
+    // and from one side (from above when the row of holes is upright); a joint between two pieces side by side
+    // (a shelf and a divider) from the front, so its left and right are the ones the words name (frontSeen)
+    eye[across]+=(across===1?1:frontSeen(k,across,[0,0,0])?1:center[across]>=middle[across]-1?1:-1)*.5;
     if(Math.abs(out[1])<.5&&eye[1]<.3)eye[1]=.3;                         // holes in an upright face: looked at from a little above
     const length=Math.hypot(eye[0],eye[1],eye[2]);
     return eye.map(v=>v/length);
@@ -256,7 +265,9 @@ function closeupEye(f,joint,center){
   const others=[0,1,2].filter(axis=>axis!==k);
   const level=others.filter(axis=>axis!==1);   // the directions that run along the floor
   others.forEach(axis=>{
-    const away=axis===1?1:center[axis]>=middle[axis]-1?1:-1;   // from above; else from outside the design (from the front or the right when it is in the middle)
+    // from above; else from outside the design (from the front or the right when it is in the middle); a joint of
+    // two pieces side by side always from the front, unless the screw is driven from the back (frontSeen)
+    const away=axis===1?1:frontSeen(k,axis,from)?1:center[axis]>=middle[axis]-1?1:-1;
     // a fastener that lies level is looked at from a little above; one that stands upright from two sides at once
     eye[axis]=away*(axis===1?.42:level.length===1?.8:axis===level[0]?.76:.55);
   });

@@ -107,8 +107,13 @@ const CATALOG=[
   {id:'shoe-bench',name:'Entryway shoe bench',group:'seating',spec:'Seat over a shoe shelf',icon:'i-p-bench',
     builder:'Entryway shoe bench',tags:['beginner','bench','seat','shoes','hallway','mudroom']},
   // Storage and shelving
+  // made by the cabinet builder (js/casebuild.js): its start values, the rows it shows first, its own limits
   {id:'bookshelf',name:'Bookshelf',group:'storage',spec:'Fixed shelves, thin back',icon:'i-p-shelf',
-    builder:'Bookshelf',tags:['beginner','shelves','books','bookcase']},
+    builder:'Cabinet / case',tags:['beginner','shelves','books','bookcase'],
+    desc:'Sides, fixed shelves, toe kick and a thin plywood back. Wide ones get upright dividers so the shelves cannot sag.',
+    start:{kind:'bookshelf',mat:'boards',board:'1x10',D:12,W:32,H:48,fill:'shelves',n:3,use:'books',top:'inside',back:'panel',kickBack:1},
+    short:['W','H','board','back','spacing','n','gap','extra','o1','o2','o3','o4','o5','o6','o7','o8'],
+    limits:{W:[12,72],H:[24,84],D:[8,16]}},
   {id:'garage-shelves',name:'Garage shelves',group:'storage',spec:'2x4 frame, plywood decks',icon:'i-p-shelf',
     builder:'Garage shelves',tags:['shop','beginner','shelves','garage','shelving unit']},
   {id:'base-cabinet',name:'Base cabinet',group:'storage',spec:'Shelf, doors and a top',icon:'i-p-cabinet',
@@ -182,7 +187,8 @@ function catalogEntries(){
   const names=new Set(PRESETS.map(preset=>preset.name));
   const listed=CATALOG.filter(entry=>names.has(entry.builder));
   const covered=new Set(listed.map(entry=>entry.builder));
-  const automatic=PRESETS.filter(preset=>!covered.has(preset.name)).map(preset=>({
+  // (a retired preset, whose entry is now made by another builder, is never listed: js/casebuild.js)
+  const automatic=PRESETS.filter(preset=>!covered.has(preset.name)&&!preset.retired).map(preset=>({
     id:'preset:'+preset.name,name:preset.tile||preset.name,group:'more',spec:preset.spec||'',
     icon:preset.icon||'i-presets',builder:preset.name,tags:[],automatic:true}));
   return listed.concat(automatic);
@@ -380,7 +386,8 @@ function tileHtml(entry,favorites,pinned){
   // matters in search results, where pieces of every group stand together.
   const group=CATALOG_GROUPS.find(row=>row.id===entry.group);
   const line=pinned?CATALOG_PINNED_WORDS:entry.spec;
-  const about=`${preset?preset.name:entry.name}${group?` (${group.name})`:''}. ${entry.desc||(preset&&preset.desc)||entry.spec}`;
+  // (a hidden builder, such as the cabinet builder, is never named: its entry is)
+  const about=`${preset&&!preset.hidden?preset.name:entry.name}${group?` (${group.name})`:''}. ${entry.desc||(preset&&preset.desc)||entry.spec}`;
   const tip=pinned?`The design on the right. The search, a filter or the group shown leaves it out, so it waits here until you choose another. ${about}`:about;
   return`<div class="ptile${pinned?' pinned':''}">`+
     `<button class="card${picked?' on':''}${pinned?' pinned':''}" data-entry="${esc(entry.id)}" data-i="${index}" tabindex="-1" title="${esc(tip)}">`+
@@ -453,7 +460,7 @@ function catalogPick(id,options){
   if(formIsOurs()&&!restartingThisPiece)catalogState.typed[catalogState.picked]=readFormBoxes();
   if(options.fresh)delete catalogState.typed[id];
   catalogState.picked=id;
-  choosePreset(index);                                   // js/app.js: the form, the live picture, the summary
+  choosePreset(index,entry);                             // js/app.js: the form, the live picture, the summary (the entry's start, short list and limits: js/presetentry.js)
   catalogState.formNode=$('#presetForm .pform-h');
   if(entry.desc){
     $('#presetForm .pform-h h4').textContent=entry.name;
@@ -768,6 +775,7 @@ SELFTESTS.push(function catalogCoversEveryPreset(problems){
   if(!dialogWasOpen)$('#bPreset').click();
   try{
     PRESETS.forEach((preset,index)=>{
+      if(preset.retired)return;   // not listed: its entry is made by another builder now
       const entries=catalogEntries().filter(entry=>entry.builder===preset.name);
       if(!entries.length||entries.every(entry=>entry.automatic))wrong(`${preset.name} has no entry in the catalog (js/catalog.js); it shows under "More"`);
       const groupsOf=new Set(entries.map(entry=>entry.group));
@@ -1077,7 +1085,7 @@ SELFTESTS.push(function catalogSearchAndKeys(problems){
       }
       // the main loop of selfTest builds every preset at its defaults, even the one in the pane with sizes typed
       typeWidth();
-      const tile=presetTileInWindow(PRESETS.findIndex(preset=>preset.name==='Bookshelf'));
+      const tile=presetTileInWindow(PRESETS.findIndex(preset=>preset.name===catalogEntry('bookshelf').builder));
       if(tile)tile.click();
       if(parseLen($('#presetForm [data-k="W"]').value)!==startWidth)wrong('presetTileInWindow on the piece already in the pane kept the width typed for it');
     }else wrong('the Bookshelf form has no Width box');
@@ -1156,7 +1164,7 @@ SELFTESTS.push(function catalogLiveDesignInList(problems){
     // Enter in the search box picks the first design FOUND, not the pinned one
     type('bookshelf');
     $('#presetFind').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
-    if(!curPreset||curPreset.name!=='Bookshelf')wrong(`Enter in the search box chose ${curPreset&&curPreset.name}, not the first design found`);
+    if(!curPreset||presetTitle(curPreset)!=='Bookshelf')wrong(`Enter in the search box chose ${curPreset&&curPreset.name}, not the first design found`);
     // what was typed for the nightstand is still there when it is chosen again
     catalogPick('drawer-nightstand');
     const again=$('#presetForm [data-k="H"]')||$('#presetForm .pform-b input[data-len]');

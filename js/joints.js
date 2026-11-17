@@ -89,27 +89,71 @@ function suggestedType(j,style){
    that meet in more than one way: ['Post','Shelf deck','none','face-edge'] is only the joint where the face of a
    post lies against the edge of a deck (they only touch there), and leaves alone the deck that lies on top of
    the posts ('end-face'). The first row that fits wins, so a row with a fourth part goes above a general one.
+   The fourth part may also be an object, {how:'face-edge', through:'Top rail'} (both optional): `through` names the
+   piece the screws of that joint go through, for two pieces face to face where the plain rule (thruPart: the
+   thinner one, or the first one when they are alike) would pick the wrong one (a false front screwed from inside
+   through the rail behind it, not through its show face). storeNamedJoints keeps it in S.through.
+   The object may also hold `when: joint => true | false`: the row fits only the joints it says yes to (the cabinet
+   builder screws a shelf through a divider only where another shelf lies on the divider's other face; a shelf with
+   an open bay beside it gets the pocket holes it gets at a side). It must judge from the two pieces of the joint
+   alone (their names, sizes and places), since the structural check asks before the pieces are in a design.
    placePreset (js/app.js) and the structural check (js/verify.js) both read the list through this. */
-function namedJointType(j,list){
-  for(const[a,b,type,how]of list||[]){
+function namedJointRow(j,list){
+  for(const row of list||[]){
+    const[a,b,,fourth]=row;
     const straight=j.a.name===a&&j.b.name===b,swapped=j.a.name===b&&j.b.name===a;
     if(!straight&&!swapped)continue;
-    if(!how)return type;
-    if((straight&&how===j.fa+'-'+j.fb)||(swapped&&how===j.fb+'-'+j.fa))return type;
+    if(fourth&&typeof fourth==='object'&&typeof fourth.when==='function'&&!fourth.when(j))continue;
+    const how=fourth&&typeof fourth==='object'?fourth.how:fourth;
+    if(!how)return row;
+    if((straight&&how===j.fa+'-'+j.fb)||(swapped&&how===j.fb+'-'+j.fa))return row;
   }
-  return'';
+  return null;
+}
+function namedJointType(j,list){
+  const row=namedJointRow(j,list);
+  return row?row[2]:'';
+}
+/* The piece name a row says the screws go through ({through} in its fourth part), or ''. */
+const throughOfRow=row=>row&&row[3]&&typeof row[3]==='object'&&typeof row[3].through==='string'?row[3].through:'';
+/* Keeps (or forgets) which piece the screws of this joint go through, as the row of a preset's list says. */
+function rememberThrough(j,row){
+  const name=throughOfRow(row);
+  if(!name&&(!S.through||typeof S.through!=='object'))return;   // nothing to keep, and nothing kept before
+  if(!S.through||typeof S.through!=='object')S.through={};
+  const piece=name===j.a.name?j.a:name===j.b.name?j.b:null;
+  if(piece)S.through[j.key]=piece.id;
+  else delete S.through[j.key];
+}
+/* 'a' or 'b' when the preset said which piece the screws of this joint go through (S.through), else null. Only
+   for two faces against each other: anywhere else the shapes decide (a face screwed into an edge or an end). */
+function forcedThrough(j){
+  if(j.fa!=='face'||j.fb!=='face'||typeof S==='undefined'||!S||!S.through)return null;
+  const id=S.through[j.key];
+  if(id===undefined)return null;
+  return j.a.id===id?'a':j.b.id===id?'b':null;
+}
+/* A preset's `joints` list for these form values: the list itself, or what joints(vals) returns. */
+function presetJointList(preset,vals){
+  if(typeof preset.joints!=='function')return preset.joints||[];
+  try{return preset.joints(vals||presetDefaults(preset))||[];}catch(e){return[];}
 }
 /* Stores the fasteners a preset names for its own pieces like fasteners chosen by hand (S.joints). parts: the
    pieces of this placement, already in the design. Only joints between two of them are touched, so "Add beside
    the current design" leaves the design that was there alone. placePreset (js/app.js) calls it, and so do the
-   self-checks that place a preset without the dialog (placeForCheck, js/fasteners.js). */
-function storeNamedJoints(preset,parts){
+   self-checks that place a preset without the dialog (placeForCheck, js/fasteners.js).
+   vals: the form values it was made with, for a preset whose `joints` is a function of them (left out: the
+   values kept with its placement, else its defaults). */
+function storeNamedJoints(preset,parts,vals){
   if(!preset.joints)return;
+  if(!vals&&parts.length&&S.sets&&parts[0].set!==undefined&&S.sets[parts[0].set])vals=S.sets[parts[0].set].vals;
+  const list=presetJointList(preset,vals);
   const own=new Set(parts),pocketRules=[];
   for(const j of findJoints()){
     if(!own.has(j.a)||!own.has(j.b))continue;
-    const type=namedJointType(j,preset.joints);   // the first row of the list that fits
+    const row=namedJointRow(j,list),type=row?row[2]:'';   // the first row of the list that fits
     if(!type)continue;
+    if(throughOfRow(row))rememberThrough(j,row);   // the screws go through the piece the row names
     if(isStyleRule(type)){
       // a fastener that follows the style: kept as the rule, read through suggestedType, never frozen
       if(!S.styled||typeof S.styled!=='object')S.styled={};
@@ -151,7 +195,8 @@ function roomForTopRows(keys){
   }
 }
 function thruPart(j){ // the piece a fastener passes through first
-  if(j.fa==='face'&&j.fb==='face')return j.da<=j.db?'a':'b';
+  // two faces together: the piece the preset named ({through}, forcedThrough above), else the thinner one
+  if(j.fa==='face'&&j.fb==='face')return forcedThrough(j)||(j.da<=j.db?'a':'b');
   return j.fa==='face'?'a':j.fb==='face'?'b':null;
 }
 function defaultType(j){

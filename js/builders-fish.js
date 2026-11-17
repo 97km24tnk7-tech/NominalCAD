@@ -423,9 +423,7 @@ function rackLayout(pl,m){
   rackLayoutMemo.set(m,lay);
   return lay;
 }
-/* Plywood comes in 4 ft x 8 ft sheets, so no piece may be wider than 4 ft one way and 8 ft the other. */
-const SHEET_W=48,SHEET_L=96;
-const fitsSheet=(a,b)=>Math.min(a,b)<=SHEET_W+1e-6&&Math.max(a,b)<=SHEET_L+1e-6;
+/* Plywood comes in 4 ft x 8 ft sheets: SHEET_W, SHEET_L and fitsSheet are in js/core.js. */
 /* The diagonal 1x4 braces across the back. Each stretch of the wall between two rail joints (or the whole of a
    section) is braced like a rack of its own, so no brace runs across a joint. One brace from a bottom corner to
    the opposite top corner is best, but a board that long may be longer than the longest board the user can haul.

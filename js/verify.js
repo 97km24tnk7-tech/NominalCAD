@@ -1994,7 +1994,8 @@ function checkPreset(preset,vals,parts,extra){
   parts=parts||preset.build(vals);
   const own=(preset.check?preset.check(vals)||[]:[]).map(f=>({level:f.level==='warn'?'warn':'stop',code:f.code||'input',ids:f.ids||[],text:f.text,fix:f.fix||''}));
   // the pieces are not in a project yet, so the fasteners the preset names (its `joints`) are handed over by name
-  const options=Object.assign(presetOptions(preset,vals),{namedJoints:preset.joints||[]},extra||{});
+  // (a preset's `joints` may be a function of the form values, like its uses and wall)
+  const options=Object.assign(presetOptions(preset,vals),{namedJoints:typeof preset.joints==='function'?preset.joints(vals)||[]:preset.joints||[]},extra||{});
   // the screws into the wall studs that placing it will drive (a preset that is held by them: WALL_BY_SCREWS)
   if(typeof preset.wallScrews==='function'&&!(extra&&extra.wallScrews))options.wallScrews=preset.wallScrews(vals,parts);
   const result=parts.length?verifyDesign(parts,options):{problems:[],facts:null,skipped:''};

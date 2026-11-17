@@ -119,6 +119,27 @@ function topFaceUnseen(piece){
   const b=plainBox(piece);
   return b.hi[1]>=SEEN.topFrom-1e-6||faceIsInside(piece,1,1);
 }
+/* The preset that placed this piece (its placement, S.sets), or null for a piece drawn by hand. */
+function presetOfPiece(piece){
+  const set=S.sets&&piece.set!==undefined?S.sets[piece.set]:null;
+  return set&&PRESETS.find(row=>row.name===set.name)||null;
+}
+/* A preset may ask for the pocket holes of some of its pieces to be plugged in a build style:
+   preset.pluggedPockets(piece, out, style) (the cabinet builder plugs its shelves' and its top's in Fine furniture). */
+function pocketPluggedByPreset(piece,out){
+  const preset=presetOfPiece(piece);
+  return!!(preset&&typeof preset.pluggedPockets==='function'&&preset.pluggedPockets(piece,out,look().style));
+}
+/* A preset may name the face of a piece that stays out of sight along a direction, for its pocket holes and for
+   screws started at an angle: preset.hiddenFace(piece, axis) gives -1 (the low face), +1 (the high face) or 0
+   (let the shapes decide). The cabinet builder drills a back rail on its back face even with no back panel and no
+   wall behind it: the back is not a face anybody looks at, the front of the rail is seen from the front. */
+function hiddenFaceByPreset(piece,axis){
+  const preset=presetOfPiece(piece);
+  if(!preset||typeof preset.hiddenFace!=='function')return 0;
+  const side=preset.hiddenFace(piece,axis);
+  return side===1||side===-1?side:0;
+}
 
 const FASTEN={
   endMin:.75,        // rule 1
@@ -275,6 +296,7 @@ function drivenStraight(j,shape,n,kind,len,label,plug){
    needs, instead of through the show face of the thin one. Rustic / rough keeps its heads on the outside. */
 function screwSide(j,fromThicker){
   const side=thruPart(j);
+  if(forcedThrough(j))return side;   // the preset named the piece the screws go through ({through}, js/joints.js)
   if(!side||j.fa!=='face'||j.fb!=='face'||typeof S==='undefined'||!S.parts.includes(j.a))return side;
   const sameThickness=Math.abs(j.da-j.db)<=.01;
   // (only pieces side by side: a board lying on another, a slat on a cleat, is screwed down as always)
@@ -492,6 +514,8 @@ function pocketScrews(j,shape,n,len,label){
   const heldAtEnds=endPocketsOn(through,j);
   const narrow=box.hi[shape.k]-box.lo[shape.k]<ROW_ON_OTHER_FACE_BELOW;
   if(heldAtEnds&&narrow&&faceIsInside(through,s,-hidden))hidden=-hidden;
+  // the face the preset says stays out of sight wins (hiddenFaceByPreset; rule 11 keeps the row clear of the end holes)
+  if(hiddenFaceByPreset(through,s))hidden=hiddenFaceByPreset(through,s);
   // Rule 13: an underside high enough to be seen from below. The holes go on the top face when nobody sees that,
   // or stay and are plugged.
   const house=isHouseFurniturePiece(through);
@@ -545,7 +569,8 @@ function pocketScrews(j,shape,n,len,label){
     // through a thin deck: the framing under it that the point ends in
     const beyond=deck?deck.under.filter(p=>{const b=plainBox(p);return[0,1,2].every(k=>point[k]>=b.lo[k]-.03&&point[k]<=b.hi[k]+.03);}):[];
     // (rule 13 for a face that looks sideways, under a shelf hung high: the supports of a wall shelf)
-    const plug=plugged||(house&&s!==1&&seenFromBelow(mouth,out));
+    // (and the holes a preset asks to be plugged in this style: pocketPluggedByPreset)
+    const plug=plugged||(house&&s!==1&&seenFromBelow(mouth,out))||pocketPluggedByPreset(through,out);
     const path=beyond.length?`down through ${into.name} into ${beyond[0].name}`:`into ${into.name}`;
     return{kind:'pocket',pos,dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
       pocket:{mouth,out,dia:.375,plugged:plug},
@@ -1404,7 +1429,7 @@ function placeForCheck(variant){
   load(JSON.stringify(blank()),true);
   S.hw=variant.preset.hw?variant.preset.hw(variant.vals):[];
   const ids=addParts(parts);
-  storeNamedJoints(variant.preset,parts);
+  storeNamedJoints(variant.preset,parts,variant.vals);
   return ids;
 }
 function checkJointFasteners(j,type,where,wrong){

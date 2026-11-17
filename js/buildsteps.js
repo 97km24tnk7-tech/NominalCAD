@@ -556,6 +556,20 @@ function faceSaid(joint,piece){
 function faceOfInto(joint,into){
   return faceSaid(joint,into);
 }
+/* Do other pieces of the design lie against both faces of this piece along this axis (b: its box)? */
+function touchedOnBothFaces(piece,b,axis){
+  const others=[1,2,0].filter(k=>k!==axis);
+  let low=false,high=false;
+  for(const other of S.parts){
+    if(other===piece||isProp(other)||tilted(other))continue;
+    const o=plainBox(other);
+    if(!others.every(k=>o.lo[k]<b.hi[k]-.01&&o.hi[k]>b.lo[k]+.01))continue;
+    if(Math.abs(o.hi[axis]-b.lo[axis])<.01)low=true;
+    if(Math.abs(o.lo[axis]-b.hi[axis])<.01)high=true;
+    if(low&&high)return true;
+  }
+  return false;
+}
 /* the face of a piece that points this way, in words: 'underside', 'inside face (it faces left)' */
 function faceWords(piece,out,withDirection){
   const axis=[0,1,2].reduce((best,k)=>Math.abs(out[k])>Math.abs(out[best])?k:best,0),high=out[axis]>0;
@@ -566,6 +580,12 @@ function faceWords(piece,out,withDirection){
   if(middle[axis]>b.lo[axis]-.5&&middle[axis]<b.hi[axis]+.5){
     const end=DIRECTION_ENDS[axis][high?1:0];
     return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face (either one)`;
+  }
+  // Nor has a piece with others against both of its faces this way (a divider between two bays, not in the middle):
+  // its face is named by the way it looks
+  if(touchedOnBothFaces(piece,b,axis)){
+    const end=DIRECTION_ENDS[axis][high?1:0];
+    return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face`;
   }
   const inward=high===(middle[axis]>(b.lo[axis]+b.hi[axis])/2);
   return`${inward?'inside':'outside'} face`+(withDirection?` (the one that faces the ${DIRECTION_ENDS[axis][high?1:0]})`:` (the one that faces ${inward?'the middle of the design':'out'})`);
@@ -689,8 +709,11 @@ function fastenLine(links,letterOf){
     (sunk&&sunk.f.plug?plugWords(sunk.f):
       sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'')+
     (all.some(facts=>facts.f&&facts.f.structural)?' Structural screws need no pilot hole: drive them with the bit that comes in the box, until the washer head is snug on the wood.':'')+
-    // rule 13 in js/fasteners.js: holes high enough to be seen from below
-    (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged))?` These holes are more than ${SEEN.underAbove}" up, where they are seen from below, so once the screws are in, glue a pocket-hole plug into each one (sold in bags, in pine and oak), with its flat side lined up with the face, and sand it flush when the glue is dry.`:'');
+    // rule 13 in js/fasteners.js: holes high enough to be seen from below; or holes the preset plugs in this style
+    // (pocketPluggedByPreset: the cabinet builder's shelves in Fine furniture), whatever their height
+    (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged))?
+      (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged&&f.pocket.mouth[1]>SEEN.underAbove&&f.pocket.out[1]<.5))?` These holes are more than ${SEEN.underAbove}" up, where they are seen from below, so once`:' So that no hole shows, once')+
+      ' the screws are in, glue a pocket-hole plug into each one (sold in bags, in pine and oak), with its flat side lined up with the face, and sand it flush when the glue is dry.':'');
   /* the two pieces of a pair in words: with "the" for a sentence, without for a list */
   const pieceWords=(pair,inSentence)=>{
     const through=namedLabel(pair.throughs,letterOf),into=namedLabel(pair.intos,letterOf);

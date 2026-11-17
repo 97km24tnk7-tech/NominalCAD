@@ -13,9 +13,11 @@
        screws    the screws it needs, in words ('6 flat-head screws, #6 × 3/4" (in the package)')
        mount     one or two plain sentences on how to mount it (for the build instructions)
        motion    'swing' (a hinge) or 'slide' (a drawer slide); missing for hardware that does not move anything
-       holds     true for hardware that holds two pieces together without moving either (a bolt): like a hinge, it
-                 joins the piece it is on to the piece `to` (HOLD_SOURCES), and Unfasten takes it off
-       line      (group, hosts, letterOf) => its line under a build step, for a kind that writes its own (optional)
+       holds     true for hardware that holds two pieces together without moving either: like a hinge or a slide, it
+                 joins the piece it is on to the piece `to` (hardwareHolds below, a HOLD_SOURCES entry), and Unfasten
+                 takes it off. A bolt through two pieces; a shelf pin, which carries the shelf `to` on the side it
+                 is pushed into
+       line     (group, hosts, letterOf) => its line under a build step, for a kind that writes its own (optional)
        plain     a pattern for the plain lines of a preset's hardware list that mean this kind, for a kind whose
                  name says screws or bolts (HW_NOT_PLAIN would otherwise keep such a line off every kind): once
                  the preset is placed, what is placed is counted and the plain line is settled (plainKinds)
@@ -171,7 +173,7 @@ const HARDWARE={
       return{on:[cyl3([0,.1,0],.42,.2,'y','zinc'),box3([0,-.17,0],[.375,.34,.375],'zinc'),cyl3([0,-s/2,0],.1875,s,'y','zinc')],
         to:[cyl3([0,-grip-.04,0],.5,.08,'y','steel'),box3([0,-grip-.08-.165,0],[.56,.33,.56],'steel')]};
     }},
-  pin:{name:'Shelf pin',group:'Feet and shelves',sizes:[[.25,'1/4"']],size:.25,term:'Shelf pin',
+  pin:{name:'Shelf pin',group:'Feet and shelves',sizes:[[.25,'1/4"']],size:.25,term:'Shelf pin',holds:true,
     buy:()=>'Shelf pins, 1/4"',screws:'None: it pushes into a 1/4" hole',
     mount:'Drill 1/4" holes, 3/8" deep, at the same height on both sides (four per shelf). Push the pins in and rest the shelf on them.',
     shape:s=>({on:[cyl3([0,.2,0],s/2,.4,'y','steel'),box3([0,.33,.16],[.3,.06,.36],'steel')],to:[]})},
@@ -353,6 +355,7 @@ ON_COMMIT.push(()=>{tidyHardware();followResizes();rememberSizes();});
 HOLD_SOURCES.push(function hardwareHolds(){
   const pieces=pieceMap(),pairs=new Map();
   for(const item of hardwareList()){
+    // hinges and slides hold what they carry, and so does hardware that holds without moving (a bolt, a shelf pin: holds)
     if(!HARDWARE[item.kind]||!(HARDWARE[item.kind].motion||HARDWARE[item.kind].holds)||item.to==null)continue;
     const a=pieces.get(item.on),b=pieces.get(item.to);
     if(!a||!b)continue;

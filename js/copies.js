@@ -91,6 +91,11 @@ function addCopies(sources,clones){
     const dash=key.indexOf('-'),idA=+key.slice(0,dash),idB=+key.slice(dash+1);
     if(copyOf.has(idA)&&copyOf.has(idB))S.styled[copyOf.get(idA)+'-'+copyOf.get(idB)]=S.styled[key];
   }
+  // and the piece a preset said the screws go through (S.through, js/joints.js) is that piece's copy
+  for(const key of Object.keys(S.through||{})){
+    const dash=key.indexOf('-'),idA=+key.slice(0,dash),idB=+key.slice(dash+1);
+    if(copyOf.has(idA)&&copyOf.has(idB)&&copyOf.has(S.through[key]))S.through[copyOf.get(idA)+'-'+copyOf.get(idB)]=copyOf.get(S.through[key]);
+  }
   copyHardware(copyOf); // the hardware mounted on the originals is copied with them (js/hardware.js)
   bornTogether(ids);
   compsChanged();

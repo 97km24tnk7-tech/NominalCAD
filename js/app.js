@@ -246,19 +246,22 @@ function presetRowShown(q,index,vals){
     try{shown=!!q.show(vals);}
     catch(e){shown=false;}
   }
-  const row=$(`#presetForm [data-q="${index}"]`);
-  if(row)row.hidden=!shown;
+  // (a heading can stand twice, above the fold of "More options" and inside it: js/presetentry.js)
+  document.querySelectorAll(`#presetForm [data-q="${index}"]`).forEach(row=>{row.hidden=!shown;});
   return shown;
 }
-function choosePreset(index){
+/* entry: the catalog entry picked (catalogPick, js/catalog.js), with its start values, its short list of rows and
+   its own limits (js/presetentry.js); left out when code chooses the preset */
+function choosePreset(index,entry){
   curPreset=PRESETS[index];
+  curEntry=entry||null;
   document.querySelectorAll('#presetCards .card').forEach(c=>c.classList.toggle('on',+c.dataset.i===index));
   presetEdited=null;
   const firstHeading=curPreset.params[0].head?'':'<div class="sec">Size</div>'; // a short form without sections still gets one heading
   $('#presetForm').innerHTML=
-    `<div class="pform-h"><h4>${esc(curPreset.name)}</h4><p>${esc(curPreset.desc)}</p></div>
+    `<div class="pform-h"><h4>${esc(presetTitle(curPreset))}</h4><p>${esc(presetDesc(curPreset))}</p></div>
      <div class="pview" id="presetPic" title="What these sizes build. It follows the numbers as you type."></div>
-     <div class="pform-b">${firstHeading}${curPreset.params.map(presetField).join('')}</div>
+     <div class="pform-b">${firstHeading}${presetFormRows(curPreset.params)}</div>
      <div class="pform-s"><div class="sum" id="presetSum"></div><div class="chk" id="presetCheck"></div><p class="note" id="presetInfo"></p></div>`;
   $('#bPGo').disabled=$('#bPAdd').disabled=false;
   $('#bPAdd').hidden=!S.parts.length;
@@ -301,7 +304,8 @@ function readVals(focusBad){
     const shown=presetRowShown(q,index,vals);
     if(q.head)return;
     const el=$(`#presetForm [data-k="${q.k}"]`);
-    if(!shown){vals[q.k]=q.v;el.classList.remove('bad');return;}
+    // (hidden: the value the form starts with, which is the catalog entry's own when it gives one)
+    if(!shown){vals[q.k]=presetStartValue(q);el.classList.remove('bad');return;}
     if(q.opts){vals[q.k]=el.value;return;}
     if(q.check){vals[q.k]=el.checked;return;}
     const v=q.int?parseInt(el.value,10):q.dec?parseFloat(el.value):parseLen(el.value);
@@ -309,7 +313,9 @@ function readVals(focusBad){
     // A box for a count (how many windows, how many shelves) takes a whole number and nothing else. "2.7" was
     // once read as 2 without a word, so the box showed one number and the design was built with another.
     const notWhole=!!q.int&&!unreadable&&!/^\d+(\.0*)?$/.test(el.value.trim());
-    const tooSmall=!unreadable&&q.min!==undefined&&v<q.min-1e-9,tooBig=!unreadable&&q.max!==undefined&&v>q.max+1e-9;
+    // the limits of the field, or the narrower ones of the catalog entry picked (js/presetentry.js)
+    const{min,max}=presetLimits(q);
+    const tooSmall=!unreadable&&min!==undefined&&v<min-1e-9,tooBig=!unreadable&&max!==undefined&&v>max+1e-9;
     const bad=unreadable||notWhole||tooSmall||tooBig;
     el.classList.toggle('bad',bad);
     if(!bad){vals[q.k]=v;return;}
@@ -318,9 +324,10 @@ function readVals(focusBad){
     const show=size=>q.int||q.dec?String(size):boxLen(size),name=splitLabel(q.label)[0]; // a limit is written the way its box shows it
     presetFieldNote=unreadable?CANNOT_READ
       :notWhole?`${name} must be a whole number, like ${v} or ${v+1}.`
-      :q.min!==undefined&&q.max!==undefined?`${name} must be between ${show(q.min)} and ${show(q.max)}.`
-      :tooSmall?`${name} cannot be less than ${show(q.min)}.`:`${name} cannot be more than ${show(q.max)}.`;
+      :min!==undefined&&max!==undefined?`${name} must be between ${show(min)} and ${show(max)}.`
+      :tooSmall?`${name} cannot be less than ${show(min)}.`:`${name} cannot be more than ${show(max)}.`;
   });
+  presetFoldOpenIfNeeded(vals);   // a red box or a changed value under "More options" is shown (js/presetentry.js)
   if(!firstBad)return vals;
   if(focusBad){firstBad.focus();firstBad.select();}
   return null;
@@ -330,7 +337,8 @@ function readVals(focusBad){
    The Build instructions of the placed design then give the same skill and the same working time. */
 /* vals: the form values the parts were built from. With them, a preset that screws itself into the wall studs when
    it is placed (preset.wallScrews: the fish racks and stands too tall for their depth) is rated with those screws,
-   as the Build instructions page rates it once they are in the design (SKILL.tanksScrewedToWall, js/style.js). */
+   as the Build instructions page rates it once they are in the design (SKILL.tanksScrewedToWall, js/style.js),
+   and a preset whose joints follow the form (joints as a function: the cabinet builder) names its fasteners. */
 function assessParts(parts,preset,vals){
   const keep=S;
   S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear',...((preset&&preset.look)||{})}};
@@ -341,7 +349,7 @@ function assessParts(parts,preset,vals){
     if(new Set(parts.map(piece=>piece.id)).size<parts.length||parts.some(piece=>!piece.id))parts.forEach((piece,index)=>{piece.id=index+1;});
     if(preset){
       if(preset.glue===false)S.glue=false;
-      storeNamedJoints(preset,parts);
+      storeNamedJoints(preset,parts,vals);
       if(vals&&typeof preset.wallScrews==='function'){
         try{S.plannedWallScrews=(preset.wallScrews(vals,parts)||[]).length;}catch(e){S.plannedWallScrews=0;}
       }
@@ -407,19 +415,23 @@ function showPresetSummary(){
    with only "warn" items is built after Build anyway; a clean one is built at once. */
 function makePreset(add){
   if(!curPreset)return;
-  const preset=curPreset,vals=readVals(true);
+  const preset=curPreset,vals=readVals(true),entryName=presetEntryName(preset);   // (js/presetentry.js)
   if(!vals){showPresetSummary();return;} // the line under the form says what is wrong with the box in red
   // One decision, not two: when a marginal design would also replace the one on screen, the gate's own question
   // says so (replaceNote) and its "Build anyway" is the answer to both.
   const replacing=!add&&S.parts.length>0;
   const replaceNote=replacing?'Building it replaces the design on screen. Undo (Ctrl+Z) brings the old design back.':'';
   presetGate(preset,vals,(parts,alreadyAsked)=>{
-    if(!replacing||alreadyAsked){placePreset(preset,vals,parts,add);return;}
+    if(!replacing||alreadyAsked){placePreset(preset,vals,parts,add,entryName);return;}
     askConfirm('Replace the design on screen with this one? Undo (Ctrl+Z) brings the old design back.',
-      {title:'Replace the current design',action:'Replace'},()=>placePreset(preset,vals,parts,false));
+      {title:'Replace the current design',action:'Replace'},()=>placePreset(preset,vals,parts,false,entryName));
   },replaceNote);
 }
-function placePreset(preset,vals,parts,add){
+/* entryName (optional): the name of the catalog entry it was made from, for a builder that serves several
+   (preset.hidden, js/presetentry.js). The project, its component and the visit are named after it; the placement
+   keeps the builder's name (S.sets[n].name, which the checks look the preset up by) and the entry's (.entry). */
+function placePreset(preset,vals,parts,add,entryName){
+  const shownName=entryName||preset.name;
   // (furniture for the house also says where screw heads show in each style, and how to hide any: headsNote, js/showfaces.js)
   const notes=(preset.notes?preset.notes(vals):[]).concat(headsNote(preset.name));
   const stepsOf=preset.steps||STEPS[preset.name],steps=stepsOf?stepsOf(vals):[];
@@ -436,7 +448,8 @@ function placePreset(preset,vals,parts,add){
     S.notes=(S.notes||[]).concat(notes);
     S.steps=[]; // two designs side by side have no single order of steps: the steps are then worked out from the pieces, as a suggested order (js/buildsteps.js)
   }else{
-    S.parts=[];S.joints={};S.named={};S.styled={};S.comps=[];S.stock={};S.name=preset.name;S.notes=notes;S.steps=steps;S.hw=[];
+    S.parts=[];S.joints={};S.named={};S.styled={};S.comps=[];S.stock={};S.name=shownName;S.notes=notes;S.steps=steps;S.hw=[];
+    delete S.through;   // which piece named joints are screwed through (js/joints.js): kept only for these pieces
     // every design starts in the everyday style, in pine, with a clear coat, unless its preset says otherwise
     // (look:{finish:'none'} on the outdoor presets, so nobody is told to buy polyurethane for a shed)
     S.look={style:'std',wood:'pine',finish:'clear',...(preset.look||{})};
@@ -456,6 +469,7 @@ function placePreset(preset,vals,parts,add){
   // vals: the form values it was made with, so its steps and notes can be written again for it later (a design
   // brought up to a new rule for fasteners, js/fasteningupgrade.js)
   S.sets[setNumber]={name:preset.name,uses:declared.uses,wall:declared.wall,hung:declared.hung,wallFixed:declared.wallFixed,warnings:ownWarnings,vals:{...vals}};
+  if(entryName)S.sets[setNumber].entry=entryName;
   parts.forEach(p=>{p.set=setNumber;});
   const hwBefore=S.hw||[],hwOwn=preset.hw?preset.hw(vals):[];
   S.hw=hwBefore.concat(hwOwn);   // while the doors are hung: whether the preset lists a catch decides whether they get one
@@ -466,17 +480,18 @@ function placePreset(preset,vals,parts,add){
   if(!add)S.steps=stampSteps(steps,parts);
   // A preset can name the fastener between two kinds of piece itself, joints:[['Side','Top','glue']], where the
   // suggestion worked out from the shapes alone would be wrong. It is kept like a fastener chosen by hand.
-  storeNamedJoints(preset,parts);   // js/joints.js
+  storeNamedJoints(preset,parts,vals);   // js/joints.js
   // After the fasteners are named (pieces that only touch, 'none', must not count as fastened to each other):
-  componentFromPreset(preset.name,ids); // the preset arrives as one component (js/components.js)
+  componentFromPreset(shownName,ids);   // the preset arrives as one component (js/components.js)
   hangPresetDoors(ids);                 // every door and lid gets its hinges, a pull and a catch (js/hanging.js)
   mountPresetDrawers(ids);              // every drawer gets its pair of slides or runners, and a pull (js/drawers.js)
   if(preset.place)preset.place(vals,parts);   // hardware a preset places itself: a fish rack's wall screws and section bolts (js/rackwall.js)
+  if(typeof preset.afterPlace==='function')preset.afterPlace(ids,vals);   // more hardware of its own (js/presetentry.js)
   // What was just placed is listed as what it is from now on; the preset's own lines for it are settled for good,
   // so a hinge or a pull that is deleted later does not come back on the shopping list (js/hardware.js).
   S.sets[setNumber].hw=settlePlainLines(hwBefore,hwOwn,ids);
-  try{localStorage.setItem(LAST_PRESET_KEY,preset.name);}catch(e){} // the dialog opens on this one next time
-  if(window.countVisitEvent&&$('#presetDlg').open)countVisitEvent('preset',preset.name); // made by the person in the presets window: the public site counts its catalog name (js/visits.js)
+  try{localStorage.setItem(LAST_PRESET_KEY,shownName);}catch(e){} // the dialog opens on this one next time (an entry's name: startingPreset finds it)
+  if(window.countVisitEvent&&$('#presetDlg').open)countVisitEvent('preset',shownName); // made by the person in the presets window: the public site counts its catalog name (js/visits.js)
   $('#presetDlg').close();
   setTab('design');
   commit();
@@ -487,7 +502,15 @@ function placePreset(preset,vals,parts,add){
 function startingPreset(){
   let lastName='';
   try{lastName=localStorage.getItem(LAST_PRESET_KEY)||'';}catch(e){}
-  const last=PRESETS.findIndex(p=>p.name===lastName),firstTile=$('#presetCards .card');
+  // a name kept from before a preset was retired ("Bookshelf"), or the name of an entry of a builder that serves
+  // several: the catalog entry it opens (presetEntryForName, js/presetentry.js) and its builder
+  const entry=presetEntryForName(lastName);
+  if(entry){
+    catalogState.picked=entry.id;   // so the window shows that entry, not another one of the same builder
+    const index=PRESETS.findIndex(p=>p.name===entry.builder);
+    if(index>=0)return index;
+  }
+  const last=PRESETS.findIndex(p=>p.name===lastName&&!p.retired),firstTile=$('#presetCards .card');
   return last>=0?last:firstTile?+firstTile.dataset.i:0;
 }
 function openPresets(){
