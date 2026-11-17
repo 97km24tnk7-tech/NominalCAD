@@ -84,9 +84,21 @@ HOLD_SOURCES.push(function declaredHolds(){
 function holdPairs(){
   return connGraph().links.filter(link=>link.hold).map(link=>({on:link.a.id,to:link.b.id}));
 }
+/* [{on: piece id, at: [x, y, z], hold}] for every screw into a wall stud (hardware of kind 'wallscrew') in the
+   design: the structural check counts them (options.wallScrews, js/verify.js). hold: what the screw is counted
+   for, by how far its thread reaches into the stud (geo.into, set when a preset places it); a screw added by
+   hand gets the least (WALL_SCREW_RULES.hold). */
+function wallScrewsPlaced(){
+  return hardwareList().filter(item=>item.kind==='wallscrew').map(item=>{
+    const pose=hardwarePose(item);
+    return pose?{on:item.on,at:[pose.at.x,pose.at.y,pose.at.z],hold:wallScrewHold(item.geo&&item.geo.into)}:null;
+  }).filter(Boolean);
+}
 function designCheckOptions(){
   const options=verifyOptionsOf(S);
   if(!S.assumeHardware)options.hardware=holdPairs();
+  // the screws into the wall studs that are placed in the design, by the piece each goes into (WALL_SCREW_RULES)
+  options.wallScrews=wallScrewsPlaced();
   return options;
 }
 

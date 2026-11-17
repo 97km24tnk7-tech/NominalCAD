@@ -13,6 +13,12 @@
        screws    the screws it needs, in words ('6 flat-head screws, #6 × 3/4" (in the package)')
        mount     one or two plain sentences on how to mount it (for the build instructions)
        motion    'swing' (a hinge) or 'slide' (a drawer slide); missing for hardware that does not move anything
+       holds     true for hardware that holds two pieces together without moving either (a bolt): like a hinge, it
+                 joins the piece it is on to the piece `to` (HOLD_SOURCES), and Unfasten takes it off
+       line      (group, hosts, letterOf) => its line under a build step, for a kind that writes its own (optional)
+       plain     a pattern for the plain lines of a preset's hardware list that mean this kind, for a kind whose
+                 name says screws or bolts (HW_NOT_PLAIN would otherwise keep such a line off every kind): once
+                 the preset is placed, what is placed is counted and the plain line is settled (plainKinds)
        limit     hinges: how far it opens, in degrees
        travel    slides: (size) => how far the drawer comes out, in inches
        wood      for a kind that is a strip of wood to cut, not something to buy (a runner, a kicker):
@@ -140,6 +146,31 @@ const HARDWARE={
     buy:()=>'Leveling feet with threaded inserts',screws:'1 threaded insert (T-nut) per foot',
     mount:'Drill a hole in the bottom of each leg, tap in the threaded insert, and screw the foot in. Turn the feet until nothing rocks.',
     shape:s=>({on:[cyl3([0,.4,0],.19,.8,'y','steel'),cyl3([0,.9,0],s/2,.25,'y','rubber')],to:[]})},
+  /* A structural screw through the back of a design into a wall stud (the fish racks: js/rackwall.js places them,
+     WALL_SCREW_RULES in js/verify.js says how many). It is mounted on the piece whose front face its head sits on
+     and points out of the back of the design, into the wall: n is the way out of the face the head is on, and
+     the screw runs the other way, its full length. Nothing of the wall is drawn, so the part that shows behind
+     the design is what goes into the drywall and the stud. */
+  wallscrew:{name:'Structural screw into a wall stud',group:'Wall and bolts',sizes:[[3,'3"'],[3.5,'3 1/2"'],[4,'4"'],[5,'5"'],[6,'6"'],[8,'8"'],[10,'10"']],size:5,term:'Wall stud and stud finder',
+    buy:s=>`Screws for the wall studs, ${inches(s)} structural`,plain:/^Screws for the wall studs/i,
+    line:(group,hosts,letterOf)=>wallScrewStepLine(group,hosts,letterOf),   // its line under the wall step (js/rackwall.js)
+    screws:'None: it is the screw. Structural screws come with the driver bit that fits them',
+    mount:'Find the studs with a stud finder and mark them. Drill a 5/32" pilot hole through the wood in front of the stud, then drive the screw into the middle of the stud until its washer head is snug against the wood. Do not drive it deeper: that crushes the wood.',
+    shape:s=>({on:[cyl3([0,.05,0],.32,.1,'y','brass'),cyl3([0,-s/2,0],.125,s,'y','brass')],to:[]})},
+  /* A carriage bolt with a flat washer and a nut, through pieces that are clamped together (the end posts of two
+     sections of a fish rack, js/rackwall.js). It is mounted on the piece its round head is on, and `to` is the
+     piece the washer and the nut are on: it holds the two together (HOLD_SOURCES), and undoing the nut parts
+     them again. geo.grip: how thick the pieces it passes through are, together. */
+  bolt:{name:'Carriage bolt, 3/8", with washer and nut',group:'Wall and bolts',sizes:[[3,'3"'],[3.5,'3 1/2"'],[4,'4"'],[4.5,'4 1/2"'],[5,'5"'],[5.5,'5 1/2"'],[6,'6"'],[7,'7"'],[8,'8"'],[10,'10"'],[12,'12"']],size:4,term:'Carriage bolt',holds:true,
+    buy:s=>`Carriage bolts, 3/8" × ${inches(s)}, with a flat washer and a nut each`,plain:/^Carriage bolts/i,
+    line:(group,hosts,letterOf)=>boltStepLine(group,hosts,letterOf),        // its line under the step that joins the sections (js/rackwall.js)
+    screws:'None: a 3/8" flat washer and a 3/8" nut go on the end (buy them with the bolts)',
+    mount:'Clamp the pieces tight together and drill a 3/8" hole straight through all of them. Tap the bolt in from the head side with a hammer until its square neck sits in the wood (it keeps the bolt from turning), or, where there is no room to swing a hammer, let the nut pull it in: put the washer and the nut on the other end and tighten the nut with a 9/16" wrench until the head pulls snug. To take the pieces apart again, undo the nut and tap the bolt out.',
+    shape:(s,geo)=>{
+      const grip=Math.min(s-.4,geo.grip||s-.5);
+      return{on:[cyl3([0,.1,0],.42,.2,'y','zinc'),box3([0,-.17,0],[.375,.34,.375],'zinc'),cyl3([0,-s/2,0],.1875,s,'y','zinc')],
+        to:[cyl3([0,-grip-.04,0],.5,.08,'y','steel'),box3([0,-grip-.08-.165,0],[.56,.33,.56],'steel')]};
+    }},
   pin:{name:'Shelf pin',group:'Feet and shelves',sizes:[[.25,'1/4"']],size:.25,term:'Shelf pin',
     buy:()=>'Shelf pins, 1/4"',screws:'None: it pushes into a 1/4" hole',
     mount:'Drill 1/4" holes, 3/8" deep, at the same height on both sides (four per shelf). Push the pins in and rest the shelf on them.',
@@ -152,6 +183,9 @@ const HW_PLAIN=[[/hinge/i,['butt','strap','cup','piano']],[/\bpulls?\b|knob/i,['
   [/latch|hasp/i,['hasp']],[/slide/i,['slide']],[/runner/i,['runner']],[/kicker/i,['kicker']],[/caster/i,['caster']],[/lid stay|lid support/i,['stay']]];
 const HW_NOT_PLAIN=/\bscrews?\b|\bnails?\b|\bbolts?\b/i;
 function plainKinds(label){
+  // a kind that names its own plain lines (the screws into the wall studs, carriage bolts) is asked first
+  const own=Object.keys(HARDWARE).filter(key=>HARDWARE[key].plain&&HARDWARE[key].plain.test(label));
+  if(own.length)return own;
   if(HW_NOT_PLAIN.test(label))return null;
   const match=HW_PLAIN.find(([words])=>words.test(label));
   return match?match[1]:null;
@@ -319,7 +353,7 @@ ON_COMMIT.push(()=>{tidyHardware();followResizes();rememberSizes();});
 HOLD_SOURCES.push(function hardwareHolds(){
   const pieces=pieceMap(),pairs=new Map();
   for(const item of hardwareList()){
-    if(!HARDWARE[item.kind]||!HARDWARE[item.kind].motion||item.to==null)continue;
+    if(!HARDWARE[item.kind]||!(HARDWARE[item.kind].motion||HARDWARE[item.kind].holds)||item.to==null)continue;
     const a=pieces.get(item.on),b=pieces.get(item.to);
     if(!a||!b)continue;
     const key=`hw:${item.on}:${item.to}`;

@@ -568,6 +568,8 @@ function plateMarkPlan(group,letterOf){
 /* The same numbers as the line under "Hardware in this step" (cupHingeLine, pullLine, slideLine, kickerLine in
    js/buildsteps.js), on the face that is drilled or that the hardware is screwed to. */
 function hardwareMarkPlan(row,letterOf){
+  // the screws into the wall studs and the bolts between rack sections: js/rackwall.js
+  if(row.kind==='wallscrew'||row.kind==='bolt')return rackHardwareMarkPlan(row,letterOf);
   const item=row.items[0],host=byId(item.on);
   if(!host||tilted(host))return null;
   const hostBox=plainBox(host);
@@ -1725,7 +1727,7 @@ function markingPlansOfDesign(name){
       const rule=group.sample.rule||{};
       list.push({label:`${name}, step ${step.no}, line ${group.no}`,plan:jointMarkPlan(group,plan.letterOf),needed:!rule.free||!!rule.gap});
     }
-    for(const row of step.hardware)list.push({label:`${name}, step ${step.no}, ${row.kind} line ${row.no}`,plan:hardwareMarkPlan(row,plan.letterOf),needed:['cup','pull','slide','runner','kicker'].includes(row.kind)});
+    for(const row of step.hardware)list.push({label:`${name}, step ${step.no}, ${row.kind} line ${row.no}`,plan:hardwareMarkPlan(row,plan.letterOf),needed:['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind)});
     const fresh=new Set(step.pieces.concat(step.brought||[]).map(p=>p.id));
     const marks=markingLines(step,fresh);
     if(marks.length)list.push({label:`${name}, step ${step.no}, pencil marks`,plan:marksMarkPlan(marks,plan.letterOf,step.words),marks:true});
@@ -1741,7 +1743,9 @@ SELFTESTS.push(function markingViewsMeasureTrue(problems){
   // Besides every preset at its default sizes, a few choices that once drew a wrong number or an unreadable view:
   // a 10 gallon level of the fish rack (uneven gaps), a 4x4 upright, a narrow shed wall (a sheet with almost no
   // nails), a lean-to shed, a deep shed floor, a wide platform bed, the runner drawers of the nightstand
-  const MORE_CHOICES=[['Fish tank wall / rack',{r1:'g10'}],['Fish tank wall / rack',{up:'4x4'}],['Shed',{W:48}],['Shed',{roof:'lean'}],
+  const MORE_CHOICES=[['Fish tank wall / rack',{r1:'g10'}],['Fish tank wall / rack',{up:'4x4'}],
+    // a rack screwed to the wall studs and one built as bolted sections: their steps mount the wall screws and the bolts
+    ['Fish tank wall / rack',{orient:'long'}],['Fish tank wall / rack',{W:240,build:'sections'}],['Shed',{W:48}],['Shed',{roof:'lean'}],
     ['Shed',{D:48}],['Platform bed',{Wm:84}],['Nightstand with drawers',{slides:'runner'}]];
   try{
     renderAll=()=>{};

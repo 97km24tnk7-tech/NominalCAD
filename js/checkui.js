@@ -104,6 +104,8 @@ function renderCheckDialog(){
     :`about ${pounds(facts.weight)} of wood`]];
   if(facts.footprint)rows.push(['Stands on',`${fmt(facts.footprint.width)} wide × ${fmt(facts.footprint.depth)} deep of floor`]);
   rows.push(['Tallest point',fmt(facts.tallest)]);
+  // how many screws into the wall studs hold it, and where (counted from the model: verifyWallScrews, js/verify.js)
+  if(facts.wallScrews&&facts.wallScrews.count)rows.push(['Held to the wall by',wallScrewFactWords(facts.wallScrews)]);
   if(facts.centerOfMass)rows.push(['Balance point',`${fmt(facts.centerOfMass[1])} above the floor: the middle of its weight. The lower it is, the harder the design is to tip`]);
   // what each load-carrying piece was checked as carrying, one load with all its pieces: "a roof with light
   // snow (Top plate, Header, Rafter)". A plate is not a roof; it carries one.

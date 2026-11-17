@@ -128,7 +128,8 @@ function rebuildScene(){
     const lit=!!spotlightIds&&spotlightIds.has(p.id),ghost=!!spotlightIds&&!lit;
     const s=size(p),geo=new THREE.BoxGeometry(s[0],s[1],s[2]),on=sel.has(p.id)||lit;
     let mat;
-    if(isProp(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color,transparent:true,opacity:.35,depthWrite:false});
+    if(propIsSolid(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color});   // a tank light: a dark fixture
+    else if(isProp(p))mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.sel:M[p.mat].color,transparent:true,opacity:.35,depthWrite:false});
     else if(real){grainUV(geo,s,p.ax[0],p.id);mat=new THREE.MeshStandardMaterial({color:on?VIEW_COL.selFill:partColor(p),map:painted?null:grainTex,roughness:.82,metalness:0});}
     else mat=new THREE.MeshLambertMaterial({color:on?VIEW_COL.selFill:blk.get(p.name)});
     if(!isProp(p)&&clash.has(p.id)&&!on)mat.color.setHex(VIEW_COL.clash);

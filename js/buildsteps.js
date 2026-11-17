@@ -255,7 +255,7 @@ function fastenerPlaces(joint,layout){
          it goes in, so the places are measured on it.
        The end they are measured from is the one on the left of the marking view (or at its bottom), named as the
        view sees it, like every other row. */
-    const cleared=layout.find(f=>f.clear||f.passEnds);
+    const cleared=layout.find(f=>f.clear||f.passEnds||f.pastBolt);
     const alongPiece=pocket&&(!!cleared||!wholeEnd);
     const pieceStart=startHigh?throughBox.hi[axis]:throughBox.lo[axis];
     const fromPieceEnd=spots.map(v=>Math.abs(v-pieceStart)).sort((a,b)=>a-b);
@@ -302,7 +302,7 @@ function fastenerPlaces(joint,layout){
     const row={axis,range,frame,faceAxis,startHigh,refWord:refSide,refName:wholeEnd?through.name:'',first:r16(first),gap:gap===null?null:r16(gap),even:evenRow,
       back:f0.toe?r16(Math.abs(f0.pos[shape.k]-shape.plane)):null,kind:what,
       alongPiece,through,startEnd:startName,bothEnds,side:pieceSide,at:pocket?fromPieceEnd.map(r16):null,
-      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null};
+      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null,pastBolt:layout.some(f=>f.pastBolt)};
     return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:gap===null?null:r16(gap),rule:{row:true},row};
   }
 
@@ -845,7 +845,8 @@ function pocketRowsWords(places){
   const name=first.row.through.name,each=lists.length>1?`each ${name}`:`the ${name}`;
   const clear=[...new Set(places.flatMap(place=>place.row.clear||[]))];
   const passEnds=[...new Set(places.flatMap(place=>place.row.passEnds||[]))];
-  const why=clear.length||passEnds.length?' '+notEvenlyWords([{clear,passEnds}],name):'';
+  const pastBolt=places.some(place=>place.row.pastBolt);
+  const why=clear.length||passEnds.length||pastBolt?' '+notEvenlyWords([{clear,passEnds,pastBolt}],name):'';
   const seen=first.row.frame.mirrored&&!eitherEnd?` Left and right are as you look at it ${first.row.frame.from}.`:'';
   return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from ${eitherEnd?'either':'its '+first.row.startEnd} ${first.row.side}.`+why+seen;
 }
@@ -856,6 +857,7 @@ function notEvenlyWords(layout,name){
   const reasons=[];
   if(clear.length)reasons.push(`no hole may open where the ${listWords(clear)} lies against the ${name}`);
   if(passEnds.length)reasons.push(`the holes stay clear of the pocket holes in the ends of the ${name} that hold it to the ${listWords(passEnds)}`);
+  if(layout.some(f=>f.pastBolt))reasons.push(`the holes stay clear of the bolt that goes through the ${name} to join the sections`);
   return reasons.length?`They are not evenly spaced on purpose: ${reasons.join(', and ')}.`:'';
 }
 /* The joints of one step, sorted into lines: joints between the same two kinds of piece share a line; when that
@@ -943,6 +945,7 @@ function hardwareLines(items,letterOf,stripLetterOf){
     else if(group.kind==='kicker')line=kickerLine(group,hosts,letterOf,stripLetterOf);
     else if(group.kind==='cup'&&group.other)line=cupHingeLine(group,hosts,alike,letterOf);
     else if(group.kind==='pull')line=pullLine(group,hosts,alike,letterOf);
+    else if(kind.line)line=kind.line(group,hosts,letterOf);   // a kind that writes its own line (HARDWARE[kind].line)
     if(!line){
       const each=list.length/hosts.length;
       const head=capital(hardwareWords(list))+(kind.sizes.length>1?', '+sizeLabel(list[0]):'');

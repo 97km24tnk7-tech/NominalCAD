@@ -61,6 +61,10 @@ const STYLE_RULES={
   // an apron too short for pocket holes at both ends and the holes for the top as well (TABLE_KINDS: shortEnds):
   // screwed through the leg from the end of the piece, and doweled in Fine furniture
   doweledInFine:{rustic:'screw',std:'screw',fine:'dowel'},
+  // the top and the foot of an upright of a fish rack where it meets a rail: pocket screws, but in Fine furniture,
+  // where the cross pieces are held to the rails by pocket screws of their own that pass the same spot inside the
+  // rail, an L-bracket on the inside of the corner (js/builders-fish.js, RACK_JOINTS)
+  bracketInFine:{rustic:'pocket',std:'pocket',fine:'bracket'},
   // a joint that takes a screw through a show face and has no hidden way that is as strong (a bed rail to its
   // leg): the head is sunk and covered by a glued wooden plug (filler under paint); Rustic leaves it showing
   pluggedUnlessRustic:{rustic:'screw',std:'plug',fine:'plug'}

@@ -199,3 +199,35 @@ SELFTESTS.push(function stepToolsFitTheirScrews(problems){withoutDrawing(()=>{
     }
   }
 });});
+
+/* Self-check: a pocket screw through a thin deck (an upright of a fish rack standing on the 1/2" plywood of the frame
+   under it, pocketJigFor in js/fasteners.js) ends in the framing under the deck with the bite rule 12 asks for:
+   3/4" into the side grain of the rail or cross piece, measured along the screw. Pocket screws are otherwise held
+   to the jig's chart, not to rule 12; this joint is the one where the chart's screw would end too shallow. The rack
+   as the form starts, with its tanks long side out, as sections, on a cabinet base, the Cabinet stand, in every
+   style. The shopping list buys the length that is drawn. */
+SELFTESTS.push(function pocketScrewsThroughADeckBite(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('pocket screws through a deck: '+text);};
+  const rack=PRESETS.find(preset=>preset.name==='Fish tank wall / rack'),cabinet=PRESETS.find(preset=>preset.name==='Cabinet stand with a row of tanks');
+  if(!rack||!cabinet){wrong('a fish preset is missing');return;}
+  const cases=[[rack,{}],[rack,{orient:'long'}],[rack,{build:'sections'}],[rack,{orient:'long',base:'cabinet',brace:false}],[cabinet,{}]];
+  let seen=0;
+  for(const[preset,changes]of cases){
+    for(const style of Object.keys(STYLES)){
+      if(!placeInStyle(preset,{...presetDefaults(preset),...changes},style))continue;
+      const at=`${preset.name} ${JSON.stringify(changes)} (${STYLES[style][0]})`;
+      for(const link of connGraph().links){
+        if(!link.joint||!link.fastened||link.type!=='pocket')continue;
+        const list=fastenersOfLink(link).filter(f=>f.kind==='pocket'&&f.also&&f.also.length);
+        if(!list.length)continue;
+        seen++;
+        const bite=Math.min(...list.map(f=>lengthInside(f,f.also[0])));
+        if(bite<SCREW_BITE.side-.02)wrong(`${at}: ${list[0].through.name} through ${list[0].into.name} goes only ${fmt(r16(bite))} into the ${list[0].also[0].name}, where rule 12 wants ${fmt(SCREW_BITE.side)}`);
+        const spec=jSpec(link.joint,'pocket');
+        const bought=spec.hw.find(([label])=>/pocket-hole screws/.test(label));
+        if(!bought||Math.abs(sizesInLabel(bought[0])[0]-list[0].len)>.01)wrong(`${at}: the list buys "${bought?bought[0]:'nothing'}" for the ${fmt(list[0].len)} pocket screws drawn`);
+      }
+    }
+  }
+  if(!seen)wrong('no pocket screw through a deck was found, so this check proves nothing');
+});});

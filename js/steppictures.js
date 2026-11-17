@@ -332,6 +332,8 @@ function closeupPicture(step,group,fresh){
    Returns {show: [piece ids], items: [hardware ids], eye: [x, y, z] direction, dims: [{from, to, text}],
    circles: [{at, normal, radius}]} or null for other kinds. */
 function hardwareCloseupPlan(row){
+  // the screws into the wall studs and the bolts between rack sections: js/rackwall.js
+  if(row.kind==='wallscrew'||row.kind==='bolt')return rackHardwareCloseupPlan(row);
   const item=row.items[0],host=byId(item.on);
   if(!host||tilted(host))return null;
   const hostBox=plainBox(host),pose=hardwarePose(item);
@@ -819,10 +821,11 @@ SELFTESTS.push(function stepPicturesShowTheWork(problems){
   if(stepScene(stand,posts).visible(topDeck.id))wrong('aquarium stand: the picture of the post step shows the top frame, which is set on a step later');
   if(!stepScene(stand,posts+1).fresh.has(topDeck.id))wrong('aquarium stand: the step that lowers the top frame does not draw it as new');
   // a line of hinges, pulls, slides, runners or kickers has a close-up whose every number is in its line
-  for(const[name,values]of[['Base cabinet with doors'],['Single aquarium stand'],['Nightstand with drawers'],['Nightstand with drawers',{slides:'runner'}]]){
+  for(const[name,values]of[['Base cabinet with doors'],['Single aquarium stand'],['Nightstand with drawers'],['Nightstand with drawers',{slides:'runner'}],
+    ['Fish tank wall / rack',{orient:'long'}],['Fish tank wall / rack',{W:240,build:'sections'}]]){
     const plan=place(name,values);
     for(const row of plan.steps.flatMap(step=>step.hardware)){
-      if(!['cup','pull','slide','runner','kicker'].includes(row.kind))continue;
+      if(!['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind))continue;
       const close=hardwareCloseupPlan(row);
       if(!close||!close.dims.length){wrong(`${name}: the ${row.kind} line has no close-up with its numbers`);continue;}
       const missing=close.dims.find(dim=>!row.line.includes(dim.text));

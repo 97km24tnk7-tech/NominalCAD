@@ -84,7 +84,7 @@ const HARDWARE_PRICES=[
   // plywood a preset asks for by the sheet because the pieces are cut on site to a slope (the Shed's gable ends)
   {id:'plywood-to-fit',name:'1/2" plywood to cut to fit',match:/^1\/2" plywood/i,pack:1,sold:'4 ft × 8 ft sheet',price:40,search:'1/2 in. plywood sheathing 4 ft. x 8 ft.'},
   ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,100,'box of 100',
-    [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12]]),
+    [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12],['3"',14]]),
   {id:'pocket-screws',name:'Pocket-hole screws, other lengths',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
   // screws made for outdoors (coated or stainless) cost more than plain ones, so they have rows of their own
   ...priceByLength('exterior-screws','Exterior screws',length=>`${length} exterior screws`,100,'box of 100',
@@ -138,6 +138,9 @@ const HARDWARE_PRICES=[
   {id:'casters',name:'Casters',match:/casters?\b/i,pack:1,sold:'each',price:8,search:'swivel caster 3 in. with brake'},
   {id:'leveling-feet',name:'Leveling feet',match:/leveling feet/i,pack:4,sold:'pack of 4',price:10,search:'furniture leveling feet with t-nuts 4-pack'},
   {id:'shelf-pins',name:'Shelf pins, 1/4"',match:/shelf pins?\b/i,pack:20,sold:'pack of 20',price:4,search:'shelf pins 1/4 in. 20-pack'},
+  // the bolts that join the separate sections of a fish rack (HARDWARE.bolt, js/hardware.js): a 3/8" carriage bolt
+  // with its flat washer and nut, bought loose by the piece
+  {id:'carriage-bolts',name:'Carriage bolts, 3/8", with a washer and a nut',match:/carriage bolts?/i,pack:1,sold:'each, with its washer and nut',price:1.6,search:'carriage bolt 3/8 in. zinc'},
   {id:'toggle-bolts',name:'Heavy-duty toggle bolts',match:/toggle bolts/i,pack:2,sold:'pack of 2',price:5,search:'heavy duty toggle bolt 1/4 in.'},
   // framing hardware for sheds and other outdoor buildings
   {id:'rafter-ties',name:'Metal hurricane ties',match:/rafter ties|hurricane/i,pack:1,sold:'each',price:1,search:'hurricane tie rafter to plate'},

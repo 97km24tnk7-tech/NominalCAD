@@ -69,10 +69,12 @@ function showPreview(holder,parts){
   kit.canvas.hidden=!parts.length;
   if(!parts.length)return;
 
-  // all the wood as one mesh, and everything that is not wood (tanks, lights, a mattress, windows) as a see-through one
-  const wood=parts.filter(p=>!isProp(p)),other=parts.filter(isProp),color=new THREE.Color();
+  // all the wood as one mesh, everything that is not wood (tanks, a mattress, windows) as a see-through one, and the
+  // things that are not wood but are drawn solid (tank lights: dark fixtures, propIsSolid in js/core.js) as a third
+  const wood=parts.filter(p=>!isProp(p)),solid=parts.filter(propIsSolid),other=parts.filter(p=>isProp(p)&&!propIsSolid(p)),color=new THREE.Color();
   const groups=[
     [wood,new THREE.MeshLambertMaterial()],
+    [solid,new THREE.MeshLambertMaterial()],
     [other,new THREE.MeshLambertMaterial({transparent:true,opacity:.35,depthWrite:false})],
   ];
   for(const[pieces,material]of groups){

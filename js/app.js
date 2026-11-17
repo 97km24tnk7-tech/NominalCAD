@@ -328,7 +328,10 @@ function readVals(focusBad){
 /* Skill, time and cost for pieces that are not the design yet: look at them as if they were a new project, the
    way Create will make it: with the finish the preset starts with, the fasteners it names and its rule for glue.
    The Build instructions of the placed design then give the same skill and the same working time. */
-function assessParts(parts,preset){
+/* vals: the form values the parts were built from. With them, a preset that screws itself into the wall studs when
+   it is placed (preset.wallScrews: the fish racks and stands too tall for their depth) is rated with those screws,
+   as the Build instructions page rates it once they are in the design (SKILL.tanksScrewedToWall, js/style.js). */
+function assessParts(parts,preset,vals){
   const keep=S;
   S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear',...((preset&&preset.look)||{})}};
   try{
@@ -339,6 +342,9 @@ function assessParts(parts,preset){
     if(preset){
       if(preset.glue===false)S.glue=false;
       storeNamedJoints(preset,parts);
+      if(vals&&typeof preset.wallScrews==='function'){
+        try{S.plannedWallScrews=(preset.wallScrews(vals,parts)||[]).length;}catch(e){S.plannedWallScrews=0;}
+      }
     }
     const buy=lumberToBuy(parts);
     return{buy,rating:parts.length<=PREVIEW_JOINTS_MAX?assess(look()):null};
@@ -388,7 +394,7 @@ function showPresetSummary(){
   }
 
   info.textContent=remark;
-  const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts,curPreset);   // the size of what is built, not of a tank or a mattress drawn on it
+  const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts,curPreset,vals);   // the size of what is built, not of a tank or a mattress drawn on it
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
   sum.innerHTML=cell('Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
@@ -465,6 +471,7 @@ function placePreset(preset,vals,parts,add){
   componentFromPreset(preset.name,ids); // the preset arrives as one component (js/components.js)
   hangPresetDoors(ids);                 // every door and lid gets its hinges, a pull and a catch (js/hanging.js)
   mountPresetDrawers(ids);              // every drawer gets its pair of slides or runners, and a pull (js/drawers.js)
+  if(preset.place)preset.place(vals,parts);   // hardware a preset places itself: a fish rack's wall screws and section bolts (js/rackwall.js)
   // What was just placed is listed as what it is from now on; the preset's own lines for it are settled for good,
   // so a hinge or a pull that is deleted later does not come back on the shopping list (js/hardware.js).
   S.sets[setNumber].hw=settlePlainLines(hwBefore,hwOwn,ids);
@@ -594,12 +601,16 @@ SELFTESTS.push(function presetEnterAfterAFix(problems){
 /* Self-check: the preset window and the Build instructions page give one skill and one working time for a preset
    as Create makes it (the first-time builder read "about 12 hours" in the window and "about 8 hours" on the page). */
 SELFTESTS.push(function presetWindowRatesAsThePage(problems){
-  for(const preset of PRESETS){
-    const vals=presetDefaults(preset);
+  // Every preset at its defaults, and the fish rack with its tanks long side out, which is screwed into the wall
+  // studs when it is placed (the window counts the screws placing it will drive; the page the screws placed).
+  const rack=PRESETS.find(preset=>preset.name==='Fish tank wall / rack');
+  const tries=PRESETS.map(preset=>[preset,presetDefaults(preset)]);
+  if(rack)tries.push([rack,{...presetDefaults(rack),orient:'long'}]);
+  for(const[preset,vals]of tries){
     let parts=[];
     try{parts=preset.build(vals)||[];}catch(e){}
     if(!parts.length||parts.length>PREVIEW_JOINTS_MAX)continue;
-    const window_=assessParts(parts,preset).rating;
+    const window_=assessParts(parts,preset,vals).rating;
     placePreset(preset,vals,preset.build(vals),false);
     const page=assess(look());
     if(!window_||window_.level!==page.level||window_.hours!==page.hours){

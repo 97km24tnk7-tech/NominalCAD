@@ -398,6 +398,44 @@ function framingLayout(j,shape,spec){
   return nailedThrough(j,shape,spec.n,len,label,drive.through,drive.into);
 }
 /* the piece the pocket holes are drilled in. jSpec names the same piece in its text; the check below compares them. */
+/* Rule 5, a piece standing on a thin deck: a pocket screw from a board that stands on a sheet 1/2" thick or
+   thinner, lying on framing (an upright of a fish rack on the plywood deck of the frame under it). With the jig
+   set for the sheet the screw is 1" and ends in it, and 1/2" of plywood is too little for a screw to hold in (the
+   NDS wants about six times the screw's thickness of thread in the piece that holds it, about 1" for a #8). So the
+   jig is set for the board itself and the screw goes on through the sheet into the framing glued under it:
+   {depth, under}, the thickness to set the jig against and the framing pieces under the sheet at the joint; null
+   for every other pocket joint (and for pieces not in the design, where nothing is known of what is under them).
+   jSpec (js/style.js) and pocketScrews both read it, so the list buys the screw that is drawn. */
+const THIN_DECK=.5;
+function pocketThroughSheet(j,holes){
+  const sheet=holes===j.a?j.b:j.a;
+  if(j.k!==1||M[sheet.mat].kind!=='sheet'||sheet.t>THIN_DECK+1e-6||M[holes.mat].kind==='sheet'||holes.t<1.4)return null;
+  if(typeof connGraph!=='function'||!S.parts.includes(sheet)||!S.parts.includes(holes))return null;
+  const deck=plainBox(sheet);
+  if(Math.abs(deck.hi[1]-j.plane)>.02)return null;          // the board stands ON the sheet
+  const under=connectionsOf(sheet.id).map(link=>link.a===sheet?link.b:link.a).filter(p=>{
+    if(isProp(p)||tilted(p)||M[p.mat].kind!=='board'||p.t<1.4)return false;
+    const b=plainBox(p);
+    return Math.abs(b.hi[1]-deck.lo[1])<.02&&b.lo[j.u]<j.ru[1]-.1&&b.hi[j.u]>j.ru[0]+.1&&b.lo[j.v]<j.rv[1]-.1&&b.hi[j.v]>j.rv[0]+.1;
+  });
+  return under.length?{depth:sheet.t+1.5,sheet:sheet.t,under}:null;
+}
+/* The pocket screw through a thin deck: rule 12 decides its length, not the jig's chart. The jig stays set for the
+   board (1 1/2"), so the head seats at the same shoulder, but the chart's 2-1/2" screw, after its slanted path
+   through the 1/2" plywood, goes only about 1/2" into the rail or cross piece under it, where rule 12 wants 3/4"
+   in side grain. So it is the shortest pocket screw the store has whose point goes SCREW_BITE.side into the
+   framing along its slant: 3" for a 1/2" deck. One rule for the joint: jSpec and pocketScrews both take the jig
+   from here (pocketJigFor), and the self-check pocketScrewsThroughADeckBite holds the bite. */
+const POCKET_SCREW_LENGTHS=[[1,'1"'],[1.25,'1-1/4"'],[1.5,'1-1/2"'],[2,'2"'],[2.5,'2-1/2"'],[3,'3"']];
+function pocketJigFor(j,holes){
+  const deck=pocketThroughSheet(j,holes);
+  const jig=pocketJig(holes,deck?deck.depth:holes===j.a?j.db:j.da);
+  if(!deck)return jig;
+  const slant=1/Math.cos(FASTEN.pocketDegrees*Math.PI/180);
+  const need=jig.shoulder+deck.sheet*slant+SCREW_BITE.side;
+  const pick=POCKET_SCREW_LENGTHS.find(([length])=>length>=need-1e-6)||POCKET_SCREW_LENGTHS[POCKET_SCREW_LENGTHS.length-1];
+  return pick[0]>jig.screw?{...jig,screw:pick[0],size:pick[1]}:jig;
+}
 function pocketPiece(j){
   const side=thruPart(j);
   if(side)return side==='a'?j.b:j.a;
@@ -413,10 +451,21 @@ function pocketScrews(j,shape,n,len,label){
   const way=shape.signInto(into),box=plainBox(through);
   // the hole is drilled into a wide face of the piece: across its thickness when that runs along the joint face
   const s=through.ax[2]!==shape.k?through.ax[2]:shape.W,t=[0,1,2].find(i=>i!==shape.k&&i!==s);
-  const rangeT=t===shape.L?shape.rangeL:shape.rangeW;
-  const rangeS=s===shape.L?shape.rangeL:shape.rangeW;
+  // a board on a thin deck: through it into the framing, with the screw rule 12 asks for (pocketJigFor)
+  const deck=pocketThroughSheet(j,through),jig=deck?pocketJigFor(j,through):pocketJig(through,shape.depthOf(into));
+  // Through a thin deck the screws must end in the framing under it, so they are kept over that framing: a panel
+  // stud of a cabinet stand stands 3 1/2" deep on the deck over a back rail only 1 1/2" deep, and a screw past the
+  // rail would end in open air under the deck. Where the framing leaves too short a stretch for two screws, the
+  // joint takes one in its middle (TWO_SCREWS_FROM, js/style.js); jSpec counts what is laid out (pocketCountAsLaidOut).
+  const overFraming=(range,axis)=>{
+    if(!deck)return range;
+    const lo=Math.min(...deck.under.map(p=>plainBox(p).lo[axis])),hi=Math.max(...deck.under.map(p=>plainBox(p).hi[axis]));
+    return[Math.max(range[0],lo),Math.min(range[1],hi)];
+  };
+  const rangeT=overFraming(t===shape.L?shape.rangeL:shape.rangeW,t);
+  const rangeS=overFraming(s===shape.L?shape.rangeL:shape.rangeW,s);
+  if(deck&&n>1&&rangeT[1]-rangeT[0]<TWO_SCREWS_FROM)n=1;
   const angle=FASTEN.pocketDegrees*Math.PI/180,sin=Math.sin(angle),cos=Math.cos(angle);
-  const jig=pocketJig(through,shape.depthOf(into));
   const shoulder=Math.min(jig.shoulder,len-.25);   // a screw shorter than the jig's own (picked by hand) still bites 1/4"
   const bite=len-shoulder;                          // how much of the screw ends up in the second piece
   // Where the screw crosses the joint: half the jig setting in from the drilled face. When the two pieces only
@@ -473,6 +522,10 @@ function pocketScrews(j,shape,n,len,label){
   // (an apron's holes for the top against its holes into the legs): two holes that open into each other cannot
   // both be drilled, and the second screw would run through the first hole.
   const endHoles=endHoleSpans(through,j,out,t);
+  // Rule 10 for hardware: no hole of the row where a bolt passes through the piece beside the joint (the bolts
+  // through the end cross pieces of two rack sections, js/rackwall.js)
+  const bolts=boltSpansAcross(through,shape,t);
+  if(bolts.length)blocked.spans.push(...bolts);
   const evenly=spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin).map(a=>rangeT[0]+a);
   const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3);
   const inEndHoles=at=>endHoles.spans.some(([a,b])=>at>a-.3&&at<b+.3);
@@ -482,24 +535,29 @@ function pocketScrews(j,shape,n,len,label){
   const placed=alongs.map((place,index)=>({...place,index})).filter(place=>!inEndHoles(place.at));
   const rows=placed.length?placed:alongs.map((place,index)=>({...place,index}));
   const list=rows.map(({at,moved,index})=>{
-    const why=!moved?{}:inEndHoles(evenly[index])?{passEnds:endHoles.names}:{clear:blocked.names};
+    const why=!moved?{}:inEndHoles(evenly[index])?{passEnds:endHoles.names}:{clear:blocked.names,...(bolts.length?{pastBolt:true}:{})};
     const cross=[0,0,0];
     cross[shape.k]=shape.plane;
     cross[s]=crossS;
     cross[t]=at;
     const mouth=pointPlus(cross,dir,-mouthBack);
+    const pos=pointPlus(cross,dir,-shoulder),point=pointPlus(pos,dir,len);
+    // through a thin deck: the framing under it that the point ends in
+    const beyond=deck?deck.under.filter(p=>{const b=plainBox(p);return[0,1,2].every(k=>point[k]>=b.lo[k]-.03&&point[k]<=b.hi[k]+.03);}):[];
     // (rule 13 for a face that looks sideways, under a shelf hung high: the supports of a wall shelf)
     const plug=plugged||(house&&s!==1&&seenFromBelow(mouth,out));
-    return{kind:'pocket',pos:pointPlus(cross,dir,-shoulder),dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
+    const path=beyond.length?`down through ${into.name} into ${beyond[0].name}`:`into ${into.name}`;
+    return{kind:'pocket',pos,dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
       pocket:{mouth,out,dia:.375,plugged:plug},
-      ...why,
-      tip:`${label}. Goes from a pocket hole in ${through.name} into ${into.name}. `+
+      ...why,...(beyond.length?{also:beyond}:{}),
+      tip:`${label}. Goes from a pocket hole in ${through.name} ${path}. `+
         (plug?'The hole would be seen from below, so it is filled with a glued pocket-hole plug, sanded flush.':'The holes are on the hidden side.')};
   });
   // The layout depends on the neighbours: one that had to move a hole is worked out again at every change
   // (loose), and one that did not is worked out again when the piece gets more or fewer neighbours (near).
-  // (rule 13 looks at what stands in front of and over the piece: worked out again at every change)
-  if(blocked.spans.length||endHoles.spans.length||heldAtEnds||house)list.loose=true;
+  // (rule 13 looks at what stands in front of and over the piece, and a deck at the framing under it: worked out
+  // again at every change)
+  if(blocked.spans.length||endHoles.spans.length||heldAtEnds||house||deck)list.loose=true;
   if(!placed.length&&endHoles.spans.length)list.noRoom=true;   // every hole of the row lands in the end holes
   list.near={id:through.id,count:blocked.count};
   return list;
@@ -625,6 +683,28 @@ function coveredSpans(piece,skip,face,band,t){
     names.add(other.name);
   }
   return{spans,names:[...names],count};
+}
+/* The stretches along t of a row of pocket holes in this piece that a bolt keeps for itself: a bolt in the design
+   (hardwareHoles) that crosses the row square to it, passes through the piece, and runs within BOLT_NEAR_JOINT of
+   the joint face (a bolt at the back of an end cross piece does not move the holes at its front). Each stretch is
+   the bolt's width, a pocket hole's bore and a drill bit's room on either side. */
+const BOLT_NEAR_JOINT=2;
+function boltSpansAcross(piece,shape,t){
+  const spans=[];
+  if(!S.parts.includes(piece))return spans;
+  const b=plainBox(piece);
+  for(const{f}of hardwareHoles()){
+    if(f.hardware!=='bolt'||Math.abs(f.dir[t])>.1||Math.abs(f.dir[shape.k])>.1)continue;
+    const along=[0,1,2].find(k=>Math.abs(f.dir[k])>.9);
+    if(along===undefined)continue;
+    const from=Math.min(f.pos[along],f.pos[along]+f.dir[along]*f.len),to=Math.max(f.pos[along],f.pos[along]+f.dir[along]*f.len);
+    if(to<b.lo[along]+.05||from>b.hi[along]-.05)continue;                     // it does not pass through the piece
+    if(f.pos[t]<b.lo[t]-.05||f.pos[t]>b.hi[t]+.05)continue;
+    if(Math.abs(f.pos[shape.k]-shape.plane)>BOLT_NEAR_JOINT)continue;         // far from this joint
+    const room=f.dia/2+.1875+FASTENER_ROOM;
+    spans.push([f.pos[t]-room,f.pos[t]+room]);
+  }
+  return spans;
 }
 /* Places along a row (absolute positions), each moved off the covered spans to the nearest place that is clear,
    keeping endMin from the ends of the row and about an inch from the other places. room: half the width a
@@ -884,6 +964,30 @@ const SETTLE_MAX=6000;
 const SETTLE_STEPS=[.375,.5,.25,.625,.75];   // how far a joint's screws are moved, tried in this order (inches)
 const SETTLE_KEEP={apart:.75,edge:.375,end:.5}; // what a move must leave: between two screws, to the edge and to the end of the joint
 const settledMemo=new WeakMap();   // graph -> Map link -> layout (only the joints that were moved)
+/* The holes of the hardware in the design that the screws of the joints must keep clear of, as fasteners that
+   cannot move: [{f, link}], link a stand-in marked fixed (it never gives way). A carriage bolt between two rack
+   sections (its 3/8" shank through the end cross pieces and posts, js/rackwall.js) and a screw into a wall stud (a
+   1/4" structural screw through the back rail of the top frame; two structural screws keep STRUCTURAL_CLEARANCE).
+   A bolt is placed clear of the screws of every style (placeRackHardware), but a screw that settles later (a
+   cabinet stand's end cross piece into its post in Fine furniture, pushed down by the 2" screws of the deck into
+   the post top) could otherwise come to rest against it. */
+function hardwareHoles(){
+  if(typeof hardwareList!=='function'||typeof hardwarePose!=='function')return[];
+  const out=[];
+  for(const item of hardwareList()){
+    const bolt=item.kind==='bolt',wall=item.kind==='wallscrew';
+    if(!bolt&&!wall)continue;
+    const pose=hardwarePose(item);
+    if(!pose)continue;
+    const dir=[-pose.n.x,-pose.n.y,-pose.n.z],at=[pose.at.x,pose.at.y,pose.at.z];
+    const len=bolt?((item.geo&&item.geo.grip)||item.size):item.size;
+    // (started HEAD_DEPTH back, so that drilledStretches takes in the whole length from the face on)
+    const f={kind:'hole',hardware:item.kind,pos:pointPlus(at,dir,-HEAD_DEPTH),dir,len:len+HEAD_DEPTH,
+      dia:bolt?2*BOLT_RADIUS:.25,structural:wall};
+    out.push({f,link:{fixed:true,key:'hardware '+item.id}});
+  }
+  return out;
+}
 function settledLayouts(){
   const graph=connGraph();
   let moved=settledMemo.get(graph);
@@ -918,6 +1022,7 @@ function settledLayouts(){
     for(const key of cellsOf(f)){
       for(const other of cells.get(key)||[]){
         if(other.link===own)continue;
+        if(other.link.fixed&&!holesCount)continue;
         if(screwsMeet(f,other.f))return true;
       }
     }
@@ -934,6 +1039,11 @@ function settledLayouts(){
   // what can be moved: screws, pocket screws and brads, not one driven at an angle (a toe screw) or one of a set
   const movable=list=>list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket'||f.kind==='brad')&&!f.toe&&!(f.also&&f.also.length));
   const unsettle=link=>{for(const list of cells.values())for(let i=list.length-1;i>=0;i--)if(list[i].link===link)list.splice(i,1);};
+  // The holes of the bolts and of the screws into the wall studs that are in the design (hardwareHoles) are drilled
+  // where they are drawn and never move: they are settled first, and the screws of the joints keep clear of them.
+  // (holesCount: whether they count just now; see the loop below)
+  let holesCount=true;
+  for(const hole of hardwareHoles())settle([hole.f],hole.link);
   /* the way out of the way for one joint: the whole joint moved, else each screw by itself; null when neither clears */
   const wayOut=(link,list)=>{
     for(const candidate of movedLayouts(link.joint,list)){
@@ -948,8 +1058,9 @@ function settledLayouts(){
      them cannot move either, everything is put back as it was. */
   const giveWay=(link,list)=>{
     const blockers=new Set();
-    for(const f of list)for(const key of cellsOf(f))for(const other of cells.get(key)||[])if(other.link!==link&&screwsMeet(f,other.f))blockers.add(other.link);
-    if(!blockers.size||[...blockers].some(other=>!movable(moved.get(other)||layoutAsLaidOut(other))))return false;
+    for(const f of list)for(const key of cellsOf(f))for(const other of cells.get(key)||[])
+      if(other.link!==link&&!(other.link.fixed&&!holesCount)&&screwsMeet(f,other.f))blockers.add(other.link);
+    if(!blockers.size||[...blockers].some(other=>other.fixed||!movable(moved.get(other)||layoutAsLaidOut(other))))return false;
     const before=new Map([...blockers].map(other=>[other,moved.get(other)]));
     for(const other of blockers)unsettle(other);
     settle(list,link);
@@ -971,22 +1082,42 @@ function settledLayouts(){
     }
     return true;
   };
-  for(const{link}of ranked){
-    const list=layoutAsLaidOut(link);
-    if(!list.some(f=>meets(f,link))){settle(list,link);continue;}
-    // screws that cannot move themselves (driven at an angle: a toe screw up through a foot) make the others move
-    if(!movable(list)){if(!giveWay(link,list))settle(list,link);continue;}
+  /* A joint gets a place that meets nothing: where it stands, moved, or with the others giving way. false when
+     there is none (nothing is changed then). */
+  const placeCleanly=(link,list)=>{
+    if(!list.some(f=>meets(f,link))){settle(list,link);return true;}
+    if(!movable(list))return giveWay(link,list);
     const best=wayOut(link,list);
-    if(best){moved.set(link,best);settle(best,link);continue;}
+    if(best){moved.set(link,best);settle(best,link);return true;}
     // the others give way to this joint where it stands, or where one of its own moves leaves fewer in its way
-    let gave=false;
     for(const where of[list,...movedLayouts(link.joint,list)]){
       if(!giveWay(link,where))continue;
       if(where!==list)moved.set(link,where);
-      gave=true;
-      break;
+      return true;
     }
-    if(gave)continue;
+    return false;
+  };
+  for(const{link}of ranked){
+    const list=layoutAsLaidOut(link);
+    if(placeCleanly(link,list))continue;
+    // A joint that finds no place clear of the hardware holes as well (the crowded end cross piece of a rack
+    // section in Fine furniture) is placed as if they were not there: the bolts were put where they clear the
+    // screws of every style (placeRackHardware), and one joint crowded by them must not push the others into
+    // each other.
+    holesCount=false;
+    const placed=placeCleanly(link,list);
+    holesCount=true;
+    if(placed){
+      // where that place is in a hole's way, each screw is still nudged out of it when that meets nothing else
+      const now=moved.get(link)||list;
+      if(now.some(f=>meets(f,link))){
+        const nudged=nudgedLayout(link.joint,now,f=>meets(f,link));
+        if(nudged&&!nudged.some(f=>meets(f,link))){unsettle(link);moved.set(link,nudged);settle(nudged,link);}
+      }
+      continue;
+    }
+    // screws that cannot move themselves (driven at an angle: a toe screw up through a foot) stay where they are
+    if(!movable(list)){settle(list,link);continue;}
     // nothing clears it: each screw that meets another still gets out of its way where it can
     const nudged=nudgedLayout(link.joint,list,f=>meets(f,link));
     if(nudged)moved.set(link,nudged);

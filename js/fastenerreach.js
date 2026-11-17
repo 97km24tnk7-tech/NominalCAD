@@ -1,8 +1,8 @@
 /* NominalCAD: screws that can really be driven where they are drawn, and the check that none goes through.
 
    THE FAULT THIS FILE MENDS (the owner: "the screws are so long they go through"). Where two boards meet one
-   upright from its two sides at the same height (the shelves of two bays at a bookshelf divider, a rail and the
-   next rack's post on the two faces of a post), the rules of thumb in js/fasteners.js screw BOTH of them straight
+   upright from its two sides at the same height (the shelves of two bays at a bookshelf divider, the cross piece
+   and the filler block on the two faces of a fish rack's upright), the rules of thumb in js/fasteners.js screw BOTH of them straight
    through the upright. Each screw then starts on the face that the other board covers: in the 3D view the screws
    run out of the end of one shelf, through the divider and into the next shelf, and no drill can reach the second
    set at all. The steps already said what a builder does instead ("screw through the divider into the first one
@@ -15,7 +15,8 @@
                                 screwed straight through X from the face this joint's board covers. One of the two
                                 joints must be made second. The second one is
                                   - moved along the joint to where nothing covers its heads, when there is room
-                                    (the screws that tie two rack posts together move off the rail ends), or
+                                    (the posts of two separate rack sections are not screwed to each other at all:
+                                    they are bolted, rackBoltPlan in js/rackwall.js), or
                                   - when the whole face is covered (a shelf end against a divider), driven at an
                                     angle through the end of its board into X, from the board's hidden side (the
                                     underside of a shelf, the back of a toe kick), and clear of the first joint's

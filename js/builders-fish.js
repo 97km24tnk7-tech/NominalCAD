@@ -40,9 +40,22 @@ const RACK_RULES={
   MIN_REACH:3,                 // less room than this above a tank that has a shelf over it: it cannot be fed or cleaned (a warning)
   GALLONS_SHARE:.75,           // the gallons typed must be at least this share of what a tank that size holds
   MAX_GALLONS:400,             // the biggest tank the forms take; nothing heavier can be carried by these designs anyway
-  WALL_SCREWS_PER_POST:4,      // two near the top and two at mid height, into a stud
-  WALL_TIE_EVERY:48,           // a frame whose posts are further apart than this is also screwed to the wall along its length:
-  STUD_SPACING:16,             // one screw through the back rail of the top frame into every stud it crosses (studs 16" apart)
+  // Screws into the wall studs (only for a rack more than WALL_RATIO times as tall as it is deep; one that is not
+  // stands free and gets none). Structural screws through the back rail of the TOP frame only, never at mid height:
+  // the higher a screw, the longer its lever against tipping. How many is worked out in WALL_SCREW_RULES
+  // (js/verify.js, which checks the same numbers on the model): a pull of 200 lb at the top (a person pulling on
+  // the rack or climbing it, a bump; its own weight given no credit, for empty tanks and an uneven floor), a
+  // factor of safety of 1.5, about 288 lb for one 1/4" structural screw with 2 1/2" of thread in a stud (two
+  // thirds of the published withdrawal value for spruce-pine-fir, 115 lb an inch), at least 2, and no point of
+  // the top more than 2 ft from a screw, which is a screw into every third stud (studs 16" apart), about every
+  // 4 ft. A pull near an end is taken mostly by the screws near that end (wallScrewWorst), so the end screws
+  // decide the count: the 10 ft rack with its tanks long side out gets 4 (it had 16). Each separate section is
+  // held by its own.
+  // rackWallScrewPlan (js/rackwall.js) places them.
+  WALL:WALL_SCREW_RULES,
+  LEGS_HELD:12,                // feet this tall or taller: the rack is screwed to the wall too, however short it is. Legs that long
+                               // with a frame only at their top lean over (the structural check calls it racking): the wall
+                               // holds the top of the rack square
   FOOT_MIN:4                   // the shortest foot under a bottom frame: a shorter block cannot take a pocket hole
 };
 const up16=v=>Math.ceil(v*16-1e-6)/16,down16=v=>Math.floor(v*16+1e-6)/16; // to the next / the last 1/16"
@@ -143,29 +156,55 @@ function backSeamWords(pl,H){
 }
 /* the lumber of a door stile: as the uprights, but never wider than 1 1/2" across (a 2x4 beside 4x4 uprights) */
 const stileStock=pl=>pl.su>1.5?{mat:'2x4',deep:3.5}:{mat:pl.up,deep:pl.ud};
-/* Hardware that is not wood: door hardware for a cabinet base, and the screws that hold the rack to the wall.
-   alwaysOnWall: the rack preset is screwed to the wall whatever its height; the others only when they must be. */
-function rackHw(p,alwaysOnWall){
+/* Hardware that is not wood: door hardware for a cabinet base; the screws into the wall studs, only when it is too
+   tall for its depth to stand free (js/rackwall.js works out how many and where); the carriage bolts between
+   separate sections; and the screws of the back braces. Placing the preset puts the wall screws and the bolts
+   into the model (placeRackHardware), and from then on those are what is listed. gap: how far its back stands
+   off the wall (rackWallGap when it is not given). */
+function rackHw(p,gap){
   const pl=rackPlan(p),list=[];
   if(!pl)return list;
   if(p.base==='cabinet')list.push(...doorHardware(doorTotal(pl),pl.rows[1].y+pl.rb-1));
-  if(alwaysOnWall||pl.wall)list.push(...wallScrewLines(pl,rackWallGap(p,pl)));
+  list.push(...wallScrewLines(pl,gap===undefined?rackWallGap(p,pl):gap),...sectionBoltLines(pl),...braceScrewLines(p));
   return list;
 }
-/* The screws into the wall studs: four in each back post, and on a frame longer than WALL_TIE_EVERY one more
-   through the back rail of the top frame into every stud it crosses, so a long wall is held all along its
-   length and not only at its two ends (wallStepText says the same). */
-const railWallScrews=pl=>pl.mods.reduce((sum,m)=>sum+(m.W-3>RACK_RULES.WALL_TIE_EVERY+1e-6?Math.ceil((m.W-3)/RACK_RULES.STUD_SPACING-1e-6):0),0);
+/* the carriage bolts that join separate sections (rackBoltPlan, js/rackwall.js), one line for each length */
+function sectionBoltLines(pl){
+  const byLength=new Map();
+  for(const bolt of rackBoltPlan(pl))byLength.set(bolt.len,(byLength.get(bolt.len)||0)+1);
+  return[...byLength.entries()].map(([length,count])=>[HARDWARE.bolt.buy(length),count]);
+}
+/* The screws of the diagonal back braces: two through the brace into every post, upright, rail, foot and filler
+   block it crosses. A brace is set at an angle, so the program works out no joint for it; they are counted here
+   from the pieces it touches (findAngledTies, js/neighbors.js), for the shopping list and the brace step. */
+const BRACE_SCREW='#8 × 1-5/8" wood screws',BRACE_SCREWS_EACH=2;
+const braceScrewMemo=new Map();
+function braceScrewCount(p){
+  if(!p.brace)return 0;
+  const key=JSON.stringify(p);
+  if(braceScrewMemo.has(key))return braceScrewMemo.get(key);
+  const parts=buildRack(p);
+  const crossed=findAngledTies(parts).filter(tie=>(tie.a.name==='Back brace')!==(tie.b.name==='Back brace')).length;
+  if(braceScrewMemo.size>=24)braceScrewMemo.delete(braceScrewMemo.keys().next().value);
+  braceScrewMemo.set(key,crossed*BRACE_SCREWS_EACH);
+  return crossed*BRACE_SCREWS_EACH;
+}
+const braceScrewLines=p=>{const n=braceScrewCount(p);return n?[[BRACE_SCREW,n]]:[];};
 /* How long a screw into a wall stud must be. It goes through the wood it holds (`through`: a back post is as deep
    as the rack's uprights front to back, a rail 1 1/2"), the gap behind it (`behind`: a brace or a back panel holds
    the back off the wall), about 1/2" of drywall, and then WALL_SCREW_INTO into the stud, but never more than
    WALL_SCREW_MOST into it (a stud is 3 1/2" deep, and the tip must not come out the far side). The lengths are the
    structural screws a home center sells. Returns the length, or the longest that fits when none is in between. */
-const WALL_SCREW_LENGTHS=[3,3.5,4,5,6,8,10],WALL_SCREW_INTO=1.5,WALL_SCREW_MOST=3.25,DRYWALL=.5;
-function wallScrewLength(through,behind){
-  const toStud=through+behind+DRYWALL;
-  return WALL_SCREW_LENGTHS.find(l=>l>=toStud+WALL_SCREW_INTO-1e-6&&l<=toStud+WALL_SCREW_MOST+1e-6)||
-    WALL_SCREW_LENGTHS.filter(l=>l<=toStud+WALL_SCREW_MOST+1e-6).pop();
+// WALL_SCREW_INTO is the thread the screws are counted for (WALL_SCREW_RULES.bite, 2 1/2"): a screw that cannot
+// reach that far is counted for what it does reach (rackWallScrewPlan, wallScrewHold), and more of them are used
+// room (optional): the longest screw wanted. RIGHT_ANGLE_HEAD: how deep a right-angle drill attachment is, so that
+// a screw and the attachment fit between the two rails of the top frame (rackWallScrewPlan: where they do not, the
+// screw goes in through an access hole in the front rail)
+const WALL_SCREW_LENGTHS=[3,3.5,4,5,6,8,10],WALL_SCREW_INTO=WALL_SCREW_RULES.bite,WALL_SCREW_MOST=3.25,DRYWALL=.5,RIGHT_ANGLE_HEAD=1.5;
+function wallScrewLength(through,behind,room){
+  const toStud=through+behind+DRYWALL,most=Math.min(toStud+WALL_SCREW_MOST,room===undefined?Infinity:room)+1e-6;
+  return WALL_SCREW_LENGTHS.find(l=>l>=toStud+WALL_SCREW_INTO-1e-6&&l<=most)||
+    WALL_SCREW_LENGTHS.filter(l=>l<=most).pop()||0;
 }
 /* how far the back of a rack stands off the wall: 3/4" behind a 1x4 brace, 1/4" behind a thin back panel */
 function rackWallGap(p,pl){
@@ -173,15 +212,12 @@ function rackWallGap(p,pl){
   return braced?.75:p.base==='cabinet'?.25:0;
 }
 const standWallGap=p=>p.under==='cabinet'||p.under==='panels'?.25:.75;
-/* the shopping list lines of the screws into the wall studs, with their lengths (wallStepText says the same) */
-function wallScrewLines(pl,behind){
-  const post=wallScrewLength(pl.ud,behind),rail=wallScrewLength(1.5,behind);
-  const posts=RACK_RULES.WALL_SCREWS_PER_POST*2*pl.mods.length,rails=railWallScrews(pl);
-  // (a short frame is screwed through its rail only where a back post misses a stud: two screws for each such post)
-  const railCount=rails||2*2*pl.mods.length,railWhy=rails?'through the back rail':'through the back rail, where a back post misses a stud';
-  const label=(length,why)=>`Screws for the wall studs, ${fmt(length)} structural (${why})`;
-  if(post===rail)return[[label(post,'through the back posts and the back rail'),posts+railCount]];
-  return[[label(post,'through the back posts'),posts],[label(rail,railWhy),railCount]];
+/* the shopping list line of the screws into the wall studs, with their length (wallStepText says the same); none
+   for a rack that may stand free. gap: how far its back stands off the wall. */
+function wallScrewLines(pl,gap){
+  const plan=rackWallScrewPlan(pl,gap);
+  if(!plan.screws.length)return[];
+  return[[`Screws for the wall studs, ${fmt(plan.len)} structural (through the back rail of the top frame, about every ${ruleLength(WALL_SCREW_RULES.every)})`,plan.screws.length]];
 }
 
 /* The plan of a rack: which rail and upright, how many rows, how wide the bays, how many sections.
@@ -325,10 +361,11 @@ function rackPlanFresh(p){
           const pl={worst,narrow,pastCap,capSpan,o:words,end,rows:rr,n:rr.length,D,y0,B,su,ud,rail,rh,rb,up,postMat:ud>3.5?up:'2x4',mods,bays,W:Wt,board,count,manual,span,util,
             raised:y0-wanted,   // how much higher than "Lowest tank off floor" the feet put the tanks (0 almost always)
             build:rackBuildOf(p),doors:p.base==='cabinet'||!!p.doors,   // how it is built along its length; whether it has cabinet doors (they need door stiles in wide bays)
+            brace:!!p.brace,    // it gets diagonal back braces (rackBraces; the screws into the wall keep clear of them, js/rackwall.js)
             upLoad:upWorst.load*span,upSafe:upWorst.safe,upLength:upWorst.length, // the hardest-working upright: what it carries, what it may, how long it is
             gallons:rr.reduce((a,r)=>a+r.cnt*r.gal,0),total:rr.reduce((a,r)=>a+r.cnt*r.wt,0),
             over,shallow,flawed:over||shallow.length>0,top,need:last.y+last.pitch,postH,
-            tall,ratio,wall:tall/narrow>RACK_RULES.WALL_RATIO+1e-6,tooTall:ratio>RACK_RULES.MAX_RATIO+1e-6,postLong:postH>board+1e-6};
+            tall,ratio,wall:tall/narrow>RACK_RULES.WALL_RATIO+1e-6||y0>=RACK_RULES.LEGS_HELD-1e-6,legsHeld:tall/narrow<=RACK_RULES.WALL_RATIO+1e-6&&y0>=RACK_RULES.LEGS_HELD-1e-6,tooTall:ratio>RACK_RULES.MAX_RATIO+1e-6,postLong:postH>board+1e-6};
           if(better(pl))best=pl;
         }
         break;
@@ -430,11 +467,54 @@ function braceEndName(pl,m,x1){
 const footRaisedWords=pl=>`The feet under the bottom frame are ${fmt(pl.y0)} tall, so the lowest tank sits ${fmt(pl.raised)} higher than "Lowest tank off floor" asks: a block of wood shorter than ${fmt(RACK_RULES.FOOT_MIN)} is too short to drill pocket holes in, and the feet are held on by pocket screws.`;
 const pct=v=>Math.round(v*100)+'%';
 /* the sentence that says the rack or stand must be screwed to the wall, or '' when it may stand free */
-function wallNote(pl,what){
+function wallNote(pl,what,gap){
   if(!pl.wall)return'';
   const sideways=pl.narrow<pl.D; // narrower left to right than front to back
-  return`Fasten it to the wall. At ${fmtFt(pl.tall)} tall on a base ${fmt(pl.narrow)} ${sideways?'wide':'deep'}, this ${what} is more than ${RACK_RULES.WALL_RATIO} times as tall as it is ${sideways?'wide':'deep'}, so it is not safe standing free: screw the back posts to the wall studs near the top and again at mid height.`;
+  if(pl.legsHeld)return`Fasten it to the wall. It stands on feet ${fmt(pl.y0)} tall, and legs that long with a frame only at their top lean over unless something holds the top square: ${wallScrewWords(pl,gap)}. ${wallScrewWhy(pl,gap)}`;
+  return`Fasten it to the wall. At ${fmtFt(pl.tall)} tall on a base ${fmt(pl.narrow)} ${sideways?'wide':'deep'}, this ${what} is more than ${RACK_RULES.WALL_RATIO} times as tall as it is ${sideways?'wide':'deep'}, so it is not safe standing free: ${wallScrewWords(pl,gap)}. ${wallScrewWhy(pl,gap)}`;
 }
+/* The plain sentence for a rack or stand that may stand free (the owner wanted fewer holes in his wall): it says
+   that it needs no screws into the wall and why, with the same numbers wallNote would use. '' when it must be
+   fastened. */
+function freeStandingNote(pl,what){
+  if(pl.wall)return'';
+  const sideways=pl.narrow<pl.D;
+  const across=sideways?'wide':'deep';
+  return`It stands free and needs no screws into the wall: at ${fmtFt(pl.tall)} tall on a base ${fmt(pl.narrow)} ${across}, this ${what} is less than ${RACK_RULES.WALL_RATIO} times as tall as it is ${across}, so its own footprint keeps it from tipping. (A ${what} more than ${RACK_RULES.WALL_RATIO} times as tall as it is ${across} is screwed to the wall studs, and the notes then say how many screws and where.)`;
+}
+/* The note on the tank lights (the dark bars drawn over the tanks; bought, not wood, not in the cut list). It starts
+   with "Lights:" so it is easy to find among the notes: a light hangs under the shelf above its tank, and the top row
+   has no shelf over it, so its lights hang from the ceiling or from a board fastened to the wall above the rack.
+   Nothing when the design draws no lights. */
+function lightsNote(p,pl){
+  if(!(p.light>=1))return'';
+  const tankRows=pl.rows.filter(row=>!row.store).length;
+  const top=tankRows>1?'The top row has no shelf over it: hang its lights from the ceiling, or from a board you fasten to the wall above the rack, at the height drawn.'
+    :'Nothing is built over the tanks: hang the lights from the ceiling, or from a board you fasten to the wall above them, at the height drawn.';
+  return'Lights: the dark bars over the tanks are the tank lights you buy; they are not wood and are not in the cut list. '+
+    (tankRows>1?'Mount each light under the shelf above its tank. ':'')+top;
+}
+/* Self-check: the tank lights read as light fixtures, not lumber. In the rack as the form starts and in the Single
+   aquarium stand with a second tank under it: the lights are drawn solid and dark (not a pale see-through box like
+   the glass of a tank), they are not wood (nothing to cut or buy for them), and the notes have the line, starting
+   "Lights:", that says the top row's lights hang from the ceiling or from a board on the wall. */
+SELFTESTS.push(function tankLightsLookLikeFixtures(problems){
+  const wrong=text=>problems.push('tank lights: '+text);
+  const light=M.light,shade=new THREE.Color(light.color);
+  if(!light.opaque||shade.r+shade.g+shade.b>.75)wrong('a tank light should be drawn as a solid dark bar');
+  for(const[name,change]of[['Fish tank wall / rack',{}],['Single aquarium stand',{under:'tank'}]]){
+    const preset=PRESETS.find(row=>row.name===name);
+    if(!preset){wrong(`${name} is missing`);continue;}
+    const vals={...presetDefaults(preset),...change},parts=preset.build(vals),lights=parts.filter(p=>p.name==='Light');
+    if(!lights.length){wrong(`${name} draws no lights, so this check proves nothing`);continue;}
+    if(!lights.every(p=>p.mat==='light'&&propIsSolid(p)))wrong(`${name}: a light is not drawn as a solid fixture`);
+    const withoutLights=lumberToBuy(parts.filter(p=>p.name!=='Light'));
+    const buy=lumberToBuy(parts);
+    if(buy.boards!==withoutLights.boards||buy.sheets!==withoutLights.sheets||Math.abs(buy.cost-withoutLights.cost)>.01)wrong(`${name}: the lights change the lumber to buy`);
+    const note=(preset.notes(vals)||[]).find(line=>/^Lights:/.test(line));
+    if(!note||!/ceiling/.test(note)||!/not in the cut list/.test(note))wrong(`${name}: the notes have no "Lights:" line saying where the top row's lights hang`);
+  }
+});
 function rackNotes(p,fields){
   const pl=rackPlan(p);if(!pl)return rackCheck(p,fields).map(f=>f.text+' '+f.fix);
   const psf=Math.round(pl.total/(pl.W*pl.D/144)),M0=pl.mods.length,kinds=new Set(pl.rows.map(r=>r.name));
@@ -442,7 +522,7 @@ function rackNotes(p,fields){
     (kinds.size>1?' Bottom to top: '+pl.rows.map(r=>r.store?'storage shelf':`${r.cnt} × ${r.name}`).join(', ')+'.':` That is ${pl.rows[0].cnt} per row.`)];
   if(pl.over)N.push(`OVERLOADED. With the sizes you forced, the rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger rail or upright, or set them back to Auto.`);
   const thing=(fields||RACK_FIELDS).thing; // "rack" or "cabinet stand"
-  if(pl.wall)N.push(wallNote(pl,thing));
+  N.push(pl.wall?wallNote(pl,thing,rackWallGap(p,pl)):freeStandingNote(pl,thing));
   if(p.base==='shelf')N.push('The bottom level is an open storage shelf for filters, food and buckets. It is not counted as holding water.');
   if(p.base==='cabinet')N.push('The bottom level is a closed cabinet with doors for filters, food and buckets. It is not counted as holding water.');
   // typedLen (js/core.js): under the presets form these repeat the sizes typed in its boxes the way the boxes show them
@@ -454,13 +534,15 @@ function rackNotes(p,fields){
   N.push(`The ${thing} is ${fmtFt(pl.W+sidePanelsWidth(p))} wide${sidePanelsWidth(p)?' with its side panels':''} × ${fmtFt(pl.D)} deep`+along+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`+(remark?' '+remark:''),
    `Filled weight: about ${Math.round(pl.total).toLocaleString()} lb of tanks plus lumber, roughly ${psf} lb per square foot of floor.`,
    `Above every tank there is ${typedLen(p.light)} for the light plus ${typedLen(p.clr)} of open hand room for feeding, netting and cleaning.`+(pl.top>66?' The top row is above eye level, so plan on a step stool to service it.':''));
+  const lights=lightsNote(p,pl);
+  if(lights)N.push(lights);
   if(pl.raised>0)N.push(footRaisedWords(pl));
   if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${fmt(pl.span)} apart. The weight goes straight down through wood, not through screws.`);
   if(joined)N.push(`Where two rail pieces meet, each end sits on ${fmt(pl.su<3?pl.su:pl.su/2)} of upright and is screwed into a cross piece of its own; the two cross pieces are screwed to each other, and the plywood deck runs across the joint. The joints of every row and of the front and back rails are at the same places, not staggered: no rail runs on past a joint (each piece is a span of its own that ends on its own upright), and the uprights of a joint stand straight above the ones below, down to the floor. Staggering them would take a doubled line of uprights under every joint of every row.`);
   if(pl.rows.some(r=>r.doubled))N.push('Some rows hold tanks a little shallower than the rack. Their frames have doubled rails front and back, so the edges of those tanks still sit over wood.');
   if(pl.rows.some(r=>r.inset>0))N.push(`The rows hold tanks of different depths. Each tank must have a rail under its front and back edge, so the frames of the shallower rows are built narrower and the ${pl.up} uprights are deep enough to carry them. The plywood decks are all the full ${fmt(pl.D)} deep.`);
   if(!pl.manual&&!(+p.perRow)&&pl.board<192){const big=rackPlan({...p,board:192});if(big&&big.count>pl.count)N.push(`Tip: if you can haul boards up to 16 ft, the same wall holds ${big.count} tanks. Change "Longest board you can haul".`);}
-  N.push('Safety: this is a rule-of-thumb estimate, not an engineer\'s certification. Use straight, dry lumber, glue and screw every joint, screw the back posts to wall studs so it cannot tip, and put it on a concrete slab or across floor joists against a load-bearing wall. Keep power strips above tank level, '+DRIP_LOOP_WORDS+'.');
+  N.push('Safety: this is a rule-of-thumb estimate, not an engineer\'s certification. Use straight, dry lumber, glue and screw every joint, '+(pl.wall?'screw it to the wall studs as the steps say so it cannot tip':'level it with shims (it is short enough for its depth to stand free)')+', and put it on a concrete slab or across floor joists against a load-bearing wall. Keep power strips above tank level, '+DRIP_LOOP_WORDS+'.');
   return N;
 }
 function buildRack(p){
@@ -468,7 +550,6 @@ function buildRack(p){
   const{D,y0,rows,mods,rail,rh,rb,up,su,ud,B}=pl,P=[],placed=rows.map(()=>0);let ox=0;
   const frontBack=[0,D-ud]; // where the posts and uprights stand, back and front
   for(const m of mods){const lay=rackLayout(pl,m),W=m.W,railRuns=railPieces(lay,m);
-    for(const x of[0,W-1.5])for(const z of frontBack)P.push(mk('Post',pl.postMat,[1.5,pl.postH,ud],[ox+x,0,z]));
     rows.forEach((row,i)=>{const y=row.y,inset=row.inset; // the rails sit under the tank's edges: `inset` in from the back and the front
       // a doubled row has a second rail inside each rail (all four sit on the uprights); the cross pieces fit between
       const railsAt=row.doubled?[0,1.5,D-3,D-1.5]:[inset,D-1.5-inset],frameIn=row.doubled?3:1.5+inset;
@@ -495,6 +576,10 @@ function buildRack(p){
         const x=b0+q*B/row.c+(B/row.c-row.tx)/2,t=mk('Tank','tank',[row.tx,row.th,row.tz],[ox+x,y+rb,(D-row.tz)/2]);t.gal=row.gal;P.push(t);
         if(p.light>=1){const lz=Math.min(3,row.tz);P.push(mk('Light','light',[Math.max(4,row.tx-4),1,lz],[ox+x+Math.min(2,(row.tx-4)/2),y+rb+row.th+p.clr,(D-lz)/2]));}}
     });
+    // The posts come after the frames: of two pieces that meet face to face, a screw goes through the one that comes
+    // first in the design, so the screws between a post and the end cross piece or end upright beside it go in from
+    // the inside of the rack and the outside of its ends shows no heads (RACK_JOINTS).
+    for(const x of[0,W-1.5])for(const z of frontBack)P.push(mk('Post',pl.postMat,[1.5,pl.postH,ud],[ox+x,0,z]));
     if(p.brace)for(const b of rackBraces(pl,m)){ // diagonal 1x4 across the back of the section so it cannot lean sideways
       const bw=b.x1-b.x0-3.5,bh=b.y1-b.y0-3.5,len=r16(Math.hypot(bw,bh)),angle=Math.round(Math.atan2(bh,bw)*1800/Math.PI)/10;
       const br=mk('Back brace','1x4',[len,3.5,.75],[ox+(b.x0+b.x1)/2-len/2,(b.y0+b.y1)/2-1.75,-.75]);
@@ -505,14 +590,16 @@ function buildRack(p){
 }
 /* The step that fastens a rack or stand to the wall studs. `behind` is how far a brace or back panel holds
    the back posts off the wall (0 when they touch it). */
-function wallStepText(behind,pl){
-  const along=railWallScrews(pl)>0,post=wallScrewLength(pl.ud,behind),rail=wallScrewLength(1.5,behind);
-  // the lengths are the ones on the shopping list (wallScrewLines): through the wood, the gap and the drywall, and 1 1/2" into the stud
-  return`Screw the back posts to the wall studs: two ${fmt(post)} structural screws through each back post (${fmt(pl.ud)} deep, front to back) into a stud near the top, and two more at mid height. `+
-    (along?`The frame is longer than ${fmt(RACK_RULES.WALL_TIE_EVERY)} between its posts, so also drive one ${fmt(rail)} structural screw through the back rail of the top frame into every stud it crosses (studs are usually ${fmt(RACK_RULES.STUD_SPACING)} apart): that holds the whole length of it to the wall, not only its ends. Where a post does not land on a stud, those rail screws hold that end.`
-      :`Where a back post does not land on a stud, leave its screws out and drive two ${fmt(rail)} structural screws through the back rail of the top frame into the nearest studs instead.`)+
-    ` Each screw goes through the wood${behind>0?', the gap behind it':''} and about ${fmt(DRYWALL)} of drywall, and ${fmt(WALL_SCREW_INTO)} or more into the stud; with thicker wall covering, buy them longer.`+
-    (behind>0?` The back posts and rails stand ${fmt(behind)} off the wall (${behind>=.5?'the braces are behind them':'the thin back panel is behind them'}), so slip a scrap of wood that thick behind the post or the rail at every screw where nothing fills that space, so the screw does not pull it back against the wall.`:'');
+function wallStepText(gap,pl,thing){
+  const plan=rackWallScrewPlan(pl,gap),behind=plan.behind||0;
+  if(!plan.screws.length)return'';
+  // the length is the one on the shopping list (wallScrewLines): through the wood, the gap and the drywall, and 1 1/2" into the stud
+  return`Screw the ${thing||'rack'} to the wall studs: ${wallScrewWords(pl,gap)}. Find the studs behind that rail with a stud finder and mark them; drive a ${fmt(plan.len)} structural screw through the rail into the stud nearest each place the line below gives, so that no screw is more than ${ruleLength(WALL_SCREW_RULES.every)} from the next and none more than ${ruleLength(WALL_SCREW_RULES.reach)} from an end${pl.mods.length>1?' of its section (each section is held by its own)':''}. The screws nearest the ends matter most (a pull near an end is taken mostly by them): if the studs are not where the picture puts them, use for each end screw a stud no further from its end than the picture shows, never one further in, and keep the screws between them no more than ${ruleLength(WALL_SCREW_RULES.every)} apart. Keep each one at least ${fmt(WALL_SCREW_FROM_CROSS)} from a cross piece; where one meets a brace behind the rail, drive it through the brace too, 1" from the brace's own screws. `+
+    (plan.access
+      ?`The head goes on the inside face of the rail, under the top deck, and a screw that long will not fit between the two rails of the top frame: first drill a 3/4" access hole straight through the front rail of the top frame, in the middle of its height and in line with each screw, then put the screw in through that hole and drive it with a 12" long driver bit (fill the holes with 3/4" wood plugs afterward if you like; at the middle of the rail's height they take almost nothing from its strength). `
+      :`The head goes on the inside face of the rail, under the top deck: there is not room between the two rails for a drill and a screw that long in line, so use a right-angle drill attachment (a screw this long and the attachment fit between the rails). `)+
+    `${wallScrewWhy(pl,gap)} Each screw goes through ${fmt(plan.through)} of wood${behind>0?', the gap behind it':''} and about ${fmt(DRYWALL)} of drywall, and ${fmt(plan.into)} into the stud: buy 1/4" structural screws with at least ${fmt(Math.min(plan.into,WALL_SCREW_INTO))} of thread (the box gives the thread length). With a wall covering thicker than 1/2" drywall, buy them that much longer${plan.access?'':' if they still fit between the rails (if they do not, drill a 3/4" access hole through the front rail of the top frame in line with each screw, and drive them through it with a 12" long driver bit)'}.`+
+    (behind>0?` The back rail stands ${fmt(behind)} off the wall (${gap>=.5?'the braces are behind the frame':gap>0?'the thin back panel is behind the frame':'the top frame is set in from the back'}${gap>0&&behind>gap?', and the top frame is set in from the back':''}), so slip a scrap of wood that thick behind the rail at every screw where nothing fills that space, so the screw does not pull the rail back against the wall.`:'');
 }
 /* Separate sections ("Build it as", js/rackjoints.js) are each built as a rack of their own and joined where the
    rack stands, before it is fastened to the wall. The screws through one end post into the next are the ones
@@ -530,8 +617,15 @@ function sectionsJoinStep(pl,thing){
     const s=size(piece),middle=piece.pos[0]+s[0]/2,[from,to]=spans[index];
     return middle>=from-(index===0?.5:0)&&middle<to+(index===last?.5:0);
   };
-  return{t:`Stand the ${pl.mods.length} sections side by side where the ${thing} will go, in the order they are drawn, with the end posts of neighboring sections touching. Shim each one so its frames are level and line up with the frames of the next. Clamp each pair of posts that touch and screw one to the other with the screws listed below, spread from near the bottom to near the top and clear of the screws already in the posts. Use no glue here: with those screws out, the sections come apart again to be moved.`,
-    add:[],bring:spans.map((span,index)=>sectionOf(index))};
+  // the bolts are placed in the model with the preset (placeRackHardware, js/rackwall.js); their line under this
+  // step gives the count, the length and where they go (HARDWARE.bolt.line)
+  const bolts=rackBoltPlan(pl);
+  return{t:`Join the ${pl.mods.length} sections with 3/8" carriage bolts where their end posts meet, ${bolts.length} in all: at every frame one through the back pair of posts and one through the front pair, `+
+      `through the end cross pieces of the two frames where they fit, and through the end uprights just under the frame or in the hand room above the tanks where they do not, as the lines below say. `+
+      `Once the sections stand together there is no room to hold a drill or swing a hammer in line with a bolt, so drill first: on each end post that meets another section, mark every bolt at the height and the distance from the back that the line below gives, and drill a 7/16" hole there, square to the post, through the post and the piece behind it, from the outside. `+
+      `Then stand the sections side by side where the ${thing} will go, in the order they are drawn, with the end posts touching and the holes lined up, and shim each one so its frames are level and line up with the frames of the next. `+
+      `Push each bolt in from inside the first section, put a flat washer and a nut on it inside the next, and tighten the nut with a 9/16" wrench until the square neck under the head is pulled into the wood (it keeps the bolt from turning). Use no glue and no screws here: the sections come apart again to be moved by undoing the nuts.`,
+    add:[],bring:spans.map((span,index)=>sectionOf(index)),hardware:['bolt']};
 }
 /* how the doors of a cabinet base are hung: on the posts and uprights, and on door stiles where a bay has more than one pair */
 function doorStepText(pl,doorHeight){
@@ -559,23 +653,50 @@ function doorStepText(pl,doorHeight){
    other, and the plywood deck that runs across the joint. The two feet under such a joint (short blocks, the
    height of the gap under the bottom frame) only stand side by side: each is held by its own pocket screws, and
    screws from one into the other would run into them. */
-const RACK_JOINTS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','pocket','face-end'],['Shelf deck','Shelf deck','none'],
-  ['Post','Foot','none'],['Rail','Rail','none','end-end'],['Foot','Foot','none']];
+/* The same fastening in every build style where the style's own suggestion would make screws meet inside the
+   wood (fastenersKeepTheirDistance, js/fastenerroom.js):
+     - the top and the foot of an upright are held by pocket screws in Rustic too (Rustic would toe-screw them,
+       and toe screws cannot be moved aside of the screws of the post and the cross piece at the same corner);
+       where they meet a rail or the filler block outside a set-in rail, Fine furniture holds them with an L-bracket instead (bracketInFine, js/joints.js),
+       because there the cross pieces' own pocket screws pass the same spot inside the rail;
+     - the top deck is screwed down through its ends into the post tops in every style: Fine would put pocket
+       holes in the outside face of the end posts, which shows;
+     - the end posts of two separate sections only touch: they are joined by carriage bolts (js/rackwall.js).
+   The posts are made after the frames (buildRack), so the screws between a post and the end cross piece or end
+   upright beside it go in from the inside of the rack, through the cross piece or the upright into the post, and
+   the outside of the rack's ends shows no screw heads. */
+const RACK_JOINTS=[['Post','Shelf deck','none','face-edge'],['Post','Shelf deck','screw','end-face'],['Shelf deck','Upright','pocket','face-end'],['Shelf deck','Shelf deck','none'],
+  ['Post','Foot','none'],['Rail','Rail','none','end-end'],['Foot','Foot','none'],['Post','Post','none'],
+  ['Upright','Rail','bracketInFine'],['Foot','Rail','bracketInFine'],['Upright','Cross piece','pocket'],['Foot','Cross piece','pocket'],
+  ['Upright','Filler block','bracketInFine'],['Foot','Filler block','bracketInFine']];   // a filler block brings a set-in frame out to the full depth: it is met like a rail
 /* In the single stand every upright stands in a corner against a post and is screwed to it, so it needs no other
    fastener: the frame above rests on it, and is held by the screws through the posts. */
 const STAND_JOINTS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','none'],['Rail','Upright','none'],['Cross piece','Upright','none'],['Shelf deck','Shelf deck','none']];
+/* The thin plywood ends of a cabinet base or a closed stand are nailed on from the outside (there is no other way
+   to hold a 1/4" panel), so the brad heads are on the ends: the owner's rule is to hide them or say how to cover
+   them. This sentence says how, in the steps that nail those panels on. */
+const PANEL_NAIL_HEADS=' The brad heads are on the outside of the ends: unless you want the rough look, set each one a little below the surface with a nail set and fill the holes with wood filler before the finish, so they do not show.';
+/* words of a step in each build style, from a function of the style (for styledStep, js/style.js) */
+const byStyleWords=say=>({std:say('std'),rustic:say('rustic'),fine:say('fine')});
+/* the frame step: the rails are screwed into the ends of the cross pieces, except in Fine furniture, where the
+   cross pieces are held by pocket screws from their inside faces and nothing shows on the rails */
+const frameWords=(head,tail)=>byStyleWords(style=>head+(style==='fine'
+  ?'Glue each joint and drive two pocket screws through each cross-piece end into the rail (the pocket holes on the inside face of the cross piece, so no head shows on the rails).'
+  :'Glue each joint and drive two 3" screws through the rail into each cross-piece end.')+tail);
 /* where the lines of uprights go along a section, for the steps: the left edge of each, from the left end of the rail */
 function uprightPlaces(pl,kinds){
   return kinds.map(m=>(kinds.length>1?`${fmt(m.W)} wide section: `:'')+rackLayout(pl,m).sup.map(s=>fmt(s-1.5)).join(', ')).join('; ');
 }
-/* alwaysOnWall: the rack preset is screwed to the wall whatever its height; the cabinet stand only when it must be */
-function rackSteps(p,alwaysOnWall,thing){
+/* The steps of a rack, and of the cabinet stand (thing names it). The second argument is no longer used: every
+   rack, stand and cabinet stand is screwed to the wall when it is too tall for its depth to stand free, and only
+   then (js/rackwall.js). Steps whose fasteners depend on the build style carry their words per style (styledStep). */
+function rackSteps(p,unused,thing){
   thing=thing||'rack'; // what the steps call it: the single stand and the cabinet stand share these steps
   const pl=rackPlan(p);if(!pl)return[];const{rail,up,n,y0,mods,rows}=pl,M0=mods.length,kinds=[];
   for(const m of mods)if(!kinds.some(k=>k.W===m.W))kinds.push(m);
   const pos=kinds.map(m=>(kinds.length>1?`${fmt(m.W)} wide section: `:'')+rackLayout(pl,m).cross.map(c=>fmt(c-1.5)).join(', ')).join('; ');
   const ups=[...new Set(rows.slice(0,-1).map(r=>fmt(r.th+r.ab)))];
-  const braces=p.brace?rackBraces(pl,mods[0]):[],braced=braces.length>0,onWall=alwaysOnWall||pl.wall,tankRows=rows.filter(r=>!r.store).length,behind=rackWallGap(p,pl);
+  const braces=p.brace?rackBraces(pl,mods[0]):[],braced=braces.length>0,tankRows=rows.filter(r=>!r.store).length,gap=rackWallGap(p,pl);
   // frames of different depths, when the rows hold tanks of different depths
   const depths=rows.map(r=>pl.D-2*r.inset),mixed=depths.some(d=>d!==depths[0]);
   const blocked=n>1&&rows.some(r=>r.inset>0); // a narrower frame gets filler blocks where uprights stand above or below it (buildRack)
@@ -622,21 +743,28 @@ function rackSteps(p,alwaysOnWall,thing){
     :'Screw a diagonal 1x4 brace across the back of each section, '+braceWords+'.';
   const tallSides=p.base==='cabinet'&&n>1&&!fitsSheet(rows[1].y+pl.rb,pl.D); // side panels too big for one sheet
   return[CUT,
-   {t:`Build ${n*M0} shelf frames (${n} for ${M0>1?'each of the '+M0+' sections':'the '+thing}). Each one is two ${rail} rails on edge with cross pieces between them. Left edge of each cross piece, measured from the left end of the frame: ${pos}. Glue each joint and drive two 3" screws through the rail into each cross-piece end.`+jointWords+stileWords+depthWords,add:['Rail','Cross piece','Filler block']},
+   styledStep(frameWords(`Build ${n*M0} shelf frames (${n} for ${M0>1?'each of the '+M0+' sections':'the '+thing}). Each one is two ${rail} rails on edge with cross pieces between them. Left edge of each cross piece, measured from the left end of the frame: ${pos}. `,jointWords+stileWords+depthWords),['Rail','Cross piece','Filler block']),
    {t:'Glue and screw a plywood deck onto the top of each frame'+(pl.D>SHEET_W?', with every seam between two pieces centered on a cross piece':', with the grain of its face running the length of the rack')+'. The deck spreads the weight of the tanks and keeps the frame square.'+seamWords+(mixed?` Every deck is the full ${fmt(pl.D)} deep: center the narrower frames under their decks.`:''),add:['Shelf deck']},
-   {t:(M0>1?'Build each section as its own rack. ':'')+(y0>0?`Glue a ${up} foot (${fmt(y0)} long) under the bottom frame wherever an upright will stand above it, front and back${stileFeet?', and one under each door stile of the cabinet':''}, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). `:'')+(n>1?`Set the bottom frame ${y0>0?'on its feet':'on the floor'}, deck up. Clamp the four tall posts to the outside of its ends, standing on the floor, and screw them on with the screws listed below. Check with a level that each post is plumb (straight up and down).`
-     :`Screw the four short end posts (${fmt(pl.postH)} long) to the outside of the frame's ends, flush with the top of the rails, so the ends of the deck rest on them.`),add:['Foot','Post']},
-   ...(n>1?[{t:`Stack upward one row at a time. Stand the ${up} uprights (${ups.length>1?'lengths, bottom row first: '+rows.slice(0,-1).map(r=>fmt(r.th+r.ab)).join(', '):ups[0]+' long'}) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}. Screw the end ones to the posts.${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} Fasten the foot of every upright with pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright). Set the next frame on top of the uprights, fasten the top of each upright to it with pocket screws the same way, and screw through the posts into the ends of its rails. Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`,add:['Upright']}]:[]),
-   ...(braced?[{t:braceStep+' Hold each board in place, mark where it crosses the posts, trim the ends flush, then drive two screws into every post, upright and rail it crosses. This is what stops the '+thing+' from leaning sideways.',add:['Back brace']}]:[]),
-   ...(p.base==='cabinet'?[{t:'Close in the cabinet base. '+(tallSides?'Each end is too big for one sheet of plywood, so first stand a 2x4 panel stud flat against the ends of the frames, midway between the two end posts, and screw it to the end cross piece of every frame it passes. The two halves of each side panel meet on it. ':'')+'Glue and nail the thin plywood panels onto the outer ends'+(braced?'':' and the back')+'.'+(braced?'':backSeamWords(pl,rows[1].y+pl.rb))+' '+doorStepText(pl,rows[1].y+pl.rb-1)+' Paint or seal every plywood edge so splashed water cannot soak in.',add:['Panel stud','Side panel','Back panel','Door stile','Door']}]:[]),
+   styledStep(byStyleWords(style=>(M0>1?'Build each section as its own rack. ':'')+(y0>0?`Glue a ${up} foot (${fmt(y0)} long) under the bottom frame wherever an upright will stand above it, front and back${stileFeet?', and one under each door stile of the cabinet':''}, with a rail sitting on each foot, and fasten each one ${style==='fine'?'with the L-bracket and the pocket screw listed below (an L-bracket inside the corner where the foot meets the rail, and a pocket screw from the foot up into the cross piece)':'with the pocket screws listed below (the pocket holes are drilled in the foot)'}. `:'')+(n>1?`Set the bottom frame ${y0>0?'on its feet':'on the floor'}, deck up. Clamp the four tall posts to the outside of its ends, standing on the floor, and screw them on with the screws listed below: `+
+     (style==='fine'?'they all go in from the inside, through the end cross piece into the post and with pocket screws from the inside face of each rail end into the post, so no screw head shows on the outside of the ends.'
+       :'through the end cross piece into the post from the inside, and through the post into the rail ends from the outside (those heads show on the outside of the ends; in the Fine furniture style they are pocket screws driven from the inside).')+
+     ' Check with a level that each post is plumb (straight up and down).'
+     :`Screw the four short end posts (${fmt(pl.postH)} long) to the outside of the frame's ends, flush with the top of the rails, so the ends of the deck rest on them. Screw the ends of the top deck down into the tops of the posts.`)),['Foot','Post']),
+   ...(n>1?[styledStep(byStyleWords(style=>`Stack upward one row at a time. Stand the ${up} uprights (${ups.length>1?'lengths, bottom row first: '+rows.slice(0,-1).map(r=>fmt(r.th+r.ab)).join(', '):ups[0]+' long'}) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}. Screw the end ones to the posts from the inside (through the upright into the post).${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
+     `Fasten the foot of every upright with 2 1/2" pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock, so each screw goes through the 1/2" deck and on into the rail or the cross piece under it; a short screw would end in the deck, and 1/2" of plywood is too little for a screw to hold in). `+
+     `Set the next frame on top of the uprights, fasten the top of each upright to it ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}, and fasten the ends of its rails to the posts as you did on the bottom frame${style==='fine'?' (pocket screws from the inside)':' (through the posts)'}. When the top frame is on, screw the ends of its deck down into the tops of the posts. Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright'])]:[]),
+   ...(braced?[{t:braceStep+' Hold each board in place, mark where it crosses the posts, trim the ends flush, then drive two screws into every post, upright and rail it crosses. This is what stops the '+thing+' from leaning sideways.',add:['Back brace'],
+     fasten:braceScrewCount(p)?[{line:`${fastenerPhrase(braceScrewCount(p),BRACE_SCREW)}: two through the Back brace into every Post, Upright, Rail and Foot it crosses (the brace is set at an angle, so these are counted here).`,uses:[[BRACE_SCREW,braceScrewCount(p)]]}]:[]}]:[]),
+   ...(p.base==='cabinet'?[{t:'Close in the cabinet base. '+(tallSides?'Each end is too big for one sheet of plywood, so first stand a 2x4 panel stud flat against the ends of the frames, midway between the two end posts, and screw it to the end cross piece of every frame it passes. The two halves of each side panel meet on it. ':'')+'Glue and nail the thin plywood panels onto the outer ends'+(braced?'':' and the back')+'.'+(braced?'':backSeamWords(pl,rows[1].y+pl.rb))+PANEL_NAIL_HEADS+' '+doorStepText(pl,rows[1].y+pl.rb-1)+' Paint or seal every plywood edge so splashed water cannot soak in.',add:['Panel stud','Side panel','Back panel','Door stile','Door']}]:[]),
    FIN,   // sanding and the finish, before any water comes near it (finText in js/style.js writes the words)
    ...(M0>1?[sectionsJoinStep(pl,thing)]:[]),
    {t:[`Level the ${thing} with shims.`,
-       onWall?wallStepText(behind,pl):'',
-       pl.wall?`This ${thing} is too tall for its depth to stand free, so do not fill a tank until it is fastened.`:'',
+       pl.wall?wallStepText(gap,pl,thing):'',
+       pl.wall?`${pl.legsHeld?`This ${thing} stands on legs too tall to stay square by themselves`:`This ${thing} is too tall for its depth to stand free`}, so do not fill a tank until it is fastened.`
+         :`It is short enough for its depth to stand free, so it needs no screws into the wall.`,
        tankRows>1?`Mount each light under the shelf above its tank, leaving the ${fmt(p.clr)} of hand room below it; the lights of the top row hang from the ceiling or from a board you fasten to the wall above them.`
          :`Hang each light ${fmt(p.clr)} above its tank, from the ceiling or from a board you fasten to the wall.`,
-       RIMLESS_TANK_WORDS+' Fill one tank at a time, bottom row first, and watch for sag or wobble before filling the next.'].filter(Boolean).join(' '),add:['Tank','Light']}];
+       RIMLESS_TANK_WORDS+' Fill one tank at a time, bottom row first, and watch for sag or wobble before filling the next.'].filter(Boolean).join(' '),add:['Tank','Light'],hardware:['wallscrew']}];
 }
 const RIMLESS_TANK_WORDS='Put a foam mat under a rimless tank (one with no plastic frame around its bottom edge).';
 const DRIP_LOOP_WORDS='with a drip loop on every cord (let the cord hang down below the outlet before it comes up to it, so water running along the cord drips off instead of reaching the outlet)';
@@ -655,6 +783,13 @@ function standTopFrame(piece,parts){
   const lowest=Math.min(...railHeights),highest=Math.max(...railHeights);
   return highest>lowest+6&&piece.pos[1]>=highest-.01;   // the top rails and everything level with or above them
 }
+/* the rack's frame step in the stand's own words, in every build style */
+function standFrameStep(frames){
+  const say=text=>text.replace(/^Build 2 shelf frames \(2 for the stand\)\./,'Build the two shelf frames. They are alike: one becomes the bottom of the stand and the other the top. (The picture of each step shows the pieces where they end up in the finished stand.)');
+  const step={t:say(frames.t),add:frames.add};
+  if(frames.byStyle)step.byStyle=Object.fromEntries(Object.entries(frames.byStyle).map(([style,text])=>[style,say(text)]));
+  return step;
+}
 function standSteps(p){
   const a=standArgs(p);
   if(!a)return[];
@@ -666,25 +801,25 @@ function standSteps(p){
     const uprightLength=fmt(pl.rows[0].th+pl.rows[0].ab);
     const onePiece=W<=SHEET_L;       // each deck is one piece of plywood (a longer one is cut in two over a cross piece)
     steps.push(
-      {t:rack[1].t.replace(/^Build 2 shelf frames \(2 for the stand\)\./,'Build the two shelf frames. They are alike: one becomes the bottom of the stand and the other the top. (The picture of each step shows the pieces where they end up in the finished stand.)'),add:rack[1].add},
+      standFrameStep(rack[1]),
       {t:(onePiece?`Glue and screw the shorter plywood deck (${fmt(W-3)} long) onto one frame, flush with it all round: this is the bottom frame. Glue and screw the longer deck (${fmt(W)} long) onto the other, the top frame, so that it hangs over 1 1/2" at each end. That overhang will rest on the top ends of the posts.`
           :'Glue and screw the plywood decks onto the two frames. The shorter set is flush with its frame all round: that is the bottom frame. The longer set hangs over 1 1/2" at each end of the other frame, the top frame, and will rest on the top ends of the posts. Where two pieces of a deck meet, the seam goes over the middle of a cross piece.')+
           ' Drive a 1 1/4" screw about every 8" into the rails and two into each cross piece. The grain of the plywood face runs the long way. The deck spreads the weight of the tank and keeps the frame square.',add:['Shelf deck']},
       {t:(feet?`Glue a ${pl.up} foot (${fmt(pl.y0)} long) under each corner of the bottom frame, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). Stand the frame on its feet, deck up. `:'Set the bottom frame on the floor, deck up. ')+
-          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws into the cross piece at that end of the frame. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`,add:['Foot','Post']},
-      {t:`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws into the end cross piece, then drive two 1 1/4" screws down through the deck into the top of each post. The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.`,add:['Upright'],bring:[standTopFrame]});
+          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws from the inside through the cross piece at that end of the frame into the post. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`,add:['Foot','Post']},
+      {t:`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws through the end cross piece into the post, then drive two 1 1/4" screws down through the deck into the top of each post. The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.`,add:['Upright'],bring:[standTopFrame]});
   }else{
     steps.push(...rack.slice(1).filter(step=>['Rail','Shelf deck','Post','Upright'].some(name=>step.add.includes(name))));
   }
   const brace=rack.find(step=>step.add.includes('Back brace'));
   if(brace)steps.push(brace);
-  if(skinned)steps.push({t:'Glue and nail the thin plywood panels onto the back and onto both ends, flush with the top of the stand, with a nail about every 6" into every post, rail, upright and deck edge they cover.'+backSeamWords(pl,p.standH)+' Cut a notch or drill holes in the back panel for hoses and cords before you fasten it.',add:['Panel stud','Back panel','Side panel']});
+  if(skinned)steps.push({t:'Glue and nail the thin plywood panels onto the back and onto both ends, flush with the top of the stand, with a nail about every 6" into every post, rail, upright and deck edge they cover.'+backSeamWords(pl,p.standH)+' Cut a notch or drill holes in the back panel for hoses and cords before you fasten it.'+PANEL_NAIL_HEADS,add:['Panel stud','Back panel','Side panel']});
   steps.push(FIN);                   // before the doors go on and before any water comes near it
   if(p.under==='cabinet')steps.push({t:doorStepText(pl,p.standH-1)+' The doors get the same finish as the stand before they are hung, their edges too: a sealed edge keeps splashed water from soaking into the plywood.',add:['Door stile','Door']});
   // a stand more than 4 times as tall as it is deep must be screwed to the wall (rackPlan's wall)
-  const wallWords=pl.wall?wallStepText(standWallGap(p),pl)+' This stand is too tall for its depth to stand free, so do not fill a tank until it is fastened. ':'';
+  const wallWords=pl.wall?wallStepText(standWallGap(p),pl,'stand')+' This stand is too tall for its depth to stand free, so do not fill a tank until it is fastened. ':'';
   const lowerWords=lowerTank?'Set the lower tank on the bottom frame first and mount its light under the top frame; the light of the top tank hangs from the ceiling or sits on the tank. ':'';
-  steps.push({t:'Level the stand with shims. '+wallWords+lowerWords+RIMLESS_TANK_WORDS+' Set the tank on top, fill it part way, check for wobble or sag, then finish filling.',add:['Tank','Light']});
+  steps.push({t:'Level the stand with shims. '+wallWords+lowerWords+RIMLESS_TANK_WORDS+' Set the tank on top, fill it part way, check for wobble or sag, then finish filling.',add:['Tank','Light'],hardware:['wallscrew']});
   return steps;
 }
 
@@ -794,6 +929,25 @@ function planProblems(p,pl,fields){
     found.push({level:'warn',text:`Only ${fmt(cramped[0].ab)} is left between the top of a tank and the shelf above it. That is too little to get a hand, a net or a lid in, so those tanks cannot be fed or cleaned in place.`,
       fix:`Leave at least ${fmt(RACK_RULES.MIN_REACH)} above the tanks (the space for the light plus the hand room), and more for deep tanks.`});
   }
+  // Too tall for its depth to stand free, and no way found to screw it (or one of its sections) to studs 16" apart
+  // strongly enough (rackWallScrewPlan, WALL_SCREW_RULES). Said here in plain words; the structural check refuses it too.
+  if(pl.wall&&!pl.tooTall&&p.base!==undefined){
+    const gap=rackWallGap(p,pl),plan=rackWallScrewPlan(pl,gap);
+    const unheld=pl.mods.filter((m,i)=>!plan.screws.some(s=>s.section===i)).length;
+    const setIn=plan.behind>gap+1e-6;   // the top frame is set in from the back (shallower tanks on the top row)
+    if(unheld&&setIn){
+      found.push(stop(`The ${fields.thing} is too tall for its depth to stand free, so it must be screwed to the wall studs through the back rail of its top frame, but that frame is set in ${fmt(plan.behind-gap)} from the back (the tanks on the top row are shallower than the rest). A screw long enough to cross that gap and still reach into a stud is too long to line up and drive between the two rails of that frame.`,
+        'Put tanks on the top row that are as deep as the ones below, or turn the tanks short end out so the rack is deep enough to stand free.'));
+    }
+    else if(unheld){
+      const weak=plan.into<WALL_SCREW_RULES.bite-1e-6;
+      found.push(stop(`The ${fields.thing} is too tall for its depth to stand free, so it must be screwed to the wall studs, and the program finds no way to do that strongly enough${pl.mods.length>1?` for ${unheld===pl.mods.length?'its sections':unheld+' of its sections'}`:''}: `+
+        (weak?`there is only room for a ${fmt(plan.len)} screw between the rails of the top frame, which reaches ${fmt(Math.max(0,plan.into))} into a stud and holds about ${plan.hold} lb, too little for a pull of ${WALL_SCREW_RULES.pull} lb near an end.`
+          :`with studs 16" apart, somewhere along it more than ${ruleLength(WALL_SCREW_RULES.every)} of the top would have every stud behind a cross piece or a rail joint, where a screw cannot go.`),
+        weak?'Turn the tanks short end out (a deeper rack may stand free), or use tanks that are deeper front to back.'
+          :(RACK_BUILD_FIELD.show(p)&&rackBuildOf(p)!=='sections'?'Choose "Separate sections you can carry" under Build it as (each section is screwed to the studs behind it on its own), or':'Try')+' a wall a few inches shorter or longer, or turn the tanks the other way.'));
+    }
+  }
   if(pl.postLong&&!pl.tooTall){
     found.push(stop(`The end posts would be ${fmtFt(pl.postH)} long, longer than the ${pl.board/12} ft boards this is cut from. A post must be one piece.`,
       fields.H?'Use fewer rows, or choose a longer board under "Longest board you can haul".':'Use fewer rows, shorter tanks or a lower cabinet.'));
@@ -808,9 +962,26 @@ function rackCheck(p,fields){
   const pl=rackPlan(p);
   return pl?planProblems(p,pl,fields):[rackWhyNothingFits(p,fields)];
 }
-/* pieces of that name at the back are screwed to the wall studs (see wall in js/verify.js) */
-const RACK_WALL=['Post'];
+/* What a rack, stand or cabinet stand declares about the wall (see wall in js/verify.js): when it is too tall for
+   its depth to stand free, it is held by the screws into the wall studs that are really in it, and the structural
+   check counts them (WALL_BY_SCREWS, WALL_SCREW_RULES); when it is not, nothing (it stands free and gets none). */
+const RACK_WALL=[WALL_BY_SCREWS];
 const rackWallIfNeeded=p=>{const pl=rackPlan(p);return pl&&pl.wall?RACK_WALL:[];};
+/* The wall screws of a preset that is not placed yet, as the structural check takes them (preset.wallScrews), and
+   placing its wall screws and section bolts into the design (preset.place, called by placePreset in js/app.js).
+   args: the plan's arguments of the form values; gap: how far its back stands off the wall. */
+function presetWallScrews(args,gap,parts){
+  const pl=args?rackPlan(args):null;
+  return pl?wallScrewsInParts(rackWallScrewPlan(pl,gap).screws,parts):[];
+}
+const rackPresetHooks=(argsOf,gapOf)=>({
+  // the joints the hardware placed with the preset holds (the bolts between sections), which RACK_JOINTS names
+  // 'none': an old design with no bolts keeps the screws it was saved with there (leftToMissingHardware,
+  // js/fasteningupgrade.js)
+  hardwareJoints:[['Post','Post']],
+  wallScrews:(p,parts)=>{const args=argsOf(p),pl=args&&rackPlan(args);return pl?presetWallScrews(args,gapOf(p,args,pl),parts):[];},
+  place:(p,parts)=>{const args=argsOf(p),pl=args&&rackPlan(args);if(pl)placeRackHardware(args,gapOf(p,args,pl),parts);}
+});
 
 /* Single stand = a two-row rack: a storage shelf below and one tank on top. */
 function standArgs(p){
@@ -853,9 +1024,11 @@ function standNotes(p){const a=standArgs(p);if(!a)return[standCheck(p).map(f=>f.
   const skin=p.under==='cabinet'?' The thin panels and the doors add 1/2" to the width and 1" to the depth.':p.under==='panels'?' The thin panels add 1/2" to the width and 1/4" to the depth.':'';
   const pl=rackPlan(a),N=[`The frame of the stand is ${typedLen(pl.W,fmtFt)} wide × ${typedLen(pl.D,fmtFt)} deep × ${typedLen(p.under==='tank'?pl.top:p.standH,fmtFt)} tall, with ${pl.rail} rails and ${pl.up} uprights.`+skin,
    `${p.under==='tank'?'The two filled tanks are':'The filled tank is'} about ${Math.round(pl.total).toLocaleString()} lb (water, glass, gravel). The weight goes straight down through the uprights, not through screws.`];
-  if(pl.wall)N.push(wallNote(pl,'stand'));
+  if(pl.wall)N.push(wallNote(pl,'stand',standWallGap(p)));
   N.push(pl.over?`OVERLOADED. The rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger size, set them back to Auto, or make the stand taller so deeper rails fit.`
     :`Load check: rails at ${pct(pl.util.rail)} and uprights at ${pct(pl.util.up)} of the rule-of-thumb limit.`);
+  const lights=lightsNote(a,pl);
+  if(lights)N.push(lights);
   N.push(p.under==='tank'?'Both tanks are counted in the weight above. Leave room to reach into the lower one. With a second tank underneath, the height of the stand comes from the two tanks, not from Stand height.':'The lower shelf is for storage (filter, food, buckets), not a second tank.',
    'Safety: this is a rule-of-thumb estimate, not an engineer\'s certification. Use straight, dry lumber, glue and screw every joint, level the stand with shims, and keep power strips above the floor, '+DRIP_LOOP_WORDS+'.');
   return N;}
@@ -975,60 +1148,81 @@ function selfTestFish(problems){
   expectRefusal(rack,'g20h',{gal:5},'Gallons says');                              // gallons typed far too low for the tank's size
   expectRefusal(stand,'g125',{standH:STAND_MIN_HEIGHT},'too low for this tank');
   expectRefusal(cabinet,'g20h',{levels:'3'},'Too tall for its depth');
-  // the wall: the rack is always fastened; a stand only when it is more than 4 times as tall as it is deep
-  const onWall=(preset,tankKey,changes)=>presetOptions(preset,valuesFor(preset,tankKey,changes)).wall.includes('Post');
-  if(!onWall(rack,'g20h',{}))say('wall',{},'the rack does not declare its back posts as screwed to the wall');
+  // the wall: a rack or a stand is fastened only when it is more than 4 times as tall as it is deep, and then it is
+  // held by the screws into the wall studs that are in it (WALL_BY_SCREWS: js/rackwall.js)
+  const onWall=(preset,tankKey,changes)=>presetOptions(preset,valuesFor(preset,tankKey,changes)).wall.includes(WALL_BY_SCREWS);
+  if(!onWall(rack,'g20h',{orient:'long'}))say('wall',{},'a rack of 20 gallon tanks long side out, 55" tall on a base 13" deep, does not declare that it is held by its wall screws');
+  if(onWall(rack,'g20h',{}))say('wall',{},'the default rack, 55" tall on a base 25" deep, should be allowed to stand free');
   if(onWall(stand,'g20h',{}))say('wall',{},'a 20 gallon stand 30" tall should be allowed to stand free');
   if(!onWall(stand,'g5',{})||!/wall studs/.test(JSON.stringify(STEPS[stand.name](valuesFor(stand,'g5',{})))))say('wall',{},'a 5.5 gallon stand 30" tall is more than 4 times as tall as deep: it must be on the wall and its steps must say so');
   // narrower than it is deep: a stand for a tank 8" long and 36" front to back would fall over sideways
   const sideways={...presetDefaults(stand),size:'custom',tl:8,td:36,th:36,gal:44.9};
-  if(!presetOptions(stand,sideways).wall.includes('Post')||checkPreset(stand,sideways).problems.length)say('wall',{},'a stand 66" tall and 15" wide must be on the wall, and clean once it is');
+  if(!presetOptions(stand,sideways).wall.includes(WALL_BY_SCREWS)||checkPreset(stand,sideways).problems.length)say('wall',{},'a stand 66" tall and 15" wide must be on the wall, and clean once it is');
   expectRefusal(stand,'g5',{size:'custom',tl:96,td:12,th:12,gal:60},'too long for a stand');      // no rail may span 8 ft under a tank
   expectRefusal(rack,'g75',{W:120,H:60,base:'shelf',low:0},'needs 2x6 rails');                    // the reason is the height the deeper rails take
   // sizes that are not on a 1/16": pieces must still meet exactly (no piece drawn into another)
   const odd={...presetDefaults(rack),size:'custom',tl:20.3,td:10.37,th:9.6,gal:8.5,low:5.3,clr:7.7,W:97.3};
-  const oddResult=verifyDesign(rack.build(odd),presetOptions(rack,odd));
+  const oddParts=rack.build(odd),oddResult=verifyDesign(oddParts,{...presetOptions(rack,odd),wallScrews:rack.wallScrews(odd,oddParts)});
   if(!oddResult.clean||oddResult.notes.some(note=>note.code==='overlap'))say('odd sizes',{},'a rack with sizes off the 1/16" is not clean: '+oddResult.problems.concat(oddResult.notes).map(f=>f.code).join(', '));
 }
-/* The screws into the wall studs reach the stud: each length on the shopping list goes through the wood it holds
-   (a back post as deep as the uprights, or a rail), the gap behind it (a brace or a back panel) and 1/2" of
-   drywall, and then at least 1 1/2" into the stud, without coming out of its far side. A 3" screw through a
-   rail that a brace holds 3/4" off the wall once reached about 1/4" into the stud. The steps give the same
-   lengths, and tell the builder to fill a gap behind the wood at each screw. */
+/* The screws into the wall studs reach the stud: the length on the shopping list goes through the wood in front of
+   the stud (the back rail of the top frame, both rails where they are doubled), the gap behind it (a brace, a
+   back panel, or a top frame set in from the back) and 1/2" of drywall, and then at least 1 1/2" into the stud,
+   without coming out of its far side. A 3" screw through a rail that a brace holds 3/4" off the wall once reached
+   about 1/4" into the stud. The steps give the same length, and tell the builder to fill a gap behind the rail at
+   each screw. Only designs too tall to stand free get them (js/rackwall.js). */
 SELFTESTS.push(function wallScrewsReachTheStud(problems){
   const say=text=>problems.push('wall screws: '+text);
   const named=name=>PRESETS.find(preset=>preset.name===name);
   const rack=named('Fish tank wall / rack'),stand=named('Single aquarium stand'),cabinet=named('Cabinet stand with a row of tanks');
   const tankOf=key=>{const t=TANKS[key];return{size:key,tl:t[0],td:t[1],th:t[2],gal:t[3],clr:Math.max(8,Math.ceil(t[2]/2))};};
-  // [preset, form values, the plan's arguments, how far the back stands off the wall, its steps]
+  // [preset, form values, the plan's arguments, how far the back of the frame stands off the wall]
   const cases=[];
-  const onRack=changes=>{const vals={...presetDefaults(rack),...changes};cases.push([rack,vals,vals,rackWallGap(vals,rackPlan(vals))]);};
+  const onRack=changes=>{const vals={...presetDefaults(rack),orient:'long',...changes};cases.push([rack,vals,vals,rackWallGap(vals,rackPlan(vals))]);};
   onRack({});                                                     // braced: 3/4" off the wall
   onRack({brace:false});                                          // tight to the wall
   onRack({base:'cabinet',brace:false});                           // behind a thin back panel
-  onRack({...tankOf('g40b'),W:84,H:96,board:'120',r2:'g10',r3:'g20l'});   // 2x6 uprights, so posts 5 1/2" deep
+  onRack({...tankOf('g40b'),levels:'3',H:110,r3:'g10'});          // a top frame of shallower tanks: set in 4" from the back
   const standVals={...presetDefaults(stand),...tankOf('g5')};    // a stand that must be on the wall
   cases.push([stand,standVals,standArgs(standVals),standWallGap(standVals)]);
   const cabinetVals={...presetDefaults(cabinet),levels:'3',...tankOf('g10')};
   if(rackPlan(cabArgs(cabinetVals))&&rackPlan(cabArgs(cabinetVals)).wall)cases.push([cabinet,cabinetVals,cabArgs(cabinetVals),rackWallGap(cabArgs(cabinetVals),rackPlan(cabArgs(cabinetVals)))]);
-  let deep=false;
-  for(const[preset,vals,args,behind]of cases){
+  let checked=0,setIn=false;
+  for(const[preset,vals,args,gap]of cases){
     const what=`${preset.name} ${JSON.stringify(vals).slice(0,60)}`,pl=rackPlan(args);
     if(!pl){say(`${what}: no plan`);continue;}
-    deep=deep||pl.ud>3.5;
-    const lines=preset.hw(vals).filter(([label])=>/wall studs/.test(label));
-    if(!lines.length){say(`${what}: the shopping list has no screws for the wall studs`);continue;}
-    const steps=(preset.steps||STEPS[preset.name])(vals).map(step=>step.t).join(' ');
-    for(const[label,count]of lines){
-      const length=parseLen((label.match(/studs, ([^"]+")/)||[])[1]||''),through=/posts/.test(label)?pl.ud:1.5;
-      const into=length-(through+behind+DRYWALL);
-      if(!(into>=WALL_SCREW_INTO-1e-6&&into<=WALL_SCREW_MOST+1e-6))say(`${what}: "${label}" reaches ${fmt(Math.max(0,into))} into the stud`);
-      if(!steps.includes(`${fmt(length)} structural screw`))say(`${what}: the steps do not give the ${fmt(length)} of "${label}"`);
-      if(!(count>0))say(`${what}: "${label}" has no count`);
+    if(!pl.wall)continue;   // it stands free: no screws into the wall (wallScrewsAreWorkedOut checks that)
+    checked++;
+    const plan=rackWallScrewPlan(pl,gap);
+    // A top frame set in from the back puts a gap behind its rail: a screw long enough to cross it and reach into
+    // a stud cannot be lined up between the rails to be driven (it once was a 10" screw in 8" of room), so the
+    // preset refuses it in words, and the structural check refuses it too.
+    if(plan.behind>gap+1e-6){
+      setIn=true;
+      const words=(preset.check(vals)||[]).filter(f=>f.level==='stop').map(f=>f.text).join(' ');
+      if(!plan.screws.length&&!/set in .* from the back/.test(words))say(`${what}: a top frame set in from the back gets no screws, and the form does not say why`);
+      if(!plan.screws.length)continue;
     }
-    if(behind>0&&!/scrap of wood that thick behind the post or the rail/.test(steps))say(`${what}: the back stands ${fmt(behind)} off the wall and the steps do not say to fill that gap at each screw`);
+    const lines=preset.hw(vals).filter(([label])=>/wall studs/.test(label));
+    if(lines.length!==1){say(`${what}: the shopping list has ${lines.length} lines of screws for the wall studs, not one`);continue;}
+    const steps=(preset.steps||STEPS[preset.name])(vals).map(step=>step.t).join(' ');
+    const[label,count]=lines[0],length=parseLen((label.match(/studs, ([^"]+")/)||[])[1]||'');
+    const into=length-(plan.through+plan.behind+DRYWALL);
+    // as far into the stud as the plan counts it for (WALL_SCREW_INTO where there is room between the rails to
+    // drive one that long, less in a shallow rack, which then gets more screws), never out of the far side
+    if(!(Math.abs(into-plan.into)<1e-6&&into>0&&into<=WALL_SCREW_MOST+1e-6))say(`${what}: "${label}" reaches ${fmt(Math.max(0,into))} into the stud, the plan counts ${fmt(plan.into)}`);
+    // driven with a right-angle attachment between the rails, or through access holes in the front rail when it does not fit
+    const between=pl.D-(pl.rows[pl.n-1].doubled?6:3+2*pl.rows[pl.n-1].inset);
+    if(!plan.access&&plan.len+RIGHT_ANGLE_HEAD>between+1e-6)say(`${what}: a ${fmt(plan.len)} screw cannot be lined up between the rails of the top frame, and no access holes are planned`);
+    if(plan.access&&!/access hole straight through the front rail/.test(steps))say(`${what}: the screws need access holes in the front rail and the wall step does not say so`);
+    const check=checkPreset(preset,vals);
+    if(check.problems.some(f=>f.code==='wall-screws'))say(`${what}: the structural check finds its screws into the wall too few or too weak`);
+    if(!steps.includes(`${fmt(length)} structural screw`))say(`${what}: the steps do not give the ${fmt(length)} of "${label}"`);
+    if(count!==plan.screws.length||!(count>=WALL_SCREW_RULES.least))say(`${what}: "${label}" counts ${count}, the plan has ${plan.screws.length}`);
+    if(plan.behind>0&&!/scrap of wood that thick behind the rail at every screw/.test(steps))say(`${what}: the rail stands ${fmt(plan.behind)} off the wall and the steps do not say to fill that gap at each screw`);
   }
-  if(!deep)say('no case with posts deeper than 3 1/2" was checked');
+  if(checked<4)say(`only ${checked} of the cases are too tall to stand free, so the screws were hardly checked`);
+  if(!setIn)say('no case with a top frame set in from the back was checked');
 });
 /* Every upright and foot is held by fasteners a builder can drive. The top of each upright gets at least two
    pocket screws into the frame above (with rows of different depths the top frame is set in, and an upright
@@ -1062,4 +1256,34 @@ SELFTESTS.push(function uprightsAndFeetAreHeld(problems){
     const few=uprights.filter(p=>(tops.get(p)||0)<2);
     if(few.length)say(`${what}: ${few.length} of ${uprights.length} uprights have fewer than two pocket screws at the top (${few.map(p=>tops.get(p)||0).join(', ')})`);
   }
+});
+/* A door stile (where two pairs of doors meet in a wide bay of a cabinet base) is a piece of the frame: it is not
+   put in the Doors with the doors (SUB_BY_NAME, js/components.js), so hanging the doors does not free it from the
+   deck and the rail, and it is held by its own fasteners in every style. It was held by nothing: the 125 gallon
+   single stand and a rack of 125 gallon tanks on a cabinet base were found "only resting in place". */
+SELFTESTS.push(function doorStilesAreHeld(problems){
+  const say=text=>problems.push('door stiles: '+text);
+  const named=name=>PRESETS.find(preset=>preset.name===name);
+  const t=TANKS.g125,big={size:'g125',tl:t[0],td:t[1],th:t[2],gal:t[3]};
+  const cases=[[named('Single aquarium stand'),{...big,under:'cabinet'}],[named('Fish tank wall / rack'),{...big,orient:'long',base:'cabinet'}]];
+  const styleKept=look().style;
+  for(const[preset,changes]of cases){
+    if(!preset){say('a fish preset is missing');continue;}
+    const vals={...presetDefaults(preset),...changes};
+    placePreset(preset,vals,preset.build(vals),false);
+    const stiles=S.parts.filter(p=>p.name==='Door stile');
+    if(!stiles.length){say(`${preset.name}: the case has no door stile to check`);continue;}
+    if(stiles.some(p=>compChain(p.id).some(c=>c.name==='Doors')))say(`${preset.name}: a door stile is put in the Doors`);
+    // (the brads of the thin end panels are on the outside of the ends: the steps say how to hide them)
+    if(!buildPlan().steps.some(step=>/nail set and fill the holes/.test(step.words)))say(`${preset.name}: the steps do not say how to hide the brad heads on the ends`);
+    for(const style of['std','rustic','fine']){
+      look().style=style;
+      commit();
+      const unheld=stiles.filter(p=>!findJoints().some(j=>(j.a.id===p.id||j.b.id===p.id)&&!/door/i.test((j.a.id===p.id?j.b:j.a).name)&&jType(j)!=='none'));
+      if(unheld.length)say(`${preset.name} ${style}: ${unheld.length} door stile${unheld.length>1?'s are':' is'} fastened to nothing`);
+      const result=verifyDesign(S.parts,designCheckOptions());
+      if(result.problems.length)say(`${preset.name} ${style}: the structural check says ${result.problems.map(f=>f.code).join(', ')}`);
+    }
+  }
+  look().style=styleKept;
 });

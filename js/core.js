@@ -23,10 +23,14 @@ MATS.push({id:'ply34',name:'3/4" plywood',short:'3/4" plywood',kind:'sheet',t:.7
           {id:'ply12',name:'1/2" plywood',short:'1/2" plywood',kind:'sheet',t:.5,color:0xc9a26e},
           {id:'ply14',name:'1/4" plywood',short:'1/4" plywood',kind:'sheet',t:.25,color:0xb99a6b},
           {id:'tank',name:'Fish tank (not wood)',short:'Fish tank',kind:'prop',t:0,color:0x3d9be0},
-          {id:'light',name:'Tank light (not wood)',short:'Tank light',kind:'prop',t:0,color:0xffc400},
+          // a light is a fixture, not a board: drawn solid and dark (opaque, see propIsSolid), so the lights over the
+          // top row of a fish rack do not read as loose boards floating above the tanks
+          {id:'light',name:'Tank light (not wood)',short:'Tank light',kind:'prop',t:0,color:0x2b2f33,opaque:true},
           {id:'mattress',name:'Mattress (not wood)',short:'Mattress',kind:'prop',t:0,color:0xffffff},
           {id:'glass',name:'Window (not wood)',short:'Window',kind:'prop',t:0,color:0x9fd3f5});
 const isProp=p=>M[p.mat].kind==='prop';
+/* a thing that is not wood but is drawn solid, not see-through (a tank light: a dark fixture) */
+const propIsSolid=p=>isProp(p)&&!!M[p.mat].opaque;
 const M=Object.fromEntries(MATS.map(m=>[m.id,m]));
 const isSquare=m=>m.kind==='board'&&m.t===m.w;
 

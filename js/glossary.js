@@ -161,7 +161,7 @@ const TERMS=[
   {word:'Tank',group:'bought',match:/^tank$/i,
     what:'The aquarium. You buy it. It is drawn so you can see that it fits and so its filled weight is counted.'},
   {word:'Light',group:'bought',match:/^light$/i,
-    what:'The aquarium light. It is drawn so you can check there is room for it, and for your hand, above the tank.'},
+    what:'The aquarium light, drawn as a dark bar over the tank so you can check there is room for it, and for your hand. You buy it; it is not wood and not in the cut list. Over the top row it hangs from the ceiling or from a board on the wall.'},
   {word:'Mattress',group:'bought',match:/^mattress$/i,
     what:'Drawn so you can see that the bed fits it. It is not in the cut list.'},
   {word:'Window',group:'bought',match:/^window$/i,
@@ -203,6 +203,8 @@ const TERMS=[
   {word:'Drawer slide',group:'join',
     what:'A pair of metal runners, one for each side of a drawer. One half of each screws to the cabinet and the other half to the drawer, and the drawer rolls in and out on them.'},
   /* hardware that can be placed in the 3D view (HARDWARE in js/hardware.js names one of these for each kind) */
+  {word:'Carriage bolt',group:'join',
+    what:'A bolt with a smooth, rounded head and a short square neck under it. It goes through a hole drilled straight through the pieces, the square neck bites into the wood so the bolt cannot turn, and a flat washer and a nut go on the other end. Undo the nut and the pieces come apart again, which is why it joins things that are taken apart to be moved.'},
   {word:'Butt hinge',group:'join',
     what:'The plain hinge of a door or a lid: two flat metal leaves joined by a pin. One leaf screws to the door or lid, the other to the frame or the box.'},
   {word:'T-hinge',group:'join',

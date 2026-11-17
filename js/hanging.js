@@ -37,7 +37,8 @@
        the drawer side allows (10" to 22" in 2" steps). */
 'use strict';
 
-const DOOR_NAMES=/^(shed )?door\b|^lid\b/i;
+// (a "Door stile" is the frame piece two doors meet on, not a door: SUB_BY_NAME in js/components.js says the same)
+const DOOR_NAMES=/^(shed )?door\b(?! stile\b)|^lid\b/i;
 const SLIDE_GAP=.5;                // what a side-mount ball-bearing slide needs on each side of the drawer
 const SLIDE_GAP_RANGE=[.4,.6];     // gaps that still count as that
 const RUNNER_GAP_RANGE=[0,.3];     // a drawer on wooden runners sits close to the cabinet side
@@ -219,7 +220,10 @@ function hangPlan(door,opts){
       // A post, an upright or a side that runs along the edge is what a hinge is screwed to (the steps of the
       // presets say so). A rail that only crosses the edge is used when no such piece is within 3" of the place.
       const crosses=s.rA[1]-s.rA[0]<lengthA*.4;
-      const miss=Math.abs(at-want)+(s.rA[1]-s.rA[0]<1.25?100:0)+(crosses?3:0);
+      // Of two that fit as well, the one right at the edge of the door (an end post, not the upright behind it
+      // that stands further in): offEdge, how far in from the edge it starts, tips the balance.
+      const offEdge=s.rB?Math.max(0,edgeSign>0?found.edge-s.rB[1]:s.rB[0]-found.edge):0;
+      const miss=Math.abs(at-want)+(s.rA[1]-s.rA[0]<1.25?100:0)+(crosses?3:0)+offEdge*.01;
       if(!best||miss<best.miss)best={at,s,miss};
     }
     if(best&&!places.some(p=>Math.abs(p.at-best.at)<2))places.push(best);

@@ -32,8 +32,9 @@ const PRESETS=[
    {head:'Different tank on each row (bottom row first)'},
    ...[1,2,3,4,5,6].map(i=>({k:'r'+i,label:'Row '+i+(i===1?' (bottom)':''),opts:[['','Main tank'],...TANK_OPTS,['store','Storage / sump shelf, no tanks']],v:''})),
    num('storeH','Storage or cabinet height',16,6,48)],
-  info:p=>rackNotes(p).slice(0,5).join(' '),notes:p=>rackNotes(p),build:buildRack,hw:p=>rackHw(p,true),
-  uses:RACK_USES,wall:RACK_WALL,check:p=>rackCheck(p),joints:RACK_JOINTS},
+  info:p=>rackNotes(p).slice(0,5).join(' '),notes:p=>rackNotes(p),build:buildRack,hw:p=>rackHw(p),
+  uses:RACK_USES,wall:rackWallIfNeeded,check:p=>rackCheck(p),joints:RACK_JOINTS,
+  ...rackPresetHooks(p=>p,(p,args,pl)=>rackWallGap(args,pl))},   // wallScrews and place: the screws into the wall studs and the section bolts (js/rackwall.js)
  {name:'Single aquarium stand',spec:'One tank, cabinet below',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
   params:[{head:'Tank'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
@@ -46,12 +47,13 @@ const PRESETS=[
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
   info:p=>standNotes(p).slice(0,3).join(' '),notes:p=>standNotes(p),uses:RACK_USES,wall:standWall,check:standCheck,joints:STAND_JOINTS,
+  ...rackPresetHooks(standArgs,p=>standWallGap(p)),
   hw(p){
     const a=standArgs(p),list=[];
     if(!a)return list;
     const pl=rackPlan(a);
     if(p.under==='cabinet')list.push(...doorHardware(doorTotal(pl),p.standH-1));
-    if(pl.wall)list.push(...wallScrewLines(pl,standWallGap(p)));
+    list.push(...wallScrewLines(pl,standWallGap(p)),...braceScrewLines(a));   // none for a stand that may stand free
     return list;
   },
   build(p){const a=standArgs(p);if(!a)return[];const pl=rackPlan(a),P=buildRack(a);
@@ -71,7 +73,8 @@ const PRESETS=[
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
   info:p=>rackNotes(cabArgs(p),CABINET_FIELDS).slice(0,4).join(' '),notes:p=>rackNotes(cabArgs(p),CABINET_FIELDS),build:p=>buildRack(cabArgs(p)),hw:p=>rackHw(cabArgs(p)),steps:p=>rackSteps(cabArgs(p),false,'cabinet stand'),
-  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:RACK_JOINTS},
+  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:RACK_JOINTS,
+  ...rackPresetHooks(cabArgs,(p,args,pl)=>rackWallGap(args,pl))},
  {name:'Platform bed',spec:'2x6 frame, 1x4 slats',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
   params:[{k:'size',label:'Mattress',opts:[['twin','Twin'],['twinxl','Twin XL'],['full','Full'],['queen','Queen'],['king','King'],['calking','California king'],['custom','Custom (type below)']],v:'queen',
      fill:{twin:{Wm:38,Lm:75},twinxl:{Wm:38,Lm:80},full:{Wm:54,Lm:75},queen:{Wm:60,Lm:80},king:{Wm:76,Lm:80},calking:{Wm:72,Lm:84}}},
@@ -366,6 +369,9 @@ const STEPS={
         Create from building it and the message gives the reason and the fix; a "warn" asks Build anyway / Go back.
         Pieces that hang on bought hardware (drawers on slides, doors on hinges) are named in hung:['Drawer side']:
         each must have a wooden neighbour right beside it to mount to (see the top of js/verify.js).
+        A design held by screws into the wall studs that are placed in it as hardware (the fish presets) declares
+        wall:[WALL_BY_SCREWS], wallScrews(p, parts) for the screws placing it will drive, and place(p, parts), which
+        puts its own hardware into the design once its pieces are in (js/rackwall.js): the check counts the screws.
         variants:[{roof:'lean'}] lists other settings of the form that selfTest must also try at every limit.
         selfTest().structural lists every preset that does not pass yet.
       - joints:[['Side','Top','glue']] names the fastener between two kinds of piece (a key of JTYPES in js/joints.js)

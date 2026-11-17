@@ -130,23 +130,24 @@ function tooCloseWords(hit){
    added at the same time (16 Nov), when the check was first run in those two styles: nothing was checked there
    before, so they are new entries, not raised ones. Every one of them except the Platform bed is also found by
    main's own screwsThatMeet (js/fasteners.js), which on main itself finds the Fish tank wall in Rustic 24 and in
-   Fine 24, the Cabinet stand in Rustic 6 and in Fine 4, and the three tables below in Rustic 4 each. */
+   Fine 24, the Cabinet stand in Rustic 6 and in Fine 4, and the three tables below in Rustic 4 each.
+   The Fish tank wall / rack (Rustic 64, Fine 32) and the Cabinet stand with a row of tanks (Rustic 16, Fine 12) came
+   off on 16 Nov, clean in all three styles, fixed in the fish presets themselves (RACK_JOINTS, js/builders-fish.js):
+   their feet and uprights are held by pocket screws in Rustic too, and by an L-bracket where they meet a rail in
+   Fine furniture; the top deck is screwed down into the post tops; the posts are made after the frames, so the
+   screws between a post and the end cross piece or upright go in from the inside. */
 const FASTENER_ROOM_HANDED_ON={
   std:{
     'Shed':{pairs:110,why:'framing nails of neighbouring joints (plates, studs, sheathing, rim and floor joists) pass within 1/8" of each other; framing nails are not moved aside where joints meet'}
   },
   rustic:{
     'Shed':{pairs:110,why:'the same framing nails as in Everyday (framing is nailed the same in every style)'},
-    'Fish tank wall / rack':{pairs:64,why:'feet and uprights are toe-screwed into the rails (no pocket holes in Rustic), and the corner settler leaves toe screws where they are, so the post and rail-to-cross-piece screws of the same corner cannot get out of their way; more corners than on main because every line of uprights now has its own cross piece and feet'},
-    'Cabinet stand with a row of tanks':{pairs:16,why:'as the Fish tank wall: uprights toe-screwed into the rails at the corners of the frames'},
     'Coffee table':{pairs:4,why:'the top is screwed down from above in Rustic, and a top screw near the end of a short apron ends on the 3" screw through the leg into that apron; no move the corner settler tries clears both screws of the pair'},
     'Side table / nightstand':{pairs:4,why:'as the Coffee table'},
     'Entryway shoe bench':{pairs:4,why:'as the Coffee table, with the seat boards'}
   },
   fine:{
     'Shed':{pairs:110,why:'the same framing nails as in Everyday'},
-    'Fish tank wall / rack':{pairs:32,why:'the pocket screws of the uprights and feet into the rails pass the pocket screws of the cross pieces into the same rails at every line of uprights; and the end post\'s pocket holes into the top deck open on its outside face (its inside face is covered by the end upright) right beside the heads of the post screws'},
-    'Cabinet stand with a row of tanks':{pairs:12,why:'as the Fish tank wall'},
     'Platform bed':{pairs:1,why:'a pocket hole for a slat in the center beam opens 1/16" from the head of the screw through the beam into the center leg; the corner settler looks at screws from 1/4" under their heads, so it does not see heads beside holes'}
   }
 };

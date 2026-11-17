@@ -817,7 +817,7 @@ SELFTESTS.push(function catalogChipsTellTheTruth(problems){
     claim('tanks',tank,tank?'it holds a tank':'it holds none');
     claim('outdoor',entry.group==='outdoors',entry.group==='outdoors'?'it is in Outdoors':'it is not in Outdoors');
     if(parts.length&&parts.length<=PREVIEW_JOINTS_MAX){
-      const rating=assessParts(parts,preset).rating;
+      const rating=assessParts(parts,preset,vals).rating;
       const first=!!rating&&/^Beginner:/.test(rating.level);
       claim('beginner',first,`the window rates it "${rating&&rating.level}"`);
     }
@@ -842,10 +842,11 @@ SELFTESTS.push(function skillRatingFeelsRight(problems){
   for(const entry of CATALOG){
     const preset=PRESETS.find(row=>row.name===entry.builder);
     if(!preset)continue;
+    const vals={...presetDefaults(preset),...(entry.start||{})};
     let parts=[];
-    try{parts=preset.build({...presetDefaults(preset),...(entry.start||{})})||[];}catch(e){}
+    try{parts=preset.build(vals)||[];}catch(e){}
     if(!parts.length||parts.length>PREVIEW_JOINTS_MAX)continue;
-    rated[entry.id]=assessParts(parts,preset).rating;
+    rated[entry.id]=assessParts(parts,preset,vals).rating;
   }
   const rank=id=>SKILL_LEVELS.findIndex(row=>row.level===rated[id].level);
   for(const id of SKILL_FIRST_PROJECTS)if(rated[id]&&rank(id)!==0)wrong(`${id} should be a good first project, it is rated "${rated[id].level}" (${rated[id].why.map(row=>row.what).join(', ')})`);
@@ -864,6 +865,31 @@ SELFTESTS.push(function skillRatingFeelsRight(problems){
   const plainPoints=total(skillPoints(facts,everyday));
   if(total(skillPoints({...facts,pocketHoles:true},everyday))!==plainPoints)wrong('pocket holes add to the rating');
   if(total(skillPoints({...facts,plugs:true},everyday))!==plainPoints)wrong('screw heads sunk under plugs add to the rating');
+  // The owner: "if it attaches to the wall it should be experienced builder the others are fine". Tanks that must be
+  // screwed into the wall studs rate at least that (SKILL.tanksScrewedToWall) in every style, Rustic too; tanks that
+  // stand free keep the table's rating; and screws into the wall without tanks (a wall shelf) move nothing.
+  for(const style of Object.keys(STYLES)){
+    const lk={...everyday,style};
+    const free=skillLevel(total(skillPoints({...facts,tanks:true,wallScrews:0},lk)));
+    const screwed=skillLevel(total(skillPoints({...facts,tanks:true,wallScrews:2},lk)));
+    const freeRank=SKILL_LEVELS.findIndex(row=>row.level===free),floorRank=SKILL_LEVELS.findIndex(row=>row.level===SKILL.tanksScrewedToWall);
+    if(SKILL_LEVELS.findIndex(row=>row.level===screwed)!==Math.max(freeRank,floorRank))wrong(`five boards that carry tanks and are screwed to the wall rate "${screwed}" in ${STYLES[style][0]}, not "${SKILL.tanksScrewedToWall}"`);
+    if(total(skillPoints({...facts,wallScrews:2},lk))!==total(skillPoints(facts,lk)))wrong(`screws into the wall without tanks change the rating in ${STYLES[style][0]}`);
+  }
+  const rackEntry=CATALOG.find(entry=>entry.id==='fish-tank-wall'),rack=rackEntry&&PRESETS.find(row=>row.name===rackEntry.builder);
+  if(rack&&rated['fish-tank-wall']){
+    // the rack as the form opens stands free: rated by the table, with no floor
+    if(rated['fish-tank-wall'].why.some(row=>row.what==='it must be screwed into the wall studs'))wrong('the default fish rack stands free but is rated as one screwed to the wall');
+    // with its tanks long side out it is too tall for its depth and is screwed into the studs
+    const outward={...presetDefaults(rack),...(rackEntry.start||{}),orient:'long'};
+    let parts=[];
+    try{parts=rack.build(outward)||[];}catch(e){}
+    const studs=rack.wallScrews(outward,parts).length,rating=parts.length?assessParts(parts,rack,outward).rating:null;
+    if(!studs)wrong('the fish rack with its tanks long side out no longer needs screws into the wall, so this check proves nothing');
+    else if(!rating||rating.level!==SKILL.tanksScrewedToWall)wrong(`the fish rack with its tanks long side out is screwed into ${studs} studs but the window rates it "${rating&&rating.level}"`);
+  }
+  // the Wall shelf hangs on the wall without tanks: its rating is the table's, with no floor
+  if(rated['wall-shelf']&&rated['wall-shelf'].why.some(row=>row.what==='it must be screwed into the wall studs'))wrong('the Wall shelf is rated as tanks screwed to the wall');
 });
 
 /* The skill rating of what a preset does not name for it:
@@ -879,9 +905,10 @@ SELFTESTS.push(function skillRatingReadsTanksAndHandMadeDoors(problems){
   if(skillLevel(total(skillPoints({...plain,tanks:true},everyday)))===SKILL_LEVELS[0].level)wrong('five boards that carry a fish tank are rated a good first project');
   const rack=CATALOG.find(entry=>entry.id==='fish-tank-wall'),rackPreset=rack&&PRESETS.find(row=>row.name===rack.builder);
   if(rackPreset){
+    const small={...presetDefaults(rackPreset),...(rack.start||{}),W:48,H:48};
     let parts=[];
-    try{parts=rackPreset.build({...presetDefaults(rackPreset),...(rack.start||{}),W:48,H:48})||[];}catch(e){}
-    const rating=parts.length&&parts.length<=PREVIEW_JOINTS_MAX?assessParts(parts,rackPreset).rating:null;
+    try{parts=rackPreset.build(small)||[];}catch(e){}
+    const rating=parts.length&&parts.length<=PREVIEW_JOINTS_MAX?assessParts(parts,rackPreset,small).rating:null;
     if(!rating)wrong('a 4 ft x 4 ft fish rack could not be rated');
     else if(rating.level===SKILL_LEVELS[0].level)wrong(`a 4 ft x 4 ft fish rack is rated "${rating.level}"`);
   }

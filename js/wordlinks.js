@@ -72,6 +72,7 @@ const WORD_LINKS=[
   {re:/\bleveling (?:foot|feet)\b/i,word:'Leveling foot'},
   {re:/\bshelf pins?\b/i,word:'Shelf pin'},
   {re:/\bwall studs?\b|\bstud finder\b/i,word:'Wall stud and stud finder'},
+  {re:/\bcarriage bolts?\b/i,word:'Carriage bolt'},
   {re:/\bshims?\b/i,word:'Shim'},
   {re:/\bdriver bits?\b/i,word:'Driver bit'},
   {re:/\bpressure[- ]treated\b/i,word:'Pressure-treated lumber'},

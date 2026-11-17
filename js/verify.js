@@ -35,6 +35,14 @@
                                                          by that entry alone; uses, wall and hung above are for the pieces
                                                          without one (drawn by hand, or from an older project file)
            maxPieces  VERIFY_MAX_PIECES                  above this the slow checks are skipped
+           wallScrews [ {on: id or piece, at: [x,y,z], hold}, ... ] the screws into the wall studs that are really in the
+                                                         design (hold: the lb it is counted for, wallScrewHold; when it
+                                                         is left out, WALL_SCREW_RULES.hold) (hardware of kind 'wallscrew', js/hardware.js; for a
+                                                         preset not placed yet, the ones its wallScrews(vals, parts)
+                                                         says placing it will drive). A piece with one in it is held
+                                                         by the wall. A design that declares WALL_BY_SCREWS in its wall
+                                                         list is held by these screws only, and must have as many as
+                                                         WALL_SCREW_RULES asks: see 'wall-screws'
        ok        true when there is no "stop"
        clean     true when there is no problem at all (what a preset must reach at its default sizes)
        problems  [{ level, code, ids, text, fix }]
@@ -79,6 +87,7 @@
          wall:  [ 'Wall cleat' ],                         // optional: pieces screwed to the wall (those of that name at the back),
                                                           // or wall: true when the whole thing is tied back to the wall studs
          hung:  [ 'Drawer side' ],                        // optional: pieces that hang on bought hardware (slides, hinges)
+         wallScrews(vals, parts),                         // optional, with wall: [WALL_BY_SCREWS]: the screws into the studs placing it drives
          check(p) { return [{ level:'stop', text:'...', fix:'...' }]; } }   // optional: inputs that cannot work
        and limits on its numbers: num('W', 'Width', 32, 12, 36)   (minimum 12", maximum 36")
 
@@ -116,6 +125,11 @@
        tips-over       the weight is centered outside the footprint    stop
        tips-under-load a push on an overhanging part tips it           stop or warn (a person's weight on a seat or floor)
        top-heavy       tall and shallow: fasten it to the wall         warn above 4 times its base, stop above 10 times
+       wall-screws     held by wall screws (WALL_BY_SCREWS), too tall  stop
+                       to stand free, and a part of it that stands on
+                       its own has fewer screws into the studs than
+                       WALL_SCREW_RULES asks, or they leave a stretch
+                       of the top unheld
        racking         nothing stops the frame leaning sideways, or    warn
                        nothing is fastened across a row of rafters
        glue-end-grain  a glue-only end-grain joint carries load        warn
@@ -302,6 +316,96 @@ const TIP_RULES={
   hopeless:10,                   // taller than this many times its base: it cannot stand on its own at all (stop)
   lean:.0875                     // tan of 5 degrees: the weight is centered this close to the edge of the base
 };
+/* Screws into the wall studs: how many a design that is too tall to stand free needs (the wall rule of the fish
+   presets; the fish rack engine reads the same table, RACK_RULES in js/builders-fish.js). Worked out, not guessed:
+     - What would tip it: a person pulling on the top or climbing it, or somebody bumping into it, taken as
+       `pull` (200 lb) pulling straight out at the very top. That is the load the building code puts on the top
+       of a guard rail, and more than a person leaning back on a rack pulls. The design's own weight gets no
+       credit: its tanks may still be empty, and an uneven floor (shimmed, but a floor 1/4" in a foot out leans
+       it forward) eats into what the weight holds back.
+     - What one screw holds: a 1/4" structural screw in a spruce or pine stud. The published reference value for
+       the withdrawal of a 1/4" lag screw from spruce-pine-fir (the NDS, the US design standard for wood:
+       W = 1800 G^1.5 D^0.75 with G = 0.42 and D = 1/4") is about 173 lb per inch of thread in the stud; the
+       washer head of a structural screw pulling into a 1 1/2" rail holds more than that. Counted: `perInch`,
+       115 lb, two thirds of it, with no increase for a pull that lasts a moment. The program's screws are long
+       enough to put `bite` (2 1/2") of thread into the stud (wallScrewLength in js/builders-fish.js), about
+       288 lb each (wallScrewHold); a screw whose thread in the stud is not known (one added by hand) is
+       counted for 1 1/2" only, `hold`, about 173 lb.
+     - Factor of safety `safety` (1.5) on the pull, on top of the reference value, which is itself an allowable
+       value, a fraction of what such a screw pulls out at in a test.
+     - The screws sit a little below the top, so their lever is shorter than the pull's:
+         needed = safety × pull × (height of the top / height of the lowest screw) / hold,
+       rounded up, and never fewer than `least` (2): one screw alone lets the design swing about it.
+       For a 7 ft rack that is 1.5 × 200 × 84 / 82 / 173 = 1.78, so 2.
+     - Spread along the top: no point along the top may be further than `reach` (2 ft) from a screw, so a long
+       wall is held all along its length. With studs `studs` (16") apart that is a screw into every third stud,
+       `every` (4 ft).
+     - The pull is not shared out evenly (wallScrewWorst). A pull near one end of the top tips that end more than
+       the other: the decked top frame is stiff along its length (taken over `window`, 10 ft, each side of the
+       pull), so it shares the pull among the screws near it like a stiff board on springs: evenly, plus a part
+       that grows with how far the pull and the screw are from the middle of those screws. A pull at the end of a
+       10 ft rack with three screws puts 1.12 times the whole pull on the end screw, not a third of it. Every
+       screw must hold its share of a pull anywhere along the top, times `safety`; where one does not, the
+       program adds a screw into the next stud or a second one into the same stud.
+     - Each part that stands on its own (a separate section of a rack, joined to the next by bolts that are
+       taken out to move it) is held by its own screws.
+   None goes at mid height: the higher a screw, the longer its lever against tipping, and the top is the highest
+   place there is. These are rules of thumb, not an engineer's design. */
+const WALL_SCREW_RULES={pull:200,safety:1.5,perInch:115,bite:2.5,hold:173,least:2,reach:24,every:48,studs:16,window:120};
+/* What one screw into a stud is counted for, by how far its thread goes into the stud (`into`, inches): never more
+   than WALL_SCREW_RULES.bite of it, and WALL_SCREW_RULES.hold (1 1/2") when that is not known. */
+function wallScrewHold(into){
+  const R=WALL_SCREW_RULES;
+  if(typeof into!=='number'||!Number.isFinite(into))return R.hold;   // not known: a screw added by hand
+  return Math.round(R.perInch*Math.max(0,Math.min(into,R.bite)));
+}
+/* The screw worst off under a pull anywhere along the top of one part [from, to] whose top is `top` high.
+   screws: [{x, y, hold}]. The pull is tried every 3" along the top and at its ends; at each place it is shared
+   by the screws within WALL_SCREW_RULES.window of it the way a stiff board on springs shares a push: an even
+   share plus one that grows with the distance from the middle of those screws (the screw on the side of the
+   pull takes more, the far one less). The lever is the top's height over the height of the lowest screw.
+   Returns {ratio, at, x, force, hold}: ratio is safety × the screw's share of the pull / what the screw holds,
+   so above 1 means that screw is too weak for a pull at `at` (inches along, like x). */
+function wallScrewWorst(screws,from,to,top){
+  const R=WALL_SCREW_RULES;
+  if(!screws.length)return{ratio:Infinity,at:from,x:from,force:R.pull,hold:0};
+  const lowest=Math.min(...screws.map(s=>s.y)),lever=top/Math.max(1,lowest);
+  const pulls=[];
+  for(let p=from;p<to;p+=3)pulls.push(p);
+  pulls.push(to);
+  let worst={ratio:0,at:from,x:screws[0].x,force:0,hold:screws[0].hold};
+  for(const p of pulls){
+    const near=screws.filter(s=>Math.abs(s.x-p)<=R.window+1e-6);
+    if(!near.length)return{ratio:Infinity,at:p,x:p,force:R.pull*lever,hold:0};
+    const count=near.length,middle=near.reduce((sum,s)=>sum+s.x,0)/count;
+    const spread=near.reduce((sum,s)=>sum+(s.x-middle)*(s.x-middle),0);
+    for(const s of near){
+      const share=1/count+(spread>1e-9?(p-middle)*(s.x-middle)/spread:0);
+      const force=R.pull*lever*share,ratio=R.safety*force/s.hold;
+      if(ratio>worst.ratio)worst={ratio,at:p,x:s.x,force,hold:s.hold};
+    }
+  }
+  return worst;
+}
+/* the word a preset puts in its wall list to say "held by the wall screws that are in the design" */
+const WALL_BY_SCREWS='held by its wall screws';
+/* a length of the rules in words: 48 is "4 ft", 24 is "2 ft" */
+const ruleLength=inches=>inches%12===0?`${inches/12} ft`:fmt(inches);
+/* how many screws hold a part whose top is `top` high with its lowest wall screw `screwHeight` high */
+function wallScrewsNeeded(top,screwHeight){
+  const R=WALL_SCREW_RULES,lever=top/Math.max(1,screwHeight);
+  return Math.max(R.least,Math.ceil(R.safety*R.pull*lever/R.hold-1e-9));
+}
+/* The screws along one stretch [from, to] of a back (x positions, sorted): '' when every point of the stretch is
+   within WALL_SCREW_RULES.reach of a screw, else a sentence saying where it is not. */
+function wallScrewGap(xs,from,to){
+  const R=WALL_SCREW_RULES,list=xs.slice().sort((a,b)=>a-b);
+  if(!list.length)return'there are none';
+  if(list[0]-from>R.reach+.01)return`the first one is ${fmt(r16(list[0]-from))} from the left end`;
+  if(to-list[list.length-1]>R.reach+.01)return`the last one is ${fmt(r16(to-list[list.length-1]))} from the right end`;
+  for(let i=1;i<list.length;i++)if(list[i]-list[i-1]>R.every+.01)return`two of them are ${fmt(r16(list[i]-list[i-1]))} apart`;
+  return'';
+}
 
 /* ---------- 2. Bending: the one helper ---------- */
 function sectionOf(breadth,depth,isPlywood){
@@ -488,6 +592,8 @@ function verifyNode(p,i,id,own){   // own: what is declared for this piece (decl
     lo:b.lo.slice(),hi:b.hi.slice(),c:p.pos.map((v,k)=>v+s[k]/2),axes,h:[p.l/2,p.w/2,p.t/2],
     run:Math.sqrt(Math.max(0,1-axes[0][1]*axes[0][1])),  // how much of its length is level (1 = flat, less on a slope)
     weight,grounded,wall:!prop&&(own.wall.has(p.name)||own.wall.has(id)),wallEdge:false,
+    wallScrews:[],                                       // the screws into the wall studs that are in it (options.wallScrews), where they enter it
+    screwed:!prop&&own.wall.has(WALL_BY_SCREWS),         // its design is held to the wall by its wall screws alone (WALL_SCREW_RULES)
     own,wallZ:0,                                         // what is declared for it, and where the wall of its design is (verifyModel)
     tied:own.tied,                                       // its whole design is tied back to the wall (wall: true on its preset)
     onHardware:!prop&&own.hung.has(p.name),              // hangs on bought hardware (options.hung)
@@ -523,7 +629,7 @@ function soundPiece(p){
 function verifyModel(parts,opt){
   const usable=[],leftOut=[];
   (Array.isArray(parts)?parts:[]).forEach((p,place)=>{
-    if(usablePiece(p))usable.push({p:soundPiece(p),place:place+1});
+    if(usablePiece(p))usable.push({p:soundPiece(p),given:p,place:place+1});
     else leftOut.push(p);
   });
   const haveIds=usable.every(u=>u.p.id)&&new Set(usable.map(u=>u.p.id)).size===usable.length;
@@ -535,6 +641,19 @@ function verifyModel(parts,opt){
   const backOf=new Map();
   for(const n of wood)backOf.set(n.own,Math.min(backOf.has(n.own)?backOf.get(n.own):Infinity,n.lo[2]));
   for(const n of wood)n.wallZ=backOf.get(n.own);
+  // the screws into the wall studs: each is found by the piece it goes into (its id, or the piece itself for a
+  // preset that is not placed yet); a piece with one in it is held by the wall
+  if(Array.isArray(opt.wallScrews)&&opt.wallScrews.length){
+    const byPiece=new Map();
+    nodes.forEach((n,i)=>{byPiece.set(usable[i].given,n);if(haveIds)byPiece.set(n.id,n);});
+    for(const screw of opt.wallScrews){
+      const n=screw&&byPiece.get(screw.on);
+      if(!n||n.prop||!Array.isArray(screw.at)||!screw.at.every(Number.isFinite))continue;
+      // what it holds: given with it (by how far its thread reaches into the stud), else the least (WALL_SCREW_RULES.hold)
+      n.wallScrews.push({at:screw.at,hold:typeof screw.hold==='number'&&screw.hold>=0?screw.hold:WALL_SCREW_RULES.hold});
+      n.wall=true;
+    }
+  }
   return{nodes,wood,props,leftOut,reactions:[],comps:[]};
 }
 
@@ -741,6 +860,7 @@ function verifyLoadPath(model,opt,found){
   const onList=new Map(),designs=new Map();   // pieces on a wall list, by design and name
   for(const n of wood){
     if(!n.wall)continue;
+    if(n.wallScrews.length)continue;   // a screw into a stud is really in it: it is held, wherever it stands
     if(!designs.has(n.own))designs.set(n.own,designs.size);
     const key=designs.get(n.own)+'|'+n.name;
     if(!onList.has(key))onList.set(key,[]);
@@ -1557,12 +1677,67 @@ function verifyComponents(model,asOne){
   }
   model.comps=[...byRoot.values()];
 }
+/* ---------- Check d0: a design held to the wall by its wall screws (WALL_SCREW_RULES) ----------
+   comp is held by the screws into the wall studs that are really in it (n.wallScrews). Each part of it that
+   stands on its own (pieces fastened to each other by wood joints, so separate sections that are bolted together
+   are separate parts) must have as many screws as WALL_SCREW_RULES asks for its height, spread so that no point
+   of its back is more than WALL_SCREW_RULES.reach from one. mustBeOnWall: it is too tall for its base to stand
+   free (TIP_RULES.narrow). Returns true when the design is held (or a stop was given for it); false when it has
+   too few screws and is short enough to be checked as standing free. The count and where they are go into
+   model.wallScrewFacts, for Check my design. */
+function verifyWallScrews(model,comp,mustBeOnWall,found){
+  const wood=comp.wood,index=new Map(wood.map((n,k)=>[n,k])),parent=wood.map((n,k)=>k);
+  const find=k=>{while(parent[k]!==k){parent[k]=parent[parent[k]];k=parent[k];}return k;};
+  // (a design too big for the full check has no joints worked out: it is taken as one part)
+  const linked=wood.some(n=>n.links.length);
+  if(!linked)wood.forEach((n,k)=>{parent[k]=0;});
+  for(const n of wood)for(const link of n.links){
+    if(!link.fastened||link.hardware)continue;               // bolts between two sections leave them two parts
+    const a=index.get(link.a),b=index.get(link.b);
+    if(a!==undefined&&b!==undefined)parent[find(a)]=find(b);
+  }
+  const parts=new Map();
+  wood.forEach((n,k)=>{const root=find(k);if(!parts.has(root))parts.set(root,[]);parts.get(root).push(n);});
+  const report=[],short=[];
+  for(const part of parts.values()){
+    if(!part.some(n=>n.grounded))continue;                   // a door or a lid: it hangs on the part it is hinged to
+    const screws=part.flatMap(n=>n.wallScrews);
+    const top=Math.max(...part.map(n=>n.hi[1])),from=Math.min(...part.map(n=>n.lo[0])),to=Math.max(...part.map(n=>n.hi[0]));
+    const lowest=screws.length?Math.min(...screws.map(s=>s.at[1])):top;
+    const need=wallScrewsNeeded(top,lowest),gap=wallScrewGap(screws.map(s=>s.at[0]),from,to);
+    // the screw worst off under a pull anywhere along the top (a pull near an end loads the end screw most)
+    const worst=wallScrewWorst(screws.map(s=>({x:s.at[0],y:s.at[1],hold:s.hold})),from,to,top);
+    const entry={count:screws.length,need,from,to,top,xs:screws.map(s=>s.at[0]).sort((a,b)=>a-b),worst};
+    report.push(entry);
+    if(screws.length<need||gap||worst.ratio>1+1e-6){
+      entry.why=screws.length<need?`it has ${screws.length} and needs at least ${need}`:gap||
+        `a pull at ${fmt(r16(worst.at-from))} from its left end puts about ${Math.round(worst.force)} lb on the screw at ${fmt(r16(worst.x-from))}, and with the factor of safety that is more than the ${worst.hold} lb that screw holds`;
+      short.push({entry,part});
+    }
+  }
+  if(!model.wallScrewFacts)model.wallScrewFacts={count:0,parts:[]};
+  model.wallScrewFacts.parts.push(...report);
+  model.wallScrewFacts.count+=report.reduce((sum,entry)=>sum+entry.count,0);
+  if(!short.length)return true;
+  if(!mustBeOnWall)return false;
+  const R=WALL_SCREW_RULES,several=report.length>1;
+  for(const{entry,part}of short){
+    found.push({level:'stop',code:'wall-screws',ids:part.filter(n=>n.wallScrews.length||n.grounded).map(n=>n.id),group:'wall-screws|'+entry.from,rank:entry.need-entry.count,
+      text:`${several?`The section from ${fmt(r16(entry.from))} to ${fmt(r16(entry.to))}`:'This'} is too tall for its depth to stand free and is held only by screws into the wall studs, but ${entry.why}. `+
+        `It has to hold a pull of ${R.pull} lb anywhere along its top (a person pulling on it or climbing it) with a factor of safety of ${R.safety}, and a pull near an end is taken mostly by the screws near that end.`,
+      fix:`Drive at least ${entry.need} structural screws through the back rail of its top frame into the studs, one about every ${ruleLength(R.every)} and none more than ${ruleLength(R.reach)} from an end${several?' of the section':''}, with ${fmt(R.bite)} of thread in the stud; where an end screw is still too weak, add one into the next stud or a second one into the same stud (Hardware, Structural screw into a wall stud).`});
+  }
+  return true;
+}
 /* ---------- Check d: tipping ---------- */
 function verifyTipping(model,opt,found){
   for(const comp of model.comps){
     const feet=comp.wood.filter(n=>n.grounded);
     if(!feet.length)continue;                                   // hangs on the wall, or is not held up at all
-    if(opt.wallFixed||comp.wood.some(n=>n.wall||n.tied))continue; // tied back to the wall: it cannot tip
+    if(opt.wallFixed||comp.wood.some(n=>n.tied))continue;        // tied back to the wall: it cannot tip
+    // held by its wall screws alone (WALL_SCREW_RULES): judged below, once its height and base are known
+    const screwed=comp.wood.some(n=>n.screwed);
+    if(!screwed&&comp.wood.some(n=>n.wall))continue;              // screwed to the wall: it cannot tip
     const all=comp.wood.concat(comp.loads);
     let weight=0,cx=0,cy=0,cz=0,top=0;
     for(const n of all){weight+=n.weight;cx+=n.weight*n.c[0];cy+=n.weight*n.c[1];cz+=n.weight*n.c[2];top=Math.max(top,n.hi[1]);}
@@ -1573,6 +1748,10 @@ function verifyTipping(model,opt,found){
       :[[n.lo[0],n.lo[2]],[n.hi[0],n.lo[2]],[n.hi[0],n.hi[2]],[n.lo[0],n.hi[2]]]));
     if(hull.length<3)continue;
     const inside=insideHullBy(hull,[cx,cz]),ids=feet.map(n=>n.id),base=hullWidth(hull);
+    if(screwed){
+      const mustBeOnWall=top>=TIP_RULES.minHeight&&top>TIP_RULES.narrow*base+.01;
+      if(verifyWallScrews(model,comp,mustBeOnWall,found))continue;   // held, or refused there
+    }
     if(inside<-.05){
       found.push({level:'stop',code:'tips-over',ids,group:'c'+feet[0].id,rank:-inside,
         text:`This will fall over. Its weight (about ${lbText(weight)}) is centered ${fmt(-inside)} outside the area where it stands on the floor, on ${piecesLabel(feet)}.`,
@@ -1788,6 +1967,7 @@ function verifyDesign(parts,options){
     verifyRoofBracing(model,found);
     verifyJoints(model,found,noted);
   }
+  if(model.wallScrewFacts)facts.wallScrews=model.wallScrewFacts;   // how many screws hold it to the wall, and where (verifyWallScrews)
   const problems=mergeFindings(found);
   return{ok:!problems.some(p=>p.level==='stop'),clean:!problems.length&&!skipped,problems,notes:mergeFindings(noted),facts,skipped};
 }
@@ -1815,6 +1995,8 @@ function checkPreset(preset,vals,parts,extra){
   const own=(preset.check?preset.check(vals)||[]:[]).map(f=>({level:f.level==='warn'?'warn':'stop',code:f.code||'input',ids:f.ids||[],text:f.text,fix:f.fix||''}));
   // the pieces are not in a project yet, so the fasteners the preset names (its `joints`) are handed over by name
   const options=Object.assign(presetOptions(preset,vals),{namedJoints:preset.joints||[]},extra||{});
+  // the screws into the wall studs that placing it will drive (a preset that is held by them: WALL_BY_SCREWS)
+  if(typeof preset.wallScrews==='function'&&!(extra&&extra.wallScrews))options.wallScrews=preset.wallScrews(vals,parts);
   const result=parts.length?verifyDesign(parts,options):{problems:[],facts:null,skipped:''};
   const problems=own.concat(result.problems),refused=own.some(f=>f.level==='stop');
   // What to show the person. When the preset itself refuses the numbers, its own reasons are the ones to read:

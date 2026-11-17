@@ -83,6 +83,20 @@ function upgradeWords(byHand,plugsBefore,changedJoints){
   return said.length>1?said.slice(0,-1).join(', ')+', and '+said[said.length-1]:said[0];
 }
 const orWords=items=>items.length<2?items.join(''):items.slice(0,-1).join(', ')+' or '+items[items.length-1];
+/* A joint that the preset today leaves unfastened because hardware it places at Create holds the two pieces (the
+   end posts of two fish rack sections, joined by carriage bolts: preset.place, js/rackwall.js), in an old design
+   that has no such hardware between them: the fastener it was saved with stays. Taking it away would leave the
+   sections standing side by side, held to each other by nothing, with a step that still says to screw them. */
+function leftToMissingHardware(preset,j,today,before){
+  if(today!=='none'||!before||before==='none')return false;
+  const pairs=preset.hardwareJoints||[];
+  if(!pairs.some(([a,b])=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a)))return false;
+  // a bolt passes through the two pieces and the ones beside them (its head and nut sit on the end cross pieces
+  // or end uprights against the posts)
+  const near=new Set([j.a.id,j.b.id]);
+  for(const piece of[j.a,j.b])for(const link of connectionsOf(piece.id))near.add(link.a.id).add(link.b.id);
+  return!(S.hardware||[]).some(item=>item.kind==='bolt'&&(near.has(item.on)||near.has(item.to)));
+}
 function upgradeFastening(){
   lastFasteningUpgrade=null;
   if(!S||Number(S.fastening)>=FASTENING_NOW)return;
@@ -102,6 +116,7 @@ function upgradeFastening(){
       const byHand=chosen!==undefined&&S.named[key]!==chosen;
       if(byHand){keptByHand.add(key);continue;}             // the person's choice is kept
       const today=namedJointType(j,preset.joints);
+      if(leftToMissingHardware(preset,j,today,typesBefore.get(key)))continue;   // the old fastener still holds it
       if(isStyleRule(today)){
         delete S.joints[key];delete S.named[key];
         S.styled[key]=today;
@@ -341,6 +356,38 @@ SELFTESTS.push(function oldDesignsSwitchToTodaysFastening(problems){
     const plain=JSON.stringify([S.joints,S.styled||{}]);
     said.length=0;load(JSON.stringify(drawn),true);
     if(said.length||JSON.stringify([S.joints,S.styled||{}])!==plain||Object.keys(S.styled||{}).length)wrong('a design that is not from a preset was changed when it was opened');
+  }finally{
+    sayFasteningUpgrade=keepSay;
+    load(JSON.stringify(blank()),true);
+  }
+});
+
+/* Self-check: an old fish rack built as separate sections (saved before the sections were bolted together: its end
+   posts screwed to each other, no bolts in the file, no fastening rule saved) keeps those screws when it is opened,
+   so its sections are still held to each other; a rack of today, with its bolts, keeps the posts unscrewed. */
+SELFTESTS.push(function oldRackSectionsStayJoined(problems){
+  const wrong=text=>problems.push('old rack sections: '+text);
+  const rack=PRESETS.find(preset=>preset.name==='Fish tank wall / rack');
+  if(!rack){wrong('the Fish tank wall / rack preset is missing');return;}
+  const keepSay=sayFasteningUpgrade;
+  sayFasteningUpgrade=()=>{};
+  try{
+    const vals={...presetDefaults(rack),orient:'long',W:240,build:'sections'};
+    placePreset(rack,vals,rack.build(vals),false);
+    commit();
+    const postJoints=()=>findJoints().filter(j=>j.a.name==='Post'&&j.b.name==='Post');
+    if(!postJoints().length){wrong('the sections have no posts side by side, so this check proves nothing');return;}
+    // today's file: bolts, posts not screwed; opened again it stays so
+    load(JSON.stringify({...S,fastening:undefined}),true);
+    if(postJoints().some(j=>jType(j)!=='none'))wrong('a rack of today, opened again, has its bolted posts screwed to each other as well');
+    // the old file: no bolts, the posts screwed, no fastening rule
+    const old=JSON.parse(JSON.stringify(S));
+    old.hardware=(old.hardware||[]).filter(item=>item.kind!=='bolt');
+    delete old.fastening;
+    for(const j of postJoints()){old.joints[j.key]='screw';old.named=old.named||{};old.named[j.key]='screw';}
+    load(JSON.stringify(old),true);
+    const loose=postJoints().filter(j=>jType(j)==='none');
+    if(loose.length)wrong(`an old rack in sections, opened now, has ${loose.length} pairs of posts held to each other by nothing`);
   }finally{
     sayFasteningUpgrade=keepSay;
     load(JSON.stringify(blank()),true);

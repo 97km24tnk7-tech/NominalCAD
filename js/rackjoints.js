@@ -43,8 +43,13 @@
 
 const RAIL_END_BEARING=1.5;   // the least length of wood a rail end under tanks sits on (also in js/verify.js, RAIL_RULES)
 const rackBuildOf=p=>p&&p.build==='sections'?'sections':'one';
-/* the choice on the forms of the rack and the cabinet stand (js/presets.js) */
-const RACK_BUILD_FIELD={k:'build',label:'Build it as',opts:[['one','One wall (rails joined over an upright)'],['sections','Separate sections you can carry']],v:'one'};
+/* The choice on the forms of the rack and the cabinet stand (js/presets.js). It is shown, at both levels, only when
+   the wall typed is longer than the longest board chosen (the cabinet stand is cut from 8 ft boards), the only
+   time the choice matters: a shorter wall is one frame either way. While it is hidden the preset gets 'one'
+   (presetRowShown and readVals in js/app.js), and the remark under the form says nothing about it. */
+const rackBoardOf=p=>+p.board||96;
+const RACK_BUILD_FIELD={k:'build',label:'Build it as',opts:[['one','One wall (rails joined over an upright)'],['sections','Separate sections you can carry']],v:'one',
+  show:p=>(+p.W||0)>rackBoardOf(p)+1e-6};
 /* how wide a line of uprights is where two rails are joined over it */
 const jointLineWidth=su=>su>=3?su:2*su;
 /* the part of a rail that lies on the line of uprights at one end of a stretch: all of the end upright at the
@@ -332,7 +337,7 @@ SELFTESTS.push(function fishWallIsOneFrame(problems){
     if(apart.pl.mods.length<2)say('"Separate sections" builds one frame');
     const counts=apart.pl.mods.map(m=>m.nb);
     if(Math.max(...counts)-Math.min(...counts)>1)say(`separate sections of ${counts.join(' + ')} bays: not split evenly`);
-    // Joined where the rack stands, before it goes on the wall, with the screws the model has between their posts
+    // Joined where the rack stands, before it goes on the wall, with the carriage bolts the model has between their posts (js/rackwall.js)
     // (listed in that step, not in the step that builds the sections), and nothing named that is not bought.
     const vals={...usual,build:'sections'},texts=rackSteps(vals,true).map(step=>step.t);
     const join=texts.findIndex(t=>/sections side by side/.test(t)),wall=texts.findIndex(t=>/wall studs/.test(t));
@@ -340,10 +345,11 @@ SELFTESTS.push(function fishWallIsOneFrame(problems){
     else if(wall>=0&&wall<join)say('separate sections are fastened to the wall before they are stood side by side and joined');
     if(texts.some(t=>/\bbolt/i.test(t))&&!rack.hw(vals).some(([label])=>/bolt/i.test(label)))say('the steps of separate sections name bolts that are not on the shopping list');
     placePreset(rack,vals,rack.build(vals),false);
-    const plan=buildPlan(),postToPost=step=>step.groups.some(g=>g.links.some(link=>link.a.name==='Post'&&link.b.name==='Post'));
+    const plan=buildPlan(),bolted=step=>step.hardware.some(row=>row.kind==='bolt');
     const joinStep=plan.steps.find(step=>/sections side by side/.test(step.words));
-    if(!joinStep||!postToPost(joinStep))say('the step that stands the sections side by side does not list the screws between their posts');
-    if(plan.steps.some(step=>step!==joinStep&&postToPost(step)))say('the screws between the posts of two sections are listed in a step that builds one section');
+    if(!joinStep||!bolted(joinStep))say('the step that stands the sections side by side does not mount the bolts between their posts');
+    if(plan.steps.some(step=>step!==joinStep&&bolted(step)))say('the bolts between the posts of two sections are mounted in a step that builds one section');
+    if(connGraph().links.some(link=>link.joint&&link.fastened&&link.a.name==='Post'&&link.b.name==='Post'))say('the posts of two sections are screwed to each other as well as bolted');
   }
 });
 /* The structural check on a rail joint made by hand (js/verify.js, RAIL_RULES): two rails under a tank meeting
@@ -402,7 +408,7 @@ SELFTESTS.push(function fourByFourJointCarriesOneSpan(problems){
     const verifyPostsAsItIs=window.verifyPosts;
     let model=null,result=null;
     window.verifyPosts=function(m,found){model=m;return verifyPostsAsItIs(m,found);};
-    try{result=verifyDesign(rack.build(vals),presetOptions(rack,vals));}
+    try{const parts=rack.build(vals);result=verifyDesign(parts,{...presetOptions(rack,vals),wallScrews:rack.wallScrews(vals,parts)});}
     finally{window.verifyPosts=verifyPostsAsItIs;}
     const stops=result.problems.map(f=>f.code);
     if(stops.length)say(`${what}: the planner builds it but the check says ${stops.join(', ')}`);
@@ -526,5 +532,23 @@ SELFTESTS.push(function fishWallEveryWidth(problems){
         tryOne(cabinet,vals,cabArgs(vals),counts[i],(W-24)%192===0);
       }
     });
+  }
+});
+/* "Build it as" shows only when the wall typed is longer than the longest board chosen: the default 10 ft wall on
+   8 ft boards shows it, a 90" wall or a 130" wall on 16 ft boards does not, and then the remark under the form says
+   nothing about the choice (the wall is one frame either way). */
+SELFTESTS.push(function buildItAsOnlyWhenItMatters(problems){
+  const say=text=>problems.push('Build it as: '+text);
+  const rack=PRESETS.find(p=>p.name==='Fish tank wall / rack');
+  if(!rack)return;
+  const usual=presetDefaults(rack),field=rack.params.find(q=>q.k==='build');
+  if(!field||!field.show){say('the field has no show rule');return;}
+  if(!field.show(usual))say('it is hidden on the default 10 ft wall of 8 ft boards');
+  for(const changes of[{W:90},{W:130,board:'192'}]){
+    const vals={...usual,...changes};
+    if(field.show(vals))say(`it shows on a wall no longer than its boards ${JSON.stringify(changes)}`);
+    if(/Build it as/.test(rack.info(vals)))say(`the remark under the form talks about it on a wall that is one frame anyway ${JSON.stringify(changes)}`);
+    const pl=rackPlan(vals);
+    if(pl&&(pl.mods.length!==1||(pl.mods[0].stretches||[]).length>1))say(`a wall no longer than its boards is not one frame ${JSON.stringify(changes)}`);
   }
 });

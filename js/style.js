@@ -153,6 +153,15 @@ const SKILL={
                      // with a counterbore bit to its stop collar, glue the plug in, saw it flush and sand. Forgiving
                      // (a bad plug is drilled out and redone, sanding hides the rest), so no weight; it costs time
                      // (TIME_MINUTES.plug), and Fine furniture's point already pays for filling every hole
+  tanksScrewedToWall:'Experienced builder',
+                     // not points but a floor: a rack or stand of fish tanks too tall for its depth to stand free,
+                     // which must be screwed into the wall studs (the wall-screws plan of js/rackwall.js gives more
+                     // than 0), rates at least this. The owner: "if it attaches to the wall it should be experienced
+                     // builder the others are fine". Finding the studs behind the rack, driving long structural
+                     // screws through its top rail into them, and loading it with hundreds of pounds of water that
+                     // the screws must keep from tipping is no job to learn on. A rack that stands free keeps the
+                     // rating the rows above give it. Only things that carry tanks: the Wall shelf and the anti-tip
+                     // strap of a bookshelf are not affected
 };
 const SKILL_MANY_PIECES=25,SKILL_LOTS_OF_PIECES=60,SKILL_CASE_PANELS=5,SKILL_MANY_ANGLED=6;
 /* the ratings, from the easiest: a design is the first row whose `below` its points stay under */
@@ -163,10 +172,12 @@ const SKILL_LEVELS=[
   {below:Infinity,level:'Experienced builder'},
 ];
 /* What the rating sees in a design: counts of the things SKILL weighs. ts is the count of joints by fastener type;
-   hardware is the placed hardware of the design (S.hardware, js/hardware.js), empty for pieces not placed yet. */
+   hardware is the placed hardware of the design (S.hardware, js/hardware.js), empty for pieces not placed yet.
+   plannedWallScrews: for pieces not placed yet (the presets window), how many screws into the wall studs placing
+   them will drive (preset.wallScrews, js/builders-fish.js); left out, the placed screws are counted. */
 const isDoorPiece=p=>/(^|\s)door$/i.test(p.name);        // "Door", "Shed door"; not "Door stile" or "Door header"
 const isLidPiece=p=>/(^|\s)lid$/i.test(p.name);
-function skillFacts(parts,ts,hardware=[]){
+function skillFacts(parts,ts,hardware=[],plannedWallScrews){
   const wood=parts.filter(p=>!isProp(p));
   const drawerFronts=wood.filter(p=>/^drawer front$/i.test(p.name)).length;
   const drawerSubs=new Set(wood.map(p=>p.sub).filter(sub=>/^drawer\b/i.test(sub||''))).size;
@@ -189,6 +200,7 @@ function skillFacts(parts,ts,hardware=[]){
     angled:wood.filter(tilted).length,
     framing:!!(ts.frame||ts.toenail),
     tanks:parts.some(p=>p.gal),
+    wallScrews:typeof plannedWallScrews==='number'?plannedWallScrews:hardware.filter(item=>item.kind==='wallscrew').length,
     dowels:!!ts.dowel,
     pocketHoles:!!ts.pocket,
     plugs:!!ts.plug,
@@ -215,7 +227,18 @@ function skillPoints(facts,lk){
   add(FINISHES[lk.finish][2]===1,SKILL.stain,'a stain');
   add(lk.style==='fine',SKILL.fine,'the Fine furniture style');
   add(lk.style==='rustic',SKILL.rustic,'the Rustic / rough style');
+  // last, after every weight: the floor of a tank rack that must be screwed to the wall (SKILL.tanksScrewedToWall)
+  if(facts.tanks&&facts.wallScrews>0){
+    const sum=why.reduce((total,row)=>total+row.points,0);
+    const floor=skillFloorPoints(SKILL.tanksScrewedToWall);
+    if(sum<floor)why.push({what:'it must be screwed into the wall studs',points:floor-sum});
+  }
   return why;
+}
+/* the fewest points that rate a design at this level of SKILL_LEVELS (the `below` of the row before it) */
+function skillFloorPoints(level){
+  const index=SKILL_LEVELS.findIndex(row=>row.level===level);
+  return index>0?SKILL_LEVELS[index-1].below:0;
 }
 const skillLevel=points=>SKILL_LEVELS.find(row=>points<row.below-1e-9).level;
 /* ---------- how long: the working time ----------
@@ -228,7 +251,8 @@ function assess(lk){ // how hard, how long and how much, for a given style / woo
   const keep=S.look;S.look=lk;
   try{const js=findJoints(),ts={},f=FINISHES[lk.finish],area=surfaceSqFt();
     js.forEach(j=>{const t=jType(j);ts[t]=(ts[t]||0)+1;});
-    const facts=skillFacts(S.parts,ts,S.hardware||[]),why=skillPoints(facts,lk);
+    // (S.plannedWallScrews: only on the project assessParts makes for a preset not placed yet, js/app.js)
+    const facts=skillFacts(S.parts,ts,S.hardware||[],S.plannedWallScrews),why=skillPoints(facts,lk);
     const points=why.reduce((sum,row)=>sum+row.points,0);
     const T=TIME_MINUTES;
     const joints=['screw','plug','pocket','dowel','nail','frame','toenail','bracket','glue'].reduce((sum,type)=>sum+(ts[type]||0)*T[type],0);
@@ -343,7 +367,7 @@ function jSpec(j,type,opts){
     if(!(opts&&opts.asPlanned)){const laid=pocketCountAsLaidOut(j);if(laid)n=laid;}
     // the holes are drilled in the piece that is not lying flat against the joint (pocketPiece, js/fasteners.js),
     // and the jig is set for the thinner of the two pieces (pocketJig above)
-    const hp=pocketPiece(j),mateDepth=hp===j.a?j.db:j.da,jig=pocketJig(hp,mateDepth);
+    const hp=pocketPiece(j),jig=pocketJigFor(j,hp);   // (a board on a thin deck: set for the board, with the longer screw rule 12 asks for: pocketJigFor in js/fasteners.js)
     text=`${n} × ${jig.size} pocket screws (holes in the ${hp.name.toLowerCase()}, jig set for ${fmt(jig.set)} stock)`;
     hw.push([`${jig.size} pocket-hole screws`,n]);
     // holes that would be seen from below are filled with glued plugs (rule 13 in js/fasteners.js)

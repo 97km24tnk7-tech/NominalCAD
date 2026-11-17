@@ -31,8 +31,10 @@
 'use strict';
 
 /* pieces from builders that do not say which subcomponent they belong to: a name that starts with one of these
-   words puts the piece in the subcomponent on the right */
-const SUB_BY_NAME=[[/^(shed )?door\b/i,'Doors'],[/^lid\b/i,'Lid'],[/^drawer\b/i,'Drawers']];
+   words puts the piece in the subcomponent on the right. A "Door stile" is not part of a door: it is the post of
+   the frame where two doors meet (the fish racks' cabinet base), screwed to the frame, and in the Doors it was
+   freed from the frame with them when they were hung (it was then held by nothing). */
+const SUB_BY_NAME=[[/^(shed )?door\b(?! stile\b)/i,'Doors'],[/^lid\b/i,'Lid'],[/^drawer\b/i,'Drawers']];
 
 /* ---------- the tree ---------- */
 let compIndexCache=null;
