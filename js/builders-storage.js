@@ -368,12 +368,13 @@ function bookshelfSteps(p){
       std:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. First drill the pocket holes listed below in the underside of each board, near its ends, so that no screw shows on the outside of the sides. Then glue the ends and drive the pocket screws into the sides.`+
         (div?` At a divider, screw through the divider into the end of the board in the first bay, as the list below says. ${secondSideOfUpright('divider')}`:''),
       rustic:`Fasten the ${div?'bottom boards':'bottom board'} between the ${div?`uprights (the two sides and the ${div>1?'dividers':'divider'}), one bay at a time. A bay is the space between two uprights`:'sides'}, at the lowest mark, flush with the front and back edges. Drill pilot holes, add glue, and drive two screws through the ${div?'upright':'side'} into each end of a board.`+
-        (div?' '+secondSideOfUpright('divider'):'')},['Bottom']),
+        (div?' '+secondSideOfUpright('divider'):'')},['Bottom'],['First drill the pocket holes listed below in the underside of each board, near its ends, so that no screw shows on the outside of the sides. ']),
     styledStep({
       std:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Drill the pocket holes listed below in the face of each one that looks into the case: ${div?'at an end that meets a side, for the side':'at each end, for the sides'}, and along it, for the bottom board above it. Glue them and drive the pocket screws.`+
         (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':''),
       rustic:`Under ${div?'each bottom board':'the bottom board'}, fasten a toe kick set back 1" from the front edge and a base rail flush with the back edge. Glue them, drive two screws through each ${div?'upright':'side'} into each of their ends, and screw down through the bottom board into them about every 8".`+
-        (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':'')},['Toe kick','Base rail']),
+        (div?` At a divider, ${SECOND_RAIL_AT_UPRIGHT}.`:'')+` They carry the bottom board, so it cannot sag.`+(heights.length?' Do this now, before the shelves go in: afterwards the drill does not fit between the bottom board and the first shelf.':'')},['Toe kick','Base rail'],
+      [` Drill the pocket holes listed below in the face of each one that looks into the case: ${div?'at an end that meets a side, for the side':'at each end, for the sides'}, and along it, for the bottom board above it.`]),
     ...(heights.length?[styledStep({
       std:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pocket holes near the ends of each shelf, in its underside${highNote}, glue, and the pocket screws listed below into the ${div?'uprights':'sides'}.`+
         (div?` At a divider, screw through the divider into the first shelf, as you did with the bottom boards. ${secondSideOfUpright('divider')}`:''),
@@ -738,13 +739,15 @@ function storageBoxSteps(p){
   const steps=[STORAGE_CUT_STEP,
     styledStep({
       std:'Drill the pocket holes listed below on the inside face of each side, at both ends (the ends that meet the front and the back). Stand the front face down, glue the front end of each side and fasten the two sides to it with the pocket screws listed below, square to the front, so nothing shows on the outside of the chest.',
-      rustic:'Stand the front face down and fasten the two sides to it, square to it. Glue each joint, drill pilot holes and screw through the front into the side edges, a screw every 6".'},['Front','Side']),
+      rustic:'Stand the front face down and fasten the two sides to it, square to it. Glue each joint, drill pilot holes and screw through the front into the side edges, a screw every 6".'},['Front','Side'],
+      ['Drill the pocket holes listed below on the inside face of each side, at both ends (the ends that meet the front and the back). ']),
     styledStep({
       std:'Glue the back ends of the sides, set the back on, flush all round, and drive the pocket screws listed below from inside the chest into the back.',
       rustic:'Set the back on the other ends of the sides, flush all round, and screw through it into the side edges the same way, with glue.'},['Back']),
     styledStep({
       std:'Drill the pocket holes listed below in the underside of the bottom, along all four edges. Turn the chest upside down, drop the bottom in flush with the lower edges, glue it and drive the pocket screws into the front, the back and the two sides, so nothing shows on the outside of the chest.',
-      rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom']),
+      rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom'],
+      ['Drill the pocket holes listed below in the underside of the bottom, along all four edges. ']),
     {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit a soft-close lid support inside so it cannot slam on fingers.',add:['Lid']},
     STORAGE_FINISH_STEP];
   return stepsForPieces(s.lid?steps:steps.filter(step=>!step.add.includes('Lid')),buildStorageBox(p));

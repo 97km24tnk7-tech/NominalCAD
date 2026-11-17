@@ -213,7 +213,7 @@ function jointMarkPlan(group,letterOf){
   else if(here.row)plan=rowMarkPlan(group,letterOf);
   else if(here.spot)plan=straightMarkPlan(group,letterOf);
   if(plan){
-    plan.words=(group.line||'')+' '+(group.where||'');
+    plan.words=(group.line||'')+' '+(group.whereKept||group.where||'');   // (whereKept: a line drilled in step 2, js/drillplan.js)
     plan.places=group.places||1;
     plan.sampleAt=group.sampleAt||null;   // (the place this view is for, when the places of the line have other numbers)
     plan.rule=rule;
@@ -383,8 +383,8 @@ function rowMarkPlan(group,letterOf){
     if(pocket){
       // the hole opens as a long slot that runs back from where the screw comes out, away from the joint
       const away=f.dir.map((v,k)=>k===frame.axis?0:-v),long=Math.hypot(...away)||1,unit=away.map(v=>v/long);
-      // about 1 1/8" long, but never past the edges of the piece (a 2" foot has no room for all of it)
-      let reach=1.1;
+      // as long as the oval the bit leaves (POCKET_OVAL, js/fasteners.js), but never past the edges of the piece
+      let reach=POCKET_OVAL;
       for(let k=0;k<3;k++){
         if(k===frame.axis||Math.abs(unit[k])<1e-6)continue;
         const room=unit[k]>0?throughBox.hi[k]-f.pocket.dia/2-f.pocket.mouth[k]:f.pocket.mouth[k]-(throughBox.lo[k]+f.pocket.dia/2);
@@ -456,7 +456,7 @@ function rowMarkPlan(group,letterOf){
   const meets=shape.k===1&&!jointHigh?'sits on':'meets';
   plan.refs.push({feature:edgeFeature(frame,through,shape.k,jointHigh),
     label:`${frame.nameOf(shape.k,jointHigh)} ${faceWord(through,shape.k,true)} of ${pieceLabel(through,letterOf)}, where it ${meets} the ${into.name}`});
-  if(pocket)plan.notes.push('Set the pocket-hole jig for the thickness of this piece: it puts each hole the right distance from the end.');
+  if(pocket)plan.notes.push(`Set the pocket-hole jig for ${fmt(f0.jig)} stock: it puts each hole the right distance from the end.`);
   return plan;
 }
 
@@ -1780,7 +1780,8 @@ function markingPlansOfDesign(name){
     // (a line whose words give no sizes, "start each one about an inch back", has no marking view; every other has)
     for(const group of chosen){
       const rule=group.sample.rule||{};
-      list.push({label:`${name}, step ${step.no}, line ${group.no}`,plan:jointMarkPlan(group,plan.letterOf),needed:!rule.free||!!rule.gap});
+      // (a line whose holes are drilled in step 2 shows the drawing there instead: its view is checked, not needed)
+      list.push({label:`${name}, step ${step.no}, line ${group.no}`,plan:jointMarkPlan(group,plan.letterOf),needed:!group.predrilled&&(!rule.free||!!rule.gap)});
     }
     for(const row of step.hardware)list.push({label:`${name}, step ${step.no}, ${row.kind} line ${row.no}`,plan:hardwareMarkPlan(row,plan.letterOf),needed:['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind)});
     const fresh=new Set(step.pieces.concat(step.brought||[]).map(p=>p.id));
@@ -1852,7 +1853,8 @@ SELFTESTS.push(function markingViewsMeasureTrue(problems){
     const figures=[...$('#instrPage').querySelectorAll('.closeups figure')];
     // (each marking view is drawn when it is seen: drawn here, it must be a picture)
     const pairs=shots.reduce((sum,shot)=>sum+shot.closeups.filter(close=>/^data:image\/png/.test(close.mark?markingSource(close.mark):'')).length,0);
-    const total=shots.reduce((sum,shot)=>sum+shot.closeups.length,0);
+    // (a close-up of a line drilled in step 2 is one picture, its caption naming the drawing: js/drillplan.js)
+    const total=shots.reduce((sum,shot)=>sum+shot.closeups.filter(close=>!/drilled already, drawing/.test(close.caption)).length,0);
     if(pairs!==total)wrong(`the Nightstand has ${total} close-ups and ${pairs} marking views`);
     if(figures.filter(figure=>figure.classList.contains('pair')&&figure.querySelectorAll('img').length===2).length!==pairs)wrong('the Build instructions page does not show each close-up as a pair of pictures');
     // the marking views on the page are drawn once they are seen, and all of them before printing

@@ -71,7 +71,8 @@ function showBuildStep(index){
   sel=new Set([...sel].filter(id=>!hiddenIds.has(id)));
   $('#stepCount').textContent=`Step ${step.no} of ${steps.length}`;
   const skipped=beforeBuilding?'<p class="hint">The view shows the finished design: this is what you are going to build. From the first building step on it shows the build as it stands at that step.</p>':'';
-  $('#stepBody').innerHTML=(stepMode.index===0&&plan.note?`<p class="hint">${esc(plan.note)}</p>`:'')+skipped+stepTextHtml(step);
+  // (step 2, Drill your pieces: its words, the jig settings, and where its drawings are: js/partdrawings.js)
+  $('#stepBody').innerHTML=(stepMode.index===0&&plan.note?`<p class="hint">${esc(plan.note)}</p>`:'')+skipped+(step.kind==='drill'?drillModeHtml(step,plan):stepTextHtml(step));
   $('#stepBody').scrollTop=0;
   linkWords($('#stepBody'));   // the highlighted words of the printed page work here too (js/wordlinks.js)
   $('#stepBack').disabled=stepMode.index===0;
@@ -85,7 +86,9 @@ SCENE_EXTRAS.push(function paintBuildStep(){
   const step=buildPlan().steps[stepMode.index];
   if(!step)return;
   const hosts=step.hardware.flatMap(row=>row.items.map(item=>item.on));
-  const added=step.pieces.concat(step.brought||[]);   // brought: a part built earlier that this step sets in place
+  // brought: a part built earlier that this step sets in place; step 2 shows the pieces that get holes
+  const drilled=step.kind==='drill'?S.parts.filter(p=>buildPlan().drill.byPiece.has(p.id)):[];
+  const added=step.pieces.concat(step.brought||[],drilled);
   for(const id of added.length?added.map(p=>p.id):hosts){
     const group=meshes.get(id);
     if(group&&!sel.has(id)&&!isProp(byId(id)))group.children[0].material.color.setHex(STEP_COL.added);

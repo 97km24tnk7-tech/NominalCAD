@@ -21,11 +21,12 @@
                    with the sides screwed through from outside. 2: the sides of house furniture show no heads
                    either, and the plugged heads of a bed rail. 3: a bed's legs are screwed to its end rails from
                    inside the leg (no corner brace). 4: a drawer nightstand's toe kick is held to the bottom
-                   panel by pocket holes, so no screw head shows on the floor of its open shelf.
+                   panel by pocket holes, so no screw head shows on the floor of its open shelf. 5: every pocket hole
+                   is drilled in "Drill your pieces" (js/drillplan.js), and the steps no longer tell to drill them.
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=4;
+const FASTENING_NOW=5;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);
@@ -101,7 +102,7 @@ function leftToMissingHardware(preset,j,today,before){
 function upgradeFastening(){
   lastFasteningUpgrade=null;
   if(!S||Number(S.fastening)>=FASTENING_NOW)return;
-  const placements=presetPlacements();
+  const placements=presetPlacements(),savedUnder=Number(S.fastening)||0;
   S.fastening=FASTENING_NOW;
   if(!placements.length)return;   // not from a preset: left alone
   if(!S.styled||typeof S.styled!=='object')S.styled={};
@@ -139,8 +140,10 @@ function upgradeFastening(){
   const typesAfter=fastenerTypes(),headsAfter=headsByFace();
   const changedKeys=[];
   for(const[key,type]of typesAfter)if(typesBefore.get(key)!==type)changedKeys.push(key);
-  if(!changedKeys.length)return;
-  const words=bringWordsUpToDate(placements,changedKeys);
+  // (5: steps saved before "Drill your pieces" tell the person to drill pocket holes that step 2 holds now: they are
+  //  written again, quietly, as the fasteners did not change, js/drillplan.js)
+  if(!changedKeys.length){if(savedUnder<5)bringWordsUpToDate(placements,[],true);return;}
+  const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<5);
   const names=[...new Set(placements.map(entry=>entry.entry||entry.preset.name))];   // (an entry's name, never a hidden builder's: "this Bookshelf")
   const text=`Updated the fasteners of this ${names.join(' and ')} to the current way: ${upgradeWords(keptByHand,plugsBefore,changedKeys.length)}.`+
     (words==='preset'?' Its build steps and notes were written again to match.':words==='notes'?' Its notes were written again to match.':
@@ -161,8 +164,10 @@ function upgradeFastening(){
        now (rule 3 in js/buildsteps.js), and the notes get the line about screw heads.
    Only a design with one placement has steps of its own; with two or more, the steps are worked out from the
    pieces anyway. Returns 'preset', 'refreshed' or ''. */
-function bringWordsUpToDate(placements,changedKeys){
+function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo){
   if(placements.length!==1)return'';
+  // only the words that tell to drill pocket holes are out of date: the saved steps that say so are written again
+  if(drillWordsOnly&&!(S.steps||[]).some(step=>step&&Array.isArray(step.add)&&!step.drill&&drillOrders(stepText(step)).length))return'';
   const{preset,parts}=placements[0];
   const saved=(S.steps||[]).filter(step=>step&&Array.isArray(step.add));
   const setNumber=parts[0].set;
@@ -176,6 +181,9 @@ function bringWordsUpToDate(placements,changedKeys){
   }
   // the steps that make a joint that changed: the step of the later of its two pieces (rule 6 in js/buildsteps.js)
   const owner=presetStepOfPieces(saved);
+  // (drillWordsToo: saved before 5, with fasteners that changed as well: the steps that tell to drill pocket holes are
+  //  written again too, not only those that make a joint that changed)
+  if(drillWordsOnly||drillWordsToo)for(const step of saved)if(!step.drill&&drillOrders(stepText(step)).length)step.refresh=true;
   for(const key of changedKeys){
     const[a,b]=key.split('-').map(Number);
     if(!owner.has(a)||!owner.has(b))continue;

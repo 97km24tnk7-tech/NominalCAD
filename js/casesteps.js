@@ -28,8 +28,16 @@ const CASE_SECOND_RAIL='the one in the bay on its left (as you face the front) i
 
 /* Everyday and Fine furniture: every pocket hole is drilled in the marking step, before anything goes together
    (spec 3.2 step 3, the owner's rule of 16 Nov 7:35 PM). Where each piece takes them, from the plan; the steps
-   after it name the holes again with their screws. */
+   after it name the holes again with their screws. Returns {words, drill}: drill is the sentence that tells to
+   drill the pocket holes, the step's drill field (styledStep, js/style.js), which the step leaves out while step 2
+   "Drill your pieces" (js/drillplan.js) holds every pocket hole on its drawings. The screw holes through the sides
+   of a narrow bay are not pocket holes: their sentence always stays. */
 function casePocketHolesAhead(s,heights,highShelves){
+  const words=casePocketHolesAheadWords(s,heights,highShelves);
+  const at=words.indexOf(' Then drill ');
+  return{words,drill:at<0?[]:[words.slice(at)]};
+}
+function casePocketHolesAheadWords(s,heights,highShelves){
   const div=s.dividers,bottoms=div?'each bottom board':'the bottom board',where=[];
   const shelvesToo=heights.length?(heights.length>1?' and of every shelf':' and of the shelf'):'';
   if(!s.narrow){
@@ -83,7 +91,7 @@ function caseSteps(p){
     :` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the ${s.top==='over'?'top rails sit':'top sits'} on ${div>1?'them':'it'}.`;
   const marking=`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: ${bottomMark}${heights.length?`, ${shelfWord} `+heights.join(', '):''}.`+openings+shorter;
   const ahead=casePocketHolesAhead(s,heights,highShelves);
-  steps.push(styledStep({std:marking+ahead,rustic:marking},['Side','Divider']));
+  steps.push(styledStep({std:marking+ahead.words,rustic:marking},['Side','Divider'],ahead.drill));
 
   // the bottoms
   const bottomLead=`Fasten the ${bottomWords} between the ${between}, at the lowest mark, flush with the front and back edges.${bayWord}`;

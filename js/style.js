@@ -102,7 +102,9 @@ function coverWords(){
    the Everyday wording. */
 const stepText=st=>st.t===FIN.t?finText():(st.byStyle&&st.byStyle[look().style])||st.t;
 /* a step with words for each style: {t: the Everyday words, byStyle: {rustic, std, fine}} */
-const styledStep=(words,add)=>({t:words.std,byStyle:{rustic:words.rustic,std:words.std,fine:words.fine||words.std},add});
+// drill (optional): the sentences of these words that tell the person to drill pocket holes, one list for every
+// style or {std, fine, rustic}; the steps leave them out while "Drill your pieces" holds those holes (js/drillplan.js)
+const styledStep=(words,add,drill)=>({t:words.std,byStyle:{rustic:words.rustic,std:words.std,fine:words.fine||words.std},add,...(drill?{drill}:{})});
 const surfaceSqFt=()=>S.parts.reduce((a,p)=>isProp(p)?a:a+2*(p.l*p.w+p.l*p.t+p.w*p.t)/144,0);
 function finishSupplies(){const L=look(),f=FINISHES[L.finish],rows=[],a=surfaceSqFt();if(!a)return rows;
   const qt=c=>Math.max(1,Math.ceil(a*c/100)); // a quart covers about 100 sq ft per coat

@@ -784,10 +784,15 @@ function stepPictures(plan){
       const others=group.places-1;
       // (words: where the line says the fasteners go, shown under the picture when it is opened large)
       // (mark: the marking view, a key drawn when it is seen; markingSource(mark) draws it)
-      entry.closeups.push({no:group.no,src:closeupPicture(step,group,view.fresh),mark:markingPictureLater(jointMarkPlan(group,plan.letterOf)),
-        // (a line whose places are marked differently names the one shown: group.sampleAt, js/buildsteps.js)
-        caption:`Close-up of line ${group.no}`+(group.sampleAt?`, ${group.sampleOneOf?'one of the places at':'at'} ${group.sampleAt}. ${others>1?`At the other ${others} places`:'At the other place'}, mark as the line says.`
-          :others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.'),
+      // (a line whose holes are drilled in step 2 has no "Where to mark": its caption names the drawing, js/drillplan.js)
+      const drilled=group.predrilled?` Where to mark: drilled already, drawing ${listWords(group.predrilled.labels)}.`:'';
+      // (a line whose places are marked differently names the one shown: group.sampleAt, js/buildsteps.js; when the
+      //  holes are drilled already there is nothing to mark at the other places, only the pieces to put in)
+      const otherPlaces=others>1?`At the other ${others} places`:'At the other place';
+      const shownPlace=group.sampleAt?`, ${group.sampleOneOf?'one of the places at':'at'} ${group.sampleAt}. ${otherPlaces}, ${group.predrilled?'fasten':'mark'} as the line says.`:'';
+      entry.closeups.push({no:group.no,src:closeupPicture(step,group,view.fresh),mark:group.predrilled?null:markingPictureLater(jointMarkPlan(group,plan.letterOf)),
+        caption:`Close-up of line ${group.no}`+(shownPlace
+          ||(others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.'))+drilled,
         words:group.where||''});
     }
     // and one for each line of hardware that has numbers to show (hinges, pulls, slides, runners, kickers)

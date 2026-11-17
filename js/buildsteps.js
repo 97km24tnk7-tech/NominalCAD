@@ -59,6 +59,7 @@ const countWord=n=>['no','one','two','three','four','five','six','seven','eight'
 const capital=text=>text.charAt(0).toUpperCase()+text.slice(1);
 /* 'Shelf' -> 'Shelves', 'Leg' -> 'Legs' */
 function pluralName(name){
+  if(/foot$/i.test(name))return name.replace(/oot$/i,'eet');   // (the Feet of a fish rack)
   if(/(s|x|ch|sh)$/i.test(name))return name+'es';
   if(/[^aeiou]y$/i.test(name))return name.slice(0,-1)+'ies';
   if(/(elf|alf)$/i.test(name))return name.slice(0,-1)+'ves';
@@ -1005,6 +1006,13 @@ function notEvenlyWords(layout,name){
   if(clear.length)reasons.push(`no hole may open where the ${listWords(clear)} lies against the ${name}`);
   if(passEnds.length)reasons.push(`the holes stay clear of the pocket holes in the ends of the ${name} that hold it to the ${listWords(passEnds)}`);
   if(layout.some(f=>f.pastBolt))reasons.push(`the holes stay clear of the bolt that goes through the ${name} to join the sections`);
+  // only the start moved (past the holes at the ends) and the gaps are even: say that, not "not evenly spaced"
+  const mouths=layout.filter(f=>f.pocket).map(f=>f.pocket.mouth);
+  if(passEnds.length&&!clear.length&&mouths.length>2){
+    const axis=[0,1,2].reduce((best,k)=>Math.max(...mouths.map(m=>m[k]))-Math.min(...mouths.map(m=>m[k]))>Math.max(...mouths.map(m=>m[best]))-Math.min(...mouths.map(m=>m[best]))?k:best,0);
+    const at=mouths.map(m=>m[axis]).sort((a,b)=>a-b),gaps=at.slice(1).map((v,i)=>v-at[i]);
+    if(gaps.every(gap=>Math.abs(gap-gaps[0])<1/32))return`They start further in on purpose, ${reasons[0].replace(/^the holes /,'so the holes ')}; the gaps between them are even (${inchWords(gaps[0])}).`;
+  }
   return reasons.length?`They are not evenly spaced on purpose: ${reasons.join(', and ')}.`:'';
 }
 /* Screws moved out of each other's way (js/fasteners.js) start on lines of their own, one for each set of marks.
@@ -1432,6 +1440,7 @@ const STEP_TOOLS={
   plug:'3/8" drill bit for the counterbores, and a small hammer',
   plugFilled:'3/8" drill bit for the counterbores',
   pocket:'pocket-hole jig and drill/driver',
+  pocketDriven:'drill/driver with the square driver bit of the pocket screws',
   dowel:'dowel jig, drill and mallet',
   nail:'brad nailer (or hammer and nail set)',
   bracket:'drill/driver',
@@ -1502,7 +1511,9 @@ function stepTools(step){
     const tapped=!painted||step.groups.some(group=>group.type==='plug'&&group.links.some(link=>jSpec(link.joint,'plug').deep));
     add(tapped?STEP_TOOLS.plug:STEP_TOOLS.plugFilled);
   }
-  for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))add(STEP_TOOLS[type]);
+  // (pocket holes drilled in step 2 need no jig here: only the driver bit of the screws, js/drillplan.js)
+  const pocketsDrilled=step.groups.some(group=>group.type==='pocket')&&step.groups.every(group=>group.type!=='pocket'||group.predrilled);
+  for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))add(type==='pocket'&&pocketsDrilled?STEP_TOOLS.pocketDriven:STEP_TOOLS[type]);
   if(step.tight&&step.tight.length)add('right-angle drill attachment and a 3" driver bit, for the pocket screws with little room');
   if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners
@@ -1850,6 +1861,12 @@ function makeBuildPlan(graph){
   // cutting step names the shaped rows as they are now (shapeCutStepLine, js/shapedrawings.js)
   const shapedLine=shapeCutStepLine(cutList);
   if(shapedLine)for(const draft of drafts)if(draft.kind==='cut')draft.words+=' '+shapedLine;
+  // Drill your pieces (js/drillplan.js): right after cutting, when the design has a hole that is drilled ahead
+  const drill=drillPlan(graph,letterOf);
+  if(drill.total){
+    const cutAt=drafts.findIndex(draft=>draft.kind==='cut');
+    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:DRILL_WORDS,was:'',pieces:[],extra:[],preset:null});
+  }
 
   // the step of every piece, then the joints and the hardware of every step
   const stepOfPiece=new Map();
@@ -1929,6 +1946,10 @@ function makeBuildPlan(graph){
     draft.pieces.forEach(p=>{built.add(p.id);pieceStep.set(p.id,steps.length);});
     // the "Fasten with" lines, numbered: the joints that take the same fastener between the same kinds of piece share one
     step.groups=fastenLines(draft.links,letterOf);
+    // pocket-hole lines whose holes are on the drawings of step 2 point there (js/drillplan.js), and the preset's
+    // own sentences that tell to drill those holes are not shown
+    markPredrilled(step.groups,drill);
+    if(draft.source==='preset')step.words=withoutDrillWords(step.words,draft.preset,drill);
     step.hardware=hardwareLines(draft.items,letterOf,cutList.letterOfStrip);
     step.hardware.forEach((row,index)=>{row.no=step.groups.length+index+1;});   // numbered on after the "Fasten with" lines, for the balloons
     if(draft.source==='generated'&&draft.kind==='build'){
@@ -1959,15 +1980,23 @@ function makeBuildPlan(graph){
     const layout=sheetLayoutWords(draft.pieces,letterOf);
     if(layout)step.words+=' '+layout;
     if(draft.kind==='build')firstBuild=false;
-    step.need=stepNeeds(step,letterOf,glueListed,cutList.letterOfStrip,suppliesClaimed);
+    step.need=draft.kind==='drill'?drillNeeds(drill):stepNeeds(step,letterOf,glueListed,cutList.letterOfStrip,suppliesClaimed);
     steps.push(step);
   }
+  // the step that drives each hole of step 2, and the Put in line of each step (js/drillplan.js)
+  const stepOfLink=new Map();
+  for(const step of steps)for(const group of step.groups)for(const link of group.links)stepOfLink.set(link,step.no);
+  drill.number(stepOfLink);
+  const drillStep=steps.find(step=>step.kind==='drill');
+  drill.stepNo=drillStep?drillStep.no:0;
   // setInPlace: piece id -> index of the step that sets it in place, for the parts that are built apart first
   const setInPlace=new Map();
   for(const[id,draftIndex]of placedAt)if(finalIndexOf.has(draftIndex))setInPlace.set(id,finalIndexOf.get(draftIndex));
   // added: the steps the program wrote for pieces that were added to a preset design (rule 4)
   const added=own?steps.filter(step=>step.source==='generated'&&step.kind==='build').length:0;
-  return{steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,partOf,letterOf,note:own?'':SUGGESTED_NOTE};
+  const plan={steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,partOf,letterOf,note:own?'':SUGGESTED_NOTE,drill};
+  for(const step of steps)step.put=step.kind==='build'?placementWords(step,plan):'';
+  return plan;
 }
 /* The pieces that are not to be seen at one step (index from 0): those of later steps, and a part that was built
    apart in an earlier step and is not set in place yet (the top frame of a stand while the posts go on). */
@@ -2312,12 +2341,13 @@ function whatABeginnerReads(wrong,place){
       for(const group of step.groups){
         if(!group.sample||group.sample.layout[0].kind==='bracket')continue;
         const marked=group.sample.layout[0].kind==='dowel'?group.sample.layout[0].into.name:group.sample.layout[0].through.name;
-        const numbered=/\d+(?: \d+\/\d+)?"|\d+\/\d+"/.test(group.where);
-        if(!numbered||!group.where.includes(marked)||/^Keep them at least/.test(group.where))wrong(`${name}, step ${step.no}, line ${group.no} does not give marks in numbers on the ${marked}: ${group.where}`);
+        // (a line drilled in step 2 points to its drawing; the sentence it had is kept as whereKept: js/drillplan.js)
+        const where=group.whereKept||group.where,numbered=/\d+(?: \d+\/\d+)?"|\d+\/\d+"/.test(where);
+        if(!numbered||!where.includes(marked)||/^Keep them at least/.test(where))wrong(`${name}, step ${step.no}, line ${group.no} does not give marks in numbers on the ${marked}: ${where}`);
         // the close-up's size line across the joint says the number the words say (it said 3 1/2" where the words said 3 7/16")
         const across=(group.sample.dims||[]).find(dim=>dim.inches!==undefined);
-        if(across&&!group.where.includes(fmt(across.inches)))wrong(`${name}, step ${step.no}, line ${group.no}: its close-up shows ${fmt(across.inches)}, its words do not: ${group.where}`);
-        if(/a quarter of the way in/.test(group.where))wrong(`${name}, step ${step.no}, line ${group.no} gives its rows as "a quarter of the way in", not in numbers: ${group.where}`);
+        if(across&&!where.includes(fmt(across.inches)))wrong(`${name}, step ${step.no}, line ${group.no}: its close-up shows ${fmt(across.inches)}, its words do not: ${where}`);
+        if(/a quarter of the way in/.test(where))wrong(`${name}, step ${step.no}, line ${group.no} gives its rows as "a quarter of the way in", not in numbers: ${where}`);
       }
     }
   }

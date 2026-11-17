@@ -279,6 +279,7 @@ function cutRows(){
     letterOfStrip:item=>groups.has(stripKey(item))?groups.get(stripKey(item)).id:''};
 }
 function cutListSection(list){
+  const plan=S.parts.length?buildPlan():null,drill=plan&&plan.drill&&plan.drill.total?plan.drill:null;
   const rows=list.rows.map(g=>{
     const m=M[g.mat],ripped=m.kind==='board'&&g.w<m.w-.01;
     // A board that sits at an angle may need its ends cut to fit. A design with steps of its own says exactly
@@ -292,10 +293,12 @@ function cutListSection(list){
     const shapeWords=shaped?shapeRowNote(g):[];   // js/shapedrawings.js
     const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,...shapeWords].filter(Boolean).join('. ');
     return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
-      `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td><td>${note}</td></tr>`;
+      `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td>${drill?`<td>${esc(drillColumn(g,drill))}</td>`:''}<td>${note}</td></tr>`;
   });
-  return`<h2>Cut list</h2><p class="hint">Write the letter on each piece as you cut it. The same letters are used in the cutting diagrams and the steps.</p>`+
-    docTable([['Label',''],['Qty','num'],['Piece',''],['Cut from',''],['Length','num'],['Width','num'],['Thick','num'],['Note','']],rows);
+  // Drill first: which pieces get holes before anything is put together (step 2, js/drillplan.js)
+  return`<h2>Cut list</h2><p class="hint">Write the letter on each piece as you cut it. The same letters are used in the cutting diagrams and the steps.`+
+    (drill?` The Drill first column says which pieces get holes before you put anything together; Build instructions, step ${drill.stepNo}, has a drawing of each.`:'')+`</p>`+
+    docTable([['Label',''],['Qty','num'],['Piece',''],['Cut from',''],['Length','num'],['Width','num'],['Thick','num']].concat(drill?[['Drill first','']]:[],[['Note','']]),rows);
 }
 /* Cutting diagrams: for each material what to buy, then one bar per board (or one drawing per plywood sheet)
    with the cuts marked. Returns the html and the list of what to buy, which the shopping list is made from. */
@@ -372,14 +375,18 @@ function stepTextHtml(step){
   if(need.tools.length)rows.push(`<dt>Tools</dt><dd>${esc(need.tools.join('; '))}</dd>`);
   const youNeed=`<div class="need you"><h4>You need</h4>${rows.length?`<dl>${rows.join('')}</dl>`:'<div>Nothing new for this step.</div>'}</div>`;
   // Fasten with: numbered lines; the preset's own lines for joints the program cannot see come after them
-  const lines=step.groups.map(group=>`<li data-line="${group.no}">${balloonMark(group.no)}<span>${esc(group.line)}${group.where?' '+esc(group.where):''}</span></li>`)
+  // (a line whose holes are drilled in step 2 names their settings with the hexagon tag of the drawings: js/drillplan.js)
+  const tagged=text=>esc(text).replace(/⬡(\d+)/g,(all,no)=>typeof tagSvg==='function'?tagSvg(no):all);
+  const lines=step.groups.map(group=>`<li data-line="${group.no}">${balloonMark(group.no)}<span>${esc(group.line)}${group.where?' '+tagged(group.where):''}</span></li>`)
     .concat(step.extra.map(line=>`<li><span class="bal none"></span><span>${esc(line)}</span></li>`));
   const fasten=lines.length?`<div class="need fasten"><h4>Fasten with</h4><ul>${lines.join('')}</ul></div>`:'';
   const hardware=step.hardware.length?`<div class="need hw"><h4>Hardware in this step</h4><ul>${step.hardware.map(row=>`<li>${balloonMark(row.no)}<span>${esc(row.line)}</span></li>`).join('')}</ul></div>`:'';
   const was=step.was?`<p class="was">You changed the pieces of this step, or a piece it gave a measurement for, so the words above were written from the pieces as they are now. Before your change the step read: “${esc(step.was)}” Sizes and counts in that older sentence may no longer be right.</p>`
     // a step that adds no piece cannot be written again from its pieces; it says that its numbers may be old
     :step.stale?'<p class="was">You changed a piece that this step gives a measurement for. The numbers in the sentence above were written before your change: check them against the lines and the pictures of this step.</p>':'';
-  return`<p>${esc(step.words)}</p>${was}${youNeed}${fasten}${hardware}`;
+  // Put in: which way a drilled piece goes in (placementWords, js/drillplan.js)
+  const put=step.put?`<p class="put"><b>Put in</b>${esc(step.put.replace(/^Put in: /,''))}</p>`:'';
+  return`<p>${esc(step.words)}</p>${was}${put}${youNeed}${fasten}${hardware}`;
 }
 function stepsSection(plan,shots){
   let intro='In each picture the pieces added in that step are orange and the pieces that are already built are pale. '+
@@ -404,6 +411,8 @@ function stepsSection(plan,shots){
       (close.mark?`<img ${markImageSource(close.mark)} alt="Close-up of line ${close.no} of step ${step.no}: where to mark">`:'')+
       `</div><figcaption>${balloonMark(close.no)} <span>${esc(close.caption)}</span></figcaption></figure>`).join('')}</div>`:'';
     const marks=shot.markView?`<div class="markviews"><figure><img ${markImageSource(shot.markView.src)} alt="The pencil marks of step ${step.no}"><figcaption>${esc(shot.markView.caption)}</figcaption></figure></div>`:'';
+    // step 2, Drill your pieces: its drawings span the width of the page (js/partdrawings.js)
+    if(step.kind==='drill'){h+=`<div class="step nopic drill" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>${drillStepHtml(step,plan)}</div>`;return;}
     h+=`<div class="step${shot.src?'':' nopic'}" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>`+
       `<div class="step-text">${stepTextHtml(step)}</div>${picture}${marks}${closeups}</div>`;
   });

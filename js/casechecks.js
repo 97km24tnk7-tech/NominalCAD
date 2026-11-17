@@ -639,7 +639,15 @@ SELFTESTS.push(function caseDrillsAheadAndHasRoom(problems){withoutDrawing(()=>{
     for(const vals of[caseEntryVals('bookshelf'),caseEntryVals('bookshelf',{W:40})]){
       placeInStyle(builder,vals,'std');
       const plan=buildPlan();
-      if(!/drill every pocket hole now/.test(plan.steps[1].words))wrong(`${vals.W}" wide: the marking step does not drill the pocket holes ahead`);
+      // the pocket holes are drilled ahead: in step 2 "Drill your pieces" (js/drillplan.js), which then holds every
+      // one of them on a drawing and the marking step after it does not say it again; without step 2, in the
+      // marking step's own words
+      const drillStep=plan.steps.find(step=>step.kind==='drill');
+      if(drillStep){
+        if(plan.steps[1]!==drillStep)wrong(`${vals.W}" wide: "Drill your pieces" is not the step right after cutting`);
+        if(!plan.drill.complete)wrong(`${vals.W}" wide: some pocket holes drilled ahead have no drawing`);
+        if(/drill every pocket hole now/.test(plan.steps[2].words))wrong(`${vals.W}" wide: the marking step tells to drill the pocket holes that step 2 holds`);
+      }else if(!/drill every pocket hole now/.test(plan.steps[1].words))wrong(`${vals.W}" wide: the marking step does not drill the pocket holes ahead`);
       const tight=plan.steps.some(step=>(step.tight||[]).length);
       const listed=toolList(findJoints(),plan).some(tool=>/right-angle/i.test(tool));
       if(tight!==listed)wrong(`${vals.W}" wide: a step ${tight?'asks for':'does not ask for'} a right-angle drill attachment, and the Tools list ${listed?'has':'does not have'} one`);

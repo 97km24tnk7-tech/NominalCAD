@@ -590,6 +590,60 @@ svg.shape-draw{display:block;max-width:100%;height:auto;background:#fff;border:1
 /* the pencil marks of a marking step, drawn square to the face, under the words and the step picture */
 .markviews{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-top:6px}
 .markviews figcaption{margin-top:3px}
+/* Put in: which way a drilled piece goes in (js/drillplan.js) */
+.put{margin:0 0 8px;font-size:var(--fs);line-height:18px}
+.put b{margin-right:4px;font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+/* the hexagon tag of a jig setting, in a line or a table */
+svg.tag{display:inline-block;width:20px;height:18px;vertical-align:-4px}
+svg.tag polygon{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
+svg.tag text{font:600 11px var(--font);fill:#0b3a8f;text-anchor:middle}
+/* step 2, Drill your pieces (js/partdrawings.js): the box, the settings, one figure per label, the closing lines */
+.drill-box{margin:8px 0 10px;padding:6px 10px;border:1px solid var(--n300);font-size:var(--fs);line-height:17px}
+.drill-box h4{margin:0 0 2px;font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+.drill-box ol{margin:0;padding-left:18px}
+.drill-box li{margin:1px 0}
+.drill .lead2{margin:10px 0 4px;font-size:var(--fs)}
+.drill .drill-why{margin-top:6px}
+.drill-fig{margin:14px 0 0;border:1px solid var(--n400);break-inside:avoid}
+.fig-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:5px 8px;background:var(--n100);border-bottom:1px solid var(--n400);font-size:var(--fs)}
+.fig-head b{font-size:var(--fs-doc)}
+.fig-head .sep{color:var(--n500)}
+.fig-head .done{margin-left:auto;display:flex;align-items:center;gap:4px;color:var(--n600)}
+.fig-head input{width:13px;height:13px;margin:0;accent-color:var(--blue)}
+.drill-fig svg.pd{display:block;width:100%;height:auto;background:#fff}
+.drill-legend{margin:10px 0 0;border:1px solid var(--n300);break-inside:avoid}
+.drill-legend svg.pd{display:block;width:100%;height:auto;background:#fff}
+.drill-fig .tbl{border-top:1px solid var(--n400)}
+.drill-fig .tbl td{vertical-align:top}
+.drill-fig .tbl th:first-child,.drill-fig .tbl td:first-child{width:30px;padding-right:0}
+.drill-fig .notes{margin:0;padding:5px 10px 7px 26px;border-top:1px solid var(--n200);font-size:var(--fs);line-height:17px}
+.drill-fig .notes li{margin:1px 0}
+.drill .tail{margin:12px 0 0;font-size:var(--fs);line-height:17px}
+.drill .tail p{margin:0 0 5px}
+/* the drawing itself: ink and the one dark blue of the marking views (MARK_VIEW, js/markingview.js) */
+svg.pd text{font-family:var(--font)}
+svg.pd .pd-t1{font-size:16px;font-weight:600;fill:#14181d}
+svg.pd .pd-t2,svg.pd .pd-lg{font-size:14px;fill:#3c434b}
+svg.pd .pd-lg{font-size:14px}
+svg.pd .pd-n{font-size:16px;font-weight:600;fill:#14181d}
+svg.pd .pd-lb{font-size:14px;fill:#14181d}
+svg.pd .pd-labt{font-size:14px;font-weight:600;fill:#14181d}
+svg.pd .pd-wood{fill:#eef0f2;stroke:#14181d;stroke-width:1.5}
+svg.pd .pd-heavy{stroke:#14181d;stroke-width:4.5}
+svg.pd .pd-thin{stroke:#14181d;stroke-width:1;fill:none}
+svg.pd .pd-tick{stroke:#14181d;stroke-width:2}
+svg.pd .pd-sep{stroke:#dfe3e7;stroke-width:1}
+svg.pd .pd-dat{fill:#fff;stroke:#14181d;stroke-width:1.8}
+svg.pd .pd-hole{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
+svg.pd .pd-cx{stroke:#0b3a8f;stroke-width:1;fill:none}
+svg.pd .pd-plug{stroke:#0b3a8f;stroke-width:2}
+svg.pd .pd-arr{stroke:#0b3a8f;stroke-width:1.4}
+svg.pd .pd-ld{stroke:#0b3a8f;stroke-width:1}
+svg.pd .pd-ldk{stroke:#14181d;stroke-width:1}
+svg.pd .pd-hid{fill:none;stroke:#3c434b;stroke-width:1.3;stroke-dasharray:6 4}
+svg.pd .pd-hex{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
+svg.pd .pd-hexn{font-size:11.5px;font-weight:600;fill:#0b3a8f;text-anchor:middle}
+svg.pd .pd-lab{fill:#fff;stroke:#14181d;stroke-width:1.5}
 
 /* ---------- 12a. Build step by step (js/stepmode.js) ----------
    the words of one step, down the right side of the 3D view. Properties, which is at home in that corner, moves
@@ -765,6 +819,15 @@ body[data-stepmode] #stHidden{display:none}
   .board div{border-right-color:#000}
   .board .waste,svg.sheet{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:repeating-linear-gradient(135deg,#fff 0 5px,#bbb 5px 6px)}
   .dot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* Drill your pieces starts a page, so the cut list and step 2 print as a shop packet; a drawing never splits;
+     the Done boxes are empty squares to tick with a pencil */
+  .step.drill{break-before:page;break-inside:auto}
+  .step.drill .step-text,.step.drill .drill-body{break-inside:auto}
+  .drill-fig{break-inside:avoid;border-color:#000}
+  .fig-head{background:#fff;border-bottom-color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .fig-head input{appearance:none;-webkit-appearance:none;width:10px;height:10px;border:1px solid #000;background:#fff}
+  .drill-box{border-color:#999}
+  svg.pd,svg.tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 
 /* ===== woodworking words and joint cards (js/glossary.js, js/jointhelp.js, js/wordlinks.js) ===== */

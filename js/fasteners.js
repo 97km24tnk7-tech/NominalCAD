@@ -551,7 +551,10 @@ function pocketScrews(j,shape,n,len,label){
   const bolts=boltSpansAcross(through,shape,t);
   if(bolts.length)blocked.spans.push(...bolts);
   const evenly=spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin).map(a=>rangeT[0]+a);
-  const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3);
+  // (of two places equally near, the one on the left of the drilled face as the person drilling sees it: clearOf)
+  const seenFrom=markingFrame(s,-hidden,through);
+  const leftward=seenFrom.right.axis===t?seenFrom.right.sign:seenFrom.up.axis===t?seenFrom.up.sign:1;
+  const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3,at=>at*leftward);
   const inEndHoles=at=>endHoles.spans.some(([a,b])=>at>a-.3&&at<b+.3);
   // A hole that found no clear place (a top board that only crosses the apron right beside a leg) is left out, and
   // jSpec counts the holes that are left. When none is left the row stays as it was: placing a preset turns such a
@@ -649,10 +652,13 @@ function pocketPlugsAsLaidOut(j){
    for the joints at its ends, so working out their layouts here does not come back to this one.
    Returns {spans: [[lo, hi]] along t, names: the pieces those holes go into}. */
 const END_HOLE_WEB=.25;   // wood left between two holes (inches), on top of the half hole clearOf keeps
+/* Half the length of the oval a 3/8" pocket-hole bit leaves on the face, from where the middle of the bit comes out
+   (about 0.72"): the one size of a pocket hole on the face, for rule 11 and for the piece drawings (js/partdrawings.js). */
+const POCKET_OVAL=(3/16)/Math.sin(15*Math.PI/180);
 function endHoleSpans(piece,j,out,t){
   const none={spans:[],names:[]};
   if(typeof connGraph!=='function'||!S.parts.includes(piece)||j.k===piece.ax[0]||t!==piece.ax[0])return none;
-  const ovalHalf=dia=>(dia/2)/Math.sin(FASTEN.pocketDegrees*Math.PI/180);
+  const ovalHalf=dia=>POCKET_OVAL*dia/.375;
   const spans=[],names=new Set();
   for(const link of connectionsOf(piece.id)){
     const end=link.joint;
@@ -733,8 +739,12 @@ function boltSpansAcross(piece,shape,t){
 }
 /* Places along a row (absolute positions), each moved off the covered spans to the nearest place that is clear,
    keeping endMin from the ends of the row and about an inch from the other places. room: half the width a
-   place needs (half a hole and a little). Returns [{at, moved}] in the same order. */
-function clearOf(places,spans,range,endMin,room){
+   place needs (half a hole and a little). Returns [{at, moved}] in the same order.
+   prefer (optional): for two clear places equally near (within 1/32"), the one with the smaller prefer(at) wins.
+   pocketScrews passes the left of the drilled face as the person drilling sees it, so pieces that do one job on
+   opposite sides of a design that is the same left and right (the two long aprons of a desk, either side of the
+   cross rail) come out drilled alike (spec 11, 7.3). Without it the lower world coordinate wins, as before. */
+function clearOf(places,spans,range,endMin,room,prefer){
   if(!spans.length)return places.map(at=>({at,moved:false}));
   const lo=range[0]+Math.min(endMin,(range[1]-range[0])/2),hi=range[1]-Math.min(endMin,(range[1]-range[0])/2);
   const free=at=>at>=lo-1e-6&&at<=hi+1e-6&&!spans.some(([a,b])=>at>a-room&&at<b+room);
@@ -746,7 +756,12 @@ function clearOf(places,spans,range,endMin,room){
     for(const[a,b]of spans){candidates.push(a-room-.05,b+room+.05);}
     candidates.sort((x,y)=>Math.abs(x-place.at)-Math.abs(y-place.at));
     const apart=at=>out.every((other,i)=>i===index||Math.abs(other.at-at)>=1);
-    const pick=candidates.find(at=>free(at)&&apart(at));
+    let pick=candidates.find(at=>free(at)&&apart(at));
+    if(pick!==undefined&&prefer){
+      const nearest=Math.abs(pick-place.at);
+      const ties=candidates.filter(at=>free(at)&&apart(at)&&Math.abs(at-place.at)<=nearest+1/32);
+      pick=ties.reduce((best,at)=>prefer(at)<prefer(best)-1e-9?at:best,pick);
+    }
     if(pick!==undefined){place.at=r16(pick);place.moved=true;}
   });
   return out;

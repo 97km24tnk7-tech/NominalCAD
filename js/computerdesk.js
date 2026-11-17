@@ -783,17 +783,21 @@ function deskRailStep(plan){
   const where=one?`with its middle ${middles[0]} from the outside face of the left end frame`
     :`with their middles ${middles.slice(0,-1).join(', ')} and ${middles[middles.length-1]} from the outside face of the left end frame`;
   const place=`Fasten the ${one?'cross rail':middles.length+' cross rails'} between the long aprons, on edge and flush with their top edges, ${where}. Mark those places on both aprons first. No rail goes in the tower space.`;
-  const fromRail=` Drive the pocket screws listed below from the holes in each end of ${one?'the rail':'a rail'} into the apron. Drill those holes, and the holes along its top edge that will hold the top, before the rail goes in. Nothing goes through the front apron.`;
+  // (drillRail: the sentence that tells to drill the rail's pocket holes, left out while step 2 "Drill your pieces"
+  //  holds them: the step's drill field, js/drillplan.js)
+  const drillRail=' Drill those holes, and the holes along its top edge that will hold the top, before the rail goes in.';
+  const fromRail=` Drive the pocket screws listed below from the holes in each end of ${one?'the rail':'a rail'} into the apron.${drillRail} Nothing goes through the front apron.`;
   const throughApron=` Drive two screws through each apron into each end of ${one?'the rail':'a rail'}.`;
   const carries=` The top rests on ${one?'it':'these'}, so it cannot sag in the middle.`;
-  return styledStep({std:place+fromRail+carries,fine:place+fromRail+carries,rustic:place+throughApron+carries},['Cross rail']);
+  return styledStep({std:place+fromRail+carries,fine:place+fromRail+carries,rustic:place+throughApron+carries},['Cross rail'],[drillRail]);
 }
 function deskTowerStep(plan){
   const R=DESK_RULES,side=plan.tower.side;
   const place=`Stand the tower panel between the two long aprons, from the floor up to their top edges, ${fmt(R.towerInside)} in from the inside faces of the two ${side} legs: mark that place on the inside of both aprons first. It walls off the space for a computer tower at the ${side} end, open at the front and the back for the air.`;
+  const drillPanel=' Drill those holes, and the ones along its top edge that will hold the top, before it goes in.';
   return styledStep({
-    std:place+' Drive the pocket screws listed below from the holes near its front and back edges, on the face toward the knee space, into the aprons. Drill those holes, and the ones along its top edge that will hold the top, before it goes in.',
-    rustic:place+' Drive the screws listed below in through each apron into its front and back edges.'},['Tower panel']);
+    std:place+' Drive the pocket screws listed below from the holes near its front and back edges, on the face toward the knee space, into the aprons.'+drillPanel,
+    rustic:place+' Drive the screws listed below in through each apron into its front and back edges.'},['Tower panel'],[drillPanel]);
 }
 /* the Desk's own step for the top, told that the desk stays upside down when a drawer case goes in next, and that
    a tower panel is screwed to the top as well */
@@ -807,7 +811,7 @@ function deskTopStep(plan,step){
     return text;
   };
   const byStyle=step.byStyle||{std:step.t,rustic:step.t,fine:step.t};
-  return styledStep({std:edit(byStyle.std),rustic:edit(byStyle.rustic),fine:edit(byStyle.fine)},step.add);
+  return styledStep({std:edit(byStyle.std),rustic:edit(byStyle.rustic),fine:edit(byStyle.fine)},step.add,step.drill);
 }
 function deskCaseSteps(plan){
   const v=plan.v,R=DESK_RULES,two=plan.stacks.length===2;
@@ -816,13 +820,15 @@ function deskCaseSteps(plan){
   const steps=[];
   steps.push(styledStep({
     std:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends. Then glue each joint and drive the pocket screws into the sides, so nothing shows on the outside.`,
-    rustic:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail']));
+    rustic:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail'],
+    [' First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.']));
   steps.push(styledStep({
     std:`Fasten the toe kick under the bottom panel of ${theCase}, on edge, set back ${fmt(NS.kickBack)} from the front. Hold it to the bottom panel and to the sides with the pocket screws listed below, from holes drilled in its back face.`,
     rustic:`Fasten the toe kick under the bottom panel of ${theCase}, on edge, set back ${fmt(NS.kickBack)} from the front. Screw down through the bottom panel into its top edge, and through the sides into its ends.`},['Toe kick']));
   if(v.cub)steps.push(styledStep({
     std:`Fasten the open shelf between the sides, with its underside ${fmt(shelfHeight)} above the bottom panel. Drill the pocket holes listed below in its underside near each end. Cut two scrap blocks ${fmt(shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you drive the pocket screws into the sides.`,
-    rustic:`Fasten the open shelf between the sides, with its underside ${fmt(shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`},['Shelf']));
+    rustic:`Fasten the open shelf between the sides, with its underside ${fmt(shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`},['Shelf'],
+    [' Drill the pocket holes listed below in its underside near each end.']));
   steps.push({t:`Lay ${theCase} on its front. Measure corner to corner both ways and push it until the two measurements match, then glue and nail the back panel on, flush with the outside of the sides and the top. It stops ${fmt(NS.kick)} above the floor, level with the underside of the bottom panel. The back is what keeps the case square, so do not skip the glue.`,add:['Back panel']});
   // set in: the case is brought in as one part, so the screws into the aprons belong to this step
   const where=two?'one at each end':`at the ${plan.stacks[0].side} end (${plan.stacks[0].side} as you sit at the desk)`;
