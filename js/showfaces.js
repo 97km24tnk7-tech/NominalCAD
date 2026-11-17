@@ -18,12 +18,21 @@
 const HOUSE_FURNITURE=['Desk','Dining table','Coffee table','Side table / nightstand','Sturdy bench','Five-board bench',
   'Entryway shoe bench','Bookshelf','Nightstand with drawers','Base cabinet with doors','Storage box / toy chest','Wall shelf','Platform bed',
   'Cabinet / case',   // the cabinet builder (js/casebuild.js): the Bookshelf and the cases to come
-  'Computer desk'];   // js/computerdesk.js: the Computer desk and the Gaming desk
+  'Computer desk',    // js/computerdesk.js: the Computer desk and the Gaming desk
+  'Dining chair'];    // js/diningchair.js
 /* the faces a head may never show on, in those presets, in these styles: the top, the front and the sides (the
    owner, on the heads on the outside of a bookshelf side: "hide those too, or mention and explain how to cover").
    The back is left out: a piece for the house stands with its back to a wall, and the brads of a back panel or the
    pocket holes on the back of a cleat are not seen. A head sunk and covered by a plug does not show. */
 const SHOW_FACES={styles:['std','fine'],faces:['top','front','side']};
+/* A preset whose back is seen as well: a dining chair stands out in the room, and its back is what the room sees
+   when it is tucked in under the table (reference sheet 25, section 11 item 18). Read by the preset of the piece
+   the head is in (headsOnShowFaces). */
+const SHOW_FACES_OF={'Dining chair':['top','front','side','back']};
+const showFacesOfPiece=piece=>{
+  const preset=piece&&typeof presetOfPiece==='function'?presetOfPiece(piece):null;
+  return preset&&SHOW_FACES_OF[preset.name]||SHOW_FACES.faces;
+};
 /* Heads that the owner has agreed may stay on a show face, in one style of one preset. The notes of the preset say
    where they are and how to hide them. Sturdy bench: "leave as is but that can be included in the fine finish". */
 const SHOW_FACE_ALLOWED=[
@@ -37,6 +46,7 @@ const HEADS_NOTES={
   'Platform bed':'Screw heads: in the Everyday and Fine furniture styles none shows on the head and foot ends, and the side rails show none but the screws that hold each side rail to its two legs. That joint carries the bed and keeps the frame square, and no hidden joint does it as well, so those screws go in from outside with their heads sunk 3/8" deep and covered: a wooden plug glued in and cut flush, or wood filler under paint. The build step and the finishing step say how, and the shopping list has the plugs (or the filler). In Rustic / rough all the screws go in from outside and their heads show.',
   'Sturdy bench':'Screw heads: in the Everyday style the two short aprons at the ends of the bench are held by structural screws through the legs, and their washer heads show on the front and back faces of the four legs, two on each leg (the aprons are too short for pocket holes). To hide them, choose Fine furniture in Style & finish, which joins those aprons to the legs with glued dowels instead, or do this at each of the four joints between a leg and a short apron: click one of its screws in the 3D view and pick "Screws, heads plugged" in Properties (a choice there changes that one joint). That sinks each head 1 1/4" deep in the leg under a glued length of 3/8" dowel rod cut flush; the steps and the shopping list then say so. Nothing else shows on the top, the front or the sides in Everyday and Fine furniture. In Rustic / rough the screws go in from outside and their heads show, on the seat too.',
   'Computer desk':'Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front, the ends, the drawer fronts or a monitor shelf. The top is held from underneath by pocket screws in the aprons and cross rails, the drawer case is screwed up into the aprons from inside the case, and a monitor shelf has its supports screwed up through the top from underneath and the screws down through the shelf sunk under glued wooden plugs cut flush. In Rustic / rough the screws go in from outside and their heads show, on the top too.',
+  'Dining chair':'Screw heads: in the Everyday and Fine furniture styles none shows on the seat, the front, the sides or the back. The seat boards are held from underneath by pocket screws in the seat rails, the rails and stretchers have their pocket holes on their inside faces, and the pocket holes on the back of the two back rails are filled with glued pocket-hole plugs and sanded flush. In Rustic / rough the seat boards are screwed down from above and the pocket holes on the back rails are left open.',
   'Wall shelf':'Screw heads: in the Everyday and Fine furniture styles none shows on the shelf or the supports: the pocket holes are on the back of the cleat, against the wall, and on the inside faces of the supports. A shelf hung so high that those faces are seen from below (more than 54" up) gets its support holes filled with glued pocket-hole plugs, sanded flush; the step and the shopping list say so. In Rustic / rough the shelf is screwed down from above and the heads show.'
 };
 function headsNote(presetName){
@@ -112,7 +122,7 @@ function headsOnShowFaces(){
   const wood=S.parts.filter(p=>!tilted(p)).map(plainBox);
   return fastenerHeads().filter(head=>!head.covered).map(head=>({...head,face:faceOfHead(head.out)})).filter(head=>{
     if(head.face==='top'&&head.at[1]>=SEEN.topFrom-1e-6)return false;
-    if(SHOW_FACES.faces.includes(head.face)&&headShows(head,wood))return true;
+    if(showFacesOfPiece(head.f.through).includes(head.face)&&headShows(head,wood))return true;
     return seenFromBelow(head.at,head.out);
   });
 }

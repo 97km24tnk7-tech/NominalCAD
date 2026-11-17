@@ -151,7 +151,10 @@ function drawFasteners(){
       }
       else if(f.kind==='pocket'){
         pin(f,hex,hex);
-        const hole=isPicked?VIEW_COL.sel:FASTENER_LOOK.hole,slant=Math.sin(FASTEN.pocketDegrees*Math.PI/180);
+        // a pocket hole filled with a glued plug (pocket.plugged: the back rails of the Dining chair) shows the plug,
+        // flush with the face, as a plugged head does; an open one shows the dark hole
+        const plugged=f.pocket.plugged&&!isPicked;
+        const hole=isPicked?VIEW_COL.sel:plugged?(byKind?hex:FASTENER_LOOK.plug):FASTENER_LOOK.hole,slant=Math.sin(FASTEN.pocketDegrees*Math.PI/180);
         ovals.push([placed(ovalAt(f.pocket.mouth,f.pocket.out,f.dir,f.pocket.dia/2,f.pocket.dia/2/slant)),hole]);
         if(inside){ // the slanted hole itself, from the face down to the head of the screw
           const long=Math.hypot(f.pos[0]-f.pocket.mouth[0],f.pos[1]-f.pocket.mouth[1],f.pos[2]-f.pocket.mouth[2]);

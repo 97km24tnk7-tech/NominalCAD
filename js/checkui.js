@@ -56,9 +56,20 @@ function runCheck(){
 function keptWarnings(){
   const out=[];
   for(const[number,set]of Object.entries(S.sets||{})){
-    if(!set||!Array.isArray(set.warnings)||!set.warnings.length)continue;
+    if(!set)continue;
     const ids=S.parts.filter(p=>String(p.set)===number).map(p=>p.id);
     if(!ids.length)continue;
+    // a preset may check its design again as it is now (preset.recheck(vals): the Dining chair in the wood chosen
+    // since it was made); the same finding for several copies of it is said once, with all their pieces
+    const preset=PRESETS.find(row=>row.name===set.name);
+    if(preset&&typeof preset.recheck==='function'){
+      for(const f of preset.recheck(set.vals||{})||[]){
+        const same=out.find(o=>o.code==='recheck'&&o.text===f.text);
+        if(same){same.ids.push(...ids);continue;}
+        out.push({level:f.level==='stop'?'stop':'warn',code:'recheck',ids:ids.slice(),text:String(f.text||''),fix:String(f.fix||'')});
+      }
+    }
+    if(!Array.isArray(set.warnings)||!set.warnings.length)continue;
     for(const warning of set.warnings){
       out.push({level:'warn',code:'preset',ids,text:String(warning.text||''),...(warning.word?{word:String(warning.word)}:{}),
         fix:[warning.fix,`This was worked out for the sizes the ${set.entry||set.name||'preset'} was made with.`].filter(Boolean).join(' ')});

@@ -401,6 +401,8 @@ function hardwareTotals(js){const m=new Map();let glue=false;
   for(const j of js){const type=jType(j),sp=jSpec(j,type);
     if(sp.glue&&(type!=='screw'||S.glue!==false))glue=true;
     for(const[k,q]of sp.hw)m.set(k,(m.get(k)||0)+q);}
+  // a design whose steps glue its pocket-screwed joints says so (S.glue === true: a preset with glue:true, the Dining chair)
+  if(S.glue===true&&js.length)glue=true;
   for(const[k,q]of hardwareRows(S.hw))m.set(k,(m.get(k)||0)+q); // hardware placed in the model, and the plain lines of a preset that are not placed (js/hardware.js)
   for(const[k,q]of finishSupplies())m.set(k,q);
   return{rows:[...m.entries()].sort(),glue};}

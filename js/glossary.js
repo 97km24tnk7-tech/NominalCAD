@@ -28,6 +28,20 @@ const TERMS=[
   /* ---- pieces: the more exact name first ---- */
   /* Two-word names that would otherwise fall into a general entry further down (a "Door stile" is not a door,
      a "Rafter tie" is not a rafter). Each is written from how its builder really makes it. */
+  // the Dining chair (js/diningchair.js): above "Back rail" (a cabinet's), "Rail", "Leg" and "Seat", which would
+  // catch these names; "Back seat rail" is a Seat rail, "Back stretcher" a Stretcher and "Seat board" a Seat
+  {word:'Corner block',group:'parts',match:/\bcorner blocks?\b/i,
+    what:'A short block of 2x4 glued under the end of a chair\'s side seat rail, against the leg, and screwed into the leg. It makes the joint twice as deep, so the rail and the leg hold together much better when someone leans back.'},
+  {word:'Back seat board',group:'parts',match:/\bback seat board\b/i,
+    what:'The short board at the back of a chair seat, between the two back legs. It rests on the back seat rail and is screwed to it and to the legs.'},
+  {word:'Seat rail',group:'parts',match:/\bseat rail\b/i,
+    what:'One of the four boards on edge just under the seat of a chair, from leg to leg. The seat boards are screwed down on them from underneath, and they hold the legs together.'},
+  {word:'Crest rail',group:'parts',match:/\bcrest rail\b/i,
+    what:'The top board of a chair\'s back, between the two back legs. You lean on it, and you pull the chair out by it.'},
+  {word:'Lower back rail',group:'parts',match:/\blower back rail\b/i,
+    what:'The lower board of a chair\'s back, at the small of your back. The open space under it leaves room to sit back.'},
+  {word:'Back leg',group:'parts',match:/\bback leg\b/i,
+    what:'One of the two long legs at the back of a chair. It goes on up past the seat and holds the back.'},
   {word:'Door stile',group:'parts',match:/\bdoor stile\b/i,
     what:'An upright piece in the front of a wide cabinet, between two pairs of doors. It runs from the bottom shelf up to the frame above and helps hold that frame up, and the doors on each side of it are hinged to it.'},
   {word:'Panel stud',group:'parts',match:/\bpanel stud\b/i,
@@ -293,6 +307,8 @@ const TERMS=[
     what:'An end cut to a curve instead of straight across. Half the width as the radius gives a full half circle, like the top of a cornhole leg.'},
   {word:'Notch',group:'measure',
     what:'A square piece cut out of an edge or a corner, so the board can fit around a post or another board.'},
+  {word:'Taper',group:'measure',
+    what:'A piece cut narrower toward one end with one straight saw cut along a marked line. On the back legs of a chair it makes the back lean back.'},
   {word:'Slot',group:'measure',
     what:'A long hole with round ends. Drill a hole at each end and cut out the wood between them with a jigsaw.'},
   {word:'Cut-out',group:'measure',
@@ -489,7 +505,11 @@ SELFTESTS.push(function woodworkingWords(problems){
   for(const[name,word]of[['Door stile','Door stile'],['Panel stud','Panel stud'],['Rafter tie','Rafter tie'],['Ridge board','Ridge board'],
     ['Trimmer stud','Trimmer stud'],['Gable stud','Gable stud'],['Back rail','Back rail'],['Base rail','Base rail'],['Cross rail','Cross rail'],
     ['Shelf rail','Shelf rail'],['Slat cleat','Slat cleat'],['Middle post','Middle post'],['Middle leg','Middle leg'],['Stud','Stud'],
-    ['Rafter','Rafter'],['Door','Door'],['Shed door','Door'],['Rail','Rail'],['Top rail','Top rail']]){
+    ['Rafter','Rafter'],['Door','Door'],['Shed door','Door'],['Rail','Rail'],['Top rail','Top rail'],
+    // the Dining chair's (js/diningchair.js): each keeps its own entry, or the general one it is meant to fall to
+    ['Back seat board','Back seat board'],['Side seat rail','Seat rail'],['Front seat rail','Seat rail'],['Back seat rail','Seat rail'],
+    ['Crest rail','Crest rail'],['Lower back rail','Lower back rail'],['Back leg','Back leg'],['Corner block','Corner block'],
+    ['Back stretcher','Stretcher'],['Seat board','Seat']]){
     const found=termFor(name);
     if(!found||found.word!==word)problems.push(`words: "${name}" is explained as "${found?found.word:'nothing'}", not as "${word}"`);
   }

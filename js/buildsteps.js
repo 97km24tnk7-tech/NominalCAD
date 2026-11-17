@@ -195,6 +195,46 @@ function presetStepOfPieces(steps){
   return owner;
 }
 
+/* Copies of a placed design that are built in its own steps. A preset may ask for it (preset.copiesShareSteps: the
+   Dining chair, made as a set with Copy in a row): a placement that is an exact copy of the one the steps were
+   written for (the same preset and form values, S.sets, and the same pieces by name, board and size, however it was
+   moved, turned a quarter turn or mirrored) has each of its pieces put in the step that has the piece of the same
+   name. Every piece name of the stepped design must then be in one step only. Adds those pieces to `owner` and
+   returns {of: their ids, made: step index -> how many are built in it, most, name}. A copy that was changed is
+   not one, and gets steps of its own as before. */
+function copiesInSteps(owner){
+  const found={of:new Set(),made:new Map(),most:1,name:''},sets=S.sets||{};
+  const signature=pieces=>pieces.map(p=>[p.name,p.mat,r16(p.l),r16(p.w),r16(p.t)].join('|')).sort().join(',');
+  const stepped=new Set(S.parts.filter(p=>owner.has(p.id)&&p.set!==undefined&&p.set!==null).map(p=>String(p.set)));
+  for(const number of stepped){
+    const set=sets[number],preset=set&&PRESETS.find(row=>row.name===set.name);
+    if(!preset||!preset.copiesShareSteps)continue;
+    const own=S.parts.filter(p=>String(p.set)===number);
+    if(!own.every(p=>owner.has(p.id)))continue;
+    const stepOfName=new Map();
+    let oneStepEach=true;
+    for(const p of own){
+      if(stepOfName.has(p.name)&&stepOfName.get(p.name)!==owner.get(p.id))oneStepEach=false;
+      stepOfName.set(p.name,owner.get(p.id));
+    }
+    if(!oneStepEach)continue;
+    const mine=signature(own),vals=JSON.stringify(set.vals||{});
+    let made=1;
+    for(const[other,twin]of Object.entries(sets)){
+      if(other===number||!twin||twin.name!==set.name||JSON.stringify(twin.vals||{})!==vals)continue;
+      const theirs=S.parts.filter(p=>String(p.set)===other);
+      if(!theirs.length||theirs.some(p=>owner.has(p.id))||signature(theirs)!==mine)continue;
+      for(const p of theirs){owner.set(p.id,stepOfName.get(p.name));found.of.add(p.id);}
+      made++;
+    }
+    if(made<2)continue;
+    for(const index of new Set(stepOfName.values()))found.made.set(index,made);
+    found.most=Math.max(found.most,made);
+    found.name=set.name.toLowerCase();
+  }
+  return found;
+}
+
 /* ---------- where a fastener goes, in words and as size lines ----------
    For one joint and its layout: a sentence a person can mark the wood from, and the same distances as pairs of
    points for the size lines of the close-up picture, so the words and the picture cannot disagree.
@@ -1502,6 +1542,14 @@ const STEP_TOOLS={
   glue:'wood glue',
   banding:'household iron, and an edge banding trimmer or a sharp chisel',   // iron-on edge banding (the Computer desk)
 };
+/* the tools a preset step's own words name that the fasteners do not tell (step.tools, a list, or a list for each
+   build style: the Dining chair's block plane, its two clamps and, for the plugs, its flush-cut saw) */
+function presetStepTools(step){
+  const own=step.preset&&step.source!=='generated'?step.preset.tools:null;
+  if(Array.isArray(own))return own;
+  if(own&&typeof own==='object')return own[look().style]||own.std||[];
+  return[];
+}
 function stepTools(step){
   const tools=[];
   const add=tool=>{if(tool&&!tools.includes(tool))tools.push(tool);};
@@ -1509,6 +1557,7 @@ function stepTools(step){
     add('tape measure, pencil and square');add('saw');
     if(S.parts.some(p=>!isProp(p)&&M[p.mat].kind==='sheet'))add('straight-edge guide for the plywood');
     for(const tool of shapeToolLines(null,step.shapesElsewhere||[]))add(shapeLower(tool));   // what the shaped pieces need: a miter saw, a hole saw (js/shapedrawings.js)
+    for(const tool of presetStepTools(step))add(tool);
     add('safety glasses and hearing protection');
     return tools;
   }
@@ -1553,6 +1602,7 @@ function stepTools(step){
   };
   if(!step.groups.length&&!step.hardware.length&&(!step.pieces.length||step.pieces.every(isProp))){
     named();
+    for(const tool of presetStepTools(step))add(tool);
     return tools;
   }
   add(STEP_TOOLS.measure);
@@ -1588,8 +1638,11 @@ function stepTools(step){
   const said=words+' '+step.extra.join(' ');
   if(/\bnails?\b|\bnailed\b/i.test(said)&&!tools.some(tool=>/hammer|nailer/.test(tool)))add(STEP_TOOLS.frame);
   if(/\bscrews?\b/i.test(step.extra.join(' '))&&!tools.some(tool=>/drill/.test(tool)))add(STEP_TOOLS.screw);   // screws the preset counts itself (a roof set at a slope)
-  if(/\b(saw|cut|notch|trim)\b/i.test(words)&&!tools.includes('saw'))add('saw');
+  // (a saw the preset step names itself, a flush-cut saw for its plugs, is the saw its words speak of)
+  const ownTools=presetStepTools(step);
+  if(/\b(saw|cut|notch|trim)\b/i.test(words)&&!tools.includes('saw')&&!ownTools.some(tool=>/\bsaw\b/.test(tool)))add('saw');
   if(/\bladder\b/i.test(words))add('stepladder');
+  for(const tool of ownTools)add(tool);
   return tools;
 }
 
@@ -1869,6 +1922,12 @@ function makeBuildPlan(graph){
   const preset=(S.steps||[]).filter(step=>step&&Array.isArray(step.add));
   const own=preset.length>0;
   const owner=own?presetStepOfPieces(preset):new Map();
+  // copies of the placed design, built in its own steps when its preset asks for it (copiesInSteps, below)
+  const copies=own?copiesInSteps(owner):{of:new Set(),made:new Map(),most:1,name:''};
+  const copyWords=index=>{
+    const n=copies.made.get(index)||1;
+    return n>1?` Do this for each of the ${n} ${copies.name}s; the lists below count all ${n}.`:'';
+  };
   const drafts=[];   // {kind, source, words, was, pieces, extra, claims: preset step or null}
   const loose=S.parts.filter(p=>!owner.has(p.id));
 
@@ -1904,7 +1963,9 @@ function makeBuildPlan(graph){
         const kind=isFinishStep(step)?'finish':isCutStep(step)?'cut':pieces.length?'build':'note';
         // changed: its own pieces were resized, moved or deleted; or a piece it quotes a number about was (quotedMeasures)
         const quotesStale=Array.isArray(step.about)&&!measuresStillTrue(step.about);
-        const edited=pieces.length>0&&((step.sig&&!sameSignature(step.sig,stepSignature(pieces)))||quotesStale);
+        // (a copy built in this step is not a change: the step's own pieces are what it was written for)
+        const ownPieces=pieces.filter(p=>!copies.of.has(p.id));
+        const edited=pieces.length>0&&((step.sig&&!sameSignature(step.sig,stepSignature(ownPieces)))||quotesStale);
         // refresh: a design saved under an older rule for fasteners, whose fasteners in this step changed when it
         // was opened (js/fasteningupgrade.js): its old words describe the old fasteners, so it is written from the
         // pieces too, without the note that the person changed something
@@ -1913,7 +1974,9 @@ function makeBuildPlan(graph){
         // fasten: the preset's own lines for joints the program cannot see (rotated pieces). A line is a sentence,
         // or {line, uses: [[hardware-list label, count]]} when the preset has counted what it takes.
         const own=step.fasten||[];
-        drafts.push({kind,source:changed?'rewritten':'preset',words:stepText(step),was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,refreshed,
+        const copyLine=kind==='cut'&&copies.most>1?` You are making ${copies.most} ${copies.name}s: cut each piece for all of them at one saw setting, with a stop block clamped to the saw, so they come out alike.`
+          :pieces.length?copyWords(index):'';
+        drafts.push({kind,source:changed?'rewritten':'preset',words:stepText(step)+copyLine,was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,refreshed,
           extra:own.map(entry=>typeof entry==='string'?entry:entry.line),extraUses:own.flatMap(entry=>entry.uses||[]),uncounted:own.some(entry=>typeof entry==='string')});
       }
       for(const cluster of after.get(index)||[]){

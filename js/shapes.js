@@ -1593,11 +1593,16 @@ const PRESET_PRINTS={
   "Nightstand with drawers":[21,43,94,"1amjky2","uhgody"],
   "Cabinet / case":[10,24,77,"1pz6vmn","963zac"],
   "Computer desk":[36,79,175,"1mw3u3l","v2v1rt"],
+  // Branch chairs (spec 12 stage 1, with Amendment A, the solid wood seat): recorded from an empty design, twice the
+  // same, in Everyday with the leaning back, after a full selfTest read every other row back unchanged; recorded
+  // again after review, when the chair got its four corner blocks and its Front seat board (the same way)
+  "Dining chair":[22,45,62,"10kh4bx","bgg5lk"],
 };
 /* The presets that build shaped pieces on purpose, and the only pieces of each that may have a shape. Every other
    preset still builds none. The Storage box / toy chest: the air holes in its front and its two ends (the
    woodworker's-eye review, E3; buildStorageBox in js/builders-storage.js). */
-const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side']};
+const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side'],
+  'Dining chair':['Back leg']};   // js/diningchair.js: the one cut on each back leg that leans the back
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same
    way: main's loading now adds fields of its own, so the text read back is longer than it was on 40ae483) */
 const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg","mat":"2x4","l":30,"w":3.5,"t":1.5,"ax":[1,2,0],"pos":[0,0,0]},{"id":2,"name":"Top","mat":"ply34","l":24,"w":18,"t":0.75,"ax":[0,2,1],"pos":[0,30,0]},{"id":3,"name":"Brace","mat":"1x4","l":20,"w":3.5,"t":0.75,"ax":[0,1,2],"pos":[2,10,4],"rot":{"k":2,"deg":30}}],"joints":{},"stock":{},"notes":[],"steps":[],"hw":[],"nextId":4,"nextGrp":1}';

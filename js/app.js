@@ -325,7 +325,8 @@ function readVals(focusBad){
     const show=size=>q.int||q.dec?String(size):boxLen(size),name=splitLabel(q.label)[0]; // a limit is written the way its box shows it
     presetFieldNote=unreadable?CANNOT_READ
       :notWhole?`${name} must be a whole number, like ${v} or ${v+1}.`
-      :min!==undefined&&max!==undefined?`${name} must be between ${show(min)} and ${show(max)}.`
+      // (a row may say why its limits are what they are: q.why, the Dining chair's seat height, seat width and back height)
+      :min!==undefined&&max!==undefined?`${name} must be between ${show(min)} and ${show(max)}.${q.why?' '+q.why:''}`
       :tooSmall?`${name} cannot be less than ${show(min)}.`:`${name} cannot be more than ${show(max)}.`;
   });
   presetFoldOpenIfNeeded(vals);   // a red box or a changed value under "More options" is shown (js/presetentry.js)
@@ -465,6 +466,7 @@ function placePreset(preset,vals,parts,add,entryName){
   // and the lists then leave wood glue out for its screwed joints (hardwareTotals in js/style.js). Beside a
   // design that is glued, the glue stays on the list.
   if(preset.glue===false&&(!add||S.glue===false))S.glue=false;
+  else if(preset.glue===true||(add&&S.glue===true))S.glue=true;   // its steps glue joints that are pocket-screwed (the Dining chair)
   else delete S.glue;
   const setNumber=S.nextSet=(S.nextSet||0)+1;
   S.sets=S.sets||{};
@@ -516,8 +518,22 @@ function startingPreset(){
   const last=PRESETS.findIndex(p=>p.name===lastName&&!p.retired),firstTile=$('#presetCards .card');
   return last>=0?last:firstTile?+firstTile.dataset.i:0;
 }
+/* A check box whose start follows the open design (q.followsDesign, with `v` a getter: the Dining chair's "Straight
+   back legs", ticked in Rustic / rough) follows it again when the window is opened once more over a form left as it
+   was, so a style changed in between is seen. A box the person changed keeps what they chose (readFormBoxes in
+   js/catalog.js tells the two apart the same way, by defaultChecked: how the form was drawn). */
+function followDesignBoxes(){
+  for(const q of (curPreset&&curPreset.params)||[]){
+    if(!q.followsDesign||!q.check)continue;
+    const box=document.querySelector(`#presetForm [data-k="${q.k}"]`);
+    if(!box||box.type!=='checkbox'||box.checked!==box.defaultChecked)continue;   // changed by the person: kept
+    const start=!!q.v;
+    box.checked=start;
+    box.defaultChecked=start;
+  }
+}
 function openPresets(){
-  if(curPreset){$('#bPAdd').hidden=!S.parts.length;showPresetSummary();} // back where it was left, sizes and all
+  if(curPreset){$('#bPAdd').hidden=!S.parts.length;followDesignBoxes();showPresetSummary();} // back where it was left, sizes and all
   else choosePreset(startingPreset());
   $('#presetDlg').showModal();
   catalogOpened(); // js/catalog.js: the groups and tiles show the chosen design, the keyboard is in the search box

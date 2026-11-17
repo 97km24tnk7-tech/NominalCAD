@@ -106,6 +106,9 @@ const CATALOG=[
   {id:'gaming-desk',name:'Gaming desk',group:'tables',spec:'Drawers, shelf, tower bay',icon:'i-presets',
     builder:'Computer desk',start:GAMING_DESK_START,short:COMPUTER_DESK_SHORT,desc:GAMING_DESK_WORDS,tags:['doors','gaming','computer','pc','tower','monitor shelf','desk','drawers']},
   // Seating
+  // the Dining chair (js/diningchair.js): made from the Dining table's own lumber, to stand beside it
+  {id:'dining-chair',name:'Dining chair',group:'seating',spec:'Matches the Dining table',icon:'i-p-chair',
+    builder:'Dining chair',tags:['beginner','chair','dining','kitchen','farmhouse','seat','table']},
   {id:'sturdy-bench',name:'Sturdy bench',group:'seating',spec:'4x4s, 2x4s and 2x6s',icon:'i-p-bench',
     builder:'Sturdy bench',tags:['beginner','bench','seat','patio']},
   {id:'five-board-bench',name:'Five-board bench',group:'seating',spec:'Classic first project',icon:'i-p-bench',
@@ -431,8 +434,14 @@ function drawTiles(){
 /* the boxes of the form the catalog filled, read as they are now: {field key: text or true/false} */
 function readFormBoxes(){
   const values={};
+  // a row whose start value follows the design that is open (q.followsDesign: the Dining chair's "Straight back
+  // legs", ticked in Rustic) is remembered only when the person changed it; left as it started, it follows the
+  // design again the next time the form is shown
+  const params=typeof curPreset!=='undefined'&&curPreset&&curPreset.params||[];
   document.querySelectorAll('#presetForm [data-k]').forEach(box=>{
-    values[box.dataset.k]=box.type==='checkbox'?box.checked:box.value;
+    const value=box.type==='checkbox'?box.checked:box.value,q=params.find(row=>row.k===box.dataset.k);
+    if(q&&q.followsDesign&&box.type==='checkbox'&&value===box.defaultChecked)return;   // (defaultChecked: as the form was drawn)
+    values[box.dataset.k]=value;
   });
   return values;
 }

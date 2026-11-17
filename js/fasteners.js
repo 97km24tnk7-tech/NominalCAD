@@ -587,7 +587,12 @@ function pocketScrews(j,shape,n,len,label){
   // jSpec counts the holes that are left. When none is left the row stays as it was: placing a preset turns such a
   // joint into one that only rests (roomForTopRows, js/joints.js), so this only happens after a change by hand.
   const placed=alongs.map((place,index)=>({...place,index})).filter(place=>!inEndHoles(place.at));
-  const rows=placed.length?placed:alongs.map((place,index)=>({...place,index}));
+  // A hole that rule 10 found no clear place for (still under the third piece) cannot be drilled or driven: it is
+  // left out too, as long as another hole of the row is left (the back seat board of the Dining chair, whose
+  // underside lies on the back seat rail over 1 1/2" of the 3 1/2" it meets each back leg with).
+  const stillCovered=at=>blocked.spans.some(([a,b])=>at>a-.3&&at<b+.3);
+  const clearPlaced=placed.filter(place=>!stillCovered(place.at));
+  const rows=clearPlaced.length?clearPlaced:placed.length?placed:alongs.map((place,index)=>({...place,index}));
   const list=rows.map(({at,moved,index})=>{
     const why=!moved?{}:inEndHoles(evenly[index])?{passEnds:endHoles.names}:{clear:blocked.names,...(bolts.length?{pastBolt:true}:{})};
     const cross=[0,0,0];

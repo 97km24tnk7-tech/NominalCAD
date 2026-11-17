@@ -57,6 +57,7 @@ const WORD_LINKS=[
   {re:/\bbevel(?:led|s)?\b|\bblade tilt(?:ed)?\b/i,word:'Bevel'},
   {re:/\brounded ends?\b/i,word:'Rounded end'},
   {re:/\bnotch(?:es|ed)?\b/i,word:'Notch'},
+  {re:/\btaper(?:ed|s)?\b/i,word:'Taper'},
   {re:/\bslots?\b/i,word:'Slot'},
   {re:/\bcut-outs?\b/i,word:'Cut-out'},
   {re:/\bstarter holes?\b/i,word:'Starter hole'},
