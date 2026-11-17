@@ -83,7 +83,8 @@ const PRESETS=[
   uses:{'Slat':'bedSlat','Cleat':'bedSlat','Center beam':'bedSlat','Side rail':'bedSlat','End rail':'bedSlat'}},
  {name:'Shed',spec:'Gable or lean-to roof',desc:'Adjustable storage shed: floor on skids, stud walls sheathed in plywood, a gable or lean-to roof, with a door opening and window openings where you want them. Build at your own risk.',
   params:[{head:'Size'},
-   num('W','Width (left to right)',120,48,192),num('D','Depth (front to back)',96,48,144),num('Hb','Wall height (the low back wall of a lean-to)',84,72,96),
+   // the size of the floor frame, as sheds are sold and permitted (the wall sheathing and the roof overhang go past it)
+   num('W','Floor width (left to right)',120,48,192),num('D','Floor depth (front to back)',96,48,144),num('Hb','Wall height (the low back wall of a lean-to)',84,72,96),
    {head:'Roof'},
    {k:'roof',label:'Roof style',opts:[['gable','Gable: a peak in the middle'],['lean','Lean-to: one slope, high at the front']],v:'gable'},
    {k:'pitch',label:'Roof slope (inches up per foot)',v:4,dec:1,min:1,max:12},{k:'sp',label:'Wall studs, middle to middle',opts:[['16','16" apart'],['24','24" apart']],v:'16'},
@@ -110,7 +111,7 @@ const PRESETS=[
   // (some 28 quarts of polyurethane) is not what anyone buys. Style & finish can still change it.
   look:OUTDOOR_LOOK},
  {name:'Bird feeder',spec:'Tray with a pitched roof',desc:'Platform feeder with a pitched roof. A good first project from fence pickets or 1x boards.',
-  params:[num('L','Length',12,...FEEDER_LIMITS.L)],
+  params:[num('L','Tray length',12,...FEEDER_LIMITS.L)],   // the roof is 2" longer, an inch past each end
   build:buildFeeder,steps:feederSteps,notes:feederNotes,uses:FEEDER_USES,
   hw:()=>[['Screw eyes',2],['Chain or rope, feet',4],[FEEDER_ROOF_SCREW,FEEDER_ROOF_SCREWS]],look:OUTDOOR_CEDAR,joints:FEEDER_JOINTS},
  {name:'Bookshelf',spec:'Fixed shelves, thin back',desc:'Sides, fixed shelves, toe kick and a thin plywood back. Wide ones get upright dividers so the shelves cannot sag.',
@@ -158,7 +159,7 @@ const PRESETS=[
   // garage shelving is left bare and put together with screws alone: no polyurethane and no glue on its lists
   look:{finish:'none'},glue:false},
  {name:'Storage box / toy chest',spec:'Plywood box, hinged lid',desc:'Plywood box with a hinged lid.',
-  params:[num('W','Width',30,...STORAGE_BOX_LIMITS.W),num('D','Depth',16,...STORAGE_BOX_LIMITS.D),num('H','Height',16,...STORAGE_BOX_LIMITS.H),
+  params:[num('W','Width',30,...STORAGE_BOX_LIMITS.W),num('D','Depth',16,...STORAGE_BOX_LIMITS.D),num('H','Height (overall, with the lid)',16,...STORAGE_BOX_LIMITS.H),
    {k:'ply',label:'Plywood',opts:[['ply34','3/4"'],['ply12','1/2"']],v:'ply34'},{k:'lid',label:'Lid',check:1,v:true}],
   build:buildStorageBox,steps:storageBoxSteps,info:storageBoxInfo,notes:storageBoxNotes,hw:storageBoxHardware,uses:STORAGE_BOX_USES,joints:STORAGE_BOX_JOINTS},
  {name:'Planter box',spec:'1x6 sides, slatted bottom',desc:'1x6 sides on 2x2 corner posts that double as feet, with a slatted bottom that drains.',
@@ -175,7 +176,8 @@ const PRESETS=[
  tablePreset('Entryway shoe bench','Sit-down bench with a slatted shoe shelf underneath.',
   [num('L','Length',42,24,60),num('W','Seat depth',16.5,11,24),num('H','Seat height',18,16,24)]),
  {name:'Base cabinet with doors',tile:'Base cabinet',spec:'Shelf, doors and a top',desc:'Plywood cabinet with a shelf, doors and a countertop. Good for a garage or laundry room.',
-  params:[num('W','Width',30,...CABINET_LIMITS.W),num('D','Depth',24,...CABINET_LIMITS.D),num('H','Height (without top)',34.5,...CABINET_LIMITS.H)],
+  // the overall size, the countertop included (cabinetCase in js/builders-storage.js works out the cabinet)
+  params:[num('W','Width (of the countertop)',30,...CABINET_LIMITS.W),num('D','Depth (overall, with the countertop)',25,...CABINET_LIMITS.D),num('H','Height (floor to the top)',35.25,...CABINET_LIMITS.H)],
   build:buildCabinet,steps:cabinetSteps,info:cabinetInfo,notes:cabinetNotes,hw:cabinetHardware,uses:CABINET_USES,joints:CABINET_JOINTS},
  {name:'Wall shelf',spec:'Board on a wall cleat',desc:'A board shelf on a wall cleat with supports under it. Screws into wall studs.',
   params:[num('L','Length',36,...WALL_SHELF_LIMITS.L),{k:'board',label:'Shelf depth',opts:[['1x6','5 1/2" (1x6)'],['1x8','7 1/4" (1x8)'],['1x10','9 1/4" (1x10)']],v:'1x8'},

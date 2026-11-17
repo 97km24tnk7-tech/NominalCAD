@@ -526,7 +526,13 @@ function garageSteps(p){
    rail for the screws into the wall, a shelf, a 1/4" back, a countertop and overlay doors. A 3/4" plywood shelf sags under a garage load once it
    spans more than about 30", so a wider cabinet gets a partition that stands on the floor like the sides.
    ====================================================================================================== */
-const CABINET_LIMITS={W:[12,48],D:[12,30],H:[24,42]};
+/* The form asks for the OVERALL size (the owner's rule: what a person types is what they get): the width and the
+   depth of the countertop with the back panel behind it, and the height from the floor to the top of the
+   countertop. The cabinet under the countertop is worked out from them (cabinetCase). The limits keep the cabinet
+   within the sizes it was checked for: 12" to 47" wide, 12 3/4" to 28 3/4" deep, 24 1/4" to 41 1/4" tall. */
+const CABINET_LIMITS={W:[13,48],D:[14,30],H:[25,42]};
+const CABINET_TOP={side:.5,front:1,thick:.75,back:.25};   // the countertop overhangs 1/2" at each side and 1" at the front; the 1/4" back panel is behind the sides
+const cabinetCase=overall=>({W:r16(overall.W-2*CABINET_TOP.side),D:r16(overall.D-CABINET_TOP.front-CABINET_TOP.back),H:r16(overall.H-CABINET_TOP.thick)});
 const CABINET_ONE_DOOR_BELOW=21;    // narrower than this, one door; from here up, a pair
 const CABINET_USES={Side:'none',Partition:'none',Bottom:'shelf',Shelf:'shelf',Countertop:'tableTop','Top rail':'tableTop','Toe kick':'shelf','Base rail':'shelf','Back rail':'none',Door:'door'};
 /* Fasteners the cabinet names itself: the countertop is screwed from below through the top rails, and only rests
@@ -536,9 +542,11 @@ const CABINET_JOINTS=[['Countertop','Side','none'],['Countertop','Partition','no
 
 function cabinetPlan(p){
   const T=.75;
-  const W=sizeWithin(p.W,CABINET_LIMITS.W),D=sizeWithin(p.D,CABINET_LIMITS.D),H=sizeWithin(p.H,CABINET_LIMITS.H);
+  // the overall size typed; W, D and H from here on are the cabinet under the countertop
+  const overall={W:sizeWithin(p.W,CABINET_LIMITS.W),D:sizeWithin(p.D,CABINET_LIMITS.D),H:sizeWithin(p.H,CABINET_LIMITS.H)};
+  const{W,D,H}=cabinetCase(overall);
   const bays=splitIntoBays(T,W-T,T,flatSpanLimit(T,true,'shelf')*.98);
-  return{T,W,D,H,bays,partitions:bays.length-1,doors:W<CABINET_ONE_DOOR_BELOW?1:2,
+  return{T,W,D,H,overall,bays,partitions:bays.length-1,doors:W<CABINET_ONE_DOOR_BELOW?1:2,
     studs:Math.max(1,Math.ceil(W/16)),   // wall studs the back rail can reach
     shelfY:r16(4.25+(H-5)/2-.375)};   // halfway between the bottom and the top rails
 }
@@ -557,7 +565,7 @@ function buildCabinet(p){
   });
   P.push(mk('Top rail','ply34',[W-2*T,T,3.5],[T,H-T,0]),mk('Top rail','ply34',[W-2*T,T,3.5],[T,H-T,D-3.5]),
     mk('Back panel','ply14',[W,H-3.5,.25],[0,3.5,-.25]),
-    mk('Countertop','ply34',[W+1,T,D+1],[-.5,H,0]));
+    mk('Countertop','ply34',[W+2*CABINET_TOP.side,CABINET_TOP.thick,D+CABINET_TOP.front],[-CABINET_TOP.side,H,0]));
   if(s.doors===1)P.push(mk('Door','ply34',[W-.25,H-4,T],[.125,3.75,D]));
   else{
     const doorWidth=(W-.375)/2;
@@ -567,7 +575,9 @@ function buildCabinet(p){
 }
 function cabinetInfo(p){
   const s=cabinetPlan(p);
-  return s.partitions?`A 3/4" plywood shelf sags under a garage load when it spans more than about ${fmt(Math.floor(flatSpanLimit(s.T,true,'shelf')))}, so this cabinet gets a partition in the middle.`:'';
+  // the sizes typed are the overall size: say what the cabinet under the countertop comes out at
+  const under=`The countertop overhangs the cabinet ${fmt(CABINET_TOP.side)} at each side and ${fmt(CABINET_TOP.front)} at the front, so the cabinet under it is ${fmt(s.W)} wide, ${fmt(s.D)} deep and ${fmt(s.H)} tall.`;
+  return under+(s.partitions?` A 3/4" plywood shelf sags under a garage load when it spans more than about ${fmt(Math.floor(flatSpanLimit(s.T,true,'shelf')))}, so this cabinet gets a partition in the middle.`:'');
 }
 function cabinetNotes(p){
   const s=cabinetPlan(p),bay=Math.max(...s.bays.map(b=>b.len));
@@ -681,17 +691,21 @@ function wallShelfSteps(p){
    that rests on the walls. People sit on toy chests, so the lid is sized as a seat: a 1/2" box whose lid would
    span too far for a person gets a 3/4" lid.
    ====================================================================================================== */
-const STORAGE_BOX_LIMITS={W:[12,48],D:[10,24],H:[8,24]};
+/* The form asks for the OVERALL size (what a person types is what they get): with the lid on, the height is to the
+   top of the lid, and the walls are that much lower (the lid lies on them and is as wide and deep as the box). */
+const STORAGE_BOX_LIMITS={W:[12,48],D:[10,24],H:[9,24]};
 const STORAGE_BOX_USES={Lid:'lid',Bottom:'general',Front:'none',Back:'none',Side:'none'};
 
 function storageBoxPlan(p){
   const ply=M[p.ply]&&M[p.ply].kind==='sheet'&&M[p.ply].t>=.5?p.ply:'ply34',t=M[ply].t;
-  const W=sizeWithin(p.W,STORAGE_BOX_LIMITS.W),D=sizeWithin(p.D,STORAGE_BOX_LIMITS.D),H=sizeWithin(p.H,STORAGE_BOX_LIMITS.H);
+  const W=sizeWithin(p.W,STORAGE_BOX_LIMITS.W),D=sizeWithin(p.D,STORAGE_BOX_LIMITS.D),overallH=sizeWithin(p.H,STORAGE_BOX_LIMITS.H);
   // The lid is held along all four walls, so it only has to make the shorter distance. Somebody will sit on it,
   // so when the chosen plywood cannot carry a person that far the lid is cut from 3/4" plywood instead.
   const lidSpan=Math.min(W,D)-2*t;
-  const lidPly=lidSpan>flatSpanLimit(t,true,'seat')*.98?'ply34':ply;
-  return{ply,t,W,D,H,lid:!!p.lid,lidSpan,lidPly,lidT:M[lidPly].t,thickerLid:lidPly!==ply};
+  const lidPly=lidSpan>flatSpanLimit(t,true,'seat')*.98?'ply34':ply,lidT=M[lidPly].t;
+  // H from here on is the height of the walls: the overall height less the lid that lies on them
+  const H=r16(p.lid?overallH-lidT:overallH);
+  return{ply,t,W,D,H,overallH,lid:!!p.lid,lidSpan,lidPly,lidT,thickerLid:lidPly!==ply};
 }
 function buildStorageBox(p){
   const s=storageBoxPlan(p),{ply,t,W,D,H}=s;
@@ -703,7 +717,9 @@ function buildStorageBox(p){
 }
 function storageBoxInfo(p){
   const s=storageBoxPlan(p);
-  return s.lid&&s.thickerLid?`The lid is cut from 3/4" plywood: a ${fmt(s.t)} lid ${fmt(s.lidSpan)} across would crack if someone sat on it.`:'';
+  const thicker=s.lid&&s.thickerLid?`The lid is cut from 3/4" plywood: a ${fmt(s.t)} lid ${fmt(s.lidSpan)} across would crack if someone sat on it. `:'';
+  // the height typed is the overall height: with the lid on, the walls are the lid's thickness lower
+  return thicker+(s.lid?`The walls are ${fmt(s.H)} tall, so with the ${fmt(s.lidT)} lid on top it stands ${typedLen(s.overallH)} tall.`:'');
 }
 function storageBoxNotes(p){
   const s=storageBoxPlan(p);

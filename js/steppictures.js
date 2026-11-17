@@ -51,6 +51,9 @@ function fastenerMarkers(fasteners,look){
       const mouth=f.pocket.mouth,long=Math.hypot(f.pos[0]-mouth[0],f.pos[1]-mouth[1],f.pos[2]-mouth[2]);
       sticks.push([stickAt(mouth,f.dir,f.pocket.dia/2,long),0x6b7d99]);
     }
+    // a plugged head (rule 12, js/fasteners.js): the plug that fills the counterbore over the head, a short round
+    // of wood from the face down to the head, in the color the 3D view gives plugs
+    if(f.plug&&look.real)sticks.push([stickAt(f.plug.at,f.dir,f.plug.dia/2,Math.max(.05,f.sunk-.04)),FASTENER_LOOK.plug]);
   }
   const group=new THREE.Group();
   // onTop: drawn after the wood, see-through wood included (three.js draws transparent things last, in renderOrder)
@@ -551,6 +554,7 @@ function drawCornerLabels(pen,labels){
   }
   for(const label of labels)textBox(ctx,label.lines,[label.rect.x,label.rect.y]);
 }
+let closeupLabelsDrawn=[];   // the words of the labels of the close-up drawn last, for the self-check
 function drawCloseupLabels(pen,group,shape,center,reach){
   const{ctx,point,width,height}=pen,{layout,link}=group.sample,f0=layout[0];
   const letterOf=buildPlan().letterOf,taken=[];   // taken: the rectangles that already hold text
@@ -576,6 +580,12 @@ function drawCloseupLabels(pen,group,shape,center,reach){
     const mouth=layout[0].pocket.mouth,underneath=f0.pocket.out[1]<-.5;
     labels.push({target:point(mouth),lines:[{text:'Drill the pocket holes here',size:27,bold:true},{text:underneath?'on the underside (seen from below)':'on this face: the inside face',size:23}]});
   }
+  // a plugged head: the plug over it, in the counterbore (the fourth corner; a pocket hole is never plugged this way)
+  if(f0.plug&&f0.kind!=='pocket'){
+    const cover=plugCoverWords(f0);
+    labels.push({target:point(pointPlus(f0.plug.at,f0.dir,f0.sunk/2)),lines:[{text:cover.name,size:27,bold:true}].concat(cover.does.map(text=>({text,size:23})))});
+  }
+  closeupLabelsDrawn=labels.map(label=>label.lines.map(one=>one.text).join(' '));
   drawCornerLabels(pen,labels);
   void overlaps;void taken;void width;void height;
   const a=pieceLabel(f0.through,letterOf),b=pieceLabel(f0.into,letterOf);
@@ -761,7 +771,9 @@ function stepPictures(plan){
       // (words: where the line says the fasteners go, shown under the picture when it is opened large)
       // (mark: the marking view, a key drawn when it is seen; markingSource(mark) draws it)
       entry.closeups.push({no:group.no,src:closeupPicture(step,group,view.fresh),mark:markingPictureLater(jointMarkPlan(group,plan.letterOf)),
-        caption:`Close-up of line ${group.no}`+(others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.'),
+        // (a line whose places are marked differently names the one shown: group.sampleAt, js/buildsteps.js)
+        caption:`Close-up of line ${group.no}`+(group.sampleAt?`, ${group.sampleOneOf?'one of the places at':'at'} ${group.sampleAt}. ${others>1?`At the other ${others} places`:'At the other place'}, mark as the line says.`
+          :others>1?`. Do the same at the other ${others} places.`:others===1?'. Do the same at the other place.':'.'),
         words:group.where||''});
     }
     // and one for each line of hardware that has numbers to show (hinges, pulls, slides, runners, kickers)
@@ -849,5 +861,22 @@ SELFTESTS.push(function stepPicturesShowTheWork(problems){
   else{
     const f=pocket.sample.layout[0],eye=closeupEye(f,pocket.sample.link.joint,f.pos);
     if(eye[0]*f.pocket.out[0]+eye[1]*f.pocket.out[1]+eye[2]*f.pocket.out[2]<=.3)wrong('the close-up of a pocket-hole joint is not seen from the face the holes are drilled in');
+  }
+  // A plugged screw: the close-up draws the plug over each head (a third stick per screw: body, head, plug) and
+  // labels it, and the marking view's legend names the 3/8" counterbore (the bed's side rails into its legs)
+  const bed=place('Platform bed');
+  const plugged=bed.steps.flatMap(step=>step.groups.map(group=>({step,group}))).find(one=>one.group.sample&&one.group.sample.layout.some(f=>f.plug));
+  if(!plugged)wrong('the Platform bed has no line of plugged screws to check the pictures of');
+  else{
+    const{step,group}=plugged,layout=group.sample.layout;
+    const markers=fastenerMarkers(layout,{color:STEP_COL.fastener,minRadius:CLOSEUP_MIN_RADIUS,onTop:true,real:true});
+    const sticks=markers.children.reduce((sum,mesh)=>sum+(mesh.count||0),0);
+    if(sticks!==layout.length*3)wrong(`the close-up of the plugged screws draws ${sticks} shapes for ${layout.length} screws: each needs its body, its head and the plug over it`);
+    emptyGroup(markers);
+    closeupLabelsDrawn=[];
+    closeupPicture(step,group,new Set(step.pieces.map(p=>p.id)));
+    if(!closeupLabelsDrawn.some(text=>/^Wooden plug .*3\/8" counterbore/.test(text)))wrong(`the close-up of the plugged screws does not label the plug and its counterbore: ${closeupLabelsDrawn.join(' / ')}`);
+    const plan=jointMarkPlan(group,bed.letterOf);
+    if(!plan||!plan.legend.some(entry=>/3\/8" counterbore 3\/8" deep there for the wooden plug/.test(entry.text)))wrong(`the marking view of the plugged screws does not name the 3/8" counterbore in its legend: ${plan?plan.legend.map(entry=>entry.text).join(' / '):'no view'}`);
   }
 });

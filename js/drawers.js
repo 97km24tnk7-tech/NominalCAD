@@ -387,16 +387,23 @@ SELFTESTS.push(function drawersOnRealSlides(problems){
     if(!motionTroubles().some(trouble=>/Block/.test(trouble.text))||$('#stMotion').hidden)wrong('a drawer pulled into a block shows no warning that names the block');
 
     // the tip rule: what would fall forward is still refused with a reason and a fix, and what is built holds
+    // Cabinets small, light and low with no open shelf: the 14 by 12 one, 16" tall, tips. The form now asks for
+    // the overall size and stops at 21" tall, where nothing it allows tips; so that the rule itself stays checked,
+    // these cabinets are typed as their overall sizes with the form's lowest height let down for the loop.
     let refused=0;
-    for(const D of[12,13,14])for(const W of[14,16]){   // small, light and low with no open shelf: the 14 by 12 one tips
-      const vals={...usual,W,D,H:16,N:'1',cub:false},plan=nightstandPlan(vals),built=preset.build(vals).length>0;
-      if(built&&plan.tip.factor<NS.tipStop)wrong(`a nightstand ${W}" wide and ${D}" deep is built although a full open drawer tips it`);
-      if(!built){
-        refused++;
-        const refusal=nightstandCheck(vals)[0];
-        if(!refusal||refusal.level!=='stop'||!refusal.fix)wrong(`a nightstand ${W}" wide and ${D}" deep is not built, and check(p) does not say why`);
+    const lowestKept=NS.minHeight;
+    try{
+      NS.minHeight=nightstandOverall({W:14,D:12,H:16},'overlay').H;
+      for(const D of[12,13,14])for(const W of[14,16]){
+        const vals={...usual,...nightstandOverall({W,D,H:16},'overlay'),N:'1',cub:false},plan=nightstandPlan(vals),built=preset.build(vals).length>0;
+        if(built&&plan.tip.factor<NS.tipStop)wrong(`a nightstand ${W}" wide and ${D}" deep is built although a full open drawer tips it`);
+        if(!built){
+          refused++;
+          const refusal=nightstandCheck(vals)[0];
+          if(!refusal||refusal.level!=='stop'||!refusal.fix)wrong(`a nightstand ${W}" wide and ${D}" deep is not built, and check(p) does not say why`);
+        }
       }
-    }
+    }finally{NS.minHeight=lowestKept;}
     if(!refused)wrong('the tip rule refuses nothing any more');
     // wooden runners let a drawer out two thirds of the way, so they tip a cabinet less, never more
     const onSlides=nightstandPlan(usual),onRunners=nightstandPlan({...usual,slides:'runner'});

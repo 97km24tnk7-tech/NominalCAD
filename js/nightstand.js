@@ -30,9 +30,16 @@ const NS={
   maxFront:12,            // a taller front makes a heavy drawer that pulls the cabinet over when it is open
   minShelf:6,             // an open shelf lower than this holds nothing
   maxDrawers:4,
-  // 30 in wide is the most a 3/4 in plywood bottom, shelf or rail spans between the sides without sagging
-  // under a full load (the structural check allows about 29 in clear; 30 less the two sides is 28 1/2)
-  minWidth:14,maxWidth:30,minDepth:12,maxDepth:24,minHeight:16,maxHeight:36,
+  top:.75,                // the top is 3/4" plywood
+  back:.25,               // the back panel is 1/4" plywood, nailed on behind the sides; the top covers its edge
+  /* The limits of the form. Its Width, Depth and Height are the OVERALL size of the piece, the top included (the
+     owner's rule: what a person types is what they get): the width and the depth of the top, and the height from
+     the floor to the top of the top. The cabinet under the top is worked out from them (nightstandCase).
+     30" wide overall leaves a cabinet 29" wide: about the most a 3/4" plywood bottom, shelf or rail spans between
+     the sides without sagging under a full load (the structural check allows about 29" clear; 29 less the two
+     sides is 27 1/2). Lower than 21" overall, a cabinet of the usual width and depth with two drawers over an open
+     shelf only just passes the tip check (a full top drawer pulled out). */
+  minWidth:15,maxWidth:30,minDepth:13.5,maxDepth:24,minHeight:21,maxHeight:36,
   plyDensity:.0197,       // lb per cubic inch of softwood plywood (about 34 lb per cubic foot)
   loadPerCubicFoot:10,    // lb: a drawer packed tight with clothes
   minLoad:10,             // lb: or a small drawer with a few heavy books in it
@@ -69,6 +76,20 @@ function nightstandPlan(p){
   }
   return plan.tip.factor>=NS.tipStop?plan:first;
 }
+/* How far the top reaches past the front edges of the cabinet sides: past the drawer fronts by NS.topFront, and
+   overlay fronts stand out of the cabinet by their thickness and the gap behind them. */
+const nightstandTopPast=style=>(style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0)+NS.topFront;
+/* The cabinet under the top, from the overall size typed in the form ({W, D, H}: the width and the depth of the
+   top, the height to the top of the top): narrower by the overhang at each side, lower by the top, and shallower
+   by the back panel behind the sides and by what the top reaches past the front of the sides. */
+function nightstandCase(overall,style){
+  return{W:r16(overall.W-2*NS.topSide),D:r16(overall.D-NS.back-nightstandTopPast(style)),H:r16(overall.H-NS.top)};
+}
+/* The other way round: the overall size of a cabinet of these sizes with its top (for a self-check that thinks in
+   cabinet sizes, and for reading an older design). */
+function nightstandOverall(cabinet,style){
+  return{W:cabinet.W+2*NS.topSide,D:cabinet.D+NS.back+nightstandTopPast(style),H:cabinet.H+NS.top};
+}
 /* One layout, with no tip check. `force` lets nightstandPlan try lighter drawers: {frontHeight} with an open
    shelf, {drawers} without one. */
 function nightstandLayout(p,force){
@@ -79,10 +100,10 @@ function nightstandLayout(p,force){
     if(value>hi){changed.push(`${what} was cut back to ${typedLen(hi)}, the largest this design is checked for.`);return hi;}
     return value;
   };
-  const W=within(p.W,NS.minWidth,NS.maxWidth,'Width');
-  const D=within(p.D,NS.minDepth,NS.maxDepth,'Depth');
-  const H=within(p.H,NS.minHeight,NS.maxHeight,'Height');
   const kind=p.slides==='runner'?'runner':'slide',style=p.fronts==='inset'?'inset':'overlay';
+  // the sizes typed are the overall size; W, D and H from here on are the cabinet under the top
+  const overall={W:within(p.W,NS.minWidth,NS.maxWidth,'Width'),D:within(p.D,NS.minDepth,NS.maxDepth,'Depth'),H:within(p.H,NS.minHeight,NS.maxHeight,'Height')};
+  const{W,D,H}=nightstandCase(overall,style);
   const gap=DRAWER.frontGap,panel=.75;
   /* Where the stack of drawer fronts ends, top and bottom.
      Overlay: the top front stops one gap under the top, and the bottom front covers the edge of the panel below it.
@@ -145,7 +166,7 @@ function nightstandLayout(p,force){
     lap:{side:panel-NS.frontReveal,top:panel-gap,bottom:panel}});   // overlay: all but the reveal of each side, the rail less the gap, the whole panel edge
   const drawer=drawerPlan(openingOf(fronts[0]),drawerOptions(0));   // every clearance comes from DRAWER (js/drawers.js)
   if(drawer.bottomThick>.25)changed.push('The drawer bottoms are 1/2" plywood: in a drawer this size a 1/4" bottom would sag when the drawer is full.');
-  return{W,D,H,kind,style,minFront,shelf:!!p.cub,shelfHeight,floorOfCabinet,frontsFrom,drawers,frontHeight,fronts,changed,
+  return{W,D,H,overall,kind,style,minFront,shelf:!!p.cub,shelfHeight,floorOfCabinet,frontsFrom,drawers,frontHeight,fronts,changed,
     kickerPairs,   // how many drawers get a pair of kicker strips above them (the lower ones, on runners, behind overlay fronts)
     openingOf,drawerOptions,drawer,
     // the numbers of every drawer, under the names the rest of this file uses
@@ -172,10 +193,10 @@ function nightstandPieces(plan){
     mk('Top rail','ply34',[inner,.75,NS.rail],[.75,H-.75,0]),
     mk('Top rail','ply34',[inner,.75,NS.rail],[.75,H-.75,D-NS.rail]));
   if(plan.shelf)parts.push(mk('Shelf','ply34',[inner,.75,D],[.75,plan.floorOfCabinet+plan.shelfHeight,0]));
-  parts.push(mk('Back panel','ply14',[W,H-NS.kick,.25],[0,NS.kick,-.25]));
-  // the top covers the back panel's edge and reaches past the drawer fronts (past the cabinet, when they are inset)
-  const pastCabinet=plan.style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0;
-  parts.push(mk('Top','ply34',[W+2*NS.topSide,.75,.25+D+pastCabinet+NS.topFront],[-NS.topSide,H,-.25]));
+  parts.push(mk('Back panel','ply14',[W,H-NS.kick,NS.back],[0,NS.kick,-NS.back]));
+  // the top covers the back panel's edge and reaches past the drawer fronts (past the cabinet, when they are inset):
+  // it is the overall size typed in the form (nightstandCase)
+  parts.push(mk('Top','ply34',[W+2*NS.topSide,NS.top,NS.back+D+nightstandTopPast(plan.style)],[-NS.topSide,H,-NS.back]));
   // the drawers, bottom one first: each its own subcomponent, "Drawer 1" at the bottom
   plan.fronts.forEach((front,index)=>parts.push(...buildDrawer(plan.openingOf(front),plan.drawerOptions(index))));
   return parts;
@@ -231,6 +252,8 @@ function nightstandInfo(p){
   if(tip.factor<NS.tipStop)return[...plan.changed,
     `Not built: at this size it would fall forward with the top drawer pulled all the way out and ${tip.load} lb in it, even with the smallest drawers that fit. Make it deeper or wider${plan.shelf?'':', or tick the open shelf'}.`].join(' ');
   const text=[...plan.changed,
+    // the sizes typed are the overall size: say what the cabinet under the top comes out at
+    `The top overhangs the cabinet ${fmt(NS.topSide)} at each side and ${fmt(nightstandTopPast(plan.style))} at the front, so the cabinet under it is ${fmt(plan.W)} wide and ${fmt(plan.D)} deep.`,
     `${plan.drawers} drawer${plan.drawers>1?'s':''} on ${nightstandRunsOn(plan)}, each ${plan.style} front ${fmt(plan.frontHeight)} tall${plan.shelf?`, over an open shelf ${fmt(plan.shelfHeight)} tall`:''}. Inside, each drawer is ${fmt(plan.boxWidth-1)} wide and ${fmt(plan.boxHeight-plan.bottomThick)} deep, and comes out ${fmt(r16(plan.travel))}.`];
   if(!plan.shelf&&p.fh!==undefined)text.push('With no open shelf the drawers share the whole height, so the drawer front height box is not used.');
   // a tip check that passes "but not by much" is said by the warning box above this remark (nightstandCheck)
@@ -281,7 +304,7 @@ function nightstandSteps(p){
     rustic:`Fasten the shelf between the sides, with its underside ${fmt(plan.shelfHeight)} above the bottom panel. Cut two scrap blocks ${fmt(plan.shelfHeight)} long, stand them on the bottom panel and rest the shelf on them while you screw through the sides into its ends.`},['Shelf']));
   steps.push(
     {t:'Lay the cabinet on its front. Measure corner to corner both ways and push it until the two measurements match, then glue and nail the back panel on, flush with the outside of the sides and the top. The back is what keeps the cabinet square, so do not skip the glue.',add:['Back panel']},
-    {t:`Stand the cabinet up. Run a thin line of glue along the top edges of the two sides, then set the top on: flush with the back of the back panel, ${fmt(NS.topSide)} past each side, and ${fmt((plan.style==='overlay'?DRAWER.overlayStandoff+DRAWER.frontThick:0)+NS.topFront)} past the front of the cabinet. Screw up through the two top rails into the top with 1-1/4" screws, from inside the cabinet, so no screw shows on top.`,add:['Top']},
+    {t:`Stand the cabinet up. Run a thin line of glue along the top edges of the two sides, then set the top on: flush with the back of the back panel, ${fmt(NS.topSide)} past each side, and ${fmt(nightstandTopPast(plan.style))} past the front of the cabinet. Screw up through the two top rails into the top with 1-1/4" screws, from inside the cabinet, so no screw shows on top.`,add:['Top']},
     {t:`Build ${many?`the ${plan.drawers} drawer boxes, all the same`:'the drawer box'}. Stand the drawer box front and the drawer box back between the two drawer sides, so the sides cover their ends: ${whySidesRunThrough}. Glue each corner, then nail through the sides into the ends of the box front and the box back with brads (if you are using a hammer, drill a thin pilot hole first so the plywood does not split). Check the box is square, then glue and nail the bottom on underneath, flush at the back and the sides. It stops ${fmt(DRAWER.bottomShy)} short at the front on purpose.`,add:['Drawer box front','Drawer box back','Drawer side','Drawer bottom']});
   if(plan.kind==='slide'){
     steps.push({t:`Mount the slides. Each slide pulls apart into a cabinet half and a drawer half. Screw a cabinet half to the inside of each side, level, with its front end ${fmt(fromEdge)} back from the front edge of the side and its middle ${many?'at these heights':'this high'} above ${heights.panel}: ${list(heights.hardware)}${firstOnes}. `+
@@ -320,8 +343,9 @@ function nightstandHardware(p){
 PRESETS.push({
   name:'Nightstand with drawers',tile:'Drawer nightstand',spec:'Plywood, 1 to 4 drawers',icon:'i-p-cabinet',
   desc:'A bedside cabinet in plywood with one to four drawers that really open, on metal slides or wooden runners, and an open shelf underneath if you want one.',
-  params:[num('W','Width',NIGHTSTAND_DEFAULTS.W,NS.minWidth,NS.maxWidth),num('D','Depth',NIGHTSTAND_DEFAULTS.D,NS.minDepth,NS.maxDepth),
-    num('H','Height',NIGHTSTAND_DEFAULTS.H,NS.minHeight,NS.maxHeight),
+  // the overall size, the top included (what is typed is what is built: nightstandCase works out the cabinet)
+  params:[num('W','Width (of the top)',NIGHTSTAND_DEFAULTS.W,NS.minWidth,NS.maxWidth),num('D','Depth (of the top)',NIGHTSTAND_DEFAULTS.D,NS.minDepth,NS.maxDepth),
+    num('H','Height (floor to the top)',NIGHTSTAND_DEFAULTS.H,NS.minHeight,NS.maxHeight),
     {k:'N',label:'Drawers',opts:[['1','1'],['2','2'],['3','3'],['4','4']],v:NIGHTSTAND_DEFAULTS.N},
     {k:'cub',label:'Open shelf under the drawers',check:1,v:NIGHTSTAND_DEFAULTS.cub},
     num('fh','Drawer front height (with an open shelf)',NIGHTSTAND_DEFAULTS.fh,NS.minFront,NS.maxFront),
@@ -378,6 +402,11 @@ SELFTESTS.push(function nightstandWithDrawers(problems){
       const check=checkPreset(nightstand,p,parts);
       const wrong=check.problems.filter(f=>!(f.code==='input'&&f.level==='warn'&&plan.tip.factor<NS.tipWarn));
       if(wrong.length){notClean++;if(notClean<=5)problems.push(label+'the structural check says: '+wrong[0].text);}
+    }
+    // what is typed is what is built: the overall size of the pieces is the size in the form, the top included
+    if(insideLimits(p)){
+      const whole=bbox(parts),got=[0,1,2].map(k=>r16(whole.hi[k]-whole.lo[k])),typed=[p.W,p.H,p.D];
+      if(got.some((v,k)=>Math.abs(v-typed[k])>.01))problems.push(label+`comes out ${got.map(fmt).join(' x ')} overall (wide, tall, deep) for ${typed.map(fmt).join(' x ')} typed`);
     }
     built++;lowest=Math.min(lowest,plan.tip.factor);
     if(plan.tip.factor<NS.tipStop)problems.push(label+`built although it tips (factor ${plan.tip.factor.toFixed(2)})`);

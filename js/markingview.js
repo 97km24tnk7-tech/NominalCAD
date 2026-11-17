@@ -174,8 +174,13 @@ function addRefs(plan,letterOf){
   if(hiddenNames.length)plan.notes.push(`The heavy dashed line is an edge of the ${listWords(hiddenNames)} behind: set it in place, or mark where it will sit, before you measure from it.`);
   // and at the other places of the line it may be the other edge: say so under the picture
   const nearest=plan.refs.filter(ref=>ref.feature.nearest&&ref.feature.piece);
-  if(nearest.length&&plan.places>1){
-    const words=[...new Set(nearest.map(ref=>faceWord(ref.feature.piece,ref.feature.axis,true)))];
+  const words=[...new Set(nearest.map(ref=>faceWord(ref.feature.piece,ref.feature.axis,true)))];
+  if(plan.places>1&&plan.sampleAt){
+    // a line whose places are marked with different numbers (sortsByPlace in js/buildsteps.js): this view is for
+    // the place the line names first, and the others are marked as the line says, never "with the same numbers"
+    const from=nearest.length?`, each measured from the ${listWords(words)} of the ${plan.piece.name} nearest the ${plan.nearWhat||'marks'} there`:'';
+    plan.notes.push(`This view is for ${plan.sampleAt}. Mark the other places with the numbers the line gives for each${from}.`);
+  }else if(nearest.length&&plan.places>1){
     plan.notes.push(`At the other places, measure from the ${listWords(words)} of the ${plan.piece.name} nearest the ${plan.nearWhat||'marks'} there, with the same numbers: it may be the other ${words.length>1?'one':words[0]}.`);
   }
 }
@@ -210,6 +215,7 @@ function jointMarkPlan(group,letterOf){
   if(plan){
     plan.words=(group.line||'')+' '+(group.where||'');
     plan.places=group.places||1;
+    plan.sampleAt=group.sampleAt||null;   // (the place this view is for, when the places of the line have other numbers)
     plan.rule=rule;
     addRefs(plan,letterOf);
     // a line whose words give no sizes for this joint gets no marking view: a picture with nothing measured on it
@@ -232,9 +238,14 @@ function straightMarkPlan(group,letterOf){
   if(dowel)plan.subtitle=`the ${faceSaid(sample.link.joint,marked)} of ${pieceLabel(marked,letterOf)}, ${frame.seen}`;
   const face=f0.pos[frame.axis];
   if(!dowel)addOther(plan,into,face,letterOf);
-  plan.points=layout.map(f=>({at:frame.toView(f.pos),kind:dowel?'hole':'cross',r:dowel?f.dia/2:0}));
+  // a head sunk in a counterbore (under a plug, or deep so the screw reaches): the 3/8" hole is drawn at its size
+  // round the mark, and the legend names it
+  const counterbore=!dowel&&f0.sunk>0;
+  plan.points=layout.map(f=>({at:frame.toView(f.pos),kind:dowel||counterbore?'hole':'cross',r:dowel?f.dia/2:counterbore?PLUG_DIA/2:0}));
   const pointFor=new Map(layout.map((f,index)=>[f,plan.points[index]]));
-  plan.legend.unshift({kind:dowel?'hole':'cross',text:`${fastenerNoun(f0)}: mark its middle`});
+  const sunkWords=!counterbore?'':f0.plug?`, then drill a 3/8" counterbore ${markText(f0.sunk)} deep there for the ${plugCoverWords(f0).name.toLowerCase()}`
+    :`, then drill a 3/8" counterbore ${markText(f0.sunk)} deep there for the head`;
+  plan.legend.unshift({kind:dowel||counterbore?'hole':'cross',text:`${fastenerNoun(f0)}: mark its middle${sunkWords}`});
   // the row on the middle of the piece behind: a dash-dot line through that middle
   const intoBox=plainBox(into),markedBox=plainBox(marked);
   if(spot.overInto&&!dowel){
@@ -790,6 +801,28 @@ function runsAlongSizes(layout,segment){
     return s1>2&&s0<elong-2;
   });
 }
+/* The entries of a legend, each made short enough to fit on one line of the picture. An entry whose words are
+   wider than the picture ("bottom edge of Side rail (D), the edge nearest the screws: the heavy line at the
+   bottom") is broken between words: its first part keeps the symbol, each further part is an entry of kind 'cont'
+   (no symbol, its words lined up with the words above). The picture never cuts a word off at its right edge.
+     entries      [{kind, text}]
+     textWidth    text -> its width in picture pixels
+     room         the width of one line of the legend, symbol included */
+const LEGEND_SYMBOL_WIDTH=40;   // the symbol and the space after it, in picture pixels (the words start 38 in)
+function legendParts(entries,textWidth,room){
+  const parts=[];
+  for(const entry of entries){
+    if(textWidth(entry.text)+LEGEND_SYMBOL_WIDTH<=room){parts.push(entry);continue;}
+    let kind=entry.kind,line='';
+    for(const word of entry.text.split(' ')){
+      const longer=line?line+' '+word:word;
+      if(line&&textWidth(longer)+LEGEND_SYMBOL_WIDTH>room){parts.push({...entry,kind,text:line,whole:entry.text});kind='cont';line=word;}
+      else line=longer;
+    }
+    if(line)parts.push({...entry,kind,text:line,whole:entry.text});
+  }
+  return parts;
+}
 /* Everything in picture pixels:{plan, scale, px(u, v), box (the piece on paper), dims: [{dim, line:[a, b],
    ext:[{from, to, feature}], text:{x, y, w, h, text}, leader}], refs: [{label rect, edge}], texts: [all text
    rects], markers: [rects], segments: [[a, b]], legend, clashes: [what could not be placed clear of the rest]} */
@@ -850,13 +883,14 @@ function layoutMarkPlan(plan,inLegend,room,withRowNote){
       return`the ${order}heavy ${dashed?'dashed ':''}line at the ${side}`;
     };
     const moved=plan.refs.filter(ref=>inLegend.has(ref.label)).map(ref=>({kind:ref.hidden?'heavyDashed':'heavy',text:`${ref.label}: ${whichLine(ref)}`}));
-    for(const entry of moved.concat(plan.legend)){
+    for(const entry of legendParts(moved.concat(plan.legend),text=>measure(text,V.legend,false),V.width-2*V.pad)){
       const w=measure(entry.text,V.legend,false)+40;
       if(line.length&&width+w>V.width-2*V.pad){legendLines.push(line);line=[];width=0;}
       line.push({...entry,w});width+=w+18;
     }
     if(line.length)legendLines.push(line);
   }
+  out.legendRoom=V.width-2*V.pad;   // (for the self-check legendStaysInItsPicture)
   // the notes, broken into lines that fit the paper
   const noteLines=[];
   // (withRowNote: 'between' when a break leaves out the ones in the middle of the row, else the picture ends first)
@@ -1505,6 +1539,7 @@ function drawMarkLayout(layout,ctx){
       else if(entry.kind==='heavyDashed')line([x,cy],[x+30,cy],V.heavy,V.ink,[9,5]);
       else if(entry.kind==='datum'){line([x+6,cy],[x+30,cy],1.5,V.ink);ctx.fillStyle=V.paper;ctx.strokeStyle=V.ink;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x+6,cy,5,0,Math.PI*2);ctx.fill();ctx.stroke();}
       else if(entry.kind==='other'){ctx.fillStyle=V.woodOther;ctx.fillRect(x+2,cy-7,26,14);ctx.strokeStyle=V.ink;ctx.lineWidth=1.5;ctx.strokeRect(x+2,cy-7,26,14);}
+      else if(entry.kind==='cont'){}   // the rest of the words of the entry above (legendParts): no symbol
       else{ctx.strokeRect(x+2,cy-6,26,12);}
       ctx.fillStyle=V.ink;ctx.font=`400 ${V.legend}px ${PICTURE_FONT}`;ctx.fillText(entry.text,x+38,y);
       x+=entry.w+18;
@@ -1596,6 +1631,24 @@ window.addEventListener('beforeprint',()=>{
      - no two texts overlap, no text covers a fastener or a line, and nothing is outside the picture. */
 function markLayoutProblems(layout,label){
   const found=[],plan=layout.plan,scale=layout.scale;
+  // a line whose places have other numbers: the note under the view says which place it is for, and never that the
+  // other places take the same numbers (it once did, under the line of the bed's plugged corners)
+  if(plan.sampleAt&&plan.places>1){
+    if(!plan.notes.some(note=>note.includes(plan.sampleAt)))found.push(`${label}: the view does not say which place it is for (${plan.sampleAt})`);
+    if(plan.notes.some(note=>/with the same numbers/.test(note)))found.push(`${label}: its line marks the places with other numbers, and the note under the view says "with the same numbers"`);
+  }
+  // the legend and the notes stay inside the picture: no line of them runs past its right edge (legendParts)
+  {
+    const ctx=markContext();
+    ctx.font=`400 ${MARK_VIEW.legend}px ${PICTURE_FONT}`;
+    for(const row of layout.legendLines||[]){
+      // as drawn: each entry's words start 38 px after its start, entries 18 px apart
+      let x=0,right=0;
+      for(const entry of row){right=x+38+Math.ceil(ctx.measureText(entry.text).width);x+=entry.w+18;}
+      if(right>layout.legendRoom+.5)found.push(`${label}: a line of the legend is ${right-layout.legendRoom} px wider than the picture: "${row.map(entry=>entry.text).join(' | ')}"`);
+    }
+    for(const text of layout.noteLines||[])if(Math.ceil(ctx.measureText(text).width)>layout.legendRoom+.5)found.push(`${label}: a note under the picture is wider than the picture: "${text}"`);
+  }
   const numbers=text=>String(text).match(/\d+(?: \d+\/\d+)?"|\d+\/\d+"/g)||[];
   for(const laid of layout.dims){
     const dim=laid.dim;
@@ -1767,8 +1820,11 @@ SELFTESTS.push(function markingViewsMeasureTrue(problems){
     }
   }finally{renderAll=drawKept;}
   if(views<230||sizes<850)wrong(`only ${views} marking views with ${sizes} sizes were checked (238 and 887 at the default sizes alone when this check was last changed): the check found too few`);
-  // the two the owner sent: the back panel into the top rail, and a drawer side into the drawer box front
-  const nightstand=PRESETS.find(preset=>preset.name==='Nightstand with drawers'),vals=presetDefaults(nightstand);
+  // the two the owner sent: the back panel into the top rail, and a drawer side into the drawer box front, on the
+  // nightstand the owner saw (a cabinet 20" wide, 16" deep and 26" tall under its top: since its form asks for the
+  // overall size, that is 21" x 17 9/16" x 26 3/4" typed)
+  const nightstand=PRESETS.find(preset=>preset.name==='Nightstand with drawers');
+  const vals={...presetDefaults(nightstand),...nightstandOverall({W:20,D:16,H:26},'overlay')};
   placePreset(nightstand,vals,nightstand.build(vals),false);
   const groups=buildPlan(true).steps.flatMap(step=>step.groups);
   const rail=groups.find(group=>/Back panel \(\w+\) into the edge of the Top rail/.test(group.line));
@@ -1803,6 +1859,15 @@ SELFTESTS.push(function markingViewsMeasureTrue(problems){
     window.dispatchEvent(new Event('beforeprint'));
     if($('#instrPage').querySelector('img[data-mark]'))wrong('a marking view is still not drawn when the page is printed');
     if([...$('#instrPage').querySelectorAll('.closeups figure.pair img:nth-child(2)')].some(img=>!/^data:image\/png/.test(img.src)))wrong('a marking view on the page is not a picture after printing begins');
+    // each picture of a pair is shown whole: scaled to its half of the figure, never cut off by it
+    for(const figure of figures.filter(one=>one.classList.contains('pair'))){
+      const box=figure.getBoundingClientRect();
+      if(!box.width)continue;   // (the page is not on screen)
+      for(const img of figure.querySelectorAll('img')){
+        const r=img.getBoundingClientRect();
+        if(r.right>box.right+1||r.left<box.left-1){wrong(`a picture of a close-up is ${Math.round(r.right-box.right)} px wider than its place on the page`);break;}
+      }
+    }
     const caption=figures[0]&&figures[0].querySelector('figcaption').textContent;
     if(!/^\d+ Close-up of line \d+/.test(caption||''))wrong(`a close-up caption reads "${caption}": the number of the line, a space, then the words`);
     if(!shots.some(shot=>shot.closeups.length)||!figures.length)wrong('the Nightstand page has no close-ups to check');

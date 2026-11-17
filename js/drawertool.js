@@ -260,7 +260,11 @@ function mountDrawerOfSel(){
   if(tab!=='design')setTab('design');
   if(!sel.size){toast('Select the drawer (any piece of it, or all of it) first.');return;}
   const exact=sel.size>1,onSlides=slidePlan([...sel],{exact});   // js/hanging.js
-  const fits=onSlides.ok?onSlides:slidePlan([...sel],{exact,kind:'runner'});
+  const onRunners=slidePlan([...sel],{exact,kind:'runner'});
+  // A box that sits close to both cabinet sides is a drawer on runners, even when its back happens to stand a
+  // slide's gap from the back panel (which would offer one metal slide, on the back): a pair wins over one.
+  const pairOf=plan=>plan.ok&&plan.items.length===2;
+  const fits=pairOf(onSlides)||!pairOf(onRunners)?(onSlides.ok?onSlides:onRunners):onRunners;
   if(!fits.ok){
     showMessage('Could not mount this drawer',onSlides.message+' For wooden runners instead, the box must sit within 1/4" of each cabinet side.');
     return;

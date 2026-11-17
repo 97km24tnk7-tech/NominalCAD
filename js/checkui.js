@@ -260,7 +260,8 @@ SELFTESTS.push(function declarationsStayWithTheirPieces(problems){
   const nightstand=preset('Nightstand with drawers');
   if(nightstand){
     // marginal by its own check(p): a full top drawer pulled out nearly tips it
-    const vals={...presetDefaults(nightstand),W:14,D:12.25,H:18.625,N:4,fh:10};
+    // (the overall size, the top included: the narrowest, shallowest and lowest the form allows, one drawer, no open shelf)
+    const vals={...presetDefaults(nightstand),W:15,D:13.5,H:21,N:'1',cub:false};
     const own=(nightstand.check(vals)||[]).filter(f=>f.level==='warn');
     if(!own.length)problems.push('kept warnings: the narrow nightstand of this self-check is no longer marginal, pick other sizes for it');
     placePreset(nightstand,vals,nightstand.build(vals),false);

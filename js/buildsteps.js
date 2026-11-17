@@ -608,7 +608,8 @@ function lineKindKey(facts){
   const byRule=facts.how==='sheet'||facts.how==='plate';   // plywood nailed by spacing, plate screws: one rule whatever is behind
   return[facts.link.type,facts.spec.hw.map(row=>row[0]).join('+'),facts.how,byRule?'':facts.intoFace==='end'?'end':'side',byRule||spaced?'spaced':facts.spec.n].join('|');
 }
-// (moved: screws that were set aside to pass the screws of another joint, js/fasteners.js, get a line of their own, so one line gives one set of marks)
+// (moved: screws that were set aside to pass the screws of another joint, js/fasteners.js, get a line of their own, so one line gives one set of marks;
+//  joinMovedLines joins such lines again when the joined line names the places of each set of marks)
 // (pocket holes in the underside of some shelves and in the top face of others, rule 13 in js/fasteners.js, get a
 //  line each: one line names one face; holes on the two inside faces of a pair of sides still share one)
 const pocketUpOrDown=facts=>facts.f&&facts.f.pocket?'face:'+Math.round(facts.f.pocket.out[1])+(facts.f.pocket.plugged?':plugged':''):'';
@@ -634,6 +635,15 @@ function plugWords(f){
   if(plugIsDowel(f.sunk))return start+` A store-bought plug is only about 3/8" long and would sit deep in that hole, so cut a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long for each hole, put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`;
   return start+(painted?' Under paint the holes are filled with wood filler when you finish.'
       :' Put a little glue in each hole and tap in a 3/8" wooden plug, with its grain running the same way as the wood around it. It is cut flush when you finish.');
+}
+/* What covers a plugged head, as the pictures name it (the close-up labels it, the marking view's legend names
+   the counterbore): {name, does: [two short lines]}. The same three cases as plugWords: a length of dowel in a deep
+   hole, wood filler under paint, else a store-bought wooden plug. */
+function plugCoverWords(f){
+  const deep=inchWords(f.sunk),painted=FINISHES[look().finish][2]===2;
+  if(plugIsDowel(f.sunk))return{name:'Dowel plug',does:['3/8" dowel glued in the counterbore',`(${deep} deep) over the head`]};
+  if(painted)return{name:'Wood filler',does:['fills the 3/8" counterbore',`(${deep} deep) over the head`]};
+  return{name:'Wooden plug',does:['glued in the 3/8" counterbore',`(${deep} deep) over the head`]};
 }
 /* One "Fasten with" line for these joints: {type, links, places, each, total, label, hardware, line, where, sample}. */
 function fastenLine(links,letterOf){
@@ -673,6 +683,8 @@ function fastenLine(links,letterOf){
   //  below once the words of every joint are known. The marking view reads both.)
   group.sample={link:sample.link,layout:sample.layout,dims:here.dims,here,rule:here.rule||null};
   const leans=all.some(facts=>facts.f&&facts.f.lean),sunk=all.find(facts=>facts.f&&facts.f.sunk);
+  // (the words on sinking and plugging the heads, kept apart so that a step says them once: fastenLines)
+  if(sunk&&sunk.f.plug)group.plugText=plugWords(sunk.f);
   const tail=()=>(leans?(all.every(facts=>facts.f.lean)?' Drive each nail at a slight slant, so that its point stays inside the wood.':' Where a nail driven straight would come out of the far side, drive it at a slight slant.'):'')+
     (sunk&&sunk.f.plug?plugWords(sunk.f):
       sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'')+
@@ -747,6 +759,8 @@ function fastenLine(links,letterOf){
   group.line=line+tail();
   // Where they go: in numbers, always, measured on the piece that is marked (placesWords).
   const places_=all.map(facts=>facts===sample?here:fastenerPlaces(facts.joint,facts.layout));
+  // (each place knows where it is on the piece that is marked, for a line whose places are marked differently)
+  places_.forEach((place,index)=>{place.facts=all[index];});
   group.where=whereWords(places_,here,group);
   // screws that were set aside so that they pass the screws of another joint in the same corner: say so, or the
   // builder evens the marks out and drills into a screw
@@ -802,14 +816,19 @@ function whereWords(places,here,group){
   // marking view draws.
   group.sample.dims=here.spot.dimsMarked;
   group.sample.rule={free:true,gap:here.spot.gap};
-  const sorts=[{spots:[here.spot]}];
+  const sorts=[{spots:[here.spot],places:[here]}];
   for(const place of places){
     if(place===here)continue;
     const fits=sorts.find(sort=>placesWords(sort.spots.concat(place.spot)).text);
-    if(fits)fits.spots.push(place.spot);
-    else sorts.push({spots:[place.spot]});
+    if(fits){fits.spots.push(place.spot);fits.places.push(place);}
+    else sorts.push({spots:[place.spot],places:[place]});
   }
+  // each sort said once, with the places it is for named on the piece that is marked ("at the back end of the
+  // left Side rail"), so a builder knows which marks go where
+  const named=sortsByPlace(sorts,group);
+  if(named)return named;
   if(sorts.length<=SORTS_MAX){
+    group.whereSorted=true;   // (sorts that do not say where they are: fastenLines keeps moved screws on lines of their own)
     group.sample.rule=placesWords(sorts[0].spots).rule||group.sample.rule;
     const sizes=new Set(sorts.map(sort=>sort.spots[0].long));
     return'The places of this line are not all alike. '+sorts.map((sort,index)=>{
@@ -820,7 +839,106 @@ function whereWords(places,here,group){
     }).join(' ');
   }
   const gap=here.spot.gap;
+  group.whereGeneral=true;   // (no numbers for the marks: fastenLines then keeps moved screws on lines of their own)
   return`Spread them evenly along each place where the two pieces touch${gap?`, about ${inchWords(gap)} apart`:''}: the first and the last half that far from its ends, and never nearer than 3/4" to an end, so the wood does not split.`;
+}
+/* A line whose places are not all marked alike (the plugged screws at the four corners of a bed, each pair moved
+   its own way to pass the screws that cross that corner): what is said of every place is said once, then each sort
+   of marks with the places it is for, named on the piece that is marked: "At the back end of the left Side rail
+   (the close-up shows this one): one 2 3/8" from ...". Places marked alike share a sentence ("At both ends of each
+   Side rail"). Returns the words, or null when the places cannot be told apart by name (the caller then says it
+   the older way). Sets group.sampleAt: the place the close-up shows, for its caption. */
+const NAMED_SORTS_MAX=6;
+function sortsByPlace(loose,group){
+  // Places share a sort when one sentence gives the marks of all of them, measured from the matching end and edge
+  // ("from the nearest end"), but not when it would leave the way round open: the sorts of whereWords also join
+  // places that mirror each other ("either way round"), and once each sort says where it is, it says which way
+  // round, so a builder never picks the way that runs into the screws crossing that corner. Places marked from the
+  // back of their piece (left and right as seen from there) never share a sort with places marked from the front,
+  // so a sort's name and its words see left and right the same way.
+  const mirrored=spot=>!!(spot.frame&&spot.frame.mirrored);
+  const sorts=[];
+  for(const place of loose.flatMap(sort=>sort.places)){
+    const fits=sorts.find(sort=>{
+      if(!sort.spots.every(spot=>mirrored(spot)===mirrored(place.spot)))return false;
+      const text=placesWords(sort.spots.concat(place.spot)).text;
+      return!!text&&!/either way round/.test(text);
+    });
+    if(fits){fits.spots.push(place.spot);fits.places.push(place);}
+    else sorts.push({spots:[place.spot],places:[place]});
+  }
+  // sorts whose words come out the same (marked from the front and from the back, with no left or right in the
+  // words) are one sort
+  for(let i=0;i<sorts.length;i++)for(let j=sorts.length-1;j>i;j--){
+    if(placesWords(sorts[i].spots).text!==placesWords(sorts[j].spots).text)continue;
+    sorts[i].spots.push(...sorts[j].spots);sorts[i].places.push(...sorts[j].places);
+    sorts.splice(j,1);
+  }
+  if(sorts.length<2||sorts.length>NAMED_SORTS_MAX)return null;
+  const names=sorts.map(sort=>placesNamed(sort.places));
+  if(names.some(name=>!name)||new Set(names).size<names.length)return null;
+  const texts=sorts.map(sort=>placesWords(sort.spots).text);
+  if(texts.some(text=>!text))return null;
+  // the words every sort starts with ("Mark them on the Side rail, on a slant so that ...: "), said once
+  const colon=texts[0].indexOf(': ');
+  let lead=colon>0?texts[0].slice(0,colon+2):'';
+  if(lead&&texts.some(text=>!text.startsWith(lead)))lead='';
+  group.sample.rule=placesWords(sorts[0].spots).rule||group.sample.rule;
+  group.sampleAt=names[0];
+  group.sampleOneOf=sorts[0].places.length>1;   // (the close-up shows one of several places of that name: its caption says so)
+  const each=sorts.map((sort,index)=>`At ${names[index]}${index>0?'':sort.places.length>1?' (the close-up shows one of them)':' (the close-up shows this one)'}: ${texts[index].slice(lead.length)}`);
+  return(lead?lead.slice(0,-2)+'. ':'')+'The marks are not the same at every place. '+each.join(' ');
+}
+/* The places of some joints in words, named on the piece each is marked on: 'the back end of the left Side rail',
+   'both ends of each Side rail', 'the bottom ends of the 1st and 3rd Posts from the left', 'the middle of the
+   Shelf'. An end is named as the words of its marks name it: from the back of a piece (a mirrored marking view)
+   left and right are as a person behind it sees them, as the sentence after it says. null when a place does not
+   know its joint, or when the places are too many to read as a list (NAMED_PIECES_MAX pieces of one sort). */
+const NAMED_PIECES_MAX=8;
+function placesNamed(places){
+  const where=places.map(place=>{
+    if(!place.facts||!place.spot)return null;
+    const piece=place.spot.marked,axis=piece.ax[0],b=plainBox(piece),layout=place.facts.layout;
+    const middle=layout.reduce((sum,f)=>sum+(f.pos0||f.pos)[axis],0)/layout.length;
+    const share=(middle-b.lo[axis])/((b.hi[axis]-b.lo[axis])||1);
+    const frame=place.spot.frame,nameOf=high=>frame&&frame.mirrored?frame.nameOf(axis,high):DIRECTION_ENDS[axis][high?1:0];
+    return{piece,ends:[nameOf(false),nameOf(true)],end:share<.4?'low':share>.6?'high':'middle'};
+  });
+  if(where.some(one=>!one))return null;
+  const byPiece=new Map();
+  for(const one of where){
+    if(!byPiece.has(one.piece.id))byPiece.set(one.piece.id,{piece:one.piece,names:one.ends,ends:new Set()});
+    byPiece.get(one.piece.id).ends.add(one.end);
+  }
+  // 'the back end', 'both ends', 'the middle'; plural ('the back ends') for several pieces
+  const endWords=(entry,many)=>{
+    const ends=entry.ends,words=[],[low,high]=entry.names,s=many?'s':'';
+    if(ends.has('low')&&ends.has('high'))words.push('both ends');
+    else if(ends.has('low'))words.push(`the ${low} end${s}`);
+    else if(ends.has('high'))words.push(`the ${high} end${s}`);
+    if(ends.has('middle'))words.push(many?'the middles':'the middle');
+    return listWords(words);
+  };
+  // pieces of one name with the same places: "each Side rail" when that is every piece of the name, else one list
+  const alike=new Map();
+  for(const entry of byPiece.values()){
+    const key=entry.piece.name+'|'+endWords(entry,false);
+    if(!alike.has(key))alike.set(key,[]);
+    alike.get(key).push(entry);
+  }
+  const said=[];
+  for(const list of alike.values()){
+    if(list.length>NAMED_PIECES_MAX)return null;
+    const name=list[0].piece.name,siblings=S.parts.filter(p=>p.name===name);
+    if(list.length>1&&list.length===siblings.length){said.push(`${endWords(list[0],false)} of each ${name}`);continue;}
+    const which=list.map(entry=>whichOne(entry.piece,siblings));
+    // "the 1st Post from the left", "the 3rd Post from the left" -> "the 1st and 3rd Posts from the left"
+    const parts=which.map(words=>words.match(new RegExp(`^the (\\S+) ${name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}( from the \\w+)?$`)));
+    if(list.length>1&&parts.every(part=>part&&part[2]===parts[0][2]))
+      said.push(`${endWords(list[0],true)} of the ${listWords(parts.map(part=>part[1]))} ${pluralName(name)}${parts[0][2]||''}`);
+    else list.forEach((entry,index)=>said.push(`${endWords(entry,false)} of ${which[index]}`));
+  }
+  return listWords(said);
 }
 /* Pocket holes of several joints drilled in the same kind of piece (a cross rail under several top boards, each
    board its own joint): the holes of each such piece as one row, measured from one end of it. When every piece
@@ -860,6 +978,31 @@ function notEvenlyWords(layout,name){
   if(layout.some(f=>f.pastBolt))reasons.push(`the holes stay clear of the bolt that goes through the ${name} to join the sections`);
   return reasons.length?`They are not evenly spaced on purpose: ${reasons.join(', and ')}.`:'';
 }
+/* Screws moved out of each other's way (js/fasteners.js) start on lines of their own, one for each set of marks.
+   Where those lines differ only by their marks, they are joined into one when the joined line can still give every
+   mark in numbers and say which places each set of marks is for: it then says the fastener, and how to sink and
+   plug its heads, once, and each set of marks with the places it is for (sortsByPlace), or one set for all. Four lines that differ only by a mark read as four near-copies (the
+   plugged corners of the Platform bed). Lines whose joined words would lose the numbers (the posts of the Garage
+   shelves, a frame at every height) stay apart. lists: the joints of each line; returns the new lists, in order. */
+function joinMovedLines(lists,pairOnly,letterOf){
+  const families=new Map();   // the key without the marks -> the lists that share it
+  for(const list of lists){
+    const key=pairOnly(linkFacts(list[0]));
+    if(!families.has(key))families.set(key,[]);
+    families.get(key).push(list);
+  }
+  const joined=[],done=new Set();
+  for(const list of lists){
+    const family=families.get(pairOnly(linkFacts(list[0])));
+    if(done.has(family))continue;
+    done.add(family);
+    if(family.length<2){joined.push(list);continue;}
+    const all=family.flat(),trial=fastenLine(all,letterOf);
+    if(trial.where&&!trial.whereGeneral&&!trial.whereSorted)joined.push(all);
+    else joined.push(...family);
+  }
+  return joined;
+}
 /* The joints of one step, sorted into lines: joints between the same two kinds of piece share a line; when that
    leaves too many lines, every kind of fastener gets one line that lists its pairs of pieces. */
 function fastenLines(links,letterOf){
@@ -876,10 +1019,18 @@ function fastenLines(links,letterOf){
   //  again, and that line says how each sort is marked)
   // (the marks are one part of the key, not always the last: the face of pocket holes comes after them)
   const pairOnly=facts=>linePairKey(facts).replace(/\|moved:[^|]*/,'|');
-  let lists=sortBy(linePairKey);
+  let lists=joinMovedLines(sortBy(linePairKey),pairOnly,letterOf);
   if(lists.length>LINES_MAX)lists=sortBy(pairOnly);
   if(lists.length>LINES_MAX)lists=sortBy(lineKindKey);
-  return lists.map((list,index)=>Object.assign(fastenLine(list,letterOf),{no:index+1}));
+  const lines=lists.map((list,index)=>Object.assign(fastenLine(list,letterOf),{no:index+1}));
+  // how to sink and plug the heads is said once in a step: a later line with the same words refers to it
+  const plugSaid=new Map();   // the words -> the number of the line that says them
+  for(const line of lines){
+    if(!line.plugText)continue;
+    if(!plugSaid.has(line.plugText)){plugSaid.set(line.plugText,line.no);continue;}
+    line.line=line.line.replace(line.plugText,` Sink and plug these heads as line ${plugSaid.get(line.plugText)} says.`);
+  }
+  return lines;
 }
 
 /* ---------- hardware that is placed in the design ---------- */
@@ -2232,4 +2383,49 @@ SELFTESTS.push(function pocketHolesHaveRoomForTheDrill(problems){withoutDrawing(
       }
     }
   }
+});});
+
+/* Plugged screws read as a person would write them (the owner's checker read four near-copies of one paragraph):
+   - in a step, the words on sinking and plugging the heads are said once; a later line with the same words
+     refers to that line;
+   - the plugged screws of the Platform bed's corners (moved apart at each corner to pass the screws that cross
+     it) are one line, whose words name every corner they give marks for, or say that all are marked alike;
+   - a Bookshelf with every joint of its sides plugged by hand says the paragraph once in each step. */
+const PLUG_PARAGRAPH=/sink them: drill a 3\/8" hole/g;
+SELFTESTS.push(function plugWordsOncePerStep(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<60)problems.push('plugged screws: '+text);};
+  const place=(name,choose)=>{
+    const preset=PRESETS.find(candidate=>candidate.name===name),vals=presetDefaults(preset);
+    placePreset(preset,vals,preset.build(vals),false);
+    if(choose){choose();commit();}
+    return buildPlan(true);
+  };
+  const onceEach=(label,plan)=>{
+    for(const step of plan.steps){
+      const said=step.groups.reduce((sum,group)=>sum+((group.line||'').match(PLUG_PARAGRAPH)||[]).length,0);
+      if(said>1)wrong(`${label}, step ${step.no}: says how to sink and plug the heads ${said} times`);
+    }
+  };
+  // the bed, in Everyday
+  const bed=place('Platform bed');
+  onceEach('Platform bed',bed);
+  const plugged=bed.steps.flatMap(step=>step.groups).filter(group=>group.sample&&group.sample.layout.some(f=>f.plug));
+  if(plugged.length!==1)wrong(`the Platform bed has ${plugged.length} lines of plugged screws (the side rails into the legs are one line)`);
+  for(const group of plugged){
+    if(group.places!==4)wrong(`the plugged line of the Platform bed covers ${group.places} corners, not 4`);
+    const named=['left','right'].every(side=>new RegExp(`(back|front|both) ends? of the ${side} Side rail|of each Side rail`).test(group.where));
+    if(!named&&!/Do this at each of the 4 places/.test(group.line))wrong(`the plugged line of the Platform bed does not say which corner each set of marks is for: ${group.where}`);
+    if(/either way round/.test(group.where))wrong('the plugged line of the Platform bed lets the builder slant the screws either way round, though the model slants them one way at each corner');
+    if(group.sampleAt&&!group.where.includes(`At ${group.sampleAt} (the close-up shows this one)`))wrong(`the words do not say which corner the close-up of the plugged line shows (${group.sampleAt})`);
+  }
+  // a Bookshelf with plugs picked by hand on every joint of its sides
+  const shelf=place('Bookshelf',()=>{
+    for(const joint of findJoints()){
+      const names=[joint.a.name,joint.b.name];
+      if(names.includes('Side')&&!names.includes('Back panel'))S.joints[joint.key]='plug';
+    }
+  });
+  if(!shelf.steps.some(step=>step.groups.some(group=>((group.line||'').match(PLUG_PARAGRAPH)||[]).length)))wrong('a Bookshelf with plugs picked by hand on its sides never says how to plug them');
+  if(!shelf.steps.some(step=>step.groups.some(group=>/Sink and plug these heads as line \d+ says/.test(group.line||''))))wrong('a Bookshelf step with two lines of plugged screws does not refer the second to the first');
+  onceEach('a Bookshelf with plugged sides',shelf);
 });});
