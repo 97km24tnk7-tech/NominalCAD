@@ -366,8 +366,10 @@ function fastenerPlaces(joint,layout){
     kind:'straight',n:sorted.length,marked,into,W,L,frame,
     sideW:sideWord(marked,W),sideL:sideWord(marked,L),
     acrossLow,acrossHigh,acrossNear:nearLowW?acrossLow:acrossHigh,nearLowW,
-    centredW:acrossValues.length===1&&Math.abs(acrossLow[0]-acrossHigh[0])<.07,
-    alongLow,alongHigh,nearLowL,centredL:sorted.length===1&&Math.abs(alongLow[0]-alongHigh[0])<.07,
+    // "at the middle (24" from either end)" only when both ends really read the same number: a deck 1/16" short of
+    // its frame (the Garage shelves, js/builders-storage.js) has a screw 24" from one end and 23 15/16" from the other
+    centredW:acrossValues.length===1&&Math.abs(acrossLow[0]-acrossHigh[0])<.03,
+    alongLow,alongHigh,nearLowL,centredL:sorted.length===1&&Math.abs(alongLow[0]-alongHigh[0])<.03,
     // each fastener by how far it is from the nearest end and the nearest edge of the marked piece
     nearEach:sorted.map(f=>[round(Math.min(f.pos[L]-markedBox.lo[L],markedBox.hi[L]-f.pos[L])),round(Math.min(f.pos[W]-markedBox.lo[W],markedBox.hi[W]-f.pos[W]))]),
     nearSide,fromPlace,gaps,evenGaps,last:round(last),
@@ -529,7 +531,8 @@ function placesWords(spots){
     // screws through the foot of a post are "1 1/4 in. and 2 1/4 in. from its bottom end", not one from each end.
     const groupNearLow=spot=>spot.alongLow[0]+spot.alongLow[spot.n-1]<=spot.alongHigh[0]+spot.alongHigh[spot.n-1]+.03;
     const fromNear=spot=>groupNearLow(spot)?spot.alongLow:spot.alongHigh;
-    const evenBothEnds=spot=>Math.abs(eachEnd(spot)[0]-eachEnd(spot)[1])<.07;
+    // ("the last is as far from the other end" only when the two ends read the same number: see centredW above)
+    const evenBothEnds=spot=>Math.abs(eachEnd(spot)[0]-eachEnd(spot)[1])<.03;
     if(spots.every(spot=>evenBothEnds(spot)&&spot.evenGaps)&&same(spot=>[spot.alongLow[0],spot.gap])){
       // the same from both ends: counted from the end on the left of the marking view (or at its bottom)
       const startHigh=s.frame.screenLowIsHigh(s.L),start=startHigh?s.alongHigh[0]:s.alongLow[0];
@@ -1376,7 +1379,7 @@ function pullLine(group,hosts,alike,letterOf){
     :'Drill two 3/16" holes. '+[...said.entries()].map(([words,group])=>`${capital(listWords(group.map(host=>whichOne(host,alike))))}: ${words}.`).join(' ');
   const hostThick=Math.min(...hosts.map(host=>host.t));
   const screws=through>hostThick+.01
-    ?`The screws pass through ${inchWords(through)} of wood here (the ${hosts[0].name} and the piece behind it), so use screws about ${inchWords(Math.ceil((through+.375)*4)/4)} long: the short ones in the package will not reach.`
+    ?`The screws pass through ${inchWords(through)} of wood here (the ${hosts[0].name} and the piece behind it), so use screws about ${inchWords(drawerPullScrewLength(through))} long: the short ones in the package will not reach.`
     :`The screws pass through ${inchWords(through)} of wood: the ones in the package (about 1" long) fit.`;
   return`${capital(hardwareWords(list))}, ${sizeLabel(list[0])} between holes, ${what}. ${where} The holes are ${sizeLabel(list[0])} apart. Mark them with a square so the pull sits straight, drill from the front with a scrap held behind so the back does not splinter, and screw the pull on from the back. ${screws}`;
 }

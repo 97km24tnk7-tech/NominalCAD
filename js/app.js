@@ -355,7 +355,8 @@ function assessParts(parts,preset,vals){
         try{S.plannedWallScrews=(preset.wallScrews(vals,parts)||[]).length;}catch(e){S.plannedWallScrews=0;}
       }
     }
-    const buy=lumberToBuy(parts);
+    // with the sheets a preset buys to cut on site (the Shed's gable ends), as the shopping list's lumber line counts them
+    const buy=addSheetsToCutOnSite(lumberToBuy(parts),preset&&preset.hw&&vals?preset.hw(vals):[]);
     return{buy,rating:parts.length<=PREVIEW_JOINTS_MAX?assess(look()):null};
   }finally{S=keep;}
 }

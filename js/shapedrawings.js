@@ -788,7 +788,8 @@ function sheetRects(pieces,nameOf){
       halves.get(key).push(p);
       continue;
     }
-    out.push({a:p.l,b:p.w,name:nameOf(p),piece:p.shape?p:null});
+    // grainOnWidth: the piece's face grain runs along its width (pieceGrainOnWidth, sheetWays: js/buying.js)
+    out.push({a:p.l,b:p.w,name:nameOf(p),piece:p.shape?p:null,grainOnWidth:pieceGrainOnWidth(p)});
   }
   // two right triangles from one square: the bounding rectangle would buy twice the plywood (sheet 15)
   for(const list of halves.values()){

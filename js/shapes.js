@@ -1562,7 +1562,12 @@ SELFTESTS.push(function shapeWordsExplained(problems){
    other 22 read back unchanged first.)
    (Branch fix-house, the woodworker's-eye review E3: the Storage box / toy chest got real air holes in its front and
    ends on purpose, so its cut list and 3D scene changed; only its fingerprint was recorded again, from an empty
-   design, twice, with the same result, after a full selfTest showed every other preset still reading back exactly.) */
+   design, twice, with the same result, after a full selfTest showed every other preset still reading back exactly.)
+   (Branch buying2, approved by the owner: the Garage shelves' decks are 47 15/16" at the usual 48" width, 1/16"
+   short so four come from one sheet (garageDeckLength, js/builders-storage.js). Only that fingerprint was recorded
+   again, from an empty design, twice, with the same result, after a full selfTest showed the others reading back
+   unchanged. The Shed's floor pieces are their full size again, as on main (the two 24" x 48" end pieces
+   share a sheet because they are cut with the grain across the joists, shedFloorPieces), so its line is main's.) */
 const PRESET_PRINTS={
   "Fish tank wall / rack":[94,178,352,"131vjz0","1ej6odg"],
   "Single aquarium stand":[26,86,169,"v10vc9","1636v6l"],
@@ -1578,7 +1583,7 @@ const PRESET_PRINTS={
   "Sturdy bench":[12,23,42,"woskta","1gnz2ol"],
   "Five-board bench":[5,8,20,"dbcrj0","1hvsbq8"],
   "Workbench":[19,49,115,"d4wis","uaazbz"],
-  "Garage shelves":[28,92,194,"ohine2","1klmv0d"],
+  "Garage shelves":[28,92,194,"c59xx6","1yf85rn"],   // recorded again on branch buying2: decks 47 15/16"
   "Storage box / toy chest":[6,12,28,"1j7uql2","3m9e2j"],   // recorded again on branch fix-house: its air holes (review E3)
   "Planter box":[20,62,78,"w1hui8","1vjtz3k"],
   "Raised garden bed":[12,28,48,"urv8mo","yfeo9i"],

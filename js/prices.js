@@ -81,8 +81,10 @@ const HARDWARE_PRICES=[
   {id:'framing-nails',name:'Framing nails, 3" (10d)',match:/framing nails/i,pack:340,sold:'5 lb box (about 340)',price:20,search:'10d common nails 3 in. 5 lb box'},
   {id:'plywood-nails',name:'Nails for plywood, 2-1/2" (8d)',match:/nails \(8d\)/i,pack:500,sold:'5 lb box (about 500)',price:20,search:'8d common nails 2-1/2 in. 5 lb box'},
   {id:'hanger-nails',name:'Short nails for metal ties, 1-1/2"',match:/hanger nails/i,pack:150,sold:'1 lb box (about 150)',price:7,search:'joist hanger nails 1-1/2 in. 1 lb box'},
-  // plywood a preset asks for by the sheet because the pieces are cut on site to a slope (the Shed's gable ends)
-  {id:'plywood-to-fit',name:'1/2" plywood to cut to fit',match:/^1\/2" plywood/i,pack:1,sold:'4 ft × 8 ft sheet',price:40,search:'1/2 in. plywood sheathing 4 ft. x 8 ft.'},
+  // plywood a preset asks for by the sheet because the pieces are cut on site to a slope (the Shed's gable ends).
+  // mat: it is a sheet of that material, so it is priced as that sheet (a price typed for 1/2" plywood counts for
+  // it too) and the shopping list counts it with the lumber, not with the hardware (sheetsToCutOnSite below).
+  {id:'plywood-to-fit',name:'1/2" plywood to cut to fit',match:/^1\/2" plywood/i,pack:1,sold:'4 ft × 8 ft sheet',price:40,search:'1/2 in. plywood sheathing 4 ft. x 8 ft.',mat:'ply12'},
   ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,100,'box of 100',
     [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12],['3"',14]]),
   {id:'pocket-screws',name:'Pocket-hole screws, other lengths',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
@@ -323,6 +325,7 @@ function hardwareFamily(label){
 /* one pack of a hardware item. A price typed for exactly this item wins over one typed for its whole row of
    HARDWARE_PRICES, and that wins over the built-in estimate. Pass label '' for the row itself. */
 function hardwarePriceInfo(label,family){
+  if(family&&family.mat)return lumberPriceInfo(family.mat);   // a sheet of plywood: the price of that sheet
   const itemKey='hw:'+label,familyKey=family?'hwf:'+family.id:'';
   const key=label?itemKey:familyKey;
   // a price for exactly this item, else for its row, else for the general row its length belongs to
@@ -647,7 +650,14 @@ function shoppingModel(buy,hardware){
     rows.push({group:'lumber',name:b.stock?`${wood?wood+' ':''}${b.m.short}, ${b.stock/12} ft long`:`${b.m.short}, 4 ft × 8 ft sheet`,note:'',
       qty:b.qty,key:info.key,scale:b.stock?b.stock/96:1,each,info,total:cents(each*b.qty),words:lumberSearchWords(b.m,b.stock)});
   }
-  const items=hardware?hardware.rows.slice():[];
+  // sheets a preset asks for to cut on site (the Shed's gable ends) are lumber: they stand with the lumber rows
+  // and count in "Lumber, before tax" (sheetsToCutOnSite)
+  const sheetItems=hardware?sheetsToCutOnSite(hardware.rows):[];
+  for(const{label,qty,m}of sheetItems){
+    const info=lumberPriceInfo(m.id),each=priceOf(m.id,0);
+    rows.push({group:'lumber',name:label,note:'',qty,key:info.key,scale:1,each,info,total:cents(each*qty),words:lumberSearchWords(m,0)});
+  }
+  const items=hardware?hardware.rows.filter(([label])=>!sheetItems.some(sheet=>sheet.label===label)):[];
   if(hardware&&hardware.glue)items.push(['Wood glue',1]);
   for(const[label,quantity]of items){
     const family=hardwareFamily(label),need=Math.max(0,+quantity||0),pack=family?family.pack:1;
@@ -667,7 +677,34 @@ function shoppingModel(buy,hardware){
   }
   return{rows,total:cents(total),lumber:cents(lumber),counts};
 }
-const dollars=amount=>amount===null?'':'$'+cents(amount).toFixed(2);
+/* The lines of a hardware list that are really sheets of plywood, bought by the sheet and cut on site (a row of
+   HARDWARE_PRICES with mat): [{label, qty, m}]. The shopping list counts them with the lumber, the presets
+   window adds them to its lumber cost (addSheetsToCutOnSite), and the Hardware table leaves them out
+   (hardwareWithoutSheets), so they are bought once, as lumber. */
+function sheetsToCutOnSite(rows){
+  const out=[];
+  for(const[label,quantity]of rows||[]){
+    const family=hardwareFamily(label),qty=Math.max(0,+quantity||0);
+    if(family&&family.mat&&M[family.mat]&&qty>0)out.push({label,qty,m:M[family.mat]});
+  }
+  return out;
+}
+/* A plan of what to buy ({boards, sheets, cost}, lumberToBuy in js/buying.js) with the sheets of a preset's own
+   hardware lines added, as the shopping list counts them. Changes buy and returns it. */
+function addSheetsToCutOnSite(buy,hardwareLines){
+  for(const{qty,m}of sheetsToCutOnSite(hardwareLines)){
+    buy.sheets+=qty;
+    buy.cost+=qty*priceOf(m.id,0);
+  }
+  return buy;
+}
+/* hardwareTotals() without the sheets of plywood, for the Hardware tables (they are on the shopping list as lumber) */
+function hardwareWithoutSheets(hardware){
+  const sheets=new Set(sheetsToCutOnSite(hardware.rows).map(sheet=>sheet.label));
+  return{...hardware,rows:hardware.rows.filter(([label])=>!sheets.has(label))};
+}
+/* "$3.98", "$1,228.93": dollars and cents, with a comma in the thousands as the presets window writes them */
+const dollars=amount=>amount===null?'':'$'+cents(amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 /* what a price box shows: "3.98", or nothing when there is no price */
 const priceBoxText=price=>price===null?'':cents(price).toFixed(2);
 /* "3 prices are yours and 9 are estimates." */
@@ -785,7 +822,8 @@ function priceBookRows(){
   lumber('board',`Boards: ${wood}`,'8 ft board');
   lumber('sheet',`Plywood: ${wood}`,'4 ft × 8 ft sheet');
   rows.push({heading:'Hardware and supplies'});
-  for(const family of HARDWARE_PRICES)rows.push({name:family.name,sold:family.sold,info:hardwarePriceInfo('',family)});
+  // (a row that is a sheet of plywood, mat, has its price in the plywood rows above)
+  for(const family of HARDWARE_PRICES)if(!family.mat)rows.push({name:family.name,sold:family.sold,info:hardwarePriceInfo('',family)});
   // single items the person priced in a shopping list
   const items=Object.keys(priceBook.yours).filter(key=>key.startsWith('hw:')).sort();
   for(const key of items){
@@ -1341,6 +1379,8 @@ SELFTESTS.push(function prices(problems){
     delete priceBook.yours['hwf:wood-screws'];
     priceBook.yours['2x4']={p:4.25,d:'2026-11-02'};
     if(/NaN|undefined/.test(html))say('the shopping list contains "NaN" or "undefined"');
+    // a total of a thousand dollars and more has its comma, the way the presets window writes it
+    if(dollars(1228.93)!=='$1,228.93'||dollars(3.9)!=='$3.90'||dollars(12345)!=='$12,345.00')say(`the shopping list writes $1228.93 as "${dollars(1228.93)}", not "$1,228.93"`);
     if(HOSTED&&/homedepot|lowes|data-cmd="updatePrices"/.test(html))say('the hosted shopping list has a store link or an Update prices button');
     if(!HOSTED&&!html.includes('https://www.homedepot.com/s/2%20in.%20x%204%20in.%20x%208%20ft.%20lumber'))say('the Home Depot link of a 2x4 is not the search for "2 in. x 4 in. x 8 ft. lumber"');
     if(!HOSTED&&!html.includes('https://www.lowes.com/search?searchTerm=2%20in.%20x%204%20in.%20x%208%20ft.%20lumber'))say('the Lowe\'s link of a 2x4 is missing');
@@ -1389,7 +1429,8 @@ SELFTESTS.push(function prices(problems){
     // the two dialogs draw what they should (the throwaway book is still in use, so nothing is saved)
     openPriceBook();
     const listed=document.querySelectorAll('#priceBookTable tr[data-key]').length;
-    if(listed<MATS.filter(m=>m.kind!=='prop').length+HARDWARE_PRICES.length)say('the Price book does not list every lumber size, sheet and hardware row');
+    // (a hardware row that is a sheet of plywood, mat, is priced in the plywood rows, so it has no row of its own)
+    if(listed<MATS.filter(m=>m.kind!=='prop').length+HARDWARE_PRICES.filter(family=>!family.mat).length)say('the Price book does not list every lumber size, sheet and hardware row');
     $('#priceDlg').close();
     const typedBefore=JSON.stringify(priceBook.yours);
     openPastePrices();

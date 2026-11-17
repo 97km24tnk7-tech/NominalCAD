@@ -185,7 +185,7 @@ function renderJoints(){
     const howTo=Object.entries(JTYPES).filter(([key])=>used.has(key)&&key!=='none');
     if(howTo.length)h+=`<h2>How to make each joint</h2><dl class="facts">${howTo.map(([,type])=>`<dt>${type[0]}</dt><dd>${esc(type[2])}</dd>`).join('')}</dl>`;
   }
-  h+=`<h2>Hardware to buy</h2>`+hwTable(hardwareTotals(joints));
+  h+=`<h2>Hardware to buy</h2>`+hwTable(hardwareWithoutSheets(hardwareTotals(joints)));   // (sheets of plywood to cut on site are lumber: js/prices.js)
   const dots=Object.entries(JTYPES).filter(([key])=>key!=='none'&&key!=='glue')
     .map(([,type])=>`<span><i class="dot" style="background:#${type[1].toString(16).padStart(6,'0')}"></i>${type[0]}</span>`).join('');
   h+=`<h2 class="noprint">Colors in the Fasteners only view</h2><p class="hint noprint">On the Design tab, Display, then Fasteners only (Shift+F), draws the wood as an outline and every fastener in the color of its kind.</p><div class="dots noprint">${dots}</div>`;

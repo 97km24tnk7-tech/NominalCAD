@@ -68,6 +68,25 @@ const DRAWER={
   minSide:1.5,            // inches of drawer side above the bottom
 };
 const floor16=v=>Math.floor(v*16+1e-6)/16;
+
+/* ---------- the screws of a pull on a drawer front ----------
+   A pull on a drawer front is screwed on from inside the drawer, through the front AND the drawer box front behind
+   it, so the short screws in the pull's package (about 1") do not reach. The pull step asks for screws long enough
+   (pullLine, js/buildsteps.js, works out what they pass through from the pieces), and the shopping list buys them:
+   #8-32 machine screws (the thread of US cabinet pulls), two to a pull, priced by the row 'pull-screws' in
+   js/prices.js. Both use this one length rule. (The Computer desk buys the same line through its own
+   deskPullScrewLabel, js/computerdesk.js, with the same rule; it can switch to drawerPullScrewLine.) */
+const PULL_SCREW_INTO_PULL=.375;   // how far the screw goes into the pull
+/* The length of screw for this much wood (inches): the wood and 3/8" into the pull, to the next 1/4" up. With no
+   wood given: a drawer front on a drawer box front (DRAWER.frontThick + DRAWER.boxThick, 1 3/4"). */
+function drawerPullScrewLength(wood){
+  const through=wood||DRAWER.frontThick+DRAWER.boxThick;
+  return Math.ceil((through+PULL_SCREW_INTO_PULL)*4)/4;
+}
+/* The shopping-list line for the screws of `pulls` pulls on drawer fronts over drawer boxes: [label, count]. */
+function drawerPullScrewLine(pulls,wood){
+  return[`Machine screws, #8-32 × ${fmt(drawerPullScrewLength(wood))}, for the drawer pulls (the ones in the package are too short)`,2*pulls];
+}
 /* The fasteners between the pieces of a drawer. The box is glued and nailed (a wood screw splits an edge of 1/2 in
    plywood); the front is screwed on from inside the box with screws too short to reach the face; the ends of the
    drawer sides only touch the back of the front. */
@@ -510,3 +529,50 @@ function drawersAsPlaced(plan,label,wrong,check,count){
   const found=check().problems.filter(item=>!(item.level==='warn'&&plan.tip.factor<NS.tipWarn));
   if(found.length)wrong(label+'as placed, Check my design says: '+found[0].text);
 }
+
+/* Every preset whose steps ask for longer pull screws buys them: at its usual sizes and with each choice of each
+   option of its form (a list of choices, or a tick box), every pull step that says "use screws about ... long"
+   has a line of #8-32 machine screws of that length on the shopping list, two for each pull placed, with a price
+   of its own (the row 'pull-screws', js/prices.js). A step naming a screw the list does not buy sends a beginner
+   back to the store. */
+SELFTESTS.push(function pullStepsBuyTheirScrews(problems){
+  const kept=JSON.stringify(S);
+  const wrong=text=>{if(problems.length<60)problems.push('pull screws: '+text);};
+  try{
+    for(const preset of PRESETS){
+      const defaults=presetDefaults(preset),tries=[defaults];
+      for(const field of preset.params){
+        if(field.opts){
+          for(const[value]of field.opts)if(value!==defaults[field.k])tries.push({...defaults,[field.k]:value});
+        }else if(field.check)tries.push({...defaults,[field.k]:!field.v});
+      }
+      for(const vals of tries){
+        if(preset.check&&(preset.check(vals)||[]).some(found=>found.level==='stop'))continue;   // refused: nothing is built
+        let parts;
+        try{parts=preset.build(vals)||[];}catch(e){continue;}
+        if(!parts.length)continue;
+        load(JSON.stringify(blank()),true);
+        placePreset(preset,vals,parts,false);
+        const pulls=hardwareList().filter(item=>item.kind==='pull').length;
+        if(!pulls)continue;
+        const asked=new Set();
+        for(const step of buildPlan().steps)for(const line of step.hardware||[]){
+          const long=/use screws about (.+?) long/.exec(line.line||'');
+          if(line.kind==='pull'&&long)asked.add(parseLen(long[1]));
+        }
+        const rows=hardwareTotals(findJoints()).rows,label=`${preset.name} ${JSON.stringify(vals)===JSON.stringify(defaults)?'(usual sizes)':JSON.stringify(Object.fromEntries(Object.entries(vals).filter(([k,v])=>v!==defaults[k])))}: `;
+        for(const length of asked){
+          const row=rows.find(([words])=>/machine screws/i.test(words)&&words.includes(`× ${fmt(length)}`));
+          if(!row){wrong(label+`a step asks for pull screws about ${fmt(length)} long and the shopping list does not buy them`);continue;}
+          if(row[1]<2*pulls)wrong(label+`the shopping list buys ${row[1]} pull screws for ${pulls} pulls`);
+          const family=hardwareFamily(row[0]);
+          if(!family||family.id!=='pull-screws')wrong(label+`"${row[0]}" has no price of its own`);
+        }
+      }
+    }
+    // the step and the list use the same length rule: 3/4" front + 1/2" box front + 3/8" into the pull = 1 3/4"
+    if(drawerPullScrewLength()!==1.75)wrong(`a pull on a drawer front over a drawer box asks for ${fmt(drawerPullScrewLength())} screws, not 1 3/4"`);
+  }finally{
+    load(kept,true);
+  }
+});

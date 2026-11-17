@@ -13,6 +13,11 @@
        also keeps END_TRIM (1/2") spare, to square up the rough or split factory end before the first cut and to
        allow for a board that comes a little short. A board that carries one piece needs no spare: the piece may
        be as long as the board and is cut from it as it comes (an 8 ft piece from an 8 ft board, as framers do).
+     - Only lengths that US home centers usually stock for that size are bought by default (storeLengths, from
+       reference sheet 24, design\reference\24-board-lengths-in-stores.md): 1x boards and treated 4x4 posts
+       from 6 ft, every other size from 8 ft (in cedar only 1x4 and 1x6 from 6 ft). A list that names a board the store does not carry sends a
+       beginner home empty-handed, which is worse than a little waste. A length chosen on the cutting diagrams
+       may still be any length the program sells (STOCKS).
      - No board is bought longer than the design needs: the longest length tried is 8 ft, or the shortest length
        that holds the longest piece of that size when that is longer (BOARD_HAUL_BASE). So nobody is asked to
        carry home 16 ft boards to cut 3 ft pieces, and the fish racks, whose form asks for the "Longest board you
@@ -27,7 +32,9 @@
      so none is bought (the diagram still says when everything would fit on a half sheet, for a store that sells
      them). The face grain of a sheet runs its 8 ft length, and the program's notes ask for the plywood to be cut
      "with the grain running the long way" (shelf decks, table shelves, fish rack decks). So a piece is laid with
-     its length (its longer side) along the 8 ft side of the sheet. Only a square, the square that two corner
+     its length (its longer side) along the 8 ft side of the sheet, or its width when the piece says its grain runs
+     that way (grainAxis, the world axis of its grain: a Shed floor piece deeper than it is wide, whose grain must
+     run across the joists like the rest of the floor). Only a square, the square that two corner
      shelves are cut from, and the pieces of 1/4" plywood (backs and skins, which carry no weight) may be laid
      either way round. The layouts tried cut the sheet the way a saw does
      (straight through from edge to edge: strips along the sheet, strips across it, or a mix), with a saw cut
@@ -57,11 +64,53 @@ const END_TRIM=.5;
    end trim when there is more than one piece. used = the pieces and saw cuts, in sixteenths. */
 const boardNeeds=(used,count)=>used+(count>1?toSixteenths(END_TRIM):0);
 
-/* The lengths that may be bought for these pieces, shortest first (see BOARD_HAUL_BASE above). */
-function boardLengthsFor(longest){
-  const holdsLongest=STOCKS.find(length=>length>=longest-1e-6);
+/* The shortest board of each size that US home centers usually stock in the store, in inches (reference sheet
+   24: the two big US home centers' own listings, Nov 2026). Where a shorter length is not clearly a normal
+   stocked item the answer is 8 ft: 2x4, 2x6 and the other 2x sizes are sold at 8 ft and up (and as 4 ft
+   project boards, which the program does not sell); a plain 4x4 at 8 ft and up; 2x2 at 8 ft at both stores
+   (6 ft only as select pine at one). 1x boards (common, whitewood and select pine, cedar 1x6) are stocked at
+   6 ft, and treated 4x4 posts at 6 ft for fences. A size missing here (one added later) starts at 8 ft. */
+const STORE_SHORTEST={'1x2':72,'1x3':72,'1x4':72,'1x6':72,'1x8':72,'1x10':72,'1x12':72,'pt4x4':72};
+const STORE_SHORTEST_USUAL=96;
+/* A wood that home centers stock in fewer short lengths than pine has a table of its own here, which takes the
+   place of STORE_SHORTEST for its boards (a size missing from it starts at 8 ft). Reference sheet 24:
+   - cedar: 1x4 and 1x6 are listed at 6 ft (premium cedar boards); cedar 1x2, 1x8, 1x10 and 1x12 are listed at
+     8 ft and longer, not at 6 ft, and 1x3 was not found, so those start at 8 ft;
+   - rough-sawn or reclaimed boards: not looked up, so 8 ft (the in-doubt rule).
+   Poplar, oak, select pine and pressure-treated 1x boards are listed at 6 ft, like pine: no table. A treated
+   material (a pressure-treated 4x4 post) keeps its own row of STORE_SHORTEST whatever the wood of the design. */
+const STORE_SHORTEST_BY_WOOD={cedar:{'1x4':72,'1x6':72},rough:{}};
+/* The lengths the shopping list may buy of this material by default, shortest first: the ones the program sells
+   (STOCKS, js/plans.js) that the store usually stocks. wood: the wood of the design (look().wood when left out). */
+function storeLengths(m,wood){
+  wood=wood||look().wood;
+  const table=!m.treated&&STORE_SHORTEST_BY_WOOD[wood]||STORE_SHORTEST;
+  const shortest=table[m.id]||STORE_SHORTEST_USUAL;
+  return STOCKS.filter(length=>length>=shortest);
+}
+/* The first line of the cutting diagrams: which lengths are bought, for the board sizes in this design.
+   "The boards are lengths home centers usually stock: 1x4 and 1x6 from 6 ft, 2x4 and 4x4 from 8 ft." */
+function storeLengthsWords(materials){
+  const byShortest=new Map();
+  for(const m of materials){
+    if(m.kind!=='board')continue;
+    const shortest=storeLengths(m)[0];
+    if(!byShortest.has(shortest))byShortest.set(shortest,[]);
+    // "treated 4x4" in the middle of the sentence, not "Treated 4x4"
+    byShortest.get(shortest).push((m.brief||m.short).replace(/^[A-Z](?=[a-z])/,letter=>letter.toLowerCase()));
+  }
+  if(!byShortest.size)return'';
+  const list=names=>names.length>1?names.slice(0,-1).join(', ')+' and '+names[names.length-1]:names[0];
+  const parts=[...byShortest.keys()].sort((a,b)=>a-b).map(shortest=>`${list(byShortest.get(shortest))} from ${shortest/12} ft`);
+  return`The boards are lengths home centers usually stock: ${parts.join(', ')}. If your store has another length, pick it beside the board size.`;
+}
+
+/* The lengths that may be bought for these pieces, shortest first (see BOARD_HAUL_BASE above). sold: the lengths
+   the store stocks of this size (storeLengths). */
+function boardLengthsFor(longest,sold){
+  const holdsLongest=sold.find(length=>length>=longest-1e-6);
   const most=Math.max(BOARD_HAUL_BASE,holdsLongest||0);
-  return STOCKS.filter(length=>length<=most);
+  return sold.filter(length=>length<=most);
 }
 
 /* A layout: [{length (inches), used (sixteenths), cuts: [item]}]. Its score, for comparing two layouts. */
@@ -217,9 +266,12 @@ function improveBoardsByPairs(boards,lengths,priceOfLength){
      items     [{l (inches), letter, name}]: one per piece
      price     length in inches -> dollars for one board
      chosen    a length the person chose for this size (inches), or 0 for the best mix
+     sold      the lengths the best mix may buy (storeLengths: the ones the store usually stocks); all of STOCKS
+               when left out
    Returns {boards: [{length, used (inches), cuts: [item]}], tooLong: [item], mixed: true when the person chose a
    length and some pieces needed longer boards}. Every item is in exactly one board's cuts or in tooLong. */
-function buyBoards(items,price,chosen){
+function buyBoards(items,price,chosen,sold){
+  sold=sold&&sold.length?sold:STOCKS;
   const longestSold=STOCKS[STOCKS.length-1];
   const tooLong=items.filter(item=>item.l>longestSold+1e-6);
   const fit=items.filter(item=>item.l<=longestSold+1e-6).map(item=>({...item,n:toSixteenths(item.l)})).sort((a,b)=>b.n-a.n);
@@ -236,10 +288,11 @@ function buyBoards(items,price,chosen){
     return out;
   }
 
-  const lengths=boardLengthsFor(fit[0].n/16);
+  const lengths=boardLengthsFor(fit[0].n/16,sold);
   const tries=[];
   // what the program bought before: one length for the whole size (8 ft, or the shortest that holds the longest
   // piece), each board then bought as short as its cuts allow. Kept as a try, so the mix is never dearer.
+  // (Every length longer than 8 ft is stocked, so this length is always one the store has.)
   const oneLength=fit[0].n>toSixteenths(96)?holding(fit[0]):96;
   tries.push(shrinkBoards(boardsFirstFit(fit,()=>oneLength,false),lengths));
   // first fit and best fit, opening boards of each allowed length (or the shortest that holds the piece)
@@ -270,11 +323,17 @@ function buyBoards(items,price,chosen){
 const SHEET_SKIN_T=.3;
 const sheetPieceTurns=(rect,thin)=>thin||!!rect.diagonal||Math.abs(rect.a-rect.b)<1e-6;
 
+/* The side of a piece that must lie along the 8 ft side of the sheet, where the face grain runs: its length, or its
+   width when the piece asks for the grain along its width (rect.grainOnWidth: a floor piece deeper than it is
+   wide, whose grain must still run across the joists; shedFloorPiece, js/builders-shed.js). */
+const sheetGrainSide=rect=>rect.grainOnWidth?rect.b:Math.max(rect.a,rect.b);
+/* Does this piece ask for its face grain along its width? (grainAxis: the world axis its grain runs along) */
+const pieceGrainOnWidth=p=>p.grainAxis!==undefined&&!!p.ax&&p.ax[1]===p.grainAxis&&Math.abs(p.l-p.w)>1e-6;
 /* The ways a piece can lie on a sheet, as [across the 8 ft side, across the 4 ft side]. */
 function sheetWays(rect,thin){
-  const long=Math.max(rect.a,rect.b),short=Math.min(rect.a,rect.b);
-  const ways=[[long,short]];
-  if(sheetPieceTurns(rect,thin)&&long!==short)ways.push([short,long]);
+  const along=sheetGrainSide(rect),across=rect.a+rect.b-along;
+  const ways=[[along,across]];
+  if(sheetPieceTurns(rect,thin)&&along!==across)ways.push([across,along]);
   return ways.filter(([x,y])=>x<=SHEET_LONG+1e-6&&y<=SHEET_SHORT+1e-6);
 }
 
@@ -305,7 +364,7 @@ function packSheetsGuillotine(rects,split,thin){
     for(const candidate of sheets){spot=bestSpot(candidate,ways);if(spot){sheet=candidate;break;}}
     if(!spot){sheet=newSheet();spot=bestSpot(sheet,ways);}
     const free=sheet.free.splice(spot.index,1)[0],{w,h}=spot;
-    sheet.items.push({x:free.x,y:free.y,w,h,name:rect.name,piece:rect.piece,diagonal:rect.diagonal});
+    sheet.items.push({x:free.x,y:free.y,w,h,name:rect.name,piece:rect.piece,diagonal:rect.diagonal,grainSide:sheetGrainSide(rect)});
     const restW=free.w-w-kerf,restH=free.h-h-kerf;
     const alongRows=split==='rows'||(split==='short'&&restW*free.h<free.w*restH);
     // alongRows: the long cut is under the piece, so the piece beside it is only as tall as the piece
@@ -344,7 +403,7 @@ function packSheets(rects,thin){
 function materialBuy(m,pieces,letterOf,chosen){
   if(m.kind==='board'){
     const items=pieces.map(p=>({l:p.l,letter:letterOf(p),name:p.name,piece:p}));
-    const plan=buyBoards(items,length=>priceOf(m.id,length),chosen||0);
+    const plan=buyBoards(items,length=>priceOf(m.id,length),chosen||0,storeLengths(m));
     const counts=new Map();
     for(const board of plan.boards)counts.set(board.length,(counts.get(board.length)||0)+1);
     plan.buy=[...counts.keys()].sort((a,b)=>a-b).map(length=>({m,qty:counts.get(length),stock:length}));
@@ -426,9 +485,10 @@ function buyingBeforeSheets(rects){
 }
 
 /* What is wrong with the plan of one material, in words (none: []). Every piece is on exactly one bought board or
-   sheet, inside it, with a saw cut between pieces, nothing overlaps, no board or sheet is bought empty, and on a
-   sheet every piece lies with its grain the long way unless it may turn. */
-function buyingPlanFaults(m,pieces,plan){
+   sheet, inside it, with a saw cut between pieces, nothing overlaps, no board or sheet is bought empty, on a
+   sheet every piece lies with its grain the long way unless it may turn, and (with no length chosen, the best
+   mix) every board is a length the store usually stocks of that size (storeLengths). */
+function buyingPlanFaults(m,pieces,plan,chosen){
   const out=[],near=1e-6;
   if(m.kind==='board'){
     const placed=plan.boards.reduce((sum,board)=>sum+board.cuts.length,0)+plan.tooLong.length;
@@ -436,6 +496,7 @@ function buyingPlanFaults(m,pieces,plan){
     const seen=new Set();
     for(const board of plan.boards){
       if(!STOCKS.includes(board.length))out.push(`a board ${board.length}" long, a length the store does not sell`);
+      else if(!chosen&&!storeLengths(m).includes(board.length))out.push(`a ${board.length/12} ft board, a length home centers do not usually stock for a ${m.short}`);
       if(!board.cuts.length)out.push('a board is bought with no piece on it');
       const used=board.cuts.reduce((sum,item)=>sum+item.l,0)+SAW_KERF*(board.cuts.length-1);
       if(used>board.length+near)out.push(`a ${board.length/12} ft board carries ${fmt(used)} of pieces and saw cuts`);
@@ -452,7 +513,8 @@ function buyingPlanFaults(m,pieces,plan){
       if(!sheet.items.length)out.push('a sheet is bought with no piece on it');
       sheet.items.forEach((a,i)=>{
         if(a.x<-near||a.y<-near||a.x+a.w>SHEET_LONG+near||a.y+a.h>SHEET_SHORT+near)out.push(`${a.name} runs off the sheet`);
-        if(a.h>a.w+near&&!a.diagonal&&m.t>SHEET_SKIN_T)out.push(`${a.name} is laid across the grain`);
+        // (the side that carries the grain lies along the sheet: its length, or its width for a piece that asks for it)
+        if(Math.abs(a.w-a.h)>near&&Math.abs(a.w-a.grainSide)>near&&!a.diagonal&&m.t>SHEET_SKIN_T)out.push(`${a.name} is laid across the grain`);
         sheet.items.forEach((b,j)=>{
           if(j<=i)return;
           const apartX=a.x+a.w+SAW_KERF<=b.x+near||b.x+b.w+SAW_KERF<=a.x+near,apartY=a.y+a.h+SAW_KERF<=b.y+near||b.y+b.h+SAW_KERF<=a.y+near;
@@ -467,8 +529,10 @@ function buyingPlanFaults(m,pieces,plan){
 
 /* Every preset at its usual sizes and at the smallest and largest of each number: the plan holds every piece as
    described above, the cutting diagrams draw what the list buys, and it never costs more than the program bought
-   before. Named cases: the Garage shelves buy one sheet where the decks fit on one with their grain the long way;
-   the Shed buys its 2x4s in more than one length; the Planter box's cutting diagram shows its piece D. */
+   before. Named cases: the Garage shelves buy one sheet where the decks fit on one with their grain the long way
+   (40" and the usual 48"); the Shed buys its 2x4s in more than one length, and its lumber line counts the
+   plywood for its gable ends; the Planter box's cutting diagram shows its piece D; the best mix buys only the
+   lengths home centers usually stock, and a length chosen on the diagrams is still bought. */
 SELFTESTS.push(function buyingHoldsEveryPiece(problems){
   const kept=JSON.stringify(S);
   const wrong=text=>{if(problems.length<60)problems.push('buying: '+text);};
@@ -495,7 +559,7 @@ SELFTESTS.push(function buyingHoldsEveryPiece(problems){
           if(m.kind==='prop')continue;
           const pieces=all.filter(p=>p.mat===m.id);
           if(!pieces.length)continue;
-          for(const fault of buyingPlanFaults(m,pieces,materialBuy(m,pieces,letterOf,0)))wrong(`${at}, ${m.short}: ${fault}`);
+          for(const fault of buyingPlanFaults(m,pieces,materialBuy(m,pieces,letterOf,0),0))wrong(`${at}, ${m.short}: ${fault}`);
         }
         const now=lumberToBuy(all).cost,before=buyingBeforeCost(all);
         if(now>before+.005)wrong(`${at}: the lumber costs $${now.toFixed(2)}, more than the $${before.toFixed(2)} it cost before`);
@@ -506,7 +570,8 @@ SELFTESTS.push(function buyingHoldsEveryPiece(problems){
         const boardsBought=drawn.buy.filter(row=>row.stock).reduce((sum,row)=>sum+row.qty,0),sheetsBought=drawn.buy.filter(row=>!row.stock).reduce((sum,row)=>sum+row.qty,0);
         if(boardsDrawn!==boardsBought||sheetsDrawn!==sheetsBought)wrong(`${at}: the diagrams draw ${boardsDrawn} boards and ${sheetsDrawn} sheets, and the list buys ${boardsBought} and ${sheetsBought}`);
         // the presets window's "Lumber, about $..." is the shopping list's "Lumber, before tax" line, in whole dollars
-        const windowCost=Math.round(assessParts(preset.build(vals),preset,vals).buy.cost),pageLumber=Math.round(shoppingModel(drawn.buy,null).lumber);
+        // (with the hardware list, whose sheets of plywood to cut on site count with the lumber: the Shed's gable ends)
+        const windowCost=Math.round(assessParts(preset.build(vals),preset,vals).buy.cost),pageLumber=Math.round(shoppingModel(drawn.buy,hardwareTotals(findJoints())).lumber);
         if(windowCost!==pageLumber)wrong(`${at}: the presets window says lumber about $${windowCost}, and the shopping list's lumber line comes to $${pageLumber}`);
       });
     }
@@ -519,16 +584,35 @@ SELFTESTS.push(function buyingHoldsEveryPiece(problems){
       placePreset(preset,vals,preset.build(vals),false);
       return diagramSection(cutRows());
     };
-    const garage=place('Garage shelves',{W:40});
-    if(garage){
+    // the Garage shelves at 40" and at the usual 48" (decks 47 15/16" long, two to the sheet's length) buy one sheet
+    for(const width of[40,48]){
+      const garage=place('Garage shelves',{W:width});
+      if(!garage)continue;
       const sheets=garage.buy.filter(row=>!row.stock).reduce((sum,row)=>sum+row.qty,0);
-      if(sheets!==1)wrong(`Garage shelves 40" wide: the four decks fit on one sheet with the grain the long way, and the list buys ${sheets}`);
+      if(sheets!==1)wrong(`Garage shelves ${width}" wide: the four decks fit on one sheet with the grain the long way, and the list buys ${sheets}`);
     }
     const shed=place('Shed');
     if(shed){
       const lengths=shed.buy.filter(row=>row.m.id==='2x4').map(row=>row.stock);
       if(lengths.length<2)wrong(`Shed: every 2x4 is bought ${lengths.length?lengths[0]/12+' ft':''} long, not in a mix of lengths`);
+      // the sheet of 1/2" plywood for the gable ends is lumber: "Lumber, before tax" counts it
+      const gable=sheetsToCutOnSite(hardwareTotals(findJoints()).rows);
+      const model=shoppingModel(shed.buy,hardwareTotals(findJoints()));
+      const gableCost=gable.reduce((sum,sheet)=>sum+sheet.qty*priceOf(sheet.m.id,0),0);
+      if(!gable.length)wrong('Shed: the plywood for the gable ends is not on its list as sheets to cut on site');
+      else if(Math.abs(model.lumber-shoppingModel(shed.buy,null).lumber-gableCost)>.005)wrong('Shed: "Lumber, before tax" leaves out the plywood for the gable ends');
+      if(hardwareWithoutSheets(hardwareTotals(findJoints())).rows.some(([label])=>gable.some(sheet=>sheet.label===label)))wrong('Shed: the plywood for the gable ends is also in the Hardware table');
     }
+    // the board lengths bought are the ones home centers usually stock (reference sheet 24): a short piece of 2x4 or
+    // of a plain 4x4 comes from an 8 ft board, one of a 1x4 or a treated 4x4 post from a 6 ft board, and a 6 ft
+    // board chosen on the cutting diagrams is still bought
+    for(const[size,want]of[['2x4',96],['4x4',96],['2x2',96],['1x4',72],['pt4x4',72]]){
+      const plan=materialBuy(M[size],[mk('Short',size,[30,M[size].w,M[size].t],[0,0,0])],()=>'',0);
+      const got=plan.boards.map(board=>board.length).join(',');
+      if(got!==String(want))wrong(`a 30" piece of ${M[size].short} is bought as a board of ${got}", not ${want/12} ft`);
+    }
+    const chosenSix=materialBuy(M['2x4'],[mk('Short','2x4',[30,3.5,1.5],[0,0,0])],()=>'',72);
+    if(chosenSix.boards.map(board=>board.length).join(',')!=='72')wrong('with 6 ft chosen on the cutting diagrams, a 30" 2x4 is not bought as a 6 ft board');
     const planter=place('Planter box');
     if(planter){
       const list=cutRows(),lettersCut=new Set(list.rows.filter(row=>M[row.mat].kind==='board').map(row=>row.id));
@@ -549,6 +633,36 @@ SELFTESTS.push(function buyingHoldsEveryPiece(problems){
     const tight=materialBuy(M['2x4'],S.parts,()=>'',0);
     if(tight.boards.some(board=>board.length===96&&board.cuts.length>1))wrong('two 47 15/16" pieces are laid on one 8 ft board with no end trim');
     if(!tight.boards.some(board=>board.length===96&&board.cuts.length===1&&board.cuts[0].l===96))wrong('a piece 8 ft long is not cut from an 8 ft board of its own');
+  }finally{
+    load(kept,true);
+  }
+});
+/* The board lengths follow the wood of the design (STORE_SHORTEST_BY_WOOD, reference sheet 24): in cedar only the
+   1x4 and the 1x6 are bought at 6 ft, and a cedar 1x2, 1x8 or 1x10 comes from an 8 ft board; in pine every 1x
+   size starts at 6 ft; a pressure-treated 4x4 post is 6 ft in any design. Then every preset in cedar at its usual
+   sizes (the Bird feeder, the Planter box, the Raised garden bed) buys, with the best mix, only those lengths,
+   read from the cutting diagrams the page draws. */
+SELFTESTS.push(function storeLengthsFollowTheWood(problems){
+  const kept=JSON.stringify(S);
+  const wrong=text=>{if(problems.length<60)problems.push('store lengths: '+text);};
+  try{
+    const cases=[['1x2','cedar',96],['1x4','cedar',72],['1x6','cedar',72],['1x8','cedar',96],['1x10','cedar',96],['1x12','cedar',96],
+      ['1x10','pine',72],['1x2','poplar',72],['1x4','rough',96],['pt4x4','cedar',72],['2x4','cedar',96]];
+    for(const[size,wood,want]of cases){
+      const got=storeLengths(M[size],wood)[0];
+      if(got!==want)wrong(`a ${wood} ${M[size].short} starts at ${got/12} ft, not ${want/12} ft`);
+    }
+    for(const preset of PRESETS){
+      if(preset.retired||!preset.look||preset.look.wood!=='cedar')continue;
+      const vals=presetDefaults(preset);
+      if(preset.check&&(preset.check(vals)||[]).some(found=>found.level==='stop'))continue;
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,preset.build(vals),false);
+      for(const row of diagramSection(cutRows()).buy){
+        if(!row.stock)continue;
+        if(!storeLengths(row.m,'cedar').includes(row.stock))wrong(`${preset.name}: a cedar ${row.m.short} is bought ${row.stock/12} ft long, a length home centers do not usually stock in cedar`);
+      }
+    }
   }finally{
     load(kept,true);
   }

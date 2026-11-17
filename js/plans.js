@@ -206,7 +206,8 @@ function cutRows(){
       const twin=blankKey(p)+'|'+shapeKeyMirror(p);
       if(groups.has(twin)){k=twin;mirrored=true;}
     }
-    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:p.strip?0:angleOf(p),qty:0,names:new Set(),strip:!!p.strip,
+    // (grainOnWidth: a sheet piece cut with its face grain along its width, pieceGrainOnWidth in js/buying.js)
+    if(!groups.has(k))groups.set(k,{mat:p.mat,l:p.l,w:p.w,t:p.t,deg:p.strip?0:angleOf(p),qty:0,names:new Set(),strip:!!p.strip,grainOnWidth:pieceGrainOnWidth(p),
       ...(p.shape?{sample:p,mirrored:0}:{})});
     const g=groups.get(k);
     g.qty++;g.names.add(p.name);
@@ -237,7 +238,8 @@ function cutListSection(list){
     const shaped=g.sample&&g.sample.shape,endsCut=shaped&&(shapeEnd(g.sample,0)||shapeEnd(g.sample,1));
     const angled=!g.deg||m.kind==='sheet'||endsCut?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
     const shapeWords=shaped?shapeRowNote(g):[];   // js/shapedrawings.js
-    const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,...shapeWords].filter(Boolean).join('. ');
+    const grain=m.kind==='sheet'&&g.grainOnWidth?`Cut it with the grain of the face along its ${fmt(g.w)} width`:'';
+    const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,grain,...shapeWords].filter(Boolean).join('. ');
     return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
       `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td>${drill?`<td>${esc(drillColumn(g,drill))}</td>`:''}<td>${note}</td></tr>`;
   });
@@ -254,8 +256,11 @@ function diagramSection(list){
   // (the grain rule of the sheets: js/buying.js)
   const plywood=S.parts.some(p=>M[p.mat].kind==='sheet'&&M[p.mat].t>SHEET_SKIN_T);
   // (END_TRIM: the spare kept on a board that carries two or more pieces, js/buying.js)
-  let h=`<h2>Cutting diagrams</h2><p class="hint">Diagrams allow 1/8" for each saw cut, and at least ${fmt(END_TRIM)} spare on a board cut into two or more pieces, to square up the end first. Striped areas are leftover.`+
-    (plywood?' On 1/2" and 3/4" plywood the grain of the face runs left to right, and every piece lies with its grain along its length.':'')+`</p>`;
+  // (storeLengthsWords: the board lengths bought are the ones home centers usually stock, js/buying.js)
+  const stocked=storeLengthsWords(MATS.filter(m=>S.parts.concat(woodStrips()).some(p=>p.mat===m.id)));
+  let h=`<h2>Cutting diagrams</h2><p class="hint">${stocked?stocked+' ':''}Diagrams allow 1/8" for each saw cut, and at least ${fmt(END_TRIM)} spare on a board cut into two or more pieces, to square up the end first. Striped areas are leftover.`+
+    (plywood?' On 1/2" and 3/4" plywood the grain of the face runs left to right, and every piece lies with its grain along its length'+
+      (S.parts.some(pieceGrainOnWidth)?', or along its width where the cut list says so.':'.'):'')+`</p>`;
   for(const m of MATS){
     const pieces=S.parts.concat(woodStrips()).filter(p=>p.mat===m.id);
     if(!pieces.length||m.kind==='prop')continue;
@@ -478,7 +483,7 @@ function renderCut(instr){
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
   const diagrams=diagramSection(list),hardware=hardwareTotals(joints);
   h+=cutListSection(list)+shapesSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js; shapesSection: js/shapedrawings.js
-  h+=`<h2>Hardware</h2>`+hwTable(hardware);
+  h+=`<h2>Hardware</h2>`+hwTable(hardwareWithoutSheets(hardware));   // (a sheet of plywood to cut on site is lumber: js/prices.js)
   if(instr)h+=stepsSection(buildPlan(),pics.steps);
   h+=fastenerSection(joints);
 

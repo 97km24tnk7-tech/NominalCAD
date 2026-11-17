@@ -415,6 +415,19 @@ const GARAGE_MIN_OPENING=6;         // clear height between shelves; lower than 
 const GARAGE_CROSS_SPACING=24;      // cross pieces between the rails, center to center, at most
 const GARAGE_DECK=.5;               // the decks are 1/2" plywood
 const GARAGE_USES={'Shelf deck':'shelf','Top deck':'shelf',Rail:'shelf','End rail':'shelf','Cross piece':'shelf'};
+/* The decks are cut from 4 x 8 sheets with the grain along the 8 ft length, so their length (the width of the unit)
+   lies along the sheet. A deck that is exactly half the sheet's length (48"), or a whole fraction of it near
+   enough, misses sharing that length with the others by the width of a saw cut: two 48" decks need 96 1/8". Such
+   a deck gives up GARAGE_DECK_GIVE (1/16", approved by the owner) when that lets one more deck come out of the
+   sheet's length, so four 48" decks come from one sheet instead of two. It still bears on the end rail at both
+   ends (1 7/16" of the 1 1/2" at one end), and the gap at the end does not show. */
+const GARAGE_DECK_GIVE=1/16;
+// how many decks of this length come out of the sheet's length, with a saw cut between each two
+const garageDecksAlongSheet=length=>Math.floor((SHEET_LONG+SAW_KERF)/(length+SAW_KERF)+1e-9);
+function garageDeckLength(W){
+  const shorter=W-GARAGE_DECK_GIVE;
+  return garageDecksAlongSheet(shorter)>garageDecksAlongSheet(W)?shorter:W;
+}
 
 function garagePlan(p){
   const W=sizeWithin(p.W,GARAGE_LIMITS.W),D=sizeWithin(p.D,GARAGE_LIMITS.D),H=sizeWithin(p.H,GARAGE_LIMITS.H);
@@ -434,6 +447,7 @@ function garagePlan(p){
   const spaces=Math.ceil((W-1.5)/GARAGE_CROSS_SPACING),crossX=[];
   for(let k=1;k<spaces;k++)crossX.push(r16((W-1.5)*k/spaces));
   return{W,D,H,shelves,pitch,opening:pitch-4,levels,postX,crossX,crossGap:(W-1.5)/spaces,
+    deckLength:garageDeckLength(W),                              // the decks' length: W, or 1/16" less to share a sheet
     loadPerShelf:Math.floor(USES.shelf.psf*W*(D-3)/144/10)*10,
     anchored:H>TIP_RULES.narrow*D,
     wallBraces:Math.max(2,Math.ceil(W/32))};                    // corner braces that hold it to the wall studs
@@ -446,9 +460,10 @@ function buildGarageShelves(p){
     P.push(mk('End rail','2x4',[1.5,3.5,D],[0,y,0]),mk('End rail','2x4',[1.5,3.5,D],[W-1.5,y,0]));
     P.push(mk('Rail','2x4',[W-3,3.5,1.5],[1.5,y,1.5]),mk('Rail','2x4',[W-3,3.5,1.5],[1.5,y,D-3]));
     for(const x of s.crossX)P.push(mk('Cross piece','2x4',[1.5,3.5,D-6],[x,y,3]));
-    // a lower deck fits between the posts; the top deck covers the whole top, post tops and all
-    if(level<s.levels.length-1)P.push(mk('Shelf deck','ply12',[W,GARAGE_DECK,D-3],[0,y+3.5,1.5]));
-    else P.push(mk('Top deck','ply12',[W,GARAGE_DECK,D],[0,y+3.5,0]));
+    // a lower deck fits between the posts; the top deck covers the whole top, post tops and all. Both start at the
+    // left end of the unit and are s.deckLength long (garageDeckLength: perhaps 1/16" short at the right end).
+    if(level<s.levels.length-1)P.push(mk('Shelf deck','ply12',[s.deckLength,GARAGE_DECK,D-3],[0,y+3.5,1.5]));
+    else P.push(mk('Top deck','ply12',[s.deckLength,GARAGE_DECK,D],[0,y+3.5,0]));
   });
   return P;
 }
@@ -471,6 +486,7 @@ function garageNotes(p){
   const s=garagePlan(p);
   return[`Each shelf is sized for about ${s.loadPerShelf} lb spread evenly over it (50 lb per square foot). Keep the heaviest things on the bottom shelf. These are rule-of-thumb sizes, not an engineer's numbers.`,
     'Cut the plywood decks with the grain of the face running the long way, across the cross pieces. Plywood is about twice as stiff that way.',
+    ...(s.deckLength<s.W?[`The decks are ${fmt(s.deckLength)} long, not ${fmt(s.W)}: 1/16" shorter than the unit is wide, so that ${['','one','two','three','four'][garageDecksAlongSheet(s.deckLength)]||garageDecksAlongSheet(s.deckLength)} of them come out of the 8 ft length of a sheet with room for the saw cuts between them. Line each deck up with the left end of the unit; the 1/16" at the right end does not show.`]:[]),
     s.anchored?'This unit is more than 4 times as tall as it is deep. It must be fastened to the wall studs before you load it; the last step says how.'
       :'It stands on its own, but fasten it to the wall studs if anyone might climb it or if the floor slopes. '+garageWallHow(s)+
         ` The braces are extra, so they are not in the shopping list: buy ${s.wallBraces} corner braces and a few 1 5/8" screws if you do this.`,
@@ -507,10 +523,10 @@ function garageSteps(p){
       (s.crossX.length===1?', and fit the cross piece between them at the middle of their length':s.crossX.length?`, and fit the ${s.crossX.length} cross pieces between them, spaced evenly: about ${fmt(Math.round(s.crossGap))} from the middle of one to the middle of the next, and the same from each end of the rails`:'')+
       (s.crossX.length?'. Drive two 3" screws through each rail into each end of a cross piece':'')+
       `. Then lay an end rail across each end of the frame and drive two 3" screws through it into the end of each rail. The end rail is 3" longer than the frame is deep: let it stick out 1 1/2" past the rail at the front and at the back. Those two notches are where the posts go.`,add:['Rail','Cross piece','End rail']},
-    {t:`Screw a plywood deck onto ${s.shelves>2?'every frame except one':'one of the two frames'}, with a 1 1/4" screw about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}. Its long edges sit flush with the outside faces of the rails and its ends flush with the end rails, so the notches for the posts stay open. The frame left bare is the top one: its deck is bigger and goes on last.`,add:['Shelf deck']},
+    {t:`Screw a plywood deck onto ${s.shelves>2?'every frame except one':'one of the two frames'}, with a 1 1/4" screw about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}. Its long edges sit flush with the outside faces of the rails and its ends flush with the end rails${s.deckLength<s.W?' (it is 1/16" shorter than the frame: keep the left ends flush)':''}, so the notches for the posts stay open. The frame left bare is the top one: its deck is bigger and goes on last.`,add:['Shelf deck']},
     {t:`Lay all ${countOf(2*s.postX.length,'post')} side by side with their bottom ends lined up and mark the underside of each shelf frame across them, measured from the bottom end: ${heights.join(', ')}. The bare top frame goes at the last mark, which puts its top flush with the top ends of the posts. Get a helper, or cut scrap blocks to hold the spacing. Stand the shelf frames on their front edges on the floor, lay the ${countOf(s.postX.length,'back post')} on top of them at the marks, each corner post tight in its notch${middle?', the middle post'+(middle>1?'s spaced evenly':' centered')+' on the rail':''}, and drive two 2 1/2" screws down through each post into the back rail of every frame. (A 3" screw would come out the far side.)${middle?' Where a middle post covers the screws that hold a cross piece, keep its screws clear of them.':''} Then, at every frame, drive two 3" screws through the end rail into the edge of the corner post. These screws are what holds every shelf up, so do not leave any out.`,add:['Post'],pick:garageBackPost},
     {t:`Turn the unit over so it lies on the posts you just fastened. Lay the ${countOf(s.postX.length,'front post')} on at the marks and fasten ${s.postX.length>1?'them':'it'} the same way: two 2 1/2" screws down through each post into the front rail of every frame, then two 3" screws through each end rail into the edge of the corner post. Stand the unit up. The end rails are what stop it from leaning front to back, so do not leave out their screws into the posts.`,add:['Post']},
-    {t:`Lay the top deck on. It is the full size of the unit, so it covers the top ends of the posts and sits flush with the outside of the unit all the way round. Screw it down with 1 1/4" screws, about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}, and two into the top end of each post.`,add:['Top deck']},
+    {t:`Lay the top deck on. ${s.deckLength<s.W?'It is the full depth of the unit and 1/16" short of its width, so it covers the top ends of the posts and sits flush with the outside of the unit at the front, the back and the left end.':'It is the full size of the unit, so it covers the top ends of the posts and sits flush with the outside of the unit all the way round.'} Screw it down with 1 1/4" screws, about every 8" into the rails, the end rails${s.crossX.length?' and the cross pieces':''}, and two into the top end of each post.`,add:['Top deck']},
     STORAGE_FINISH_STEP,
     {t:s.anchored?'Stand it against the wall. This unit is tall for its depth, so it must be held to the wall before it is loaded. '+garageWallHow(s)+' Keep the heaviest things on the bottom shelf.'
       :'Stand it in place and keep the heaviest things on the bottom shelf. Fasten it to the wall studs if anyone might climb on it (the notes say how).',add:[]}];
@@ -836,7 +852,10 @@ SELFTESTS.push(function garageTopDeck(problems){
     const parts=buildGarageShelves(vals),tops=parts.filter(piece=>piece.name==='Top deck');
     if(tops.length!==1){problems.push(label+'there must be exactly one top deck');continue;}
     const top=box(tops[0]),posts=parts.filter(piece=>piece.name==='Post').map(box);
-    if(!near(top.lo[0],0)||!near(top.hi[0],vals.W)||!near(top.lo[2],0)||!near(top.hi[2],vals.D)||!near(top.hi[1],vals.H))problems.push(label+'the top deck does not cover the whole top');
+    // (full width, but for the 1/16" a deck gives up at the right end to share a sheet: garageDeckLength)
+    const deckLength=garagePlan(vals).deckLength;
+    if(deckLength<vals.W-GARAGE_DECK_GIVE-1e-6)problems.push(label+`the decks are ${fmt(deckLength)} long, more than 1/16" short of the ${fmt(vals.W)} width`);
+    if(!near(top.lo[0],0)||!near(top.hi[0],deckLength)||!near(top.lo[2],0)||!near(top.hi[2],vals.D)||!near(top.hi[1],vals.H))problems.push(label+'the top deck does not cover the whole top');
     if(posts.some(post=>!near(post.hi[1],top.lo[1])))problems.push(label+'the posts do not stop under the top deck');
     // the deck rests on the top frame as well as on the post tops
     const frame=parts.filter(piece=>piece.name==='Rail'||piece.name==='End rail').map(box).filter(rail=>near(rail.hi[1],top.lo[1]));
@@ -848,6 +867,39 @@ SELFTESTS.push(function garageTopDeck(problems){
     if(Math.min(vals.W,vals.D)>SHEET_WIDTH||Math.max(vals.W,vals.D)>96)problems.push(label+'the top deck cannot be cut from one sheet of plywood');
     const steps=garageSteps(vals),topStep=steps.find(step=>step.add.includes('Top deck')),postStep=steps.findIndex(step=>step.add.includes('Post'));
     if(!topStep||steps.indexOf(topStep)<postStep)problems.push(label+'the top deck needs its own step, after the posts are on');
+  }
+});
+/* Garage shelves: a deck gives up 1/16" only where that lets one more deck come out of a sheet's 8 ft length (at the
+   usual 48" width: two to the length, four decks to one sheet), it still rests on the end rail at both ends, and
+   at no width the form allows does the shopping list buy more sheets than with the decks the full width. */
+SELFTESTS.push(function garageDecksShareASheet(problems){
+  const say=text=>{if(problems.length<60)problems.push('garage shelves: '+text);};
+  const L=GARAGE_LIMITS;
+  if(garageDeckLength(48)!==48-GARAGE_DECK_GIVE)say(`48" wide, the decks are ${fmt(garageDeckLength(48))} long, not 47 15/16" (two to the 8 ft length of a sheet)`);
+  if(garageDeckLength(40)!==40||garageDeckLength(32)!==32)say('a deck that shares a sheet without it gives up 1/16"');
+  // the notes say how many decks then come out of the sheet's length: two at 48", three at 31 15/16" (31 7/8" decks)
+  for(const[W,word]of[[48,'two'],[31.9375,'three']]){
+    const notes=garageNotes({W,D:18,H:72,n:4}).join(' ');
+    if(!notes.includes(`so that ${word} of them come out of the 8 ft length`))say(`${W}" wide, the notes do not say that ${word} decks come out of the 8 ft length of a sheet`);
+  }
+  const sheetsFor=parts=>{const pieces=parts.filter(piece=>piece.mat==='ply12');return materialBuy(M.ply12,pieces,()=>'',0).sheets.length;};
+  const widths=[];
+  for(let W=L.W[0];W<=L.W[1];W+=1)widths.push(W);
+  widths.push(31.9375,47.9375,48.0625);
+  for(const W of widths)for(const D of[L.D[0],18,L.D[1]])for(const n of[L.n[0],4,L.n[1]]){
+    const vals={W,D,H:72,n},label=`${fmt(W)} wide, ${fmt(D)} deep, ${n} shelves: `;
+    if((garageCheck(vals)||[]).some(f=>f.level==='stop'))continue;
+    const s=garagePlan(vals),parts=buildGarageShelves(vals);
+    const decks=parts.filter(piece=>/deck$/.test(piece.name)).map(box);
+    const rightRail=parts.filter(piece=>piece.name==='End rail').map(box).filter(rail=>rail.lo[0]>W/2);
+    if(decks.some(deck=>Math.abs(deck.hi[0]-deck.lo[0]-s.deckLength)>1e-6))say(label+'a deck is not the deck length');
+    // resting on the right end rail: at least 1" of its 1 1/2" under the deck
+    if(rightRail.some(rail=>decks.some(deck=>Math.abs(deck.lo[1]-rail.hi[1])<.01&&deck.hi[0]-rail.lo[0]<1)))say(label+'a deck does not rest on the end rail at the right end');
+    if(s.deckLength<W){
+      // what the full-width decks would need: the same pieces at the full length
+      const full=parts.map(piece=>/deck$/.test(piece.name)?{...piece,l:W}:piece);
+      if(sheetsFor(parts)>sheetsFor(full))say(label+`the decks 1/16" shorter buy ${sheetsFor(parts)} sheets, more than the ${sheetsFor(full)} of full-width decks`);
+    }
   }
 });
 /* No preset may have a top like the one the owner pointed at on the Garage shelves: a plywood deck fitted between

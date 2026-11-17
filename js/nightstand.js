@@ -400,10 +400,13 @@ function nightstandSteps(p){
    nothing is bought twice. */
 function nightstandHardware(p){
   const plan=nightstandPlan(p),drawers=plan.drawers;
-  if(plan.kind==='slide')return[[`Drawer slides, ${plan.slide}" side-mount ball-bearing (pair)`,drawers],['Drawer pulls',drawers]];
+  // the pull on each front is screwed through the front and the drawer box front: longer screws than the ones in the
+  // package, as the pull step says (drawerPullScrewLine, js/drawers.js)
+  const pullScrews=drawerPullScrewLine(drawers);
+  if(plan.kind==='slide')return[[`Drawer slides, ${plan.slide}" side-mount ball-bearing (pair)`,drawers],['Drawer pulls',drawers],pullScrews];
   // runners and kickers are strips of wood: they are on the cut list, and the shopping list counts their screws
   // from the strips that are placed (kind.wood, js/hardware.js)
-  return[['Drawer pulls',drawers]];
+  return[['Drawer pulls',drawers],pullScrews];
 }
 
 PRESETS.push({

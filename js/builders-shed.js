@@ -396,14 +396,100 @@ function shedFloor(P,plan){
   for(const z of plan.skids)P.push(mk('Skid',treatedMat('4x4'),[W,3.5,3.5],[0,0,z]));
   P.push(mk('Rim joist',floorMat,[W,deep,1.5],[0,3.5,0]),mk('Rim joist',floorMat,[W,deep,1.5],[0,3.5,D-1.5]));
   for(const x of shedLayout(W,SHED.JOIST_EVERY,0))P.push(mk('Floor joist',floorMat,[1.5,deep,D-3],[x,3.5,1.5]));
-  // the sheets lie with their long side across the joists, and their ends on the middle of a joist
-  const rows=Math.ceil(D/48-1e-6);
-  for(const[x0,x1]of shedBreaks(0,W,SHED.JOIST_EVERY,96)){
+  // the sheets lie with their grain across the joists, and their ends on the middle of a joist
+  P.push(...shedFloorPieces(plan,shedFloorChoice(plan),3.5+deep));
+}
+/* The floor deck: the floor is cut into columns between joints over joists (shedBreaks, at most 96" wide) and each
+   column into rows front to back (at most 48" deep). How the pieces are cut is chosen to buy the fewest sheets of
+   3/4" plywood (shedFloorChoice), with two rules a builder of floors keeps:
+   - The grain across the joists. A floor sheet is strong along its face grain (the 8 ft way of a full sheet), so
+     the grain runs left to right (world X), across the joists. A piece deeper than it is wide that reaches over a
+     joist between its ends, such as the 24" x 48" pieces at the end of a 10 ft x 8 ft floor, is cut with the
+     grain along its width: grainAxis tells the cutting diagrams so (sheetWays, js/buying.js), and two such pieces
+     come out of one sheet at full size. A narrow strip that reaches only from one joist to the next is cut as
+     before, its longer side along the sheet. At the few sizes where the grain across would take one more sheet,
+     those pieces are cut as before too, and the floor step says so.
+   - 1/16" given up at a joint (SHED_FLOOR_GIVE, approved by the owner), only where that saves a sheet: two 48"
+     squares at the end of a 12 ft floor miss sharing a sheet by the width of a saw cut. Only at a joint between
+     two floor pieces, never at the outside of the floor, so the floor still reaches the rim joists all round and
+     every joint across the joists still lands on a joist; the gap of 1/8" or less is what floors are laid with.
+   choice: {grain: true for the grain across the joists, give: per column {depth, width: 'left' | 'right' | false}}.
+   y: the height of the underside of the deck. */
+const SHED_FLOOR_GIVE=1/16;
+function shedFloorPieces(plan,choice,y){
+  const{W,D}=plan,rows=Math.ceil(D/48-1e-6),joistsAt=shedLayout(W,SHED.JOIST_EVERY,0),out=[];
+  shedBreaks(0,W,SHED.JOIST_EVERY,96).forEach(([x0,x1],column)=>{
+    const give=choice.give[column]||{depth:false,width:false};
     for(let row=0;row<rows;row++){
-      const z0=r16(row*D/rows),z1=r16((row+1)*D/rows);
-      P.push(mk('Floor deck','ply34',[x1-x0,.75,z1-z0],[x0,3.5+deep,z0]));
+      let z0=r16(row*D/rows),z1=r16((row+1)*D/rows);
+      // the 1/16" a piece gives up at the joint with the next row: the first row at its front edge, the others at their back edge
+      if(give.depth){if(row===0)z1-=SHED_FLOOR_GIVE;else z0+=SHED_FLOOR_GIVE;}
+      const left=x0+(give.width==='left'?SHED_FLOOR_GIVE:0),width=x1-x0-(give.width?SHED_FLOOR_GIVE:0);
+      const piece=mk('Floor deck','ply34',[width,.75,z1-z0],[left,y,z0]);
+      // the grain across the joists: a piece deeper than it is wide, with a joist between its ends (middle of the joist)
+      const overAJoist=joistsAt.some(x=>x+.75>left+1&&x+.75<left+width-1);
+      if(choice.grain&&piece.ax[0]!==0&&overAJoist)piece.grainAxis=0;
+      out.push(piece);
     }
+  });
+  return out;
+}
+/* The way to cut the floor that buys the fewest sheets: the grain across the joists first, then with the pieces as
+   before; in each, a column gives up 1/16" (depth, width, both, tried in that order) only when that buys fewer
+   sheets for the whole floor. A tie keeps the grain across and the pieces whole. */
+function shedFloorChoice(plan){
+  const sheetsFor=choice=>materialBuy(M.ply34,shedFloorPieces(plan,choice,0),()=>'',0).sheets.length;
+  const rows=Math.ceil(plan.D/48-1e-6),columns=shedBreaks(0,plan.W,SHED.JOIST_EVERY,96);
+  let best=null,bestSheets=Infinity;
+  for(const grain of[true,false]){
+    const choice={grain,give:columns.map(()=>({depth:false,width:false}))};
+    let sheets=sheetsFor(choice);
+    columns.forEach(([x0,x1],column)=>{
+      // a column a full sheet wide (96") gains nothing from 1/16" less
+      if(x1-x0>=96-1e-6)return;
+      const side=x0>1e-6?'left':x1<plan.W-1e-6?'right':false;
+      const tries=[{depth:rows>1,width:false}];
+      if(side)tries.push({depth:false,width:side},{depth:rows>1,width:side});
+      for(const give of tries){
+        if(!give.depth&&!give.width)continue;
+        const trial={grain,give:choice.give.map((g,c)=>c===column?give:g)};
+        const count=sheetsFor(trial);
+        if(count<sheets){choice.give=trial.give;sheets=count;break;}
+      }
+    });
+    if(sheets<bestSheets){best=choice;bestSheets=sheets;}
   }
+  // the pieces as before won: with the same 1/16" given up, the grain across may do as well
+  if(!best.grain&&sheetsFor({grain:true,give:best.give})<=bestSheets)best={grain:true,give:best.give};
+  return best;
+}
+/* The words for the floor pieces that gave up 1/16" (shedFloorChoice), for the notes and the floor step; '' when none did. */
+function shedFloorGiveWords(plan){
+  const choice=shedFloorChoice(plan),rows=Math.ceil(plan.D/48-1e-6),columns=shedBreaks(0,plan.W,SHED.JOIST_EVERY,96);
+  const column=columns.findIndex((_,index)=>choice.give[index]&&(choice.give[index].depth||choice.give[index].width));
+  if(column<0)return'';
+  const[x0,x1]=columns[column],give=choice.give[column];
+  const width=r16(x1-x0-(give.width?SHED_FLOOR_GIVE:0)),depth=r16(plan.D/rows-(give.depth?SHED_FLOOR_GIVE:0));
+  const sides=[give.depth?'front to back':'',give.width?'left to right':''].filter(Boolean).join(' and ');
+  return`The floor pieces at the ${x0>0?'right':'left'} end are cut ${fmt(width)} × ${fmt(depth)}, 1/16" short of their space ${sides}, so that they share a sheet of plywood instead of taking one each. Leave the little gap at the joint between floor pieces: floors are laid with about 1/8" between sheets anyway, so the plywood can swell.`;
+}
+/* The words for floor pieces cut with the grain along their width (shedFloorPieces), for the floor step; '' when none is. */
+function shedFloorGrainWords(parts){
+  const decks=parts.filter(piece=>piece.name==='Floor deck');
+  const across=decks.filter(piece=>piece.grainAxis===0&&piece.ax[1]===0);
+  // a piece deeper than it is wide cut as before, longer side along the sheet (no grainAxis: shedFloorPieces)
+  const strips=decks.filter(piece=>piece.ax[0]!==0&&piece.grainAxis===undefined);
+  let words='';
+  if(across.length){
+    const piece=across[0],end=piece.pos[0]>0?'right':'left',many=across.length>1;
+    const which=many?`${across.length===2?'two':across.length} ${fmt(piece.w)} × ${fmt(piece.l)} pieces at the ${end} end are`:`${fmt(piece.w)} × ${fmt(piece.l)} piece at the ${end} end is`;
+    words+=` The ${which} cut with the grain of the face running along the ${fmt(piece.w)} side (the cutting diagrams show it), so that on the floor the grain runs across the joists like the rest.`;
+  }
+  if(strips.length){
+    const piece=strips[0],end=piece.pos[0]>0?'right':'left',many=strips.length>1;
+    words+=` The ${fmt(piece.w)} × ${fmt(piece.l)} ${many?'pieces':'piece'} at the ${end} end ${many?'are':'is'} narrow and ${many?'are':'is'} cut with the grain along ${many?'their':'its'} ${fmt(piece.l)} side, so that ${many?'they come':'it comes'} out of the sheets on the list: on the floor that grain runs along the joists.`;
+  }
+  return words;
 }
 /* one framed wall: plates, studs, and the framing round each opening */
 function shedWall(P,plan,wall){
@@ -642,8 +728,9 @@ function shedNotes(p){
    `The shed is ${typedLen(s.W,fmtFt)} wide × ${typedLen(s.D,fmtFt)} deep (${Math.round(s.W*s.D/144)} sq ft of floor). ${shape}`,
    `The roof is sized by rule of thumb for light snow: ${USES.roof.psf} lb on every square foot. ${rafterReach}${ties} Heavy snow country needs bigger rafters than this: ask your building department.`,
    `The floor is sized by rule of thumb for ${USES.floor.psf} lb on every square foot. Each ${s.joist.mat} floor joist, one every ${SHED.JOIST_EVERY}", reaches ${fmtFt(r16(s.joist.span))} from one skid to the next. A ${s.joist.mat} is good for about ${fmtFt(Math.floor(s.joist.good))} there. Over each opening in a wall there is ${shedHeaderWords(s)} header.`,
+   ...(shedFloorGiveWords(s)?[shedFloorGiveWords(s)]:[]),
    'The 1/2" plywood wall sheathing is what stops the shed from leaning over, so do not leave it off. Grooved plywood siding (T1-11) nailed straight to the studs does the same job in its place. To see the framing behind the sheathing, turn on the see-through view (Alt+Z) or hide those pieces.',
-   `Not drawn and not in the cut list: ${above}, because you cut it on site to follow the roof. The plywood for it is on the shopping list (${gable} more sheet${gable>1?'s':''} of 1/2" plywood).`,
+   `Not drawn and not in the cut list: ${above}, because you cut it on site to follow the roof. The plywood for it is on the shopping list with the lumber (${gable} more sheet${gable>1?'s':''} of 1/2" plywood).`,
    `Not in any list: roofing for about ${roofArea} sq ft (drip edge, underlayment, and the roofing itself), siding or paint, and trim${shedNotIncluded(s)}. ${roofing}`,
    'The nail and screw counts on the shopping list are close estimates. Nails are sold by the box, so there will be some left over.',
    'Set the skids on solid concrete blocks or a compacted gravel pad, level in both directions, and anchor the shed to the ground. The skids and the floor frame are pressure-treated lumber in the cut list and the shopping list, because ordinary wood rots that close to the ground. Buy the framing nails hot-dip galvanized: plain steel nails rust away in treated lumber.'];
@@ -674,7 +761,8 @@ function shedHardware(p){
     [FRAMING.SHEET_NAIL,roof.plywood],
     [SHED_TIE_LABEL,ties],
     [SHED_TIE_NAIL_LABEL,ties*SHED_HINGE.tieNails],
-    [`1/2" plywood, 4 ft × 8 ft sheets, for ${s.lean?'the sloped tops of the side walls':'the gable ends'} (cut to the roof)`,sheets],
+    // (now a lumber row of the shopping list beside "3/4" plywood, 4 ft × 8 ft sheet": one sheet is "sheet")
+    [`1/2" plywood, 4 ft × 8 ft sheet${sheets===1?'':'s'}, for ${s.lean?'the sloped tops of the side walls':'the gable ends'} (cut to the roof)`,sheets],
     ['Solid concrete blocks for under the skids',s.skids.length*(Math.ceil(s.W/48)+1)],
     ['Ground anchors with cable or strap',4]]);
 }
@@ -793,7 +881,9 @@ function shedSteps(p){
   const steps=[
     step('Read the notes at the top first: check permit rules, and build at your own risk. A shed is a big project: if you have never framed a wall, build it with somebody who has. Then cut every piece on the cut list and pencil its letter on it.'),
     step(`Set the ${s.skids.length} skids (the pressure-treated 4x4s) on solid blocks or a gravel pad, ${fmtFt(r16(s.joist.span))} apart, measured from the middle of one to the middle of the next, with the outer two flush with the front and back of the floor, and level them both ways. Build the floor frame on top: a rim joist along the front and back skids with the ${s.joist.mat} floor joists between them, one every ${SHED.JOIST_EVERY}" measured from the middle of one joist to the middle of the next (builders call that "on center"). Nail through each rim joist into the end of every joist. Measure corner to corner until the two diagonals match, then nail the frame down to the skids with nails driven at an angle.`,['Skid','Rim joist','Floor joist']),
-    step('Nail the 3/4" plywood floor deck to the joists and the rim joists. Lay each sheet with its long side across the joists, so that the ends of the sheets land on the middle of a joist.',['Floor deck']),
+    // (the grain across the joists, also on a piece deeper than it is wide: shedFloorPiece)
+    step('Nail the 3/4" plywood floor deck to the joists and the rim joists. Lay each piece with the grain of its face running across the joists (on a full sheet that is its long side), so that the ends of the pieces land on the middle of a joist.'+
+      shedFloorGrainWords(parts)+(shedFloorGiveWords(s)?' '+shedFloorGiveWords(s):''),['Floor deck']),
     step(`Frame the four walls flat on the floor deck, one at a time. This step says how; each of the next four steps builds one wall, with its sizes, its pieces and its nails. Lay the top plate and the bottom plate side by side and mark the stud positions on both at once: every ${s.sp}" from the middle of one stud to the middle of the next, measured from the outside corner of the shed, so that the joints in the sheathing land on studs. Nail through the plates into the ends of the studs. At the door and each window put a full stud on each side, then a shorter trimmer stud nailed to it on the side of the opening, for the header to sit on. The header is two boards on edge (${shedHeaderWords(s).replace('a doubled ','')}, see the cut list) with scraps of 1/2" plywood between them so that it is as thick as the wall. A flat 2x4 sill goes under each window, with short cripple studs above the header and below the sill. Leave each finished wall lying flat, out of the way, until all four are framed.`,[],null,{info:true}),
     // one step for each wall: it takes the pieces that stand in that wall (the last wall takes what is left)
     ...SHED_WALL_ORDER.map((key,index)=>({...step(shedWallWords(s,s.walls[key],shedWallCounts(s.walls[key],parts)),SHED_WALL_PIECES),
@@ -1125,5 +1215,70 @@ SELFTESTS.push(function shedWindowAtEveryHeight(problems){
         }
       }
     }
+  }
+});
+/* The floor of the Shed at sizes across the form: the floor pieces reach the rim joists all round, nothing overlaps,
+   no gap between two pieces is more than 1/8" (a piece gives up at most 1/16" at a joint, SHED_FLOOR_GIVE), every
+   left or right end of a piece lands on a joist or at the outside of the floor, and on the cutting diagrams every floor piece lies with the side that runs across the joists (left to
+   right) along the 8 ft length of the sheet, where the face grain runs: a floor sheet is strong that way. The only
+   pieces that may lie the other way: a narrow strip with no joist between its ends, and the end pieces at a size
+   where the grain across would take one more sheet (the floor step then says so). Every 6" of width and depth:
+   the 3/4" plywood bought is never more than when every piece is laid with its longer side along the sheet (as the
+   program bought before), and at the usual 10 ft x 8 ft the two 24" x 48" end pieces share one sheet: 3 sheets. */
+SELFTESTS.push(function shedFloorGrainAcrossJoists(problems){
+  const shed=PRESETS.find(preset=>preset.name==='Shed');
+  if(!shed)return;
+  let reported=0;
+  const say=text=>{if(reported++<6)problems.push('shed floor: '+text);};
+  const near=1e-6;
+  const floorPlan=pieces=>materialBuy(M.ply34,pieces,()=>'',0);
+  for(let W=48;W<=192;W+=6)for(let D=48;D<=144;D+=6){
+    const vals={...presetDefaults(shed),W,D},label=`${W}" x ${D}": `;
+    if(shed.check(vals).some(found=>found.level==='stop'))continue;
+    const parts=buildShed(vals);
+    const decks=parts.filter(piece=>piece.name==='Floor deck').map(piece=>({piece,b:box(piece)}));
+    const joists=parts.filter(piece=>piece.name==='Floor joist').map(box);
+    for(const{b}of decks){
+      for(const x of[b.lo[0],b.hi[0]]){
+        const outside=x<near||x>W-near;
+        if(!outside&&!joists.some(joist=>x>joist.lo[0]+near&&x<joist.hi[0]-near))say(label+`a floor piece ends at ${fmt(x)} from the left, not over a joist`);
+      }
+    }
+    // the floor reaches the rim joists all round (nothing given up at the outside), no piece lies over another, and
+    // no gap between two floor pieces is more than 1/8" (the 1/16" a piece may give up at a joint: SHED_FLOOR_GIVE)
+    if(Math.min(...decks.map(d=>d.b.lo[0]))>near||Math.max(...decks.map(d=>d.b.hi[0]))<W-near||
+      Math.min(...decks.map(d=>d.b.lo[2]))>near||Math.max(...decks.map(d=>d.b.hi[2]))<D-near)say(label+'the floor does not reach the rim joists all round');
+    const overlap=decks.some((a,i)=>decks.some((o,j)=>j>i&&Math.min(a.b.hi[0],o.b.hi[0])-Math.max(a.b.lo[0],o.b.lo[0])>near&&Math.min(a.b.hi[2],o.b.hi[2])-Math.max(a.b.lo[2],o.b.lo[2])>near));
+    if(overlap)say(label+'two floor pieces lie over each other');
+    for(const{b}of decks){
+      if(b.lo[0]>near&&!decks.some(o=>Math.abs(o.b.hi[0]-b.lo[0])<=.125+near&&o.b.hi[0]<=b.lo[0]+near&&o.b.lo[2]<b.hi[2]&&o.b.hi[2]>b.lo[2]))say(label+'a gap of more than 1/8" to the floor piece on the left');
+      if(b.lo[2]>near&&!decks.some(o=>Math.abs(o.b.hi[2]-b.lo[2])<=.125+near&&o.b.hi[2]<=b.lo[2]+near&&o.b.lo[0]<b.hi[0]&&o.b.hi[0]>b.lo[0]))say(label+'a gap of more than 1/8" to the floor piece behind');
+    }
+    // a piece is its full space or 1/16" short of it, never more
+    const area=decks.reduce((sum,d)=>sum+(d.b.hi[0]-d.b.lo[0])*(d.b.hi[2]-d.b.lo[2]),0);
+    if(area<W*D-(W+D)*2*SHED_FLOOR_GIVE*decks.length-near)say(label+'the floor pieces leave more uncovered than the 1/16" a piece may give up');
+    // on the sheets: the left-to-right side of each piece along the 8 ft length (a square piece may lie either way,
+    // and so may a narrow strip with no joist between its ends, which carries no grainAxis)
+    const plan=floorPlan(decks.map(d=>d.piece));
+    const across=d=>d.b.hi[0]-d.b.lo[0],along=d=>d.b.hi[2]-d.b.lo[2];
+    // a piece deeper than it is wide that reaches over a joist asks for its grain across the joists, unless that
+    // would take one more sheet (then shedFloor lays them as before, and the floor step says so)
+    const wantsAcross=d=>along(d)>across(d)+near&&joists.some(joist=>(joist.lo[0]+joist.hi[0])/2>d.b.lo[0]+1&&(joist.lo[0]+joist.hi[0])/2<d.b.hi[0]-1);
+    if(decks.some(d=>wantsAcross(d)&&d.piece.grainAxis!==0)){
+      const turned=decks.map(d=>wantsAcross(d)?{...d.piece,grainAxis:0}:d.piece);
+      if(floorPlan(turned).sheets.length<=floorPlan(decks.map(d=>d.piece)).sheets.length)say(label+'a floor piece that reaches over a joist does not ask for its grain across the joists, though that takes no more sheets');
+      const step=((shed.steps||STEPS[shed.name])(vals).find(s=>/floor deck/.test(s.t))||{}).t||'';
+      if(!/on the floor that grain runs along the joists/.test(step))say(label+'the floor step does not say which pieces have their grain along the joists');
+    }
+    for(const sheet of plan.sheets)for(const item of sheet.items){
+      if(Math.abs(item.w-item.h)<near)continue;
+      const grainAcross=decks.some(d=>Math.abs(across(d)-item.w)<near&&Math.abs(along(d)-item.h)<near);
+      const freeStrip=decks.some(d=>d.piece.grainAxis===undefined&&Math.abs(along(d)-item.w)<near&&Math.abs(across(d)-item.h)<near);
+      if(!grainAcross&&!freeStrip)say(label+`a floor piece of ${fmt(item.w)} × ${fmt(item.h)} is drawn with its grain along the joists`);
+    }
+    // the floor as the program cut it before: every piece its full space, its longer side along the sheet
+    const before=floorPlan(shedFloorPieces(shedPlan(vals),{grain:false,give:[]},0)).sheets.length;
+    if(plan.sheets.length>before)say(label+`the floor takes ${plan.sheets.length} sheets, more than the ${before} it took before`);
+    if(W===120&&D===96&&plan.sheets.length!==3)say(label+`the usual floor takes ${plan.sheets.length} sheets of 3/4" plywood, not 3 (its two 24" x 48" end pieces share one)`);
   }
 });
