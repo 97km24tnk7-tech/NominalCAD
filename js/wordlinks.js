@@ -29,7 +29,10 @@ const WORD_LINKS=[
   {re:/\bdriven at an angle\b/i,word:'Driven at an angle'},
   {re:/#\d+\b/,word:'Screw size'},
   {re:/\bpilot holes?\b/i,word:'Pilot hole'},
+  {re:/\bclearance holes?\b/i,word:'Clearance hole'},   // (before "clearance", the room between two things)
+  {re:/\bcounterbores?\b/i,word:'Counterbore'},
   {re:/\bcountersink\b/i,word:'Countersink'},
+  {re:/\bbrad-point bit\b/i,word:'Brad-point bit'},
   {re:/\bflush\b/i,word:'Flush'},
   // the tool, not the corner: "a square" in the tools list, "check each corner with a square" in a step
   {re:/\b(?:a|the|carpenter's|framing|speed) square\b(?! (foot|feet|inch|inches|yard|corner)\b)/i,word:'Square (the tool)'},

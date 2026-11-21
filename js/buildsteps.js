@@ -304,7 +304,7 @@ function fastenerPlaces(joint,layout){
     // the same places from both ends of the piece (a short apron with its holes kept clear of the holes at both
     // ends): "from either end", so that the two aprons of a table, seen from opposite sides, read the same
     const pieceLength=throughBox.hi[axis]-throughBox.lo[axis];
-    const bothEnds=fromPieceEnd.every((v,index)=>Math.abs(v+fromPieceEnd[fromPieceEnd.length-1-index]-pieceLength)<.07);
+    const bothEnds=fromPieceEnd.every((v,index)=>Math.abs(v+fromPieceEnd[fromPieceEnd.length-1-index]-pieceLength)<.03);
     if(alongPiece){
       text=`Put the ${what}${layout.length>1?'s':''} ${listWords(fromPieceEnd.map(inchWords))} from ${bothEnds?'either':'the '+startName} ${pieceSide} of the ${through.name}.`;
       if(cleared)text+=' '+notEvenlyWords(layout,through.name);
@@ -701,9 +701,11 @@ function bracketScrewWords(spec){
 }
 /* What to do about the head of a plugged screw (type 'plug', rule 12 in js/fasteners.js): sink it, and cover it. The
    finishing step (finText, js/style.js) says how the plugs are cut flush or the holes filled. */
-function plugWords(f){
+function plugWords(f,drilled){
   const painted=FINISHES[look().finish][2]===2,deep=inchWords(f.sunk);
-  const start=` These heads would show, so sink them: drill a 3/8" hole ${deep} deep for each one first (a counterbore), then drill the pilot hole in its middle and drive the screw.`;
+  // (drilled: the counterbores and the pilot holes are drilled in step 2, js/drillplan.js)
+  const start=drilled?` These heads would show, so they sink into the 3/8" counterbores drilled in step 2, ${deep} deep.`
+    :` These heads would show, so sink them: drill a 3/8" hole ${deep} deep for each one first (a counterbore), then drill the pilot hole in its middle and drive the screw.`;
   // deeper than a store plug is long (3/8"): a length of dowel rod fills the hole, under paint too
   if(plugIsDowel(f.sunk))return start+` A store-bought plug is only about 3/8" long and would sit deep in that hole, so cut a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long for each hole, put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`;
   return start+(painted?' Under paint the holes are filled with wood filler when you finish.'
@@ -758,6 +760,7 @@ function fastenLine(links,letterOf){
   const leans=all.some(facts=>facts.f&&facts.f.lean),sunk=all.find(facts=>facts.f&&facts.f.sunk);
   // (the words on sinking and plugging the heads, kept apart so that a step says them once: fastenLines)
   if(sunk&&sunk.f.plug)group.plugText=plugWords(sunk.f);
+  if(sunk)group.sunkFastener=sunk.f;   // (the fastener these words are written from: markPredrilled rewrites them, js/drillplan.js)
   const tail=()=>(leans?(all.every(facts=>facts.f.lean)?' Drive each nail at a slight slant, so that its point stays inside the wood.':' Where a nail driven straight would come out of the far side, drive it at a slight slant.'):'')+
     (sunk&&sunk.f.plug?plugWords(sunk.f):
       sunk?` Drill a hole ${inchWords(sunk.f.sunk)} deep for each head first (a counterbore), so the screw reaches far enough.`:'')+
@@ -1534,6 +1537,8 @@ const STEP_TOOLS={
   structural:'drill/driver and the driver bit that comes with the structural screws',
   plug:'3/8" drill bit for the counterbores, and a small hammer',
   plugFilled:'3/8" drill bit for the counterbores',
+  plugTapped:'a small hammer, for the plugs',   // the counterbores drilled in step 2 (js/drillplan.js)
+  dowelDriven:'mallet',                          // the dowel holes drilled in step 2
   pocket:'pocket-hole jig and drill/driver',
   pocketDriven:'drill/driver with the square driver bit of the pocket screws',
   dowel:'dowel jig, drill and mallet',
@@ -1616,18 +1621,27 @@ function stepTools(step){
   // or countersink bit, only the bit that comes in their box
   const screwGroups=step.groups.filter(group=>group.type==='screw'||group.type==='plug');
   const allStructural=screwGroups.length>0&&screwGroups.every(group=>[...group.hardware.keys()].some(label=>/structural screws/.test(label)));
+  // (holes drilled in step 2 need no bits here: js/drillplan.js. A step whose wood screws all have their holes
+  //  drilled already needs only the driver; one with structural screws too, the bit of their box)
+  const woodScrews=screwGroups.filter(group=>![...group.hardware.keys()].some(label=>/structural screws/.test(label)));
+  const screwsDrilled=woodScrews.length>0&&woodScrews.every(group=>group.predrilled);
   if(allStructural)add(STEP_TOOLS.structural);
+  else if(screwsDrilled)add(woodScrews.length<screwGroups.length?STEP_TOOLS.structural:'drill/driver');
   else if(screwGroups.length)add(STEP_TOOLS.screw);
   else if(types.has('bracket')||hardwareKinds.size)add('drill/driver');
   // the counterbores of plugged heads; a hammer to tap the plugs in (under paint a shallow hole takes filler only)
   if(types.has('plug')){
     const painted=FINISHES[look().finish][2]===2;
     const tapped=!painted||step.groups.some(group=>group.type==='plug'&&group.links.some(link=>jSpec(link.joint,'plug').deep));
-    add(tapped?STEP_TOOLS.plug:STEP_TOOLS.plugFilled);
+    const bored=step.groups.filter(group=>group.type==='plug').every(group=>group.predrilled);
+    if(!bored)add(tapped?STEP_TOOLS.plug:STEP_TOOLS.plugFilled);
+    else if(tapped)add(STEP_TOOLS.plugTapped);
   }
-  // (pocket holes drilled in step 2 need no jig here: only the driver bit of the screws, js/drillplan.js)
-  const pocketsDrilled=step.groups.some(group=>group.type==='pocket')&&step.groups.every(group=>group.type!=='pocket'||group.predrilled);
-  for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))add(type==='pocket'&&pocketsDrilled?STEP_TOOLS.pocketDriven:STEP_TOOLS[type]);
+  // (pocket holes drilled in step 2 need no jig here: only the driver bit of the screws, js/drillplan.js; dowel
+  //  holes drilled there need only the mallet that taps the dowels home)
+  const drilledAll=type=>step.groups.some(group=>group.type===type)&&step.groups.every(group=>group.type!==type||group.predrilled);
+  for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))
+    add(type==='pocket'&&drilledAll('pocket')?STEP_TOOLS.pocketDriven:type==='dowel'&&drilledAll('dowel')?STEP_TOOLS.dowelDriven:STEP_TOOLS[type]);
   if(step.tight&&step.tight.length)add('right-angle drill attachment and a 3" driver bit, for the pocket screws with little room');
   if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners
@@ -1900,10 +1914,12 @@ function suggestedOrder(pieces,builtIds,graph){
 /* ---------- the plan ---------- */
 /* The words of step 2 "Drill your pieces". DRILL_WORDS ends "After this step you only put the pieces together",
    which is not true when the step after it is a preset step that makes the shapes of some pieces (its `shapes`:
-   the toy chest's air holes, drilled while the front and the sides are still flat). Then step 2 says so. */
-function drillStepWords(next){
+   the toy chest's air holes, drilled while the front and the sides are still flat). Then step 2 says so.
+   Without pocket holes (a Rustic design: wood screws only) the words start from DRILL_WORDS_BITS (js/drillplan.js). */
+function drillStepWords(next,drill){
+  const base=drill&&!drill.pockets?DRILL_WORDS_BITS:DRILL_WORDS;
   const shapes=next&&next.source!=='generated'&&next.preset&&Array.isArray(next.preset.shapes)?next.preset.shapes:[];
-  if(!shapes.length)return DRILL_WORDS;
+  if(!shapes.length)return base;
   const names=listWords(shapes.map(name=>name.toLowerCase()));
   // what that step really does to those pieces: drills holes, cuts other shapes (rounded corners, notches), or both
   const pieces=S.parts.filter(p=>shapes.includes(p.name)&&hasShape(p));
@@ -1911,7 +1927,7 @@ function drillStepWords(next){
   const other=pieces.some(p=>shapeFeatures(p).some(f=>f.kind!=='hole')||(p.shape.corners||[]).some(Boolean)||(p.shape.ends||[]).some(Boolean));
   const does=holes&&other?'drills the other holes and cuts the shapes':holes?'drills the other holes':'cuts the shapes';
   const what=pieces.length>1?`the ${names} pieces, while those pieces are`:`the ${names}, while it is`;
-  return DRILL_WORDS.replace('After this step you only put the pieces together',
+  return base.replace('After this step you only put the pieces together',
     `The next step ${does} ${holes?'in':'of'} ${what} still flat. After that you only put the pieces together`);
 }
 let planMemo=null;
@@ -2014,7 +2030,7 @@ function makeBuildPlan(graph){
   const drill=drillPlan(graph,letterOf);
   if(drill.total){
     const cutAt=drafts.findIndex(draft=>draft.kind==='cut');
-    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:drillStepWords(drafts[cutAt+1]),was:'',pieces:[],extra:[],preset:null});
+    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:drillStepWords(drafts[cutAt+1],drill),was:'',pieces:[],extra:[],preset:null});
   }
 
   // the step of every piece, then the joints and the hardware of every step
@@ -2116,7 +2132,7 @@ function makeBuildPlan(graph){
     // pocket-hole lines whose holes are on the drawings of step 2 point there (js/drillplan.js), and the preset's
     // own sentences that tell to drill those holes are not shown
     markPredrilled(step.groups,drill);
-    if(draft.source==='preset')step.words=withoutDrillWords(step.words,draft.preset,drill);
+    if(draft.source==='preset')step.words=withoutDrillWords(step.words,draft.preset,drill,step.groups);
     step.hardware=hardwareLines(draft.items,letterOf,cutList.letterOfStrip);
     step.hardware.forEach((row,index)=>{row.no=step.groups.length+index+1;});   // numbered on after the "Fasten with" lines, for the balloons
     if(draft.source==='generated'&&draft.kind==='build'){
@@ -2156,6 +2172,7 @@ function makeBuildPlan(graph){
   drill.number(stepOfLink);
   const drillStep=steps.find(step=>step.kind==='drill');
   drill.stepNo=drillStep?drillStep.no:0;
+  drill.steps=steps;   // (the hardware holes of the At assembly part of step 2 name their steps: hardwareHoleWords)
   // setInPlace: piece id -> index of the step that sets it in place, for the parts that are built apart first
   const setInPlace=new Map();
   for(const[id,draftIndex]of placedAt)if(finalIndexOf.has(draftIndex))setInPlace.set(id,finalIndexOf.get(draftIndex));
@@ -2642,7 +2659,7 @@ SELFTESTS.push(function pocketHolesHaveRoomForTheDrill(problems){withoutDrawing(
    - the plugged screws of the Platform bed's corners (moved apart at each corner to pass the screws that cross
      it) are one line, whose words name every corner they give marks for, or say that all are marked alike;
    - a Bookshelf with every joint of its sides plugged by hand says the paragraph once in each step. */
-const PLUG_PARAGRAPH=/sink them: drill a 3\/8" hole/g;
+const PLUG_PARAGRAPH=/sink them: drill a 3\/8" hole|sink into the 3\/8" counterbores drilled in step/g;   // (the second: drilled in step 2, js/drillplan.js)
 SELFTESTS.push(function plugWordsOncePerStep(problems){withoutDrawing(()=>{
   const wrong=text=>{if(problems.length<60)problems.push('plugged screws: '+text);};
   const place=(name,choose)=>{

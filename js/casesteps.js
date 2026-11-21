@@ -46,12 +46,13 @@ const CASE_SECOND_RAIL='the one in the bay on its left (as you face the front) i
    after it name the holes again with their screws. Returns {words, drill}: drill is the sentence that tells to
    drill the pocket holes, the step's drill field (styledStep, js/style.js), which the step leaves out while step 2
    "Drill your pieces" (js/drillplan.js) holds every pocket hole on its drawings. The screw holes through the sides
-   of a narrow bay are not pocket holes: their sentence always stays. faces: caseHoleFaces, the faces the fastener
+   of a narrow bay are a drill sentence of kind 'screw' (left out while step 2 holds them). faces: caseHoleFaces, the faces the fastener
    layout really drills (the top's face named from it). */
 function casePocketHolesAhead(s,heights,highShelves,faces){
   const words=casePocketHolesAheadWords(s,heights,highShelves,faces);
   const at=words.indexOf(' Then drill ');
-  return{words,drill:at<0?[]:[words.slice(at)]};
+  // (stage 2: the screw holes and counterbores through the sides of a narrow bay are on the drawings of step 2 too)
+  return{words,drill:(at<0?[]:[words.slice(at)]).concat(s.narrow?[{text:at<0?words:words.slice(0,at),kind:'screw'}]:[])};
 }
 function casePocketHolesAheadWords(s,heights,highShelves,faces){
   const div=s.dividers,bottoms=div?'each bottom board':'the bottom board',where=[];

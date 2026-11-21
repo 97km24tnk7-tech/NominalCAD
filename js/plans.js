@@ -122,9 +122,8 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   if(hasFinishStep())L.push('Sandpaper: '+sandpaperGrits());
   L.push('Safety glasses and hearing protection');
   if((S.hw||[]).some(([item])=>/landscape fabric/i.test(item)))L.push('Staple gun and staples');
-  if(t.has('screw'))L.push('Drill bit for pilot holes (7/64" for pine, 1/8" for oak and other hard woods) and a countersink bit');
+  L.push(...drillToolLines(t,plan));   // the bits of DRILL_BITS for the holes step 2 drills, the dowel jig (js/drillplan.js)
   if(t.has('pocket'))L.push('Pocket-hole jig');
-  if(t.has('dowel'))L.push('Dowel jig and a mallet');
   if(t.has('nail'))L.push('Brad nailer, or a hammer and a nail set (a small steel punch that sinks the head of a nail just below the surface)');
   if(t.has('frame')||t.has('toenail'))L.push('Framing hammer (20 oz or so). A framing nailer is much faster if you can borrow or rent one');
   if(sheet)L.push('Straight-edge guide for cutting plywood (or have the store cut it)');

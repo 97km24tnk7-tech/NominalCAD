@@ -23,10 +23,12 @@
                    inside the leg (no corner brace). 4: a drawer nightstand's toe kick is held to the bottom
                    panel by pocket holes, so no screw head shows on the floor of its open shelf. 5: every pocket hole
                    is drilled in "Drill your pieces" (js/drillplan.js), and the steps no longer tell to drill them.
+                   6: the dowel holes, clearance holes and counterbores are drilled there too (stage 2), and a mark
+                   step 2 pencils on is not asked for again, so saved steps that still say so are written again.
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=5;
+const FASTENING_NOW=6;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);
@@ -142,8 +144,9 @@ function upgradeFastening(){
   for(const[key,type]of typesAfter)if(typesBefore.get(key)!==type)changedKeys.push(key);
   // (5: steps saved before "Drill your pieces" tell the person to drill pocket holes that step 2 holds now: they are
   //  written again, quietly, as the fasteners did not change, js/drillplan.js)
-  if(!changedKeys.length){if(savedUnder<5)bringWordsUpToDate(placements,[],true);return;}
-  const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<5);
+  // (6: the same for the drill words of stage 2: dowel holes, clearance holes, counterbores, the marks pencilled on)
+  if(!changedKeys.length){if(savedUnder<6)bringWordsUpToDate(placements,[],true);return;}
+  const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<6);
   const names=[...new Set(placements.map(entry=>entry.entry||entry.preset.name))];   // (an entry's name, never a hidden builder's: "this Bookshelf")
   const text=`Updated the fasteners of this ${names.join(' and ')} to the current way: ${upgradeWords(keptByHand,plugsBefore,changedKeys.length)}.`+
     (words==='preset'?' Its build steps and notes were written again to match.':words==='notes'?' Its notes were written again to match.':
@@ -164,10 +167,19 @@ function upgradeFastening(){
        now (rule 3 in js/buildsteps.js), and the notes get the line about screw heads.
    Only a design with one placement has steps of its own; with two or more, the steps are worked out from the
    pieces anyway. Returns 'preset', 'refreshed' or ''. */
+/* Does a saved step tell to drill a hole step 2 holds in words that its drill field (styledStep, js/style.js) does
+   not hold, so they cannot be left out (a step saved before that field, or before its stage 2 sentences)? */
+function staleDrillWords(step){
+  const text=stepText(step),held=Array.isArray(step.drill)?step.drill:step.drill?[step.drill]:[];
+  const objects=held.filter(one=>one&&typeof one==='object'&&!Array.isArray(one));
+  if(drillOrders(text).length&&!step.drill)return true;
+  if(boreOrders(text).length&&!objects.some(one=>one.kind))return true;
+  return/Mark those places on both aprons first/.test(text)&&!objects.some(one=>one.pencilled);
+}
 function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo){
   if(placements.length!==1)return'';
-  // only the words that tell to drill pocket holes are out of date: the saved steps that say so are written again
-  if(drillWordsOnly&&!(S.steps||[]).some(step=>step&&Array.isArray(step.add)&&!step.drill&&drillOrders(stepText(step)).length))return'';
+  // only the words that tell to drill holes step 2 holds are out of date: the saved steps that say so are written again
+  if(drillWordsOnly&&!(S.steps||[]).some(step=>step&&Array.isArray(step.add)&&staleDrillWords(step)))return'';
   const{preset,parts}=placements[0];
   const saved=(S.steps||[]).filter(step=>step&&Array.isArray(step.add));
   const setNumber=parts[0].set;
@@ -183,7 +195,7 @@ function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo)
   const owner=presetStepOfPieces(saved);
   // (drillWordsToo: saved before 5, with fasteners that changed as well: the steps that tell to drill pocket holes are
   //  written again too, not only those that make a joint that changed)
-  if(drillWordsOnly||drillWordsToo)for(const step of saved)if(!step.drill&&drillOrders(stepText(step)).length)step.refresh=true;
+  if(drillWordsOnly||drillWordsToo)for(const step of saved)if(staleDrillWords(step))step.refresh=true;
   for(const key of changedKeys){
     const[a,b]=key.split('-').map(Number);
     if(!owner.has(a)||!owner.has(b))continue;

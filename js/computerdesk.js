@@ -1337,15 +1337,14 @@ function deskCaseSteps(plan){
   // not 2 ft deep inside the upside-down case.
   const backStrip=r16(plan.over+plan.apronT-s.sidesFrom),frontStrip=r16(s.front-(plan.W-plan.over-plan.apronT));
   const railLines=`${fmt(r16(backStrip/2))} in from the back edge of the back rail and ${fmt(r16(frontStrip/2))} in from the front edge of the front rail`;
-  // (these are clearance holes for plain wood screws, not pocket holes, so step 2 "Drill your pieces" does not hold
-  //  them and the sentence stays in the step: it is worded as one clearance hole per screw, not as an order to
-  //  drill pocket holes, which is what the drill check reads for)
+  // (clearance holes for plain wood screws: step 2 "Drill your pieces" draws them (stage 2), so the sentence is the
+  //  step's drill field of kind 'screw', left out while step 2 holds them: js/drillplan.js)
   const railHoles=` While the top rails are loose, drill a clearance hole for each screw that will hold the case to the aprons: through the rail, on a line ${railLines}, at the places the step that sets the case in gives, each countersunk on the underside.`;
   const steps=[];
   steps.push(styledStep({
     std:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge. First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.${railHoles} Then glue each joint and drive the pocket screws into the sides, so nothing shows on the outside.`,
     rustic:`Build ${cases}. Fasten the bottom between the two sides, ${fmt(NS.kick)} up from the floor, and the two top rails between the sides flush with the top: one flush with the front edge, one flush with the back edge.${railHoles} Glue each joint, drill pilot holes, and drive the screws through the outside of the sides into the ends of the bottom and the rails.`},['Side','Bottom','Top rail'],
-    [' First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.']));
+    [' First drill the pocket holes listed below in the underside of the bottom and of each rail, near their ends.',{text:railHoles,kind:'screw'}]));
   steps.push(styledStep({
     std:`Fasten the toe kick under the bottom panel of ${theCase}, on edge, set back ${fmt(NS.kickBack)} from the front. Hold it to the bottom panel and to the sides with the pocket screws listed below, from holes drilled in its back face.`,
     rustic:`Fasten the toe kick under the bottom panel of ${theCase}, on edge, set back ${fmt(NS.kickBack)} from the front. Screw down through the bottom panel into its top edge, and through the sides into its ends.`},['Toe kick']));

@@ -1616,8 +1616,10 @@ const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side'],
 const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg","mat":"2x4","l":30,"w":3.5,"t":1.5,"ax":[1,2,0],"pos":[0,0,0]},{"id":2,"name":"Top","mat":"ply34","l":24,"w":18,"t":0.75,"ax":[0,2,1],"pos":[0,30,0]},{"id":3,"name":"Brace","mat":"1x4","l":20,"w":3.5,"t":0.75,"ax":[0,1,2],"pos":[2,10,4],"rot":{"k":2,"deg":30}}],"joints":{},"stock":{},"notes":[],"steps":[],"hw":[],"nextId":4,"nextGrp":1}';
 /* Recorded again when "Drill your pieces" was merged: it raised the fastening rule a design is marked with on
    loading (FASTENING_NOW, js/fasteningupgrade.js) from 4 to 5, and that one digit is the only change: the text read
-   back, with "fastening":5 put back to 4, hashes to the earlier '7qjr6r' at the same 477 characters. */
-const OLD_PROJECT_PRINT=['8ulbgm',477];
+   back, with "fastening":5 put back to 4, hashes to the earlier '7qjr6r' at the same 477 characters. Recorded again
+   by stage 2 of "Drill your pieces" (FASTENING_NOW 5 to 6), the same way: with "fastening":6 put back to 5 the text
+   hashes to the earlier '8ulbgm' at the same 477 characters. */
+const OLD_PROJECT_PRINT=['8uogyl',477];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){

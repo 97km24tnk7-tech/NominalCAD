@@ -77,7 +77,10 @@
         Pocket screws follow the jig's chart instead (rule 5): the jig is made for that bite. Brads (the glue
         holds), dowels, the short screws of a bracket, framing nails and screws driven at an angle are not held
         to this rule. jSpec (js/style.js) picks the length by it, drivenStraight below sinks the head when it
-        must, and the self-check screwsBiteDeepEnough (js/screwbite.js) holds every preset to it in every style. */
+        must, and the self-check screwsBiteDeepEnough (js/screwbite.js) holds every preset to it in every style.
+    14. Every screw, pocket hole and dowel sits on a whole sixteenth from where its drawing measures it: a pocket
+        hole from the end and edge of the piece it is drilled in, a screw or dowel from the corner of the place
+        where the two pieces touch (onSixteenth, rowOnSixteenths). An even row keeps even gaps. */
 'use strict';
 /* Rule 12 in numbers (inches) */
 const SCREW_BITE={side:.75,end:1.25,thinLeave:.25,structuralEnd:1.5};
@@ -247,6 +250,37 @@ function spreadAlong(n,long,endMin){
   if(margin<endMin)margin=Math.min(endMin,long/(n+1));      // a short joint: as far from the ends as it allows
   return Array.from({length:n},(unused,i)=>margin+i*(long-2*margin)/(n-1));
 }
+/* Rule 14: every hole is on a whole sixteenth from where it is measured (Drill your pieces, js/drillplan.js).
+   A drawing gives a hole as one number from an end and one from an edge; a hole that lay halfway between two
+   sixteenths would read as different numbers from its two edges (2 13/32" from the back of a 14 7/16" board is
+   2 7/16" one way and 12 1/16" the other, which add up to 14 1/2"), and the hole it meets in the other piece would
+   carry other numbers. So the places are put on the sixteenth itself, not only written to it.
+     onSixteenth(value, from)    value moved to the nearest whole sixteenth counted from `from` (a piece's edge or
+                                 the start of the place where two pieces touch)
+     rowOnSixteenths(offsets, long)   offsets along a row of this length (spreadAlong) on whole sixteenths; an
+                                 evenly spaced row keeps its gaps even (the gap itself a whole sixteenth) and stays
+                                 as near the middle as a sixteenth allows */
+const onSixteenth=(value,from)=>from+Math.round((value-from)*16)/16;
+function rowOnSixteenths(offsets,long){
+  if(offsets.length<2)return offsets.map(r16);
+  const gaps=offsets.slice(1).map((v,i)=>v-offsets[i]);
+  const even=gaps.every(gap=>Math.abs(gap-gaps[0])<1e-6);
+  if(!even)return offsets.map(r16);
+  // as far from both ends where a gap of a whole sixteenth (the nearest, or one either side of it) allows that;
+  // else the even gaps are kept and the last is a sixteenth nearer its end than the first
+  const n=offsets.length,long16=long*16,want16=gaps[0]*16;
+  let best=null;
+  if(Math.abs(long16-Math.round(long16))<1e-6){
+    for(const gap16 of[Math.round(want16),Math.round(want16)-1,Math.round(want16)+1]){
+      const first16=(Math.round(long16)-(n-1)*gap16)/2;
+      if(gap16<=0||first16<=0||!Number.isInteger(first16))continue;
+      const off=Math.abs(gap16-want16);
+      if(!best||off<best.off)best={off,first:first16/16,gap:gap16/16};
+    }
+  }
+  if(!best){const gap=r16(gaps[0]);best={gap,first:r16((long-gap*(n-1))/2)};}
+  return offsets.map((unused,i)=>best.first+i*best.gap);
+}
 /* Rule 3: how far in from the edge fastener number i sits, on a contact this wide. */
 function acrossAt(i,n,wide){
   if(n<2||wide<FASTEN.staggerFrom)return wide/2;
@@ -297,6 +331,28 @@ function sunkDepth(kind,len,depthThrough,depthInto,endGrain,plug){
 }
 /* a plugged head deeper than a store-bought plug is long: the hole is filled with a glued length of dowel rod */
 const plugIsDowel=sunk=>sunk>PLUG_DEPTH+.01;
+/* The plug over a sunk head lies on the screw's own line, at the face the head goes in at. A screw moved to pass
+   another (movedLayouts, nudgedLayout, js/fastenerreach.js) moves its place and its direction only, so the plug is
+   put back on the line here, once the layout of a joint is final (layoutAsLaidOut, settledLayouts): the plug, the
+   counterbore and the clearance hole that step 2 draws from it are then where the screw really is. Changes the list
+   in place and returns it. */
+function plugsOnTheirScrews(list){
+  if(!list)return list;
+  list.forEach((f,index)=>{
+    if(!f.plug)return;
+    const at=pointPlus(f.pos,f.dir,-(f.sunk||0)),out=f.dir.map(v=>-v);
+    const same=at.every((v,k)=>Math.abs(v-f.plug.at[k])<1e-6)&&out.every((v,k)=>Math.abs(v-f.plug.out[k])<1e-6);
+    if(!same)list[index]={...f,plug:{...f.plug,at,out}};
+  });
+  return list;
+}
+/* the pieces of the design as a Set, kept while the list of pieces is the same (a fish wall of 5,000 pieces lays out
+   thousands of screwed joints: a scan of the whole list per joint would cost tens of millions of steps, C18) */
+let partsSetMemo={list:null,length:-1,set:new Set()};
+function partsInDesign(){
+  if(partsSetMemo.list!==S.parts||partsSetMemo.length!==S.parts.length)partsSetMemo={list:S.parts,length:S.parts.length,set:new Set(S.parts)};
+  return partsSetMemo.set;
+}
 function drivenStraight(j,shape,n,kind,len,label,plug){
   const side=screwSide(j,kind==='screw'&&!plug),through=j[side],into=shape.other(through);
   const depthThrough=shape.depthOf(through),depthInto=shape.depthOf(into);
@@ -304,8 +360,37 @@ function drivenStraight(j,shape,n,kind,len,label,plug){
   const sunk=sunkDepth(kind,len,depthThrough,depthInto,intoEndGrain(j,side),plug);
   const start=shape.plane-way*(depthThrough-sunk);
   const structural=/structural/.test(label),sizes=structural?STRUCTURAL_SIZE:FASTENER_SIZE[kind];
-  return spreadAlong(n,shape.long,FASTEN.endMin).map((along,i)=>{
-    const pos=shape.point(along,acrossAt(i,n,shape.wide),start);
+  // (rule 14: a wood screw, whose holes are drawn, on whole sixteenths from the corner of the place where the two
+  //  pieces touch; a brad or a structural screw has no hole to draw and is not snapped to the sixteenth, though the
+  //  stagger order below applies to it too)
+  const drawn=kind==='screw'&&!structural;
+  let alongs=spreadAlong(n,shape.long,FASTEN.endMin);
+  if(drawn)alongs=rowOnSixteenths(alongs,shape.long);
+  // Rule 11 for a straight screw: its head and its clearance hole keep clear of the pocket holes drilled in the
+  // ends of the piece it goes through, on the face its head goes in at (an upright screwed to a post, with pocket
+  // holes at its ends into the shelf and the rail on that same face): moved along the row to the nearest clear
+  // place, still on a whole sixteenth from the start of the joint (rule 14).
+  const endHoles=drawn?endHoleSpans(through,j,alongAxis(shape.k,-way),shape.L):{spans:[]};
+  if(endHoles.spans.length){
+    const cleared=clearOf(alongs.map(along=>shape.rangeL[0]+along),endHoles.spans,shape.rangeL,FASTEN.endMin,.2,null,at=>onSixteenth(at,shape.rangeL[0]));
+    alongs=cleared.map(place=>place.at-shape.rangeL[0]);
+  }
+  // The zig-zag of a staggered row (rule 3) starts at the end of the joint nearer the middle of the design, on the
+  // side nearer the middle: joints that mirror each other in the design (the four corners of a bed, a table's two
+  // long aprons) then get mirror-image screws, and the pieces come out drilled alike or as true mirror pairs
+  // (carry-over 14: the Platform bed's corners). A joint across the middle keeps the plain order.
+  // Only across the room (left and right, front and back): a design mirrors that way, not up and down, and drawers
+  // stacked one over the other are the same drawer, drilled alike (R9 of the stage 2 review: the top drawer of a
+  // stack came out the mirror image of the others because it is above the middle of the desk).
+  const middle=typeof designMiddle==='function'&&typeof S!=='undefined'&&partsInDesign().has(through)?designMiddle():null;
+  const centre=range=>(range[0]+range[1])/2;
+  const fromHighEnd=!!middle&&shape.L!==1&&middle[shape.L]>centre(shape.rangeL)+.01;
+  const nearHighSide=!!middle&&shape.W!==1&&middle[shape.W]>centre(shape.rangeW)+.01;
+  const list=alongs.map((along,i)=>{
+    const order=fromHighEnd?alongs.length-1-i:i;
+    let across=acrossAt(order,n,shape.wide);
+    if(nearHighSide)across=shape.wide-across;
+    const pos=shape.point(along,drawn?r16(across):across,start);
     const f={kind,pos,dir,len,...sizes,through,into,label,sunk,structural,
       tip:`${label}. Goes through ${through.name} into ${into.name}.`+
         (plug?` Its head sits in a 3/8" hole ${fmt(sunk)} deep under ${plugIsDowel(sunk)?'a glued length of 3/8" dowel':'a glued wooden plug'}, cut flush.`:sunk?' Its head sits in a deep hole so it can reach.':'')+
@@ -314,6 +399,9 @@ function drivenStraight(j,shape,n,kind,len,label,plug){
     if(plug)f.plug={at:pointPlus(pos,dir,-sunk),out:dir.map(v=>-v),dia:PLUG_DIA};
     return f;
   });
+  // (where the screws go then depends on the neighbours' pocket holes: worked out again at every change)
+  if(endHoles.spans.length)list.loose=true;
+  return list;
 }
 /* The piece a screw goes through (thruPart, js/joints.js), with one tie decided for furniture for the house: two
    pieces of the same thickness face to face (a bed rail and the cleat along its inside) are screwed from the
@@ -577,11 +665,15 @@ function pocketScrews(j,shape,n,len,label){
   // through the end cross pieces of two rack sections, js/rackwall.js)
   const bolts=boltSpansAcross(through,shape,t);
   if(bolts.length)blocked.spans.push(...bolts);
-  const evenly=spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin).map(a=>rangeT[0]+a);
+  // (rule 14: the row on whole sixteenths from the end of the piece the holes are drilled in, its gaps even)
+  const rowAt=rowOnSixteenths(spreadAlong(n,rangeT[1]-rangeT[0],FASTEN.endMin),rangeT[1]-rangeT[0]).map(a=>rangeT[0]+a);
+  const rowShift=rowAt.length?onSixteenth(rowAt[0],box.lo[t])-rowAt[0]:0;
+  const evenly=rowAt.map(at=>at+rowShift);
   // (of two places equally near, the one on the left of the drilled face as the person drilling sees it: clearOf)
   const seenFrom=markingFrame(s,-hidden,through);
   const leftward=seenFrom.right.axis===t?seenFrom.right.sign:seenFrom.up.axis===t?seenFrom.up.sign:1;
-  const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3,at=>at*leftward);
+  // (a moved hole on a sixteenth from the end of the piece too, rule 14: snapped once, inside clearOf)
+  const alongs=clearOf(evenly,blocked.spans.concat(endHoles.spans),rangeT,FASTEN.endMin,.3,at=>at*leftward,at=>onSixteenth(at,box.lo[t]));
   const inEndHoles=at=>endHoles.spans.some(([a,b])=>at>a-.3&&at<b+.3);
   // A hole that found no clear place (a top board that only crosses the apron right beside a leg) is left out, and
   // jSpec counts the holes that are left. When none is left the row stays as it was: placing a preset turns such a
@@ -775,17 +867,28 @@ function boltSpansAcross(piece,shape,t){
    prefer (optional): for two clear places equally near (within 1/32"), the one with the smaller prefer(at) wins.
    pocketScrews passes the left of the drilled face as the person drilling sees it, so pieces that do one job on
    opposite sides of a design that is the same left and right (the two long aprons of a desk, either side of the
-   cross rail) come out drilled alike (spec 11, 7.3). Without it the lower world coordinate wins, as before. */
-function clearOf(places,spans,range,endMin,room,prefer){
+   cross rail) come out drilled alike (spec 11, 7.3). Without it the lower world coordinate wins, as before.
+   snap (optional): puts a place on the sixteenth the drawings measure from (rule 14). Each candidate is snapped
+   here, once, and a snapped place that would fall back into a span is stepped a sixteenth further away from it, so
+   a moved hole is never rounded back into the room the end holes need (C8 of the stage 2 review: rounding in the
+   room and again from the piece's end could add up to more than the 0.05" to spare). */
+function clearOf(places,spans,range,endMin,room,prefer,snap){
   if(!spans.length)return places.map(at=>({at,moved:false}));
   const lo=range[0]+Math.min(endMin,(range[1]-range[0])/2),hi=range[1]-Math.min(endMin,(range[1]-range[0])/2);
   const free=at=>at>=lo-1e-6&&at<=hi+1e-6&&!spans.some(([a,b])=>at>a-room&&at<b+room);
   const out=places.map(at=>({at,moved:false}));
+  // (away: -1 for a place before a span, +1 after it)
+  const onGrid=(at,away)=>{
+    if(!snap)return at;   // (no snap: rounded to the sixteenth when picked, as before)
+    let p=snap(at);
+    for(let step=0;step<3&&!free(p);step++)p=snap(p+away/16);
+    return p;
+  };
   out.forEach((place,index)=>{
     if(free(place.at))return;
     // the nearest clear places on both sides of the span it is in
     const candidates=[];
-    for(const[a,b]of spans){candidates.push(a-room-.05,b+room+.05);}
+    for(const[a,b]of spans){candidates.push(onGrid(a-room-.05,-1),onGrid(b+room+.05,1));}
     candidates.sort((x,y)=>Math.abs(x-place.at)-Math.abs(y-place.at));
     const apart=at=>out.every((other,i)=>i===index||Math.abs(other.at-at)>=1);
     let pick=candidates.find(at=>free(at)&&apart(at));
@@ -794,7 +897,7 @@ function clearOf(places,spans,range,endMin,room,prefer){
       const ties=candidates.filter(at=>free(at)&&apart(at)&&Math.abs(at-place.at)<=nearest+1/32);
       pick=ties.reduce((best,at)=>prefer(at)<prefer(best)-1e-9?at:best,pick);
     }
-    if(pick!==undefined){place.at=r16(pick);place.moved=true;}
+    if(pick!==undefined){place.at=snap?pick:r16(pick);place.moved=true;}   // (with snap, on the grid already: onGrid)
   });
   return out;
 }
@@ -804,8 +907,9 @@ function dowelPegs(j,shape,n,dia,len,label){
   let inA=Math.min(len/2,j.da-FASTEN.dowelCover);
   const inB=Math.min(len-inA,j.db-FASTEN.dowelCover);
   inA=Math.min(len-inB,j.da-FASTEN.dowelCover); // what one piece cannot take goes into the other
-  return spreadAlong(n,shape.long,FASTEN.endMin).map(along=>({
-    kind:'dowel',pos:shape.point(along,shape.wide/2,shape.plane-way*inA),dir,len:inA+inB,dia,head:0,through:j.a,into:j.b,label,
+  // (rule 14: on whole sixteenths from the corner of the place where the two pieces touch)
+  return rowOnSixteenths(spreadAlong(n,shape.long,FASTEN.endMin),shape.long).map(along=>({
+    kind:'dowel',pos:shape.point(along,r16(shape.wide/2),shape.plane-way*inA),dir,len:inA+inB,dia,head:0,through:j.a,into:j.b,label,
     tip:`${label}, glued. Half in ${j.a.name}, half in ${j.b.name}.`,
   }));
 }
@@ -973,6 +1077,7 @@ function layoutAsLaidOut(link){
     if(typeof drivableLayout==='function')list=drivableLayout(link,list);
     // a joint with a shaped piece: screws moved or angled there keep off its holes too (js/shapes.js)
     if(j.shapes&&list!==planned)list=keepOffOpeningsAgain(j,list,planned);
+    plugsOnTheirScrews(list);
     if(list.loose)layoutCarry.delete(link.key);
     else layoutCarry.set(link.key,{type:link.type,a:j.a,b:j.b,nameA:j.a.name,nameB:j.b.name,thickA:j.a.t,thickB:j.b.t,
       ru0:j.ru[0],ru1:j.ru[1],rv0:j.rv[0],rv1:j.rv[1],k:j.k,plane:j.plane,da:j.da,db:j.db,fa:j.fa,fb:j.fb,shapes:j.shapes,frame:j.frame?j.frame.id:'',list});
@@ -1200,6 +1305,7 @@ function settledLayouts(){
     if(nudged)moved.set(link,nudged);
     settle(nudged||list,link);
   }
+  for(const layout of moved.values())plugsOnTheirScrews(layout);   // (a moved screw takes its plug with it)
   return moved;
 }
 /* The ways the screws of one joint can get out of the way, nearest first: each is the whole layout with every
@@ -1421,7 +1527,8 @@ SELFTESTS.push(function screwsPassEachOther(problems){
     placePreset(stand,vals,stand.build(vals),false);
     const lines=buildPlan(true).steps.flatMap(step=>step.groups);
     const post=lines.find(group=>/through the Post \([A-Z]+\) into the end of the Rail/.test(group.line));
-    if(!post||!/not the usual ones on purpose/.test(post.where))wrong('the post screws of the aquarium stand do not say that their marks are set to pass the screws already in the corner: '+(post&&post.where));
+    // (a line whose holes are drilled in step 2 keeps the words it had as whereKept: js/drillplan.js)
+    if(!post||!/not the usual ones on purpose/.test(post.whereKept||post.where))wrong('the post screws of the aquarium stand do not say that their marks are set to pass the screws already in the corner: '+(post&&post.where));
   }
   // by hand
   load(JSON.stringify(blank()),true);

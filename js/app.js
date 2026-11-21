@@ -461,6 +461,7 @@ function placePreset(preset,vals,parts,add,entryName){
     S.uses={};S.wall=[];S.hung=[];S.wallFixed=false;S.sets={};
     delete S.assumeHardware;   // hardware is drawn from here on, so nothing about it is assumed (js/holds.js)
     delete S.glue;
+    delete S.drillId;   // a new design: the Done ticks of step 2 start empty (js/partdrawings.js)
   }
   // A preset whose steps never glue (2x4 garage shelving, a garden bed that stands in the wet) says glue:false,
   // and the lists then leave wood glue out for its screwed joints (hardwareTotals in js/style.js). Beside a

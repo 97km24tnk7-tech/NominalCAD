@@ -256,12 +256,12 @@ function tableSteps(plan){
   const shortWhy=` The short aprons are too short for pocket holes at their ends: those holes would take up the room the holes that hold the ${surface} need.`;
   // (the owner kept those heads in Everyday: the notes and this sentence say how they can be hidden)
   const shortHeads=` Their heads show on the front and back faces of the legs. To hide them, choose Fine furniture in Style & finish, which joins these aprons with glued dowels instead, or click a screw of each of the four joints between a leg and a short apron in the 3D view and pick "Screws, heads plugged" in Properties (a choice there changes that one joint), which sinks the heads deep in the leg under glued lengths of dowel rod.`;
-  const dowelWords=' Glue each joint and join it with the dowels listed below: mark matching places on the leg and on the end of the apron, drill the holes with a doweling jig, glue the dowels in and clamp the joint.';
+  const dowelDrill='mark matching places on the leg and on the end of the apron, drill the holes with a doweling jig, ',dowelWords=` Join each joint with the dowels listed below: ${dowelDrill}glue the dowels in, glue the end of the apron and clamp the joint.`;
   steps.push(styledStep({
     std:endFrames+(shortEnds?throughLeg+shortWhy+shortHeads:pocketWords)+(shop?'':drillForTop)+square,
     fine:endFrames+(shortEnds?dowelWords+shortWhy:pocketWords)+drillForTop+square,
     rustic:endFrames+throughLeg+square},
-    ['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[]),[drillInside,drillForTop]));
+    ['Leg','Short apron'].concat(shelf&&shelf.ends?['Short stretcher']:[]),[drillInside,drillForTop,{text:dowelDrill,kind:'dowel'}]));
   // A slatted lower shelf is built as one piece first, upside down on the bench (the woodworker's-eye review, E2):
   // its pocket screws go UP into the slats, and with the table on its legs no drill fits under stretchers 3" off
   // the floor. On the bench, upside down, every screw is driven down, the slats lie flat on the bench and the
@@ -293,7 +293,9 @@ function tableSteps(plan){
     const throughApron=` Drive two screws through each apron into each end of ${one?'the rail':'a rail'}.`;
     const drillRail=` Drill those holes, and the holes along its top edge that will hold the ${surface}, before the rail goes in.`;
     const fromRail=` Drive the pocket screws listed below from the holes in each end of ${one?'the rail':'a rail'} into the apron.${drillRail} Nothing goes through the front apron.`;
-    steps.push(styledStep({std:place+(shop?throughApron:fromRail)+carries,fine:place+fromRail+carries,rustic:place+throughApron+carries},['Cross rail'],[drillRail]));
+    // (the marks are said once: left out when the drawings of step 2 already pencil the rail on the aprons)
+    steps.push(styledStep({std:place+(shop?throughApron:fromRail)+carries,fine:place+fromRail+carries,rustic:place+throughApron+carries},['Cross rail'],
+      [drillRail,{text:' Mark those places on both aprons first.',pencilled:'Cross rail'}]));
   }
   if(shelf&&shelf.rails.length){
     // where the middle of each rail between the two end ones goes, measured along a stretcher from the outside
@@ -316,17 +318,18 @@ function tableSteps(plan){
       ['Lower shelf']));
   }
   const rails=plan.railCount?(plan.railCount===1?' and the cross rail':' and each cross rail'):'';
+  const theRails=plan.railCount?(plan.railCount===1?' and the cross rail':' and the cross rails'):'';   // (one rail: "the cross rail")
   // Held from underneath (Everyday and Fine for the house, Fine for a shop bench): the usual way to work is upside
   // down on a blanket, so the overhang can be marked all round and every pocket hole is easy to reach.
   const fromBelow=(plan.planks
     ?`Lay the ${surface} boards best face down on a blanket or a piece of carpet, tight together. Turn the frame upside down and set it on them, so that the ${surface} overhangs ${fmt(plan.over)} past the legs on every side: mark the overhang at each corner and measure it all round before you drive anything.`
     :`Lay the top best face down on a blanket or a piece of carpet. Turn the frame upside down and set it on the top, so that the top overhangs ${fmt(plan.over)} past the legs on every side: mark the overhang at each corner and measure it all round before you drive anything.`)+
-    ` Drive the pocket screws listed below from the holes on the inside of the aprons${plan.railCount?' and the cross rails':''} up into the underside of the ${surface}`+
+    ` Drive the pocket screws listed below from the holes on the inside of the aprons${theRails} up into the underside of the ${surface}`+
     (plan.planks?`: every board is held near both ends${plan.railCount?' and wherever it crosses a cross rail':''}, the inner boards by the short aprons and the two outer boards by the long aprons under them, all along their length. Right beside a leg there are no holes: the holes that hold the apron to the leg take up that end of the apron.`:'.')+
     ` The ${surface} only rests on the tops of the legs: nothing is driven into them. The screws stop short of the ${surface} surface, so nothing shows on it. Turn it right side up.`;
   const screwDown=plan.planks
     ?`Lay the ${surface} boards on the frame, best face up and tight together, overhanging ${fmt(plan.over)} past the legs on every side. Screw down through each board with the screws listed below: into each short apron${rails} it crosses and into the top of a leg where the board lies over one (two screws where the board covers ${fmt(TWO_SCREWS_FROM)} or more of the piece under it, one where it covers less, so the wood does not split), and one about every 8" along the long apron under each of the two outer boards. Drill pilot holes, and set the screw heads just below the surface.`
-    :`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${plan.railCount?' and the cross rails':''}, and ${plan.leg>=TWO_SCREWS_FROM?'two':'one'} into the top of each leg. Set the screw heads just below the surface.`;
+    :`Center the top on the frame so it overhangs ${fmt(plan.over)} past the legs on every side. Screw down through it with the screws listed below, about every 8" along the aprons${theRails}, and ${plan.leg>=TWO_SCREWS_FROM?'two':'one'} into the top of each leg. Set the screw heads just below the surface.`;
   steps.push(styledStep({std:shop?screwDown:fromBelow,fine:fromBelow,rustic:screwDown},[plan.topName]));
   steps.push(FIN);
   return steps;

@@ -595,7 +595,7 @@ svg.shape-draw{display:block;max-width:100%;height:auto;background:#fff;border:1
 .put b{margin-right:4px;font-size:var(--fs-s);font-weight:600;color:var(--n600)}
 /* the hexagon tag of a jig setting, in a line or a table */
 svg.tag{display:inline-block;width:20px;height:18px;vertical-align:-4px}
-svg.tag polygon{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
+svg.tag polygon,svg.tag circle{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
 svg.tag text{font:600 11px var(--font);fill:#0b3a8f;text-anchor:middle}
 /* step 2, Drill your pieces (js/partdrawings.js): the box, the settings, one figure per label, the closing lines */
 .drill-box{margin:8px 0 10px;padding:6px 10px;border:1px solid var(--n300);font-size:var(--fs);line-height:17px}
@@ -644,6 +644,8 @@ svg.pd .pd-hid{fill:none;stroke:#3c434b;stroke-width:1.3;stroke-dasharray:6 4}
 svg.pd .pd-hex{fill:#fff;stroke:#0b3a8f;stroke-width:1.6}
 svg.pd .pd-hexn{font-size:11.5px;font-weight:600;fill:#0b3a8f;text-anchor:middle}
 svg.pd .pd-lab{fill:#fff;stroke:#14181d;stroke-width:1.5}
+svg.pd .pd-bore{fill:#dbe4f3;stroke:#0b3a8f;stroke-width:1.6}
+svg.pd .pd-flag{fill:none;stroke:#0b3a8f;stroke-width:1.4}
 
 /* ---------- 12a. Build step by step (js/stepmode.js) ----------
    the words of one step, down the right side of the 3D view. Properties, which is at home in that corner, moves

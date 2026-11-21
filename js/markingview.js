@@ -384,12 +384,17 @@ function rowMarkPlan(group,letterOf){
     if(pocket){
       // the hole opens as a long slot that runs back from where the screw comes out, away from the joint
       const away=f.dir.map((v,k)=>k===frame.axis?0:-v),long=Math.hypot(...away)||1,unit=away.map(v=>v/long);
-      // as long as the oval the bit leaves (POCKET_OVAL, js/fasteners.js), but never past the edges of the piece
-      let reach=POCKET_OVAL;
+      // the oval the bit leaves, centred on where the middle of the bit comes out and POCKET_OVAL each way
+      // (js/fasteners.js), as the part drawings draw it (carry-over 8); never past the edges of the piece. The slot
+      // is drawn from its end at `slot` back through the mouth to the same distance on the other side.
+      let reach=Math.max(0,POCKET_OVAL-f.pocket.dia/2);
       for(let k=0;k<3;k++){
         if(k===frame.axis||Math.abs(unit[k])<1e-6)continue;
-        const room=unit[k]>0?throughBox.hi[k]-f.pocket.dia/2-f.pocket.mouth[k]:f.pocket.mouth[k]-(throughBox.lo[k]+f.pocket.dia/2);
-        reach=Math.min(reach,Math.max(0,room/Math.abs(unit[k])));
+        for(const sign of[1,-1]){
+          const u=unit[k]*sign;
+          const room=u>0?throughBox.hi[k]-f.pocket.dia/2-f.pocket.mouth[k]:f.pocket.mouth[k]-(throughBox.lo[k]+f.pocket.dia/2);
+          reach=Math.min(reach,Math.max(0,room/Math.abs(u)));
+        }
       }
       const tail=pointPlus(f.pocket.mouth,unit,reach);
       plan.points.push({at:frame.toView(f.pocket.mouth),kind:'pocket',r:f.pocket.dia/2,slot:frame.toView(tail)});
@@ -1096,7 +1101,11 @@ function layoutMarkPlan(plan,inLegend,room,withRowNote){
     const inside=inWin(point.at[0],point.at[1])&&!inBreak;
     if(inside)out.markers.push(marker);
     const slot=point.slot?px(point.slot[0],point.slot[1]):null;
-    if(slot&&inside)out.markers.push({x:Math.min(at[0],slot[0])-r-4,y:Math.min(at[1],slot[1])-r-4,w:Math.abs(slot[0]-at[0])+2*r+8,h:Math.abs(slot[1]-at[1])+2*r+8});
+    // (the slot runs both ways from the mouth, to slot and to its mirror)
+    if(slot&&inside){
+      const back=[2*at[0]-slot[0],2*at[1]-slot[1]];
+      out.markers.push({x:Math.min(back[0],slot[0])-r-4,y:Math.min(back[1],slot[1])-r-4,w:Math.abs(slot[0]-back[0])+2*r+8,h:Math.abs(slot[1]-back[1])+2*r+8});
+    }
     return{...point,px:at,radius:r,slotPx:slot,inside};
   });
   out.cutRow=out.points.some(point=>!point.inside);
@@ -1456,10 +1465,11 @@ function drawMarkLayout(layout,ctx){
     ctx.strokeStyle=V.fastener;ctx.lineWidth=2.2;ctx.setLineDash(point.far?[4,3]:[]);
     if(point.kind==='pocket'&&point.slotPx){
       // the long slot of a pocket hole: a half circle round each end, joined by two straight sides
-      const[sx,sy]=point.slotPx,angle=Math.atan2(sy-y,sx-x);
+      // (centred on the mouth: from the mirror of `slot` about the mouth to `slot`)
+      const[sx,sy]=point.slotPx,angle=Math.atan2(sy-y,sx-x),bx=2*x-sx,by=2*y-sy;
       ctx.beginPath();
       ctx.arc(sx,sy,r,angle-Math.PI/2,angle+Math.PI/2,false);
-      ctx.arc(x,y,r,angle+Math.PI/2,angle+Math.PI*1.5,false);
+      ctx.arc(bx,by,r,angle+Math.PI/2,angle+Math.PI*1.5,false);
       ctx.closePath();ctx.stroke();
     }else if(point.kind!=='mid'){
       ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
@@ -1763,13 +1773,15 @@ function markLayoutProblems(layout,label){
   // every fastener (and the slot of a pocket hole) is drawn on the picture, above the legend and the notes
   for(const point of layout.points){
     if(!point.inside)continue;
-    const ends=[point.px].concat(point.slotPx?[point.slotPx]:[]);
+    // (a slot runs both ways from the mouth: its two ends)
+    const back=point.slotPx?[2*point.px[0]-point.slotPx[0],2*point.px[1]-point.slotPx[1]]:null;
+    const ends=[point.px].concat(point.slotPx?[point.slotPx,back]:[]);
     for(const[x,y]of ends)if(x-point.radius<0||x+point.radius>MARK_VIEW.width||y-point.radius<MARK_VIEW.titleH-6||y+point.radius>layout.height-layout.bottomH)
       found.push(`${label}: a fastener is drawn at ${Math.round(x)}, ${Math.round(y)}, over the title, the legend or the notes, or off the picture`);
     // and on its piece: a pocket hole's slot stays inside the piece it is drilled in
     if(point.slotPx&&layout.box){
-      const b=layout.box,[sx,sy]=point.slotPx;
-      if(sx<b.x-1||sx>b.x+b.w+1||sy<b.y-1||sy>b.y+b.h+1)found.push(`${label}: the slot of a pocket hole runs off the piece`);
+      const b=layout.box;
+      for(const[sx,sy]of[point.slotPx,back])if(sx<b.x-1||sx>b.x+b.w+1||sy<b.y-1||sy>b.y+b.h+1){found.push(`${label}: the slot of a pocket hole runs off the piece`);break;}
     }
   }
   for(const clash of layout.clashes)found.push(`${label}: ${clash} could not be placed clear of the other texts, the fasteners and the lines`);
