@@ -45,7 +45,8 @@ const OVERALL_LABEL=/^(Width|Depth|Height|Length)( \((overall|of the|floor to th
 
 /* The overall size of what a preset builds, in inches along each direction: the wood only. */
 function builtOverall(parts){
-  const wood=parts.filter(part=>!isProp(part));
+  // (a unit placed with the piece is not part of its size: the chairs of a Dining table, js/chairsets.js)
+  const wood=parts.filter(part=>!isProp(part)&&!part.unit);
   if(!wood.length)return null;
   const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
   for(const part of wood){

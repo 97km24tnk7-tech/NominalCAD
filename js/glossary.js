@@ -277,6 +277,8 @@ const TERMS=[
     what:'A wheel on a turning plate, screwed under a corner so that heavy furniture can be rolled. Two with brakes keep it from rolling away.'},
   {word:'Leveling foot',group:'join',
     what:'A foot on a threaded stem under a leg. Turning it makes that leg a little longer or shorter, until nothing rocks on an uneven floor.'},
+  {word:'Felt pad',group:'join',match:/\bfelt pads?\b/i,
+    what:'A small round of felt with glue on its back, stuck under each foot of a chair or a table so it slides without scratching the floor.'},
   {word:'Shelf pin',group:'join',
     what:'A small metal peg pushed into a hole in the side of a cabinet. Four of them carry a shelf, and moving them to other holes moves the shelf up or down.'},
   {word:'Power strip',group:'join',
@@ -319,6 +321,8 @@ const TERMS=[
     what:'A thin wedge of wood or plastic pushed under a leg or frame to fill a gap. Shims make a stand sit level and steady on an uneven floor.'},
   {word:'Crosscut and rip cut',group:'measure',
     what:'A crosscut goes across a board to make it shorter. A rip cut goes along a board to make it narrower. Crosscuts are easy with any saw. Rip cuts need a table saw, or a circular saw run along a straight board clamped down as a guide.'},
+  {word:'Stop block',group:'measure',match:/\bstop blocks?\b/i,
+    what:'A scrap of wood clamped to the saw\'s fence (or to the bench beside it) at the length you want. Butt each board against it and cut: every piece comes out the same length without measuring again.'},
   {word:'Kerf',group:'measure',
     what:'The slot of wood the saw blade turns into dust, about 1/8 inch wide. The cutting diagrams leave room for it between pieces.'},
   /* the words of shaped pieces (js/shapes.js: angled ends, round ends, holes and cut-outs) */

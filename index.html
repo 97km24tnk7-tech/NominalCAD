@@ -2,17 +2,17 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='3d13268';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='dbe5be1';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=3d13268">
-<link rel="stylesheet" href="css/catalog.css?v=3d13268">
-<link rel="stylesheet" href="css/phone.css?v=3d13268">
-<link rel="stylesheet" href="css/phonepages.css?v=3d13268">
+<link rel="stylesheet" href="css/style.css?v=dbe5be1">
+<link rel="stylesheet" href="css/catalog.css?v=dbe5be1">
+<link rel="stylesheet" href="css/phone.css?v=dbe5be1">
+<link rel="stylesheet" href="css/phonepages.css?v=dbe5be1">
 </head>
 <body data-tab="design">
-<script src="js/phonerule.js?v=3d13268"></script><!-- first: marks a phone (html.phone-page) before anything is drawn -->
+<script src="js/phonerule.js?v=dbe5be1"></script><!-- first: marks a phone (html.phone-page) before anything is drawn -->
 
 <!-- Every icon in the program, drawn once on a 24 x 24 grid as line art.
      Use one with  <svg class="i"><use href="#i-name"/></svg>  (16px), or add class "l" (24px), "m" (20px) or "xs" (12px).
@@ -699,99 +699,100 @@
 
 <!-- the hole sizes the reference sheets name, offered in the Diameter box of a hole (js/shapeprops.js) -->
 <datalist id="shapeHoleSizes"><option value='1/8"'><option value='3/8"'><option value='1/2"'><option value='1"'><option value='3"'><option value='4"'><option value='6"'></datalist>
-<script src="three.min.js?v=3d13268"></script>
+<script src="three.min.js?v=dbe5be1"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 <!-- Load order matters: each file may use what the files above it define. -->
-<script src="js/core.js?v=3d13268"></script>
-<script src="js/hosted.js?v=3d13268"></script>
-<script src="js/dialogs.js?v=3d13268"></script>
-<script src="js/lengthboxes.js?v=3d13268"></script>
-<script src="js/orient.js?v=3d13268"></script>
-<script src="js/shapes.js?v=3d13268"></script>
-<script src="js/verify.js?v=3d13268"></script>
-<script src="js/shapecheck.js?v=3d13268"></script>
-<script src="js/builders-furniture.js?v=3d13268"></script>
-<script src="js/fishtop.js?v=3d13268"></script>
-<script src="js/builders-fish.js?v=3d13268"></script>
-<script src="js/rackjoints.js?v=3d13268"></script>
-<script src="js/rackwall.js?v=3d13268"></script>
-<script src="js/builders-shed.js?v=3d13268"></script>
-<script src="js/builders-storage.js?v=3d13268"></script>
-<script src="js/builders-outdoor.js?v=3d13268"></script>
-<script src="js/presets.js?v=3d13268"></script>
-<script src="js/drawers.js?v=3d13268"></script>
-<script src="js/nightstand.js?v=3d13268"></script>
-<script src="js/computerdesk.js?v=3d13268"></script>
-<script src="js/diningchair.js?v=3d13268"></script>
-<script src="js/overallsizes.js?v=3d13268"></script>
-<script src="js/casedata.js?v=3d13268"></script>
-<script src="js/caseplan.js?v=3d13268"></script>
-<script src="js/casecheck.js?v=3d13268"></script>
-<script src="js/casesteps.js?v=3d13268"></script>
-<script src="js/casebuild.js?v=3d13268"></script>
-<script src="js/casechecks.js?v=3d13268"></script>
-<script src="js/state.js?v=3d13268"></script>
-<script src="js/joints.js?v=3d13268"></script>
-<script src="js/neighbors.js?v=3d13268"></script>
-<script src="js/framing.js?v=3d13268"></script>
-<script src="js/style.js?v=3d13268"></script>
-<script src="js/fasteners.js?v=3d13268"></script>
-<script src="js/fastenerroom.js?v=3d13268"></script>
-<script src="js/visibility.js?v=3d13268"></script>
-<script src="js/view3d.js?v=3d13268"></script>
-<script src="js/shapeview.js?v=3d13268"></script>
-<script src="js/viewmodes.js?v=3d13268"></script>
-<script src="js/groups.js?v=3d13268"></script>
-<script src="js/connections.js?v=3d13268"></script>
-<script src="js/components.js?v=3d13268"></script>
-<script src="js/hardware.js?v=3d13268"></script>
-<script src="js/holds.js?v=3d13268"></script>
-<script src="js/hardwareshapes.js?v=3d13268"></script>
-<script src="js/copies.js?v=3d13268"></script>
-<script src="js/tools.js?v=3d13268"></script>
-<script src="js/transform.js?v=3d13268"></script>
-<script src="js/panels.js?v=3d13268"></script>
-<script src="js/shapeprops.js?v=3d13268"></script>
-<script src="js/piecetree.js?v=3d13268"></script>
-<script src="js/unfasten.js?v=3d13268"></script>
-<script src="js/statusbar.js?v=3d13268"></script>
-<script src="js/viewpick.js?v=3d13268"></script>
-<script src="js/fastenerview.js?v=3d13268"></script>
-<script src="js/showfaces.js?v=3d13268"></script>
-<script src="js/fastenerreach.js?v=3d13268"></script>
-<script src="js/screwbite.js?v=3d13268"></script>
-<script src="js/fasteningupgrade.js?v=3d13268"></script>
-<script src="js/reviewupgrade.js?v=3d13268"></script>
-<script src="js/motion.js?v=3d13268"></script>
-<script src="js/hanging.js?v=3d13268"></script>
-<script src="js/hardwaretool.js?v=3d13268"></script>
-<script src="js/drawertool.js?v=3d13268"></script>
-<script src="js/plans.js?v=3d13268"></script>
-<script src="js/buildsteps.js?v=3d13268"></script>
-<script src="js/markingview.js?v=3d13268"></script>
-<script src="js/drillplan.js?v=3d13268"></script>
-<script src="js/partdrawings.js?v=3d13268"></script>
-<script src="js/shapedrawings.js?v=3d13268"></script>
-<script src="js/steppictures.js?v=3d13268"></script>
-<script src="js/stepmode.js?v=3d13268"></script>
-<script src="js/prices.js?v=3d13268"></script>
-<script src="js/buying.js?v=3d13268"></script>
-<script src="js/layout.js?v=3d13268"></script>
-<script src="js/preview.js?v=3d13268"></script>
-<script src="js/checkui.js?v=3d13268"></script>
-<script src="js/presetentry.js?v=3d13268"></script>
-<script src="js/catalog.js?v=3d13268"></script>
-<script src="js/app.js?v=3d13268"></script>
-<script src="js/level.js?v=3d13268"></script>
-<script src="js/glossary.js?v=3d13268"></script>
-<script src="js/jointhelp.js?v=3d13268"></script>
-<script src="js/wordlinks.js?v=3d13268"></script>
-<script src="js/transfer.js?v=3d13268"></script>
-<script src="js/menus.js?v=3d13268"></script>
-<script src="js/phone.js?v=3d13268"></script>
-<script src="js/phoneview.js?v=3d13268"></script>
-<script src="js/phonepages.js?v=3d13268"></script>
-<script src="js/selftest.js?v=3d13268"></script>
-<script src="js/visits.js?v=3d13268"></script>
+<script src="js/core.js?v=dbe5be1"></script>
+<script src="js/hosted.js?v=dbe5be1"></script>
+<script src="js/dialogs.js?v=dbe5be1"></script>
+<script src="js/lengthboxes.js?v=dbe5be1"></script>
+<script src="js/orient.js?v=dbe5be1"></script>
+<script src="js/shapes.js?v=dbe5be1"></script>
+<script src="js/verify.js?v=dbe5be1"></script>
+<script src="js/shapecheck.js?v=dbe5be1"></script>
+<script src="js/builders-furniture.js?v=dbe5be1"></script>
+<script src="js/fishtop.js?v=dbe5be1"></script>
+<script src="js/builders-fish.js?v=dbe5be1"></script>
+<script src="js/rackjoints.js?v=dbe5be1"></script>
+<script src="js/rackwall.js?v=dbe5be1"></script>
+<script src="js/builders-shed.js?v=dbe5be1"></script>
+<script src="js/builders-storage.js?v=dbe5be1"></script>
+<script src="js/builders-outdoor.js?v=dbe5be1"></script>
+<script src="js/presets.js?v=dbe5be1"></script>
+<script src="js/drawers.js?v=dbe5be1"></script>
+<script src="js/nightstand.js?v=dbe5be1"></script>
+<script src="js/computerdesk.js?v=dbe5be1"></script>
+<script src="js/diningchair.js?v=dbe5be1"></script>
+<script src="js/chairsets.js?v=dbe5be1"></script>
+<script src="js/overallsizes.js?v=dbe5be1"></script>
+<script src="js/casedata.js?v=dbe5be1"></script>
+<script src="js/caseplan.js?v=dbe5be1"></script>
+<script src="js/casecheck.js?v=dbe5be1"></script>
+<script src="js/casesteps.js?v=dbe5be1"></script>
+<script src="js/casebuild.js?v=dbe5be1"></script>
+<script src="js/casechecks.js?v=dbe5be1"></script>
+<script src="js/state.js?v=dbe5be1"></script>
+<script src="js/joints.js?v=dbe5be1"></script>
+<script src="js/neighbors.js?v=dbe5be1"></script>
+<script src="js/framing.js?v=dbe5be1"></script>
+<script src="js/style.js?v=dbe5be1"></script>
+<script src="js/fasteners.js?v=dbe5be1"></script>
+<script src="js/fastenerroom.js?v=dbe5be1"></script>
+<script src="js/visibility.js?v=dbe5be1"></script>
+<script src="js/view3d.js?v=dbe5be1"></script>
+<script src="js/shapeview.js?v=dbe5be1"></script>
+<script src="js/viewmodes.js?v=dbe5be1"></script>
+<script src="js/groups.js?v=dbe5be1"></script>
+<script src="js/connections.js?v=dbe5be1"></script>
+<script src="js/components.js?v=dbe5be1"></script>
+<script src="js/hardware.js?v=dbe5be1"></script>
+<script src="js/holds.js?v=dbe5be1"></script>
+<script src="js/hardwareshapes.js?v=dbe5be1"></script>
+<script src="js/copies.js?v=dbe5be1"></script>
+<script src="js/tools.js?v=dbe5be1"></script>
+<script src="js/transform.js?v=dbe5be1"></script>
+<script src="js/panels.js?v=dbe5be1"></script>
+<script src="js/shapeprops.js?v=dbe5be1"></script>
+<script src="js/piecetree.js?v=dbe5be1"></script>
+<script src="js/unfasten.js?v=dbe5be1"></script>
+<script src="js/statusbar.js?v=dbe5be1"></script>
+<script src="js/viewpick.js?v=dbe5be1"></script>
+<script src="js/fastenerview.js?v=dbe5be1"></script>
+<script src="js/showfaces.js?v=dbe5be1"></script>
+<script src="js/fastenerreach.js?v=dbe5be1"></script>
+<script src="js/screwbite.js?v=dbe5be1"></script>
+<script src="js/fasteningupgrade.js?v=dbe5be1"></script>
+<script src="js/reviewupgrade.js?v=dbe5be1"></script>
+<script src="js/motion.js?v=dbe5be1"></script>
+<script src="js/hanging.js?v=dbe5be1"></script>
+<script src="js/hardwaretool.js?v=dbe5be1"></script>
+<script src="js/drawertool.js?v=dbe5be1"></script>
+<script src="js/plans.js?v=dbe5be1"></script>
+<script src="js/buildsteps.js?v=dbe5be1"></script>
+<script src="js/markingview.js?v=dbe5be1"></script>
+<script src="js/drillplan.js?v=dbe5be1"></script>
+<script src="js/partdrawings.js?v=dbe5be1"></script>
+<script src="js/shapedrawings.js?v=dbe5be1"></script>
+<script src="js/steppictures.js?v=dbe5be1"></script>
+<script src="js/stepmode.js?v=dbe5be1"></script>
+<script src="js/prices.js?v=dbe5be1"></script>
+<script src="js/buying.js?v=dbe5be1"></script>
+<script src="js/layout.js?v=dbe5be1"></script>
+<script src="js/preview.js?v=dbe5be1"></script>
+<script src="js/checkui.js?v=dbe5be1"></script>
+<script src="js/presetentry.js?v=dbe5be1"></script>
+<script src="js/catalog.js?v=dbe5be1"></script>
+<script src="js/app.js?v=dbe5be1"></script>
+<script src="js/level.js?v=dbe5be1"></script>
+<script src="js/glossary.js?v=dbe5be1"></script>
+<script src="js/jointhelp.js?v=dbe5be1"></script>
+<script src="js/wordlinks.js?v=dbe5be1"></script>
+<script src="js/transfer.js?v=dbe5be1"></script>
+<script src="js/menus.js?v=dbe5be1"></script>
+<script src="js/phone.js?v=dbe5be1"></script>
+<script src="js/phoneview.js?v=dbe5be1"></script>
+<script src="js/phonepages.js?v=dbe5be1"></script>
+<script src="js/selftest.js?v=dbe5be1"></script>
+<script src="js/visits.js?v=dbe5be1"></script>
 </body>
 </html>

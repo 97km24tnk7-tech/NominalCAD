@@ -230,7 +230,8 @@ function buildDims(){
   dimGroup.visible=true;
   // (the pictures that only show where a bought thing goes, a monitor or a computer: `picture` on their MATS rows,
   // are not measured)
-  const sized=S.parts.filter(p=>!M[p.mat].picture),b=bbox(sized.length?sized:S.parts),forPicture=forceDims;
+  // (nor the units placed with a design, the chairs of a Dining table: the lines give the table, measuredParts in js/statusbar.js)
+  const sized=measuredParts(S.parts).filter(p=>!M[p.mat].picture),b=bbox(sized.length?sized:S.parts),forPicture=forceDims;
   if(!b||explode||(!$('#showDims').checked&&!forPicture))return; // nothing to measure; or pulled apart, when the overall size means nothing
   const d=Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2]);
   const sc=Math.max(2.2,d*.035)*(forPicture?1.5:1); // the unit the lines are laid out in: larger in a picture, where the labels are larger too

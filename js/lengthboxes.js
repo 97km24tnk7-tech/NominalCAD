@@ -24,7 +24,7 @@ const LENGTH_BOX='input[data-len]';
 function tidyLengthBox(box){
   const inches=parseLen(box.value);
   if(isNaN(inches))return false;
-  const tidy=boxLen(inches);
+  const tidy=boxLenIn(box,inches);   // (a box marked data-inches stays in inches: js/core.js)
   if(box.value===tidy)return true;
   // Enter on a size outside the limits selects the whole box for typing again (readVals in js/app.js); writing
   // the new text would drop that selection, so it is put back
@@ -97,7 +97,7 @@ SELFTESTS.push(function lengthBoxesInPresetForms(problems){
         if(!box){wrong(`${preset.name}: no box for ${q.k}`);continue;}
         const isSize=!q.int&&!q.dec;
         if(isSize!==box.hasAttribute('data-len'))wrong(`${preset.name}: the box ${q.label} ${isSize?'is a size but is not':'is not a size but is'} marked as a length box`);
-        const shown=isSize?boxLen(q.v):String(q.v);
+        const shown=isSize?boxLenOf(q,q.v):String(q.v);
         if(box.value!==shown)wrong(`${preset.name}: the box ${q.label} shows "${box.value}", it should show "${shown}"`);
       }
       // the defaults read back as the same numbers (rows hidden by a show rule hand over their starting value too)

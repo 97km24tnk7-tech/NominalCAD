@@ -1005,10 +1005,14 @@ const NEAR_MIDDLE=6;
 function faceDirectionWords(piece,n){
   const axis=mainAxis(n),high=n[axis]>0;
   if(axis===1)return high?'facing up':'facing down';
-  const b=plainBox(piece),middle=designMiddle(),other=axis===0?2:0;
+  const b=plainBox(piece),middle=designMiddle(piece),other=axis===0?2:0;   // (a unit's piece: its own chair's middle, js/fasteners.js)
+  // A piece of a unit (a chair of a set, js/chairsets.js) is told in and out of its own chair: one step is done the
+  // same way for every chair of the set, and the chairs face four ways, so a direction in the room would be right for
+  // one chair only. Only a piece across its own chair's very middle takes a direction.
+  const ownUnit=!!piece.unit,reach=ownUnit?.5:NEAR_MIDDLE;
   // (near the middle either way across the room: "in" could be read toward either middle, so the room's direction)
-  const near=k=>middle[k]>b.lo[k]-NEAR_MIDDLE&&middle[k]<b.hi[k]+NEAR_MIDDLE;
-  if(near(axis)||near(other)){
+  const near=k=>middle[k]>b.lo[k]-reach&&middle[k]<b.hi[k]+reach;
+  if(near(axis)||(!ownUnit&&near(other))){
     // ("side", not "end": the ends of a bed are its head and foot)
     return axis===0?`facing the ${high?'right':'left'} side of the ${designWord()}`:`facing ${high?'the front':'the back'}`;
   }
@@ -1115,7 +1119,8 @@ function placementWords(step,plan){
   // by name: the pieces of one name that go in the same way (one label, the same words) are one group; several
   // groups of one name are told apart by where they go
   const byName=new Map();
-  for(const piece of step.pieces){
+  // a step done for each of several copies (the chairs of a set, step.oneOf, js/buildsteps.js) is told for one of them
+  for(const piece of step.oneOf?step.pieces.filter(p=>step.oneOf.has(p.id)):step.pieces){
     const label=drill.labelOfPiece.get(piece.id),member=drill.memberOf.get(piece.id);
     if(!label||!label.way||!label.drawn||!member)continue;
     const said=memberWords(label,member,plan.letterOf,placedFor(piece));
@@ -1180,7 +1185,7 @@ function placementWords(step,plan){
       const place=where?where[index]:'',nth=place.match(/^(\S+) (from the bottom)$/);
       const named=/^(lower|higher)$/.test(place)?`${place} ${name}`:nth?`${nth[1]} ${name} ${nth[2]}`:`${name}${place?' '+place:''}`;
       const who=groups.length===1||where?`${many?'each':'the'} ${named} ${key}`
-        :listWords(group.pieces.map(piece=>whichOne(piece,S.parts.filter(other=>other.name===name))))+` ${key}`;
+        :listWords(group.pieces.map(piece=>whichOne(piece,S.parts.filter(other=>other.name===name&&(!step.oneOf||step.oneOf.has(other.id))))))+` ${key}`;
       sentences.push(`${who} ${group.text}.`+(group.tail?' '+group.tail:''));
       for(const piece of group.pieces){
         const label=group.label;

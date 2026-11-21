@@ -360,9 +360,16 @@ function renameComponent(compId,name){
 /* The pieces a preset just added (ids) become one component named after the preset, with subcomponents for the
    pieces that carry  sub  or match SUB_BY_NAME. Called from placePreset before its commit. */
 function componentFromPreset(presetName,ids){
-  const added=new Set(ids),top=newComp(freeCompName(presetName,null),null),subs=new Map();
+  const added=new Set(ids),top=newComp(freeCompName(presetName,null),null),subs=new Map(),units=new Map();
   for(const p of S.parts){
     if(!added.has(p.id))continue;
+    // a piece of a unit of its own (p.unit: each chair of a Dining table with Chairs to match, js/chairsets.js)
+    // goes into a top-level component of that unit, beside the preset's, so a click picks one chair
+    if(typeof p.unit==='string'&&p.unit.trim()){
+      if(!units.has(p.unit))units.set(p.unit,newComp(freeCompName(p.unit.trim(),null),null));
+      p.comp=units.get(p.unit).id;
+      continue;
+    }
     let subName=typeof p.sub==='string'?p.sub.trim():'';
     delete p.sub; // it has done its job; the component remembers it from here on
     if(!subName&&!isProp(p)){

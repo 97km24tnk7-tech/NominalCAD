@@ -88,6 +88,14 @@ function setFact(id,html,title){
    thing reaches higher than the wood, that height is said apart: "14" tall (23" tall with the mattress)".
    Returns {box, with}: the bounds to give as the size, and the extra words ('' when there are none). */
 function builtSize(parts){
+  // Units placed with a design (the chairs of a Dining table with Chairs to match, p.unit, js/chairsets.js) are not
+  // part of its size: the table is 60" x 33", and the floor the set takes is said apart ("with the dining chairs").
+  const units=parts.filter(p=>p.unit&&!isProp(p)),main=parts.filter(p=>!p.unit);
+  if(units.length&&main.some(p=>!isProp(p))){
+    const inner=builtSize(main),every=bbox(parts.filter(p=>!isProp(p))),kinds=[...new Set(units.map(p=>p.unitOf||'unit'))];
+    const set=`${fmtFt(every.hi[0]-every.lo[0])} × ${fmtFt(every.hi[2]-every.lo[2])} with the ${kinds.length===1?kinds[0].toLowerCase()+'s':'pieces placed with it'}`;
+    return{box:inner.box,with:[inner.with,set].filter(Boolean).join('; ')};
+  }
   const wood=bbox(parts.filter(p=>!isProp(p))),all=bbox(parts);
   if(!wood||!all)return{box:all,with:''};
   const loads=parts.filter(p=>p.mat==='tank'||p.mat==='mattress');
@@ -96,6 +104,19 @@ function builtSize(parts){
   const tanks=loads.filter(p=>p.mat==='tank').length;
   const what=!tanks?'the mattress':tanks===1?'the tank':'the tanks';
   return{box:wood,with:`${fmtFt(top-wood.lo[1])} tall with ${what}`};
+}
+/* The pieces the overall size lines measure (the 3D view, js/view3d.js; Views with sizes, js/plans.js): the same
+   as builtSize, so the lines never give the set's floor space as if it were the table's. Without units, all of
+   them. unitWords(parts): what the lines leave out and the floor the whole set takes, or ''. */
+const measuredParts=parts=>parts.some(p=>p.unit&&!isProp(p))&&parts.some(p=>!p.unit&&!isProp(p))?parts.filter(p=>!p.unit):parts;
+function unitWords(parts){
+  const units=parts.filter(p=>p.unit&&!isProp(p));
+  if(!units.length||measuredParts(parts)===parts)return'';
+  const main=parts.find(p=>!p.unit&&!isProp(p)),set=main&&S.sets&&S.sets[main.set];
+  const whose=set&&set.name?set.name.toLowerCase():'design';
+  const kinds=[...new Set(units.map(p=>(p.unitOf||'piece').toLowerCase()+'s'))];
+  const every=bbox(parts.filter(p=>!isProp(p)));
+  return`The size lines measure the ${whose} by itself; with the ${listWords(kinds)} it takes ${fmtFt(every.hi[0]-every.lo[0])} × ${fmtFt(every.hi[2]-every.lo[2])} of floor.`;
 }
 function renderFacts(){
   const count=S.parts.length,built=builtSize(S.parts),b=built.box;

@@ -139,6 +139,10 @@ const HARDWARE_PRICES=[
   // js/computerdesk.js): Everbilt #8-32 x 1-3/4 in. combo truss head zinc machine screws, 4-pack, Home Depot $1.38
   // (model 804941, search snapshot, Nov 2026). Before 'pulls', whose words would match the line first.
   {id:'pull-screws',name:'Machine screws, #8-32, for pulls',match:/machine screws?, #8-32/i,pack:4,sold:'pack of 4',price:1.38,search:'#8-32 x 1-3/4 in. machine screw'},
+  // felt pads under the feet of a chair (the Dining chair, js/diningchair.js): Everbilt 1 in. round heavy duty
+  // self-adhesive felt pads, 16-pack, Home Depot $4.52 (model 49952, as reference sheet 25 source S79 gives it;
+  // search snapshot, Nov 2026)
+  {id:'felt-pads',name:'Felt pads, 1" round',match:/felt pads?/i,pack:16,sold:'pack of 16',price:4.52,search:'1 in. round heavy duty self-adhesive felt pads'},
   {id:'pulls',name:'Door and drawer pulls',match:/pulls?\b|knobs?\b/i,pack:1,sold:'each',price:3.5},
   {id:'catches',name:'Magnetic door catches',match:/catch/i,pack:1,sold:'each',price:2.5},
   {id:'latch',name:'Gate latch or hasp',match:/latch|hasp/i,pack:1,sold:'each',price:9},

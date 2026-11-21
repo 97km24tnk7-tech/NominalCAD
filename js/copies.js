@@ -42,6 +42,36 @@ function copySets(sources,clones){
   }
 }
 
+/* A unit placed with a design (one chair of a Dining table with Chairs to match: p.unit, js/chairsets.js) that is
+   copied whole, while its placement is not, becomes a unit of its own: "Dining chair 7" beside "Dining chair 1".
+   Without that the copy and its original would share one unit, and be taken for one chair (its middle, its
+   inside faces, its steps). A copy of only some pieces of a unit stays in that unit, as with components.
+   Call it after copySets (a placement copied whole keeps its unit names: its set number tells them apart). */
+function copyUnits(sources,clones){
+  const copied=new Map();   // set|unit -> how many of its pieces were copied
+  sources.forEach((p,i)=>{
+    if(typeof p.unit!=='string'||clones[i].set!==p.set)return;
+    const key=p.set+'|'+p.unit;
+    copied.set(key,(copied.get(key)||0)+1);
+  });
+  if(!copied.size)return;
+  const taken=new Set(S.parts.filter(p=>typeof p.unit==='string').map(p=>p.set+'|'+p.unit));
+  const renamed=new Map();
+  for(const[key,count]of copied){
+    const[set,unit]=[key.slice(0,key.indexOf('|')),key.slice(key.indexOf('|')+1)];
+    if(count<S.parts.filter(p=>String(p.set)===set&&p.unit===unit).length)continue;
+    const stem=unit.replace(/\s*\d+$/,'');
+    let n=1;
+    while(taken.has(`${set}|${stem} ${n}`))n++;
+    taken.add(`${set}|${stem} ${n}`);
+    renamed.set(key,`${stem} ${n}`);
+  }
+  sources.forEach((p,i)=>{
+    const key=p.set+'|'+p.unit;
+    if(renamed.has(key)&&clones[i].set===p.set)clones[i].unit=renamed.get(key);
+  });
+}
+
 /* sources: the pieces that were copied.  clones: their copies, in the same order, not yet in the design.
    Adds the clones to the design and returns their ids. Call commit() afterwards. */
 function addCopies(sources,clones){
@@ -74,6 +104,7 @@ function addCopies(sources,clones){
   }
 
   copySets(sources,clones);
+  copyUnits(sources,clones);
   const ids=addParts(clones);
 
   const copyOf=new Map(sources.map((p,i)=>[p.id,ids[i]]));

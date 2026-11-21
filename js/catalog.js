@@ -92,7 +92,11 @@ const CATALOG=[
     builder:'Single aquarium stand',tags:['tanks','doors','fish','aquarium','cabinet','door']},
   // Tables and desks
   {id:'dining-table',name:'Dining table',group:'tables',spec:'4x4 legs, 2x6 plank top',icon:'i-presets',
-    builder:'Dining table',tags:['beginner','table','kitchen','farmhouse']},
+    builder:'Dining table',tags:['beginner','table','kitchen','farmhouse','chairs']},
+  // the Dining table with Chairs to match ticked (js/chairsets.js): the table and as many Dining chairs as fit
+  {id:'dining-set',name:'Dining table and chairs',group:'tables',spec:'Table with chairs to match',icon:'i-presets',
+    builder:'Dining table',start:{chairs:true},titled:true,
+    desc:'The Dining table with Dining chairs to match: as many as fit along each side, tucked in under the top, and one at each end if you want.',tags:['table','chairs','chair','dining','kitchen','farmhouse','set']},
   {id:'coffee-table',name:'Coffee table',group:'tables',spec:'Slatted lower shelf',icon:'i-presets',
     builder:'Coffee table',tags:['beginner','table','living room']},
   {id:'side-table',name:'Side table / nightstand',group:'tables',spec:'2x2 legs, board top',icon:'i-presets',
@@ -452,7 +456,7 @@ function fillFormBoxes(values,fromEntry){
     const box=$(`#presetForm [data-k="${key}"]`);
     if(!box)continue;
     if(box.type==='checkbox')box.checked=!!value;
-    else box.value=fromEntry&&box.hasAttribute('data-len')&&typeof value==='number'?boxLen(value):String(value);
+    else box.value=fromEntry&&box.hasAttribute('data-len')&&typeof value==='number'?boxLenIn(box,value):String(value);
     changed=true;
   }
   return changed;

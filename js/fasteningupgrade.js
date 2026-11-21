@@ -191,7 +191,7 @@ function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo)
   if(vals){
     const stepsOf=preset.steps||STEPS[preset.name];
     if(saved.length&&stepsOf)S.steps=stampSteps(stepsOf(vals),parts);
-    S.notes=(preset.notes?preset.notes(vals):[]).concat(headsNote(preset.name));
+    S.notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals):headsNote(preset.name));
     if(setNumber!==undefined&&S.sets&&S.sets[setNumber])S.sets[setNumber].vals={...vals};
     return saved.length?'preset':'notes';
   }
@@ -206,7 +206,7 @@ function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo)
     saved[Math.max(owner.get(a),owner.get(b))].refresh=true;
   }
   const line=headsNote(preset.name);
-  if(line.length&&!(S.notes||[]).some(note=>/^Screw heads:/.test(note)))S.notes=(S.notes||[]).concat(line);
+  if(line.length&&!(S.notes||[]).some(note=>/^(The \w+'s? )?[Ss]crew heads:/.test(note)))S.notes=(S.notes||[]).concat(line);
   return'refreshed';
 }
 /* The form values that build exactly these pieces (the same names, materials, sizes and places relative to each

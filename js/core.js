@@ -79,6 +79,12 @@ function boxLen(inches){
   const zeroInches=restInches>0&&restInches<1?'0 ':'';   // 1'-0 1/16", the way a detailer writes it
   return`${sign}${feet}'-${zeroInches}${fmt(restInches)}`;
 }
+/* A size that its trade speaks of in inches stays in inches in its box, over 12" too: a chair maker says a seat is
+   17 1/2" high, not 1'-5 1/2" (the Dining chair's seat height, seat width and back height). A row of a preset form
+   says so with inches:true, and its box carries data-inches (presetField, js/app.js). boxLenOf(row, v) writes a
+   value for such a row; boxLenIn(box, v) for such a box (tidyLengthBox, js/lengthboxes.js). */
+const boxLenOf=(row,inches)=>row&&row.inches?fmt(inches):boxLen(inches);
+const boxLenIn=(box,inches)=>box&&box.hasAttribute&&box.hasAttribute('data-inches')?fmt(inches):boxLen(inches);
 /* A sentence that quotes a size the person typed into a box of the presets form ("Width is 25'-0"") speaks the way
    the box does while the form is talking (the limit line, the findings and the remark under the form, the
    message of Create). The same sentence in the notes and the steps of the build instructions stays in inches.

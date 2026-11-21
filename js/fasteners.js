@@ -153,6 +153,10 @@ function undersideHoleFace(piece,parts=S.parts){
 }
 /* The preset that placed this piece (its placement, S.sets), or null for a piece drawn by hand. */
 function presetOfPiece(piece){
+  // a piece of a unit that another preset placed with its own (the chairs of a Dining table, unitOf 'Dining
+  // chair', js/chairsets.js) belongs to the unit's preset: its hidden faces, plugs and show faces are the chair's
+  const unitPreset=piece&&piece.unitOf?PRESETS.find(row=>row.name===piece.unitOf):null;
+  if(unitPreset)return unitPreset;
   const set=S.sets&&piece.set!==undefined?S.sets[piece.set]:null;
   return set&&PRESETS.find(row=>row.name===set.name)||null;
 }
@@ -292,19 +296,38 @@ let insideMemo=null;
 let designTick=0; // goes up at every commit and every load: a cheap way to know that the design may have changed
 ON_COMMIT.push(()=>{designTick++;});
 ON_LOAD.push(()=>{designTick++;});
-function designMiddle(){
+/* designMiddle(piece): with a piece, the middle of what that piece is built in. Units placed with a design (each
+   chair of a Dining table with Chairs to match, p.unit, js/chairsets.js) are built one by one, so a piece of a
+   unit, or of a placement whose preset builds its copies alike (copiesShareSteps: a set of Dining chairs made with
+   Copy in a row), takes the middle of its own unit or placement. Without a piece, or for any other piece, the
+   middle of the design, leaving out such units: moving a chair away from the table does not move the table's
+   inside. */
+function designMiddle(piece){
+  if(piece&&ownMiddleWanted(piece))return ownMiddleOf(piece);
   // (squared: with the turned sets standing square the pieces stand elsewhere, js/neighbors.js)
   if(insideMemo&&insideMemo.parts===S.parts&&insideMemo.count===S.parts.length&&insideMemo.tick===designTick&&insideMemo.squared===!!squaredNow)return insideMemo.middle;
-  const b=bbox(S.parts.filter(p=>!isProp(p)));
-  insideMemo={parts:S.parts,count:S.parts.length,tick:designTick,squared:!!squaredNow,middle:b?b.lo.map((v,i)=>(v+b.hi[i])/2):[0,0,0]};
+  const wood=S.parts.filter(p=>!isProp(p)),main=wood.filter(p=>!p.unit);
+  const b=bbox(main.length?main:wood);
+  insideMemo={parts:S.parts,count:S.parts.length,tick:designTick,squared:!!squaredNow,middle:b?b.lo.map((v,i)=>(v+b.hi[i])/2):[0,0,0],own:new Map()};
   return insideMemo.middle;
+}
+const ownMiddleWanted=piece=>!!piece.unit||!!(typeof presetOfPiece==='function'&&(presetOfPiece(piece)||{}).copiesShareSteps);
+function ownMiddleOf(piece){
+  designMiddle();   // (keeps the memo fresh)
+  const unit=typeof piece.unit==='string'?piece.unit:'',key=piece.set+'|'+unit;
+  if(!insideMemo.own.has(key)){
+    const own=S.parts.filter(p=>!isProp(p)&&p.set===piece.set&&(typeof p.unit==='string'?p.unit:'')===unit);
+    const b=bbox(own.length?own:[piece]);
+    insideMemo.own.set(key,b.lo.map((v,i)=>(v+b.hi[i])/2));
+  }
+  return insideMemo.own.get(key);
 }
 /* The hidden side of a piece along direction s: -1 for its low face, +1 for its high face. Underneath when s is
    up and down; otherwise the side that faces the middle of the design. */
 function hiddenSide(piece,s){
   if(s===1)return-1;
   const b=plainBox(piece);
-  const side=designMiddle()[s]>=(b.lo[s]+b.hi[s])/2?1:-1;
+  const side=designMiddle(piece)[s]>=(b.lo[s]+b.hi[s])/2?1:-1;
   // not a face that another board lies against (faceCovered, js/fastenerroom.js)
   if(typeof faceCovered==='function'&&faceCovered(piece,s,side)&&!faceCovered(piece,s,-side))return-side;
   return side;

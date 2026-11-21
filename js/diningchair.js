@@ -123,8 +123,12 @@ const chairWoodG=wood=>CHAIR_WOOD_G[wood]||Math.min(...Object.values(CHAIR_WOOD_
 const chairWoodNow=()=>typeof S!=='undefined'&&S&&S.look&&WOODS[S.look.wood]?S.look.wood:'pine';
 const chairOrWords=items=>items.length<2?items.join(""):items.slice(0,-1).join(", ")+" or "+items[items.length-1];
 const chairWoodName=wood=>WOODS[wood]?WOODS[wood][0].replace(/\s*\(.*$/,'').toLowerCase():'this wood';
-const DINING_CHAIR_DEFAULTS={S:17.5,SW:18,BH:15,upright:false,table:false,tL:60,tW:33,tH:30};
-const CHAIR_LIMITS={S:[17,19],SW:[18,20],BH:[14,15],tL:[36,108],tW:[27,50],tH:[26,42]};
+/* tableKind: the table the chair is checked against, 'program' (the Dining table of this program, by its length,
+   width and height) or 'measured' (a table the person measured: mH the height of its top, mU the underside of its
+   apron, mSide the room between the legs along a side, mEnd between the legs at an end; each 0 = not measured, and
+   nothing is assumed about a size left at 0) */
+const DINING_CHAIR_DEFAULTS={S:17.5,SW:18,BH:15,upright:false,table:false,tL:60,tW:33,tH:30,tableKind:'program',mH:0,mU:0,mSide:0,mEnd:0};
+const CHAIR_LIMITS={S:[17,19],SW:[18,20],BH:[14,15],tL:[36,108],tW:[27,50],tH:[26,42],mH:[0,48],mU:[0,48],mSide:[0,144],mEnd:[0,72]};
 /* "Straight back legs" starts ticked in the Rustic / rough style and unticked in the other two (the owner, 17 Nov).
    The style read is the one of the design that is open when the form is shown (look(), js/style.js). */
 const chairUprightByStyle=()=>typeof S!=='undefined'&&S&&S.look&&S.look.style==='rustic';
@@ -135,7 +139,8 @@ const chairBoard=mat=>({t:M[mat].t,w:M[mat].w});
 /* ---------- the plan ---------- */
 const chairPlanMemo=new Map();
 function diningChairPlan(p){
-  const key=JSON.stringify(p||{});
+  // (the table's sizes are said as its boxes write them while the form is talking: typedLen, js/core.js)
+  const key=JSON.stringify(p||{})+(boxSpeech>0?'|boxes':'');
   if(!chairPlanMemo.has(key)){
     if(chairPlanMemo.size>300)chairPlanMemo.clear();
     chairPlanMemo.set(key,chairPlanFresh(p||{}));
@@ -153,7 +158,8 @@ function chairValues(p){
   // (wood: the wood the chair is checked in; the form and Create use construction pine, Check my design the
   // wood of the design, diningChairRecheck)
   return{S:within('S',d.S),SW:within('SW',d.SW),BH:within('BH',d.BH),upright:!!p.upright,
-    table:!!p.table,tL:within('tL',d.tL),tW:within('tW',d.tW),tH:within('tH',d.tH),wood:WOODS[p.wood]?p.wood:'pine'};
+    table:!!p.table,tL:within('tL',d.tL),tW:within('tW',d.tW),tH:within('tH',d.tH),wood:WOODS[p.wood]?p.wood:'pine',
+    tableKind:p.tableKind==='measured'?'measured':'program',mH:within('mH',d.mH),mU:within('mU',d.mU),mSide:within('mSide',d.mSide),mEnd:within('mEnd',d.mEnd)};
 }
 /* bare: the numbers only, without the table fits and the problems (for the searches inside chairProblems, which
    would otherwise call themselves) */
@@ -378,74 +384,136 @@ function chairTallestBack(plan){
 function chairTableOf(v){
   return tablePlan(tableArgs('Dining table',{L:v.tL,W:v.tW,H:v.tH}));
 }
-/* [{rule, fits, level:'warn'|'note'|'fits', text, fix}] */
+/* How many chairs fit along a side between the legs: 24" of table edge for each, and 2" between chairs and from the
+   legs [25 §5] (T3); at least one when one fits with its 2" each side. The one rule for the chair's own check and
+   for Chairs to match on the Dining table (js/chairsets.js), so the two forms never count differently. */
+function chairsAlongSide(longSpan,seatWide){
+  const R=CHAIR_RULES,each=seatWide+R.between;
+  let along=Math.floor(longSpan/R.edgeEach+1e-9);
+  if(!along&&longSpan>=seatWide+2*R.between-1e-9)along=1;
+  while(along>0&&along*each+R.between>longSpan+1e-9)along--;
+  return along;
+}
+/* Is there a dining chair seat (17" to 19") that leaves 7" under the apron and stands 9" to 13" below the top? */
+function chairSeatWorks(H,underside){
+  const R=CHAIR_RULES;
+  for(let S=CHAIR_LIMITS.S[0];S<=CHAIR_LIMITS.S[1]+1e-9;S+=1/16){
+    if(underside-S>=R.thighLeast-1e-9&&H-S>=R.topAbove.outer[0]-1e-9&&H-S<=R.topAbove.outer[1]+1e-9)return true;
+  }
+  return false;
+}
+/* T1 and T2: the seat against a table top this high, with the underside of its apron this high (the program's
+   table, or one measured: a size not measured is null and its rule is not said) */
+function chairSeatFits(plan,say,H,under){
+  const R=CHAIR_RULES;
+  // T1: the seat to the underside of the apron
+  if(under!==null){
+    const thigh=under-plan.S;
+    if(thigh<R.thighLeast-1e-9){
+      const lowest=floor16(under-R.thighLeast);
+      say('T1','warn',thigh<=0?`With the seat at ${fmt(plan.S)}, the underside of the table's apron (${fmt(under)} up) is no higher than the seat. Thighs need at least about ${fmt(R.thighLeast)} under it.`
+        :`With the seat at ${fmt(plan.S)}, there is ${fmt(r16(thigh))} between the seat and the underside of the table's apron (${fmt(under)}). Thighs need at least about ${fmt(R.thighLeast)}.`,
+        lowest>=CHAIR_LIMITS.S[0]-1e-9?`Make the seat ${fmt(lowest)} high or lower.`
+          :`A dining chair seat is at least ${fmt(CHAIR_LIMITS.S[0])} high, so this chair suits a table whose apron is ${fmt(CHAIR_LIMITS.S[0]+R.thighLeast)} or more off the floor.`);
+    }else if(thigh<R.thighEasy-1e-9)say('T1','note',`There is ${fmt(r16(thigh))} between the seat and the apron: enough for most people, snug for a large person.`);
+    else say('T1','fits',`Under the apron there is ${fmt(r16(thigh))} for your thighs.`);
+  }
+  // T2: the table top above the seat
+  if(H!==null){
+    const above=H-plan.S,[lo,hi]=R.topAbove.usual,[outLo,outHi]=R.topAbove.outer;
+    const thigh=under!==null?under-plan.S:null;
+    if(above<outLo-1e-9||above>outHi+1e-9){
+      const target=r16(H-(lo+hi)/2),seat=Math.min(CHAIR_LIMITS.S[1],Math.max(CHAIR_LIMITS.S[0],target));
+      say('T2','warn',above<=0?`The table top (${fmt(H)} up) is no higher than the seat. At a dining table people sit ${fmt(lo)} to ${fmt(hi)} below the top.`
+        :`The table top is ${fmt(r16(above))} above the seat. At a dining table people sit ${fmt(lo)} to ${fmt(hi)} below the top.`,
+        `Make the seat ${fmt(seat)} high, or check the table height.`);
+    }else if(above<lo-1e-9||above>hi+1e-9){
+      say('T2','note',`The table top is ${fmt(r16(above))} above the seat, a little ${above>hi?'more':'less'} than the usual ${fmt(lo)} to ${fmt(hi)}${above>hi&&thigh!==null&&thigh<R.thighEasy+1e-9?`, so the seat stays ${fmt(r16(thigh))} under the apron`:''}.`);
+    }else say('T2','fits',`The table top is ${fmt(r16(above))} above the seat, the usual height.`);
+  }
+}
+/* T3 and T4: chairs along a side and at an end, from the room between the legs (null: not measured). Returns how
+   many fit along a side, or null. */
+function chairRoomFits(plan,say,side,end){
+  const R=CHAIR_RULES;
+  let along=null;
+  if(side!==null){
+    along=chairsAlongSide(side,plan.SW);
+    if(along>0)say('T3','note',`Between the legs along a side there is ${fmt(side)}: ${countWord(along)} of these chairs ${along===1?'fits':'fit'} there, with ${fmt(r16(side/along))} of table ${along===1?'for it':'each'} (28" to 30" is roomy).`);
+    else say('T3','warn',`Between the legs along a side there is only ${fmt(side)}: even one chair ${fmt(plan.SW)} wide needs ${fmt(plan.SW+2*R.between)} there.`,'Use the chairs at the ends, or make the table longer.');
+  }
+  // T4: with chairs tucked in along the sides, their seats reach in under the top and an end chair stops against
+  // them (spec 11.1)
+  if(end!==null){
+    if(end>=plan.SW+2*R.between-1e-9)say('T4','note',`A chair also fits at each end, between the end legs (${fmt(end)}), with ${fmt(r16((end-plan.SW)/2))} to spare at each side; it pushes in only part way when the chairs along the sides are tucked in.`);
+    else say('T4','note',`The ${fmt(end)} between the end legs is too narrow for a chair ${fmt(plan.SW)} wide: no chair fits at the ends.`);
+  }
+  return along;
+}
+/* [{rule, fits, level:'warn'|'note'|'fits', text, fix}], with .table (the program's table; for one measured
+   {H, under, measured}) and .along (chairs along a side, or null when not measured) */
 function chairTableFit(plan){
-  const R=CHAIR_RULES,v=plan.v,table=chairTableOf(v),out=[];
-  const under=table.legH-table.apronDepth,thigh=under-plan.S,above=table.H-plan.S;
+  return plan.v.tableKind==='measured'?chairMeasuredFit(plan):chairProgramTableFit(plan);
+}
+/* A table the person measured (spec 11, stage 2): only the sizes typed are checked, each by its own rule. */
+function chairMeasuredFit(plan){
+  const v=plan.v,out=[];
   const say=(rule,level,text,fix)=>out.push({rule,level,fits:level!=='warn',text,fix:fix||''});
-  // (a chair's sizes are said in inches, the way people speak of chairs: 17 1/2", not 1'-5 1/2")
-  // T6: a table at which no dining chair seat (17" to 19") meets T1 and T2
-  const seatWorks=(H,underside)=>{
-    for(let S=CHAIR_LIMITS.S[0];S<=CHAIR_LIMITS.S[1]+1e-9;S+=1/16){
-      if(underside-S>=R.thighLeast-1e-9&&H-S>=R.topAbove.outer[0]-1e-9&&H-S<=R.topAbove.outer[1]+1e-9)return true;
-    }
-    return false;
-  };
+  const given=size=>size>0?size:null;
+  const H=given(v.mH),under=given(v.mU);
+  if(H!==null&&under!==null&&under>=H-1e-9){
+    say('T0','warn',`The underside of the apron (${fmt(under)} up) is not below the table top (${fmt(H)} up).`,
+      'Measure both again from the floor: to the top of the table, and to the underside of the apron (the board under the edge of the top).');
+  }else chairSeatFits(plan,say,H,under);
+  const along=chairRoomFits(plan,say,given(v.mSide),given(v.mEnd));
+  if(!out.length)say('T0','note','Type the sizes of your table that you have measured; a box left at 0 is not checked.');
+  out.table={H:H!==null?H:null,under,measured:true};
+  out.along=along;
+  return out;
+}
+/* The program's own Dining table. Its sizes are said the way its boxes write them while the form is talking
+   (typedLen, js/core.js); a chair's sizes in inches, the way people speak of chairs (17 1/2", not 1'-5 1/2"). */
+function chairProgramTableFit(plan){
+  const R=CHAIR_RULES,v=plan.v,table=chairTableOf(v),out=[];
+  const under=table.legH-table.apronDepth;
+  const say=(rule,level,text,fix)=>out.push({rule,level,fits:level!=='warn',text,fix:fix||''});
   const twoBySix=table.apron!=='2x4';
+  // T6 first: a table too high or too low for any dining chair, judged with the usual 2x4 aprons, so a table as
+  // high as a counter is told so and not blamed on its aprons
+  const usualUnder=table.legH-M['2x4'].w;
   let refused=false;   // T5 or T6: no dining chair suits this table, so no chairs are counted along it
-  if(!seatWorks(table.H,under)&&!twoBySix){
+  if(!chairSeatWorks(table.H,usualUnder)){
     refused=true;
     let low=null,high=null;
     for(let H=CHAIR_LIMITS.tH[0];H<=CHAIR_LIMITS.tH[1];H+=.5){
       const t=chairTableOf({...v,tH:H});
-      if(t.apron==='2x4'&&seatWorks(t.H,t.legH-t.apronDepth)){if(low===null)low=H;high=H;}
+      if(t.apron==='2x4'&&chairSeatWorks(t.H,t.legH-t.apronDepth)){if(low===null)low=H;high=H;}
     }
     const wanted=r16(table.H-(R.topAbove.usual[0]+R.topAbove.usual[1])/2);
-    // a counter stool seat is 24" to 26" [25 §9]: named only when the seat wanted is that high
+    // a counter stool seat is 24" to 26", a bar stool 28" to 30" [25 §9]: named only when the seat wanted is that high
+    const stool=wanted>=28-1e-9?', the height of a bar stool':wanted>=24-1e-9?', the height of a counter stool':'';
     const what=table.H>CHAIR_LIMITS.S[1]+R.topAbove.outer[1]
-      ?`A table ${fmt(table.H)} high wants a seat about ${fmt(wanted)} high: higher than a dining chair seat (${fmt(CHAIR_LIMITS.S[0])} to ${fmt(CHAIR_LIMITS.S[1])})${wanted>=24-1e-9?', the height of a counter stool':''}.`
-      :`A table ${fmt(table.H)} high leaves too little room between a dining chair seat and the underside of its aprons (${fmt(under)} up): the seat would have to be ${fmt(r16(under-R.thighLeast))} or lower, and dining chairs are ${fmt(CHAIR_LIMITS.S[0])} to ${fmt(CHAIR_LIMITS.S[1])}.`;
-    say('T6','warn',what,low!==null?`Use a table ${fmt(low)} to ${fmt(high)} high.`:'Use a table of an ordinary height.');
+      ?`A table ${typedLen(table.H)} high wants a seat about ${fmt(wanted)} high: higher than a dining chair seat (${fmt(CHAIR_LIMITS.S[0])} to ${fmt(CHAIR_LIMITS.S[1])})${stool}.`
+      :`A table ${typedLen(table.H)} high leaves too little room between a dining chair seat and the underside of its aprons (${fmt(under)} up): the seat could be at most ${fmt(r16(under-R.thighLeast))} high, and dining chairs are ${fmt(CHAIR_LIMITS.S[0])} to ${fmt(CHAIR_LIMITS.S[1])}.`;
+    say('T6','warn',what,low!==null?`Use a table ${typedLen(low)} to ${typedLen(high)} high.`:'Use a table of an ordinary height.');
   }else if(twoBySix){
     refused=true;
-    // T5: the program's table has 2x6 aprons at this size, and a dining seat would have to be very low
-    let longest=null;
-    for(let L=Math.floor(v.tL);L>=CHAIR_LIMITS.tL[0];L--){
-      if(chairTableOf({...v,tL:L}).apron==='2x4'){longest=L;break;}
-    }
-    say('T5','warn',`At ${fmt(table.L)} long and ${fmt(table.W)} wide the table's aprons are ${M[table.apron].short}, so there is only ${fmt(under)} under them: a dining chair seat would have to be ${fmt(r16(under-R.thighLeast))} high to leave ${fmt(R.thighLeast)} for the thighs.`,
-      longest!==null?`Keep the table ${fmt(longest)} long or shorter at ${fmt(table.W)} wide, where its aprons stay 2x4.`:'Make the table lower or shorter, so its aprons stay 2x4.');
-  }else{
-    // T1: the seat to the underside of the apron
-    if(thigh<R.thighLeast-1e-9){
-      say('T1','warn',`With the seat at ${fmt(plan.S)}, there is ${fmt(r16(thigh))} between the seat and the underside of the table's apron (${fmt(under)}). Thighs need at least about ${fmt(R.thighLeast)}.`,
-        `Make the seat ${fmt(floor16(under-R.thighLeast))} high or lower.`);
-    }else if(thigh<R.thighEasy-1e-9)say('T1','note',`There is ${fmt(r16(thigh))} between the seat and the apron: enough for most people, snug for a large person.`);
-    else say('T1','fits',`Under the apron there is ${fmt(r16(thigh))} for your thighs.`);
-    // T2: the table top above the seat
-    const[lo,hi]=R.topAbove.usual,[outLo,outHi]=R.topAbove.outer;
-    if(above<outLo-1e-9||above>outHi+1e-9){
-      const target=r16(table.H-(lo+hi)/2),seat=Math.min(CHAIR_LIMITS.S[1],Math.max(CHAIR_LIMITS.S[0],target));
-      say('T2','warn',`The table top is ${fmt(r16(above))} above the seat. At a dining table people sit ${fmt(lo)} to ${fmt(hi)} below the top.`,
-        `Make the seat ${fmt(seat)} high, or check the table height.`);
-    }else if(above<lo-1e-9||above>hi+1e-9){
-      say('T2','note',`The table top is ${fmt(r16(above))} above the seat, a little ${above>hi?'more':'less'} than the usual ${fmt(lo)} to ${fmt(hi)}${above>hi&&thigh<R.thighEasy+1e-9?`, so the seat stays ${fmt(r16(thigh))} under the apron`:''}.`);
-    }else say('T2','fits',`The table top is ${fmt(r16(above))} above the seat, the usual height.`);
-  }
-  // T3: chairs along a side, between the legs (not counted for a table no dining chair suits)
-  const each=plan.SW+R.between,side=table.longSpan;
-  let along=Math.floor(side/R.edgeEach+1e-9);
-  if(!along&&side>=plan.SW+2*R.between-1e-9)along=1;
-  while(along>0&&along*each+R.between>side+1e-9)along--;
-  if(refused)along=0;
-  else if(along>0)say('T3','note',`Between the legs along a side there is ${fmt(side)}: ${countWord(along)} of these chairs ${along===1?'fits':'fit'} there, with ${fmt(r16(side/along))} of table ${along===1?'for it':'each'} (28" to 30" is roomy).`);
-  else say('T3','warn',`Between the legs along a side there is only ${fmt(side)}: even one chair ${fmt(plan.SW)} wide needs ${fmt(plan.SW+2*R.between)} there.`,'Use the chairs at the ends, or make the table longer.');
-  // T4: a chair at each end, between the end legs; with chairs tucked in along the sides, their seats reach in
-  // under the top and an end chair stops against them (spec 11.1)
-  const end=table.shortSpan;
-  if(refused){}
-  else if(end>=plan.SW+2*R.between-1e-9)say('T4','note',`A chair also fits at each end, between the end legs (${fmt(end)}), with ${fmt(r16((end-plan.SW)/2))} to spare at each side; it pushes in only part way when the chairs along the sides are tucked in.`);
-  else say('T4','note',`The ${fmt(end)} between the end legs is too narrow for a chair ${fmt(plan.SW)} wide: no chair fits at the ends.`);
+    // T5: at this size the program's table has 2x6 aprons, 2" deeper than 2x4: no dining seat both leaves 7" under
+    // them and sits at most 13" below the top (a 5 1/2" apron, the 1 1/2" top and 7" make 14")
+    const most=r16(under-R.thighLeast);
+    const why=most<CHAIR_LIMITS.S[0]-1e-9?`, and dining chair seats are ${fmt(CHAIR_LIMITS.S[0])} to ${fmt(CHAIR_LIMITS.S[1])} high`
+      :`, and a seat that high sits ${fmt(r16(table.H-most))} below the ${typedLen(table.H)} top, more than the ${fmt(R.topAbove.outer[1])} at most that people sit below a dining table`;
+    // the fix that works: shorter at this width, else narrower at this length, else lower; each tried and found
+    const works=change=>{const t=chairTableOf({...v,...change});return t.apron==='2x4'&&chairSeatWorks(t.H,t.legH-t.apronDepth)?t:null;};
+    let fix='';
+    for(let L=Math.floor(v.tL);L>=CHAIR_LIMITS.tL[0]&&!fix;L--)if(works({tL:L}))fix=`Keep the table ${typedLen(L)} long or shorter at ${typedLen(table.W)} wide, where its aprons stay 2x4.`;
+    for(let W=Math.floor(v.tW);W>=CHAIR_LIMITS.tW[0]&&!fix;W--){const t=works({tW:W});if(t)fix=`Make the table ${typedLen(t.W)} wide or narrower at ${typedLen(table.L)} long, where its aprons stay 2x4.`;}
+    for(let H=Math.floor(v.tH);H>=CHAIR_LIMITS.tH[0]&&!fix;H--)if(works({tH:H}))fix=`Make the table ${typedLen(H)} high, where its aprons stay 2x4.`;
+    say('T5','warn',`At ${typedLen(table.L)} long and ${typedLen(table.W)} wide the table's aprons are ${M[table.apron].short}, so there is only ${fmt(under)} under them: a dining chair seat could be at most ${fmt(most)} high to leave ${fmt(R.thighLeast)} for the thighs${why}.`,
+      fix||'Make the table shorter or narrower, so its aprons stay 2x4.');
+  }else chairSeatFits(plan,say,table.H,under);
+  // T3 and T4, not counted for a table no dining chair suits
+  const along=refused?0:chairRoomFits(plan,say,table.longSpan,table.shortSpan);
   out.table=table;
   out.along=along;
   return out;
@@ -563,6 +631,27 @@ function chairPieces(plan){
   return P;
 }
 
+/* ---------- the seat frame seen from above (spec A.6; stage 1 left it unchecked) ----------
+   Seen from above, the four seat rails could lean into a diamond (the frame twisting out of square in plan). A
+   glued panel would stop that; this seat is never glued. What holds it, by rule of thumb: a seat board that is
+   screwed to BOTH side seat rails with a pair of screws at each, the two screws of a pair at least an inch apart
+   across the board, so that the board resists turning on the rails (as boards nailed across a wall's studs, two nails
+   to a stud, keep the wall square), together with the four side frames held at two heights (DC5). No number is
+   worked: no sideways value for a screw is on the reference sheet [25 §12]. chairSeatBraces(pieces) reads the
+   real fasteners of one placed chair and returns the boards that brace it. */
+const CHAIR_SQUARE={pairApart:1};   // inches between the two screws of a pair, across the board (PRACTICE)
+function chairSeatBraces(pieces){
+  const own=new Set(pieces),braces=[];
+  for(const board of pieces.filter(p=>p.name==='Seat board')){
+    const across=board.ax[1];   // the board's width runs along this world axis
+    const pairs=connGraph().links.filter(link=>link.fastened&&own.has(link.a)&&own.has(link.b)&&[link.a,link.b].includes(board)&&[link.a.name,link.b.name].includes('Side seat rail'))
+      .map(link=>fastenersOfLink(link).map(f=>f.pos[across]))
+      .filter(at=>at.length>=2&&Math.max(...at)-Math.min(...at)>=CHAIR_SQUARE.pairApart-1e-6);
+    if(pairs.length>=2)braces.push(board);
+  }
+  return braces;
+}
+
 /* ---------- the warning box ---------- */
 function diningChairCheck(p){
   const plan=diningChairPlan(p),found=plan.problems.slice();
@@ -589,7 +678,8 @@ function chairWeightWords(plan){
 function diningChairInfo(p){
   const plan=diningChairPlan(p),v=plan.v;
   if(plan.problems.some(f=>f.level==='stop'))return'';
-  const tableH=v.table?plan.fit.table.H:DINING_CHAIR_DEFAULTS.tH;
+  // (a measured table whose height was left at 0: the program's usual table height is the reference)
+  const tableH=v.table&&plan.fit.table.H?plan.fit.table.H:DINING_CHAIR_DEFAULTS.tH;
   const overTable=plan.crest.top-tableH;
   const lines=[];
   // (a chair's sizes are said in inches, the way people speak of chairs)
@@ -608,11 +698,27 @@ function diningChairInfo(p){
   lines.push('In the Everyday and Fine furniture styles the seat boards are held on from underneath and the pocket holes on the back rails are filled with glued plugs, so no screw shows on the seat, the sides or the back (Rustic / rough screws the front seat board and the back seat board down from above).');
   const wood=chairWoodNow();
   if(chairWoodG(wood)<CHAIR_WOOD_G.pine-1e-9)lines.push(`Made with Create it is in construction pine. Added beside a design in ${chairWoodName(wood)}, it takes that wood, which holds a screw less well: Check my design will say whether the chair still holds. Construction pine or spruce, poplar, pressure-treated pine and red oak hold.`);
-  lines.push('It takes the build style of the design that is open. To make a set, make one chair, select it and use Copy in a row: the cut list, the shopping list and the build steps count every chair.');
+  lines.push('It takes the build style of the design that is open. To make a set, make one chair, select it and use Copy in a row: the cut list, the shopping list and the build steps count every chair. Or tick Chairs to match on the Dining table (the entry Dining table and chairs): it makes the table and as many chairs as fit, tucked in.');
   return lines.join(' ');
 }
 
 /* ---------- the notes ---------- */
+/* a 1" round self-stick felt pad under each of the four feet (a 2x4 foot is 1 1/2" across; the shopping list buys a pack) */
+const CHAIR_FELT_PADS=4,CHAIR_FELT_LABEL='Felt pads, 1" round, self-stick';
+/* The felt pads follow the chairs. A preset's plain lines are written once, at Create (S.hw), so a chair deleted
+   from a set, or copied, would leave the count as it was. At every change the felt pad line is set to one pad for
+   each leg of a Dining chair in the design (four a chair), and two such lines (a chair copied with its own) become
+   one. A line taken off the list by hand stays off; with no chair left the line goes. */
+function feltPadsFollowTheChairs(){
+  if(!Array.isArray(S.hw)||!S.hw.some(line=>line&&line[0]===CHAIR_FELT_LABEL))return;
+  const isChairLeg=p=>(p.name==='Back leg'||p.name==='Front leg')&&(presetOfPiece(p)||{}).name==='Dining chair';
+  const pads=S.parts.filter(isChairLeg).length;
+  const at=S.hw.findIndex(line=>line&&line[0]===CHAIR_FELT_LABEL);
+  const rest=S.hw.filter(line=>!(line&&line[0]===CHAIR_FELT_LABEL));
+  if(pads)rest.splice(at,0,[CHAIR_FELT_LABEL,pads]);
+  S.hw=rest;
+}
+ON_COMMIT.push(feltPadsFollowTheChairs);
 const CHAIR_HONEST='How this chair holds together. Pocket screws hold each joint closed, but they are not all of its strength. When someone leans back, each side of the chair is pushed out of square, and its four corners hold it: the seat rail and the stretcher at the back leg and at the front leg. The corner blocks under the seat rails make the two corners that work hardest twice as deep, and the stretchers low down on all four sides keep the legs from working loose. The seat is solid boards, screwed down from underneath and not glued, so that each board can swell and shrink with the seasons. So glue every joint of the frame and every corner block, never glue the seat, and never leave out a stretcher or a corner block. Check the chair after the first few weeks and snug up any pocket screw under the seat that has loosened (those holes are left open for that). The program checks this chair by rule of thumb, with the loads the European home-chair tests use (a grown person sitting and leaning back, a leg pushed, and the push that tips a chair backward) and the published US design values for screws in construction pine or spruce, counting the screws only and not the glue in the joints. Two things it does not work out with a number: the screws at the ends of the two back rails, which carry the push on the back sideways (no sideways value for a screw is on hand), and the back seat board between its two end screws (it is counted as lying on the back seat rail). It is not an engineer\'s calculation or a lab test, and rocking back on two legs will tip and loosen any chair.';
 const CHAIR_DRY='Store 2x4s and 2x6s are dried only to about 19% water, and wood indoors settles at about 6% to 9%. Stack the boards indoors, with sticks between them, for a week or two before you cut them. A seat built straight from the store shrinks about 1/8" across each board as it dries, and small gaps open between the seat boards: that does no harm. Boards that have stood indoors for months are drier than a damp summer: lay those with a gap the thickness of a playing card between them, so they have room to swell.';
 const CHAIR_GRAIN='Choose the two straightest 2x4s for the back legs, with no knot in the tapered part or where the side rail meets them: on the cutting diagram the two back legs share one 8 ft 2x4, so make that the straightest board you buy. For the seat, choose 2x6s with no loose knots and no splits at the ends; put the best one at the front.';
@@ -624,7 +730,8 @@ function diningChairNotes(p){
   notes.push('Rocking back on the two back legs tips any chair, and it is the hardest thing on its joints.');
   notes.push('Build it in construction pine or spruce (the program starts every chair in it), poplar, pressure-treated pine or red oak. Select pine, cedar and rough-sawn or reclaimed boards are softer or of no known kind and hold a screw less well: Check my design refuses the chair in them.');
   notes.push(CHAIR_DRY,CHAIR_GRAIN,CHAIR_NO_GLUE);
-  notes.push('Stick felt pads under the feet to protect the floor (they are not on the shopping list).');
+  notes.push(`Seen from above, the seat frame is kept square mostly by the four sides of the chair, each held at two heights by a seat rail and a stretcher, and a little by the middle seat board, which is screwed to each side seat rail with two screws ${fmt(CHAIR_SQUARE.pairApart)} or more apart, so it resists turning on them. The program checks that such a board is there: a rule of thumb, not a number.`);
+  notes.push(`Stick a felt pad under each foot to protect the floor: ${countWord(CHAIR_FELT_PADS)} self-stick felt pads, 1" round, for each chair are on the shopping list.`);
   notes.push(`The chair stands ${fmt(plan.F)} x ${fmt(plan.D)} on the floor. Bought chairs are often about 22" deep because their back legs sweep back; these stand straight under the back, which keeps them from tipping.`);
   notes.push(`It weighs ${chairWeightWords(plan)}.`);
   if(plan.taper===0)notes.push('With straight back legs the back stands upright (90°). That suits a quick meal and the Rustic / rough style; a back that leans back about 5°, the start in Everyday and Fine furniture, is what dining chairs usually have: untick Straight back legs for it.');
@@ -681,7 +788,7 @@ function diningChairSteps(p){
   const plugs=' Then put a little glue in each pocket hole on the back of the two rails and tap in a pocket-hole plug; when the glue is dry, cut the plugs flush with a flush-cut saw and sand them smooth.';
   steps.push({...styledStep({std:back+plugs,rustic:back+' The pocket holes stay open on the back of the rails.'},['Lower back rail','Crest rail'],[drillBack]),tools:{std:['flush-cut saw, for the plugs'],fine:['flush-cut saw, for the plugs'],rustic:[]}});
   // 7. even up the feet [25 §8e]
-  steps.push({t:'Make the chair sit still. Stand it on a flat surface. If it rocks, press down on one pair of opposite feet and then the other: the pair that rocks is the short pair. Sand or plane the other two feet a little at a time, turning the chair about, until it sits still, and round over the edges of all four feet with sandpaper. If it sits still there but rocks on your floor, the floor is the trouble: use felt pads, and do not take anything off the legs.',add:[],tools:['sandpaper on a block, or a block plane']});
+  steps.push({t:'Make the chair sit still. Stand it on a flat surface. If it rocks, press down on one pair of opposite feet and then the other: the pair that rocks is the short pair. Sand or plane the other two feet a little at a time, turning the chair about, until it sits still, and round over the edges of all four feet with sandpaper. If it sits still there but rocks on your floor, the floor is the trouble: do not take anything off the legs (the pads stuck under the feet at the end take up a little of it).',add:[],tools:['sandpaper on a block, or a block plane']});
   // 8. finish, the undersides of the seat boards too, then the felt pads
   steps.push(FIN);
   steps.push({t:'Finish the undersides of the seat boards too: lay the chair on its back on a blanket and brush the same coats on the underside of every seat board, so each board takes up and loses moisture evenly on both faces and stays flat. When the finish is dry, stick felt pads under the feet.',add:[]});
@@ -728,9 +835,12 @@ let chairMiddleMemo={tick:-1,parts:null,bySet:new Map()};
 function chairFrame(piece){
   const tick=typeof designTick==='number'?designTick:0;
   if(chairMiddleMemo.tick!==tick||chairMiddleMemo.parts!==S.parts||chairMiddleMemo.count!==S.parts.length)chairMiddleMemo={tick,parts:S.parts,count:S.parts.length,bySet:new Map()};
-  const key=piece.set;
+  // one chair: the pieces of its placement (piece.set), and of its unit when several chairs were placed together
+  // (the chairs of a Dining table, unit 'Dining chair 3', js/chairsets.js)
+  const unitOf=p=>typeof p.unit==='string'?p.unit:'';
+  const key=piece.set+'|'+unitOf(piece);
   if(!chairMiddleMemo.bySet.has(key)){
-    const own=S.parts.filter(p=>p.set===key&&!isProp(p));
+    const own=S.parts.filter(p=>p.set===piece.set&&unitOf(p)===unitOf(piece)&&!isProp(p));
     const b=bbox(own.length?own:[piece]),middle=b.lo.map((v,k)=>(v+b.hi[k])/2);
     const centre=name=>{
       const legs=own.filter(p=>p.name===name);
@@ -770,21 +880,35 @@ const DINING_CHAIR_PRESET={
   params:[
     // (why: the reason the form gives with its limit line when a size outside them is typed, readVals in js/app.js)
     {...num('S','Seat height (floor to the top of the seat; 17 1/2" suits a 30" table)',DINING_CHAIR_DEFAULTS.S,...CHAIR_LIMITS.S),
+      inches:true,
       why:'Dining chairs are 17" to 19" high: higher, and the thighs meet the underside of the table\'s apron; lower, and the table top is too high to eat at.'},
     {...num('SW','Seat width (side to side; the length of the seat boards, 4" more than the room between the back legs)',DINING_CHAIR_DEFAULTS.SW,...CHAIR_LIMITS.SW),
+      inches:true,
       why:'Narrower, and the back legs stand less than 14" apart, too narrow to sit between; wider, and it is wider than dining chairs are and heavier than a chair should be.'},
     {...num('BH','Back height (top of the seat to the top of the back)',DINING_CHAIR_DEFAULTS.BH,...CHAIR_LIMITS.BH),
+      inches:true,
       why:'Lower, and there is no room for the two back rails; taller, and someone leaning back would work the side seat rails loose from the legs.'},
     // (starts ticked in Rustic / rough, unticked in Everyday and Fine furniture: the owner, 17 Nov. followsDesign:
     // the form does not remember it with the typed sizes unless the person changed it, js/catalog.js readFormBoxes)
     {k:'upright',label:'Straight back legs (no taper cut; the back stands upright)',check:1,followsDesign:true,get v(){return chairUprightByStyle();}},
     {k:'table',label:'Check it against my table',check:1,v:false},
+    // the table: the program's own Dining table by its three sizes, or a table the person measured (spec 11, stage
+    // 2), each measured box 0 = not measured, with one plain line on how to measure it
     ...under('table',[
-      num('tL','Table length (the Dining table from this program)',DINING_CHAIR_DEFAULTS.tL,...CHAIR_LIMITS.tL),
-      num('tW','Table width',DINING_CHAIR_DEFAULTS.tW,...CHAIR_LIMITS.tW),
-      num('tH','Table height',DINING_CHAIR_DEFAULTS.tH,...CHAIR_LIMITS.tH)])],
+      {k:'tableKind',label:'My table is',opts:[['program','The Dining table from this program'],['measured','A table I measured']],v:DINING_CHAIR_DEFAULTS.tableKind},
+      ...under('tableKind',[
+        num('tL','Table length (the Dining table from this program)',DINING_CHAIR_DEFAULTS.tL,...CHAIR_LIMITS.tL),
+        num('tW','Table width',DINING_CHAIR_DEFAULTS.tW,...CHAIR_LIMITS.tW),
+        num('tH','Table height',DINING_CHAIR_DEFAULTS.tH,...CHAIR_LIMITS.tH)],kind=>kind!=='measured'),
+      ...under('tableKind',[
+        {...num('mH','Table top, from the floor (floor to the top of the table; 0 = not measured)',DINING_CHAIR_DEFAULTS.mH,...CHAIR_LIMITS.mH),inches:true},
+        {...num('mU','Under the apron, from the floor (floor to the underside of the board under the edge of the top; 0 = not measured)',DINING_CHAIR_DEFAULTS.mU,...CHAIR_LIMITS.mU),inches:true},
+        {...num('mSide','Between the legs along a side (inside of one leg to the inside of the next; 0 = not measured)',DINING_CHAIR_DEFAULTS.mSide,...CHAIR_LIMITS.mSide),inches:true},
+        {...num('mEnd','Between the legs at an end (inside of one leg to the inside of the other; 0 = not measured)',DINING_CHAIR_DEFAULTS.mEnd,...CHAIR_LIMITS.mEnd),inches:true}],kind=>kind==='measured')])],
   build:buildDiningChair,check:diningChairCheck,info:diningChairInfo,notes:diningChairNotes,steps:diningChairSteps,
   recheck:diningChairRecheck,
+  // a felt pad under each foot (priced: 'felt-pads' in js/prices.js)
+  hw:()=>[[CHAIR_FELT_LABEL,CHAIR_FELT_PADS]],
   uses:DINING_CHAIR_USES,joints:DINING_CHAIR_JOINTS,hiddenFace:diningChairHiddenFace,pluggedPockets:diningChairPlugged,
   // Create keeps the build style of the design that is open, so the chair built is the one whose form was shown
   // ("Straight back legs" follows that style; wood and finish start as for every design, js/app.js placePreset)
@@ -850,10 +974,25 @@ SELFTESTS.push(function diningChairFormIsShort(problems){
       const count=shownRows().length;
       if(count!==5)wrong(`the form opens with ${count} rows, not 5`);
       if(shownRows().some(r=>r.classList.contains('sub')))wrong('a row of the table check shows while its box is not ticked');
+      // a chair's sizes read in inches, as a chair maker says them: 17 1/2", not 1'-5 1/2" (stage 1 left this), also
+      // after the box is left and in the limit line; the table's length stays in feet and inches like the table's form
+      if(box('S').value!=='17 1/2"'||box('SW').value!=='18"'||box('BH').value!=='15"')wrong(`the chair's sizes show as ${box('S').value}, ${box('SW').value}, ${box('BH').value}, not in inches`);
+      box('S').value='18.5';tidyLengthBox(box('S'));
+      if(box('S').value!=='18 1/2"')wrong(`a seat height typed as 18.5 is written ${box('S').value}, not 18 1/2"`);
+      box('S').value='17 1/2"';
+      if(box('tL').value!=="5'-0\"")wrong(`the table length box shows ${box('tL').value}, not 5'-0" as on the table's own form`);
       box('table').checked=true;readVals(false);
-      if(['tL','tW','tH'].some(key=>row(key).hidden||!row(key).classList.contains('sub')))wrong('ticking "Check it against my table" does not show its three rows, indented');
+      const measuredKeys=['mH','mU','mSide','mEnd'];
+      if(['tableKind','tL','tW','tH'].some(key=>row(key).hidden||!row(key).classList.contains('sub')))wrong('ticking "Check it against my table" does not show My table is and the three sizes of the program\'s table, indented');
+      if(measuredKeys.some(key=>!row(key).hidden))wrong('the boxes of a measured table show while the program\'s table is chosen');
+      // "A table I measured" (spec 11, stage 2): its four boxes in place of the program's three, each 0 to start
+      box('tableKind').value='measured';readVals(false);
+      if(measuredKeys.some(key=>row(key).hidden||!row(key).classList.contains('sub'))||['tL','tW','tH'].some(key=>!row(key).hidden))wrong('choosing A table I measured does not show its four boxes in place of the program table\'s three');
+      if(measuredKeys.some(key=>parseLen(box(key).value)!==0))wrong('a box of the measured table does not start at 0 (not measured)');
+      if(shownRows().length>10)wrong(`with a measured table the form shows ${shownRows().length} rows`);
+      box('tableKind').value='program';
       box('table').checked=false;readVals(false);
-      if(['tL','tW','tH'].some(key=>!row(key).hidden))wrong('unticking "Check it against my table" leaves its rows showing');
+      if(['tableKind','tL','tW','tH',...measuredKeys].some(key=>!row(key).hidden))wrong('unticking "Check it against my table" leaves its rows showing');
     }
     // a size typed is kept, but a box the person never clicked follows the style the next time (the chair maker's
     // review: typed in Rustic, reopened in Everyday, the box was still ticked); a box clicked is kept
@@ -1274,6 +1413,29 @@ SELFTESTS.push(function diningChairScrewsClear(problems){
   })(problems);
 });
 
+/* The seat frame stays square seen from above (stage 1 left it unchecked): in every style, at the default, both
+   backs and the corners of the form, at least one seat board is screwed to both side seat rails with a pair of
+   screws an inch or more apart at each (chairSeatBraces). And the check can fail: with the screws of that board into
+   one side rail taken away, no board braces the frame. */
+SELFTESTS.push(function diningChairSeatStaysSquare(problems){
+  chairChecked('seat square',wrong=>{
+    for(const style of Object.keys(STYLES))for(const change of CHAIR_PLACED_TRIES){
+      if(!placeChair(change,style))continue;
+      const braces=chairSeatBraces(S.parts);
+      if(!braces.length){wrong(`${STYLES[style][0]} ${JSON.stringify(change)}: no seat board is screwed to both side seat rails with a pair of screws at each, so nothing keeps the seat frame square seen from above`);continue;}
+      if(style==='std'&&!Object.keys(change).length){
+        // the failing case: unscrew the bracing board from one side rail
+        for(const board of braces){
+          const link=connGraph().links.find(l=>l.fastened&&[l.a,l.b].includes(board)&&[l.a.name,l.b.name].includes('Side seat rail'));
+          if(link)S.joints[link.joint.key]='none';
+        }
+        commit();
+        if(chairSeatBraces(S.parts).length)wrong('with the bracing board unscrewed from a side rail, the check still finds the seat frame braced');
+      }
+    }
+  })(problems);
+});
+
 /* 10. The steps: side frames, then the pieces between them, then the seat (back seat board with the seat boards),
    then the back; every piece in one step; every pocket screw has room for a driver among the pieces and does not
    point into the bench or the floor the step stands the chair on; a step with little room says so and lists the
@@ -1351,6 +1513,8 @@ SELFTESTS.push(function diningChairStepsInOrder(problems){
         const cutStep=plan.steps.findIndex(step=>step.kind==='cut');
         if(!/block plane/.test(toolsOf(cutStep)))wrong(`${label}: the cutting step rounds the front edge with a block plane but does not list one`);
         if(/\bsaw\b/.test(toolsOf(indexOf[0]))||/\bsaw\b/.test(toolsOf(indexOf[1])))wrong(`${label}: a step that cuts nothing lists a saw`);
+        // one saw line in the cutting step, not "saw" and again "saw (a circular saw or jigsaw ...)" (stage 1 left it)
+        if(toolsOf(cutStep).split('; ').filter(tool=>/^saw\b/.test(tool)).length>1)wrong(`${label}: the cutting step lists a saw twice (${toolsOf(cutStep)})`);
         if(!/band clamp/.test(toolsOf(indexOf[1])))wrong(`${label}: the step that joins the side frames names a band clamp but does not list one`);
         if(!/two bar clamps/.test(toolsOf(indexOf[2])))wrong(`${label}: the seat step does not list the two clamps it is written for`);
         if(/(^|; )saw(;|$)/.test(toolsOf(indexOf[3])))wrong(`${label}: the back step lists a plain saw as well as the flush-cut saw`);
@@ -1422,4 +1586,42 @@ SELFTESTS.push(function diningChairFitsTheTable(problems){
   const t1fix=rule({...base,S:19,tH:29.5},'T1');
   const fixedSeat=t1fix&&parseLen((t1fix.fix.match(/seat (.+?) high/)||[])[1]||'');
   if(fixedSeat&&rule({...base,S:Math.max(17,fixedSeat),tH:29.5},'T1').level==='warn')wrong('the fix offered for a seat too high for the apron does not fit either');
+  // The refusals name the real reason (stage 2 review): a table as high as a counter is told so (T6), not blamed on
+  // its 2x6 aprons; a 2x6 refusal says how high a seat COULD be and why that does not work, also when that height
+  // is an ordinary dining seat; the fix names a size, and taken, it clears the refusal
+  for(const tH of[38,42]){
+    if(!rule({...base,tH},'T6')||rule({...base,tH},'T5'))wrong(`a table ${tH}" high is not refused for its height (T6)`);
+  }
+  for(const change of[{tL:84},{tL:70,tW:36,tH:32},{tL:63,tW:50}]){
+    const t=rule({...base,...change},'T5');
+    if(!t){wrong(`${JSON.stringify(change)}: the 2x6 aprons are not refused (T5)`);continue;}
+    if(/would have to be/.test(t.text)||!/could be at most/.test(t.text)||!/(seats are|below the)/.test(t.text))wrong(`${JSON.stringify(change)}: T5 does not say why no seat works: "${t.text}"`);
+    const size=t.fix.match(/table (\S+) (long|wide|high)/);
+    const key=size?{long:'tL',wide:'tW',high:'tH'}[size[2]]:null;
+    if(!key)wrong(`${JSON.stringify(change)}: T5's fix names no size: "${t.fix}"`);
+    else if(['T5','T6'].some(code=>rule({...base,...change,[key]:parseLen(size[1])},code)))wrong(`${JSON.stringify(change)}: T5's fix "${t.fix}" does not clear it`);
+  }
+  // the table's sizes as its boxes write them while the form is talking (typedLen), in inches in the notes
+  const typedT5=speakAsBoxes(()=>rule({...base,tL:84},'T5'));
+  if(!typedT5||!typedT5.text.includes(boxLen(84))||!typedT5.fix.includes(boxLen(lengths[lengths.length-1])))wrong(`under the form T5 does not write the table's sizes as its boxes do: "${typedT5&&typedT5.text} ${typedT5&&typedT5.fix}"`);
+  const typedT6=speakAsBoxes(()=>rule({...base,tH:36},'T6'));
+  if(!typedT6||!typedT6.text.includes(boxLen(36))||/seat about 2'-/.test(typedT6.text))wrong(`under the form T6 writes the table in other units than its box, or the seat in feet: "${typedT6&&typedT6.text}"`);
+  // "A table I measured" (spec 11, stage 2): each box left at 0 is not checked; each size typed is checked by its
+  // own rule (T1 the underside of the apron, T2 the top, T3 between the legs along a side, T4 at an end), with a fix
+  // that works; nothing measured gives no warning; an apron above the top is told
+  const measured={...base,tableKind:'measured'};
+  const fitOf=change=>diningChairPlan({...measured,...change}).fit;
+  const codes=change=>fitOf(change).map(f=>f.rule);
+  if(warns(measured).length||!/a box left at 0 is not checked/.test(fitOf({}).map(f=>f.text).join(' ')))wrong('a measured table with nothing measured is warned, or not told to type its sizes');
+  if(codes({mU:25}).join()!=='T1'||codes({mH:30}).join()!=='T2'||codes({mSide:49}).join()!=='T3'||codes({mEnd:22}).join()!=='T4')wrong(`a measured size is not checked by its own rule alone: ${['mU','mH','mSide','mEnd'].map(k=>codes({[k]:k==='mSide'?49:k==='mEnd'?22:k==='mH'?30:25}).join('+')).join(', ')}`);
+  if(warns({...measured,mH:30,mU:25,mSide:49,mEnd:22}).length)wrong('the program\'s own table, measured, is warned');
+  const lowApron=fitOf({mU:23.5}).find(f=>f.rule==='T1');
+  if(!lowApron||lowApron.level!=='warn'||!/Make the seat 16 1\/2" high or lower|at least 17" high/.test(lowApron.fix))wrong(`a measured apron 23 1/2" up is not warned with a fix: ${lowApron&&lowApron.fix}`);
+  const fixedLow=lowApron&&parseLen((lowApron.fix.match(/seat (.+?) high or lower/)||[])[1]||'');
+  if(fixedLow&&fixedLow>=17&&fitOf({mU:23.5,S:fixedLow}).find(f=>f.rule==='T1').level==='warn')wrong('the fix offered for a measured apron does not clear it');
+  if(!warns({...measured,mH:36}).some(f=>f.word==='Does not fit.'))wrong('a measured top 36" up is not warned "Does not fit."');
+  if(!fitOf({mSide:20}).some(f=>f.rule==='T3'&&f.level==='warn'))wrong('20" between the legs along a side is not warned');
+  if(!fitOf({mH:25,mU:26}).some(f=>f.rule==='T0'&&f.level==='warn'))wrong('an apron measured above the top is not told');
+  for(const f of fitOf({mH:30,mU:25,mSide:49,mEnd:22}))if(/undefined|NaN|\d'-/.test(f.text+f.fix))wrong(`a measured table fit reads "${f.text} ${f.fix}"`);
+  if(!/Check it against my table|my table/i.test(diningChairInfo({...measured,mU:25}))&&!/for your thighs/.test(diningChairInfo({...measured,mU:25})))wrong('the remark does not give the measured table\'s fit');
 });

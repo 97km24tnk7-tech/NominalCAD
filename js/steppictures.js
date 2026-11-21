@@ -626,7 +626,9 @@ function boxesTouch(a,b){
 }
 function stepScene(plan,index){
   const step=plan.steps[index],away=piecesNotYetThere(plan,index),apart=partBuiltApart(plan,index);
-  const visible=id=>apart?apart.ids.has(id):!away.has(id);
+  // a step done for each of several copies (the chairs of a set, step.oneOf, js/buildsteps.js) shows one of them by itself
+  const one=!apart&&step.oneOf?step.oneOf:null;
+  const visible=id=>apart?apart.ids.has(id):one?one.has(id)&&!away.has(id):!away.has(id);
   const hosts=step.hardware.flatMap(row=>row.items.map(item=>item.on));
   const added=step.pieces.concat(step.brought);
   const fresh=new Set(added.length?added.map(p=>p.id):hosts);
@@ -637,6 +639,7 @@ function stepScene(plan,index){
   const notes=[];
   if(apart&&apart.alike>1)notes.push(`This step builds ${apart.alike} parts that are alike. The picture shows one of them by itself.`);
   else if(apart)notes.push('The picture shows this part by itself, standing the way it ends up in the finished design.');
+  else if(one)notes.push(`This step is done the same way ${step.copiesMade} times, once for each. The picture shows one of them by itself.`);
   // pieces that hang in the air, or that the words handle lying down, are drawn where they end up: say so
   const builtBefore=S.parts.filter(p=>visible(p.id)&&!fresh.has(p.id)&&!isProp(p));
   const touches=p=>plainBoxOrBox(p).lo[1]<.3||builtBefore.some(other=>boxesTouch(p,other));

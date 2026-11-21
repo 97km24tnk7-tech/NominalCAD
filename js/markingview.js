@@ -90,7 +90,7 @@ function markingFrame(axis,look,piece){
   // "from inside": the eye is on the side of the piece where the middle of the design is
   let inside=false;
   if(piece&&axis!==1){
-    const b=plainBox(piece),middle=designMiddle(),center=(b.lo[axis]+b.hi[axis])/2;
+    const b=plainBox(piece),middle=designMiddle(piece),center=(b.lo[axis]+b.hi[axis])/2;
     inside=look>0?middle[axis]<center-.01:middle[axis]>center+.01;
   }
   const seen=axis===1?(look<0?'top face, seen from above':'underside, seen from below'):`seen ${from}${inside?' (from inside)':''}`;

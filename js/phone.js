@@ -493,7 +493,7 @@ function phoneUndecorateForm(){
 }
 /* "From 2'-0" to 8'-0"": the limits of a box, written the way the box and the desktop's red line write them */
 function phoneRangeText(q){
-  const{min,max}=presetLimits(q),show=value=>q.int||q.dec?String(value):boxLen(value);
+  const{min,max}=presetLimits(q),show=value=>q.int||q.dec?String(value):boxLenOf(q,value);
   if(min!==undefined&&max!==undefined)return`From ${show(min)} to ${show(max)}`;
   if(min!==undefined)return`At least ${show(min)}`;
   if(max!==undefined)return`At most ${show(max)}`;
@@ -579,7 +579,7 @@ function phoneStep(button){
   value=Math.max(min!==undefined?min:0,value);   // (no size and no count is below 0: readVals could not read it)
   if(max!==undefined)value=Math.min(max,value);
   value=Math.round(value*10000)/10000;
-  box.value=q.int||q.dec?String(value):boxLen(value);
+  box.value=q.int||q.dec?String(value):boxLenIn(box,value);
   box.dispatchEvent(new Event('input',{bubbles:true}));
   readVals(false);
   phoneSyncForm();
@@ -709,7 +709,7 @@ function phonePadKey(word){
   else if(word==='nofrac')state.frac='';
   else if(/^\d+\/\d+$/.test(word))state.frac=word;
   const inches=phonePadInches(state);
-  state.box.value=inches===null?state.old:boxLen(inches);
+  state.box.value=inches===null?state.old:boxLenIn(state.box,inches);
   state.box.dispatchEvent(new Event('input',{bubbles:true}));
   readVals(false);
   phoneSyncForm();
@@ -730,7 +730,7 @@ function phoneDrawPad(){
   else if(!keyed.length)means.textContent='Tap the numbers to type a new size';
   else{
     // a size of a foot or more also in inches: "2'-6"" is not read as 30 inches by everyone
-    const inches=parseLen(state.box.value),written=boxLen(inches);
+    const inches=parseLen(state.box.value),written=boxLenIn(state.box,inches);
     means.textContent='Reads as '+written+(inches>=12&&fmt(inches)!==written?` (${fmt(inches)})`:'');
   }
   const fractions=state.sixteenths?PHONE_SIXTEENTHS:PHONE_EIGHTHS;

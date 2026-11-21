@@ -235,7 +235,7 @@ function presetField(q,index){
   if(q.int||q.dec){
     return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" value="${q.v}">${hint}</div>`;
   }
-  return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" data-len value="${esc(boxLen(q.v))}">${hint}</div>`;
+  return`<div class="${frow}" ${row}><label for="${id}">${esc(label)}</label><input class="fld" type="text" id="${id}" data-k="${q.k}" data-len${q.inches?' data-inches':''} value="${esc(boxLenOf(q,q.v))}">${hint}</div>`;   // (inches: a size its trade says in inches, js/core.js)
 }
 /* A row of the form may only make sense with some of the other choices: the Bookshelf's "Opening 3" box needs
    three shelves and the choice to set the heights by hand. Such an entry of params carries show(p), which is
@@ -284,7 +284,7 @@ function presetFieldChanged(field){
   if(param.fill&&param.fill[field.value]){
     for(const[key,value]of Object.entries(param.fill[field.value])){
       const target=curPreset.params.find(q=>q.k===key);
-      $(`#presetForm [data-k="${key}"]`).value=target.int||target.dec?value:boxLen(value);
+      $(`#presetForm [data-k="${key}"]`).value=target.int||target.dec?value:boxLenOf(target,value);
     }
   }else if(!param.fill&&sizeChoice&&param.k!=='clr'&&Object.values(sizeChoice.fill).some(set=>param.k in set)){
     $(`#presetForm [data-k="${sizeChoice.k}"]`).value='custom';
@@ -322,7 +322,7 @@ function readVals(focusBad){
     if(!bad){vals[q.k]=v;return;}
     if(firstBad)return;
     firstBad=el;
-    const show=size=>q.int||q.dec?String(size):boxLen(size),name=splitLabel(q.label)[0]; // a limit is written the way its box shows it
+    const show=size=>q.int||q.dec?String(size):boxLenOf(q,size),name=splitLabel(q.label)[0]; // a limit is written the way its box shows it
     presetFieldNote=unreadable?CANNOT_READ
       :notWhole?`${name} must be a whole number, like ${v} or ${v+1}.`
       // (a row may say why its limits are what they are: q.why, the Dining chair's seat height, seat width and back height)
@@ -341,9 +341,12 @@ function readVals(focusBad){
    it is placed (preset.wallScrews: the fish racks and stands too tall for their depth) is rated with those screws,
    as the Build instructions page rates it once they are in the design (SKILL.tanksScrewedToWall, js/style.js),
    and a preset whose joints follow the form (joints as a function: the cabinet builder) names its fasteners. */
+/* What a preset says about the look a new design starts with: an object, or a function of the form values (the
+   Dining table keeps the open design's style when its chairs come with it, js/chairsets.js). */
+const presetLook=(preset,vals)=>preset&&typeof preset.look==='function'?preset.look(vals||{})||{}:(preset&&preset.look)||{};
 function assessParts(parts,preset,vals){
   const keep=S;
-  S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear',...((preset&&preset.look)||{})}};
+  S={...blank(),parts,look:{style:'std',wood:'pine',finish:'clear',...presetLook(preset,vals)}};
   try{
     // A joint is known by the ids of its two pieces, so every piece needs an id of its own. Pieces fresh from a
     // builder all carry id 0 (mk in js/core.js): with one key for every joint, the first "Not joined" the preset
@@ -408,7 +411,9 @@ function showPresetSummary(){
   const b=builtSize(parts).box,wood=parts.filter(p=>!isProp(p)).length,{buy,rating}=assessParts(parts,curPreset,vals);   // the size of what is built, not of a tank or a mattress drawn on it
   const lumber=[buy.boards?`${buy.boards} board${buy.boards>1?'s':''}`:'',buy.sheets?`${buy.sheets} sheet${buy.sheets>1?'s':''}`:''].filter(Boolean).join(', ');
   const cell=(caption,value)=>`<span><small>${caption}</small><b>${value}</b></span>`;
-  sum.innerHTML=cell('Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
+  // (units placed with the design, the chairs of a Dining table, are not in its size: the caption says so)
+  const unitKinds=[...new Set(parts.filter(p=>p.unit&&p.unitOf).map(p=>p.unitOf.toLowerCase()+'s'))];
+  sum.innerHTML=cell(unitKinds.length?`Overall size, without the ${listWords(unitKinds)}`:'Overall size',`${fmtFt(b.hi[0]-b.lo[0])} × ${fmtFt(b.hi[2]-b.lo[2])} × ${fmtFt(b.hi[1]-b.lo[1])}`)+
     cell('Pieces to cut',wood.toLocaleString())+cell('Lumber to buy',lumber||'none')+cell('Lumber, about','$'+Math.round(buy.cost).toLocaleString());
   sum.title='Overall size is width × depth × height. The cost is a rough guess for the lumber only, the "Lumber, before tax" line of the shopping list. Screws, glue and finish come on top.';
   foot.textContent=rating?`${rating.level} · about ${rating.hours} hour${rating.hours>1?'s':''} of work`:'';
@@ -436,7 +441,8 @@ function makePreset(add){
 function placePreset(preset,vals,parts,add,entryName){
   const shownName=entryName||preset.name;
   // (furniture for the house also says where screw heads show in each style, and how to hide any: headsNote, js/showfaces.js)
-  const notes=(preset.notes?preset.notes(vals):[]).concat(headsNote(preset.name));
+  // (a preset that places several kinds of thing says its heads notes itself: the Dining table with its chairs)
+  const notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals):headsNote(preset.name));
   const stepsOf=preset.steps||STEPS[preset.name],steps=stepsOf?stepsOf(vals):[];
   // What each piece is for, which pieces go on the wall and which hang on bought hardware: Check my design reads
   // them later. They are kept for THIS placement, under a number that each of its pieces carries (piece.set), not
@@ -455,7 +461,7 @@ function placePreset(preset,vals,parts,add,entryName){
     delete S.through;   // which piece named joints are screwed through (js/joints.js): kept only for these pieces
     // every design starts in the everyday style, in pine, with a clear coat, unless its preset says otherwise
     // (look:{finish:'none'} on the outdoor presets, so nobody is told to buy polyurethane for a shed)
-    S.look={style:'std',wood:'pine',finish:'clear',...(preset.look||{})};
+    S.look={style:'std',wood:'pine',finish:'clear',...presetLook(preset,vals)};
     // nothing is declared for the project as a whole any more (projects saved by older versions still have
     // these lists, and they are still read for pieces without a set)
     S.uses={};S.wall=[];S.hung=[];S.wallFixed=false;S.sets={};

@@ -44,8 +44,12 @@ function presetEntryName(preset){
   const entry=activeEntry();
   return entry&&preset&&preset.hidden&&entry.builder===preset.name?entry.name:'';
 }
+/* An entry that starts a builder that is not hidden with other values and says it is shown under its own name
+   (entry.titled: "Dining table and chairs", the Dining table with Chairs to match ticked) gives the form its name
+   and its description; the design keeps the builder's name. */
+const titledEntry=preset=>{const entry=activeEntry();return entry&&entry.titled&&preset&&entry.builder===preset.name?entry:null;};
 function presetTitle(preset){
-  return presetEntryName(preset)||preset.name;
+  return presetEntryName(preset)||(titledEntry(preset)||{}).name||preset.name;
 }
 /* The catalog entry a remembered name opens (the preset created last, LAST_PRESET_KEY in js/app.js), or null when
    the name is a preset of its own that is still listed. Two kinds of name lead to an entry: the name of an old
@@ -65,7 +69,7 @@ function presetEntryForName(name){
 /* the description over the form: the entry's own (entry.desc) for a hidden builder, else the preset's */
 function presetDesc(preset){
   const entry=activeEntry();
-  return presetEntryName(preset)&&entry.desc?entry.desc:preset.desc;
+  return(presetEntryName(preset)||titledEntry(preset))&&entry.desc?entry.desc:preset.desc;
 }
 
 /* The rows of the form (presetField, js/app.js, draws each). Each row starts at the entry's start value. With an

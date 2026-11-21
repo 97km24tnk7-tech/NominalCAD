@@ -169,7 +169,8 @@ function stampSteps(steps,parts){
     const stamped={...step,ids:own.map(p=>p.id),sig:own.length?stepSignature(own):null};
     delete stamped.pick;
     // the numbers the words quote about OTHER pieces (a marking step that lists the height of every shelf)
-    const about=quotedMeasures(step.t,parts.filter(p=>!own.includes(p)),parts);
+    // (a step of a unit, step.unitOf, quotes its own unit's sizes, which unitsInSteps holds: not those of another chair)
+    const about=quotedMeasures(step.t,parts.filter(p=>!own.includes(p)&&!(step.unitOf&&p.unitOf===step.unitOf)),parts);
     if(about.length)stamped.about=about;
     if(Array.isArray(step.bring)){
       stamped.bring=step.bring.map(group=>typeof group==='function'?parts.filter(p=>group(p,parts)).map(p=>p.id):group).filter(ids=>ids.length);
@@ -203,7 +204,7 @@ function presetStepOfPieces(steps){
    returns {of: their ids, made: step index -> how many are built in it, most, name}. A copy that was changed is
    not one, and gets steps of its own as before. */
 function copiesInSteps(owner){
-  const found={of:new Set(),made:new Map(),most:1,name:''},sets=S.sets||{};
+  const found={of:new Set(),made:new Map(),model:new Map(),units:new Map(),most:1,name:'',unitName:''},sets=S.sets||{};
   const signature=pieces=>pieces.map(p=>[p.name,p.mat,r16(p.l),r16(p.w),r16(p.t)].join('|')).sort().join(',');
   const stepped=new Set(S.parts.filter(p=>owner.has(p.id)&&p.set!==undefined&&p.set!==null).map(p=>String(p.set)));
   for(const number of stepped){
@@ -228,11 +229,78 @@ function copiesInSteps(owner){
       made++;
     }
     if(made<2)continue;
-    for(const index of new Set(stepOfName.values()))found.made.set(index,made);
+    const model=new Set(own.map(p=>p.id));
+    for(const index of new Set(stepOfName.values())){found.made.set(index,made);found.model.set(index,model);}
     found.most=Math.max(found.most,made);
     found.name=set.name.toLowerCase();
   }
+  unitsInSteps(owner,found);
   return found;
+}
+/* Units placed with a design and built alike (the chairs of a Dining table with Chairs to match: p.unit 'Dining
+   chair 3', p.unitOf 'Dining chair', js/chairsets.js; the unit's preset says copiesShareSteps). The preset's steps
+   for them say step.unitOf and were stamped with ONE unit's pieces, the model. Every other unit of that kind with
+   the same pieces by name, board and size (however it stands: turned to face the table, moved, copied) is built in
+   the same steps, and so is a unit that takes the model's place when the model was deleted. The count of units is
+   what the design holds now, so the words never go stale ("For each of the 5 dining chairs", copyWords).
+   Adds to `found`: of (the other units' ids), made (step index -> how many units), model (step index -> the ids
+   of the unit its pictures and its Put in words show), units (step index -> true for every unitOf step). */
+function unitsInSteps(owner,found){
+  const steps=(S.steps||[]).filter(step=>step&&Array.isArray(step.add));
+  const signature=pieces=>pieces.map(p=>[p.name,p.mat,r16(p.l),r16(p.w),r16(p.t)].join('|')).sort().join(',');
+  const kinds=new Map();   // unitOf -> Map(set|unit -> pieces)
+  for(const p of S.parts){
+    if(typeof p.unit!=='string'||!p.unitOf)continue;
+    const preset=PRESETS.find(row=>row.name===p.unitOf);
+    if(!preset||!preset.copiesShareSteps)continue;
+    if(!kinds.has(p.unitOf))kinds.set(p.unitOf,new Map());
+    const units=kinds.get(p.unitOf),key=p.set+'|'+p.unit;
+    if(!units.has(key))units.set(key,[]);
+    units.get(key).push(p);
+  }
+  for(const[kind,units]of kinds){
+    const stepOfName=new Map(),unitSteps=[];
+    steps.forEach((step,index)=>{
+      if(step.unitOf!==kind)return;
+      unitSteps.push(index);
+      for(const name of step.add)if(!stepOfName.has(name))stepOfName.set(name,index);
+    });
+    if(!unitSteps.length)continue;
+    const inUnitStep=p=>owner.has(p.id)&&steps[owner.get(p.id)].unitOf===kind;
+    const inOtherStep=p=>owner.has(p.id)&&steps[owner.get(p.id)].unitOf!==kind;
+    const list=[...units.values()].filter(pieces=>!pieces.some(inOtherStep));
+    // the model: the unit the steps were stamped with; else (it was deleted) the first one left that stands the way
+    // the unit is built (its back to the back of the design, as the model was), else the first one left
+    const facesFront=pieces=>{
+      const centre=name=>{const b=bbox(pieces.filter(p=>p.name===name));return b?(b.lo[2]+b.hi[2])/2:null;};
+      const back=centre('Back leg'),front=centre('Front leg');
+      return back!==null&&front!==null&&back<front;
+    };
+    const model=list.find(pieces=>pieces.some(inUnitStep))||list.find(facesFront)||list[0];
+    if(!model)continue;
+    for(const p of model)if(!owner.has(p.id)&&stepOfName.has(p.name))owner.set(p.id,stepOfName.get(p.name));
+    const mine=signature(model);
+    let made=1;
+    for(const pieces of list){
+      if(pieces===model||signature(pieces)!==mine)continue;
+      for(const p of pieces){
+        if(!stepOfName.has(p.name))continue;
+        owner.set(p.id,stepOfName.get(p.name));
+        found.of.add(p.id);
+      }
+      made++;
+    }
+    // a unit changed by hand is not one of them: it keeps its own steps, written from its pieces, as before
+    for(const pieces of list){
+      if(pieces===model||signature(pieces)===mine)continue;
+      for(const p of pieces)if(inUnitStep(p))owner.delete(p.id);
+    }
+    const ids=new Set(model.map(p=>p.id));
+    for(const index of unitSteps){found.made.set(index,made);found.model.set(index,ids);found.units.set(index,true);}
+    found.most=Math.max(found.most,made);
+    found.name=kind.toLowerCase();
+    found.unitName=kind.toLowerCase();
+  }
 }
 
 /* ---------- where a fastener goes, in words and as size lines ----------
@@ -624,7 +692,7 @@ function touchedOnBothFaces(piece,b,axis){
 function faceWords(piece,out,withDirection){
   const axis=[0,1,2].reduce((best,k)=>Math.abs(out[k])>Math.abs(out[best])?k:best,0),high=out[axis]>0;
   if(axis===1)return high?'top face':'underside';
-  const b=plainBox(piece),middle=designMiddle();
+  const b=plainBox(piece),middle=designMiddle(piece);   // (a unit's piece: its own chair's middle, js/fasteners.js)
   // A piece in the middle of the design (the cross rail under the middle of a desk) has no inside or outside face:
   // the face is named by the way it looks, or, where the joints of a line differ, either face will do
   if(middle[axis]>b.lo[axis]-.5&&middle[axis]<b.hi[axis]+.5){
@@ -1566,6 +1634,8 @@ function stepTools(step){
     add('tape measure, pencil and square');add('saw');
     if(S.parts.some(p=>!isProp(p)&&M[p.mat].kind==='sheet'))add('straight-edge guide for the plywood');
     for(const tool of shapeToolLines(null,step.shapesElsewhere||[]))add(shapeLower(tool));   // what the shaped pieces need: a miter saw, a hole saw (js/shapedrawings.js)
+    // a shape's own "saw (a circular saw or jigsaw ...)" is the saw of the step: listed once, not as "saw" and again
+    if(tools.some(tool=>/^saw \(/.test(tool)))tools.splice(tools.indexOf('saw'),1);
     for(const tool of presetStepTools(step))add(tool);
     add('safety glasses and hearing protection');
     return tools;
@@ -1949,10 +2019,14 @@ function makeBuildPlan(graph){
   const own=preset.length>0;
   const owner=own?presetStepOfPieces(preset):new Map();
   // copies of the placed design, built in its own steps when its preset asks for it (copiesInSteps, below)
-  const copies=own?copiesInSteps(owner):{of:new Set(),made:new Map(),most:1,name:''};
-  const copyWords=index=>{
+  const copies=own?copiesInSteps(owner):{of:new Set(),made:new Map(),model:new Map(),units:new Map(),most:1,name:'',unitName:''};
+  // the words of a step built once for each copy, counted from the design as it is now: said first, so nobody
+  // reads "the two side frames" as all there are; a step with nothing to fasten (a note) is done for each too
+  const copyWords=(index,words,pieces)=>{
     const n=copies.made.get(index)||1;
-    return n>1?` Do this for each of the ${n} ${copies.name}s; the lists below count all ${n}.`:'';
+    if(n<2)return words;
+    if(!pieces.length)return copies.units.get(index)?`${words} Do this for each of the ${n} ${copies.name}s.`:words;
+    return`For each of the ${n} ${copies.name}s: ${words.charAt(0).toLowerCase()}${words.slice(1)} The lists below count all ${n}.`;
   };
   const drafts=[];   // {kind, source, words, was, pieces, extra, claims: preset step or null}
   const loose=S.parts.filter(p=>!owner.has(p.id));
@@ -2000,9 +2074,12 @@ function makeBuildPlan(graph){
         // fasten: the preset's own lines for joints the program cannot see (rotated pieces). A line is a sentence,
         // or {line, uses: [[hardware-list label, count]]} when the preset has counted what it takes.
         const own=step.fasten||[];
-        const copyLine=kind==='cut'&&copies.most>1?` You are making ${copies.most} ${copies.name}s: cut each piece for all of them at one saw setting, with a stop block clamped to the saw, so they come out alike.`
-          :pieces.length?copyWords(index):'';
-        drafts.push({kind,source:changed?'rewritten':'preset',words:stepText(step)+copyLine,was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,refreshed,
+        // (units placed with a design: "each dining chair piece", the table's own pieces being cut once)
+        const copyLine=kind==='cut'&&copies.most>1?` You are making ${copies.most} ${copies.name}s: cut each ${copies.unitName?copies.unitName+' ':''}piece for all of them at one saw setting, with a stop block clamped to the saw, so they come out alike.`:'';
+        const words=kind==='cut'?stepText(step)+copyLine:copyWords(index,stepText(step),pieces);
+        // oneOf: the pieces of the one copy that the step's picture and its Put in words show (js/steppictures.js)
+        const oneOf=(copies.made.get(index)||1)>1&&pieces.length?copies.model.get(index)||null:null;
+        drafts.push({kind,source:changed?'rewritten':'preset',words,was:'',pieces,preset:step,stale:quotesStale&&!pieces.length,refreshed,oneOf,copiesMade:copies.made.get(index)||1,
           extra:own.map(entry=>typeof entry==='string'?entry:entry.line),extraUses:own.flatMap(entry=>entry.uses||[]),uncounted:own.some(entry=>typeof entry==='string')});
       }
       for(const cluster of after.get(index)||[]){
@@ -2125,7 +2202,7 @@ function makeBuildPlan(graph){
   for(const draft of finalDrafts){
     const step={no:steps.length+1,kind:draft.kind,source:draft.source,words:draft.words,was:draft.was,pieces:draft.pieces,groups:[],extra:draft.extra,hardware:[],need:null,
       brought:draft.brought||[],apart:!!draft.apart,preset:draft.preset||null,extraUses:draft.extraUses||[],uncounted:!!draft.uncounted,stale:!!draft.stale,
-      shapesElsewhere:draft.shapesElsewhere||[]};
+      shapesElsewhere:draft.shapesElsewhere||[],oneOf:draft.source==='preset'&&draft.oneOf||null,copiesMade:draft.copiesMade||1};
     const before=new Set(built);
     draft.pieces.forEach(p=>{built.add(p.id);pieceStep.set(p.id,steps.length);});
     // the "Fasten with" lines, numbered: the joints that take the same fastener between the same kinds of piece share one
@@ -2275,7 +2352,7 @@ function rewrittenWords(pieces,built,letterOf,graph){
 const SUPPLY_WORDS=[[/wall studs?/i,/wall studs?|\bstuds\b/i],[/landscape fabric/i,/\bfabric\b/i],[/screw eyes?/i,/screw eyes?/i],[/chain or rope/i,/\bchain\b|\brope\b/i],
   [/concrete blocks?/i,/\bblocks\b/i],[/ground anchors?/i,/\banchor/i],[/corner braces?/i,/corner braces?/i],[/barrel bolts?/i,/barrel bolt/i],
   [/for the hinge leaves/i,/hinges?/i],[/for the hinge straps/i,/hinges?/i],[/lid support/i,/lid support|lid stay/i],
-  [/for the gable ends|sloped tops of the side walls/i,/triangle above|sloped strip above/i]];
+  [/for the gable ends|sloped tops of the side walls/i,/triangle above|sloped strip above/i],[/felt pads?/i,/felt pads?/i]];
 function suppliesNamed(step,claimed){
   if(!claimed||step.source==='generated'||step.kind==='cut'||step.kind==='finish')return[];
   const found=[];

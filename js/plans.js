@@ -91,7 +91,8 @@ function takePicturesNow(full,opts){
   if(full){
     // sized without the pictures that only show where a bought thing goes (a monitor: `picture` on its MATS row), framed
     // round everything drawn
-    const all=bbox(S.parts),sized=S.parts.filter(p=>!M[p.mat].picture),b=sized.length?bbox(sized):all;
+    // (and without the units placed with a design, the chairs of a Dining table: measuredParts, js/statusbar.js)
+    const all=bbox(S.parts),sized=measuredParts(S.parts).filter(p=>!M[p.mat].picture),b=sized.length?bbox(sized):all;
     grid.visible=floor.visible=false;
     for(const view of FLAT_VIEWS)out.views.push(flatViewPicture(view,b,W,H,snap,all)); // flat views, like a drawing
     grid.visible=floor.visible=true;dimGroup.visible=false;
@@ -140,7 +141,14 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   if(/household iron/i.test(named))L.push('Household iron and an edge banding trimmer (or a sharp chisel), for the iron-on edge banding');
   if(/right-angle drill/i.test(named))L.push('Right-angle drill attachment and a 3" driver bit, for pocket screws where a drill does not fit');
   if(/foam mat/i.test(named))L.push('A foam mat to go under a rimless tank');
-  L.push(...shapeToolLines());   // what the shaped pieces need: a hole saw, a compass and jigsaw (js/shapedrawings.js)
+  // what the shaped pieces need: a hole saw, a compass and jigsaw (js/shapedrawings.js). A shape's own saw (the
+  // taper of a chair's back legs: "Saw (a circular saw or jigsaw along a marked line)") joins the saw line above, so
+  // the list names one saw line, not two
+  for(const line of shapeToolLines()){
+    const saw=line.match(/^Saw \((.*)\)$/);
+    if(saw&&L[1]==='Saw (a circular saw or miter saw)')L[1]=`Saw: a circular saw or miter saw, and for the shaped pieces ${saw[1]}`;
+    else L.push(line);
+  }
   return L;}
 
 /* ---------- what the three document pages share (Fasteners, Cut list & shopping, Build instructions) ----------
@@ -481,7 +489,7 @@ function renderCut(instr){
     // three drawings, two to a row; the fourth place says what the sizes measure
     const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');
     h+=`<h2>Views with sizes</h2><div class="views">${figures}`+
-      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(p=>isProp(p)&&!M[p.mat].picture)?', counting a fish tank or a mattress that is drawn':''}${S.parts.some(p=>M[p.mat].picture)?' (not the pictures of a monitor or a computer, which only show where they go)':''}. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
+      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(p=>isProp(p)&&!M[p.mat].picture)?', counting a fish tank or a mattress that is drawn':''}${S.parts.some(p=>M[p.mat].picture)?' (not the pictures of a monitor or a computer, which only show where they go)':''}. Wide is left to right, deep is front to back, tall is from the floor up.${unitWords(S.parts)?' '+unitWords(S.parts):''} The size of every single piece is in the cut list.</p></div>`+
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one, each with its letter from the cut list. The steps below show the order.</p>`;
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
