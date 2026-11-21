@@ -550,8 +550,11 @@ SELFTESTS.push(function fastenersStayInTheWood(problems){
       const usual=presetDefaults(preset);
       for(const q of preset.params){
         if(!q.k||q.opts||q.check||q.min===undefined||q.max===undefined)continue;
-        if(q.show&&!q.show(usual))continue;   // a row the form does not show with the usual choices
-        for(const value of[q.min,q.max])tryOne(preset,{...usual,[q.k]:value},styles[turn++%styles.length],`${preset.name} at ${q.label} ${value}`);
+        // a row the form does not show with the usual choices is skipped, unless the choice above it brings it (a
+        // tank box with "Custom": presetValuesThatShow, js/presetentry.js)
+        const at=presetValuesThatShow(preset,q,usual,{boxes:false});
+        if(!at)continue;
+        for(const value of[q.min,q.max])tryOne(preset,{...at,[q.k]:value},styles[turn++%styles.length],`${preset.name} at ${q.label} ${value}`);
       }
     }
   });

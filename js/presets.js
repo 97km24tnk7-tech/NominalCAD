@@ -11,12 +11,19 @@ const OUTDOOR_LOOK={finish:'none'};
 const OUTDOOR_CEDAR={finish:'none',wood:'cedar'};
 const PRESETS=[
  {name:'Fish tank wall / rack',spec:'One rack or a whole wall',desc:'From one rack to a whole fish room wall. Auto-fits the most tanks and sizes the lumber for the water weight, or set every row by hand.',
+  // The form opens short (the owner: "i want most of the options hidden behind check boxes"): the tank, the space
+  // and what goes under the bottom row; the four tank boxes only with Custom picked; the rest under More options
+  // (short, js/presetentry.js), the rows of different tanks behind their own box. js/shortforms.js checks it.
+  // ("Build it as" goes with "Longest board you can haul", which decides whether it shows: both under More options,
+  // and a wall longer than the board is built as one wall with joined rails until the person chooses otherwise)
+  short:['size','tl','td','th','gal','W','H','maxD','base','storeH'],
   params:[{head:'Main tank'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3],clr:Math.max(8,Math.ceil(v[2]/2))}]))},
-   num('tl','Tank length',24,8,96),num('td','Tank front-to-back',12,6,36),num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS},
+   ...under('size',[num('tl','Tank length',24,8,96),num('td','Tank front-to-back',12,6,36),num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS}],size=>size==='custom'),
    {head:'Your space'},
    num('W','Wall width (try 10\')',120,24,600),num('H','Height available',84,24,120),num('maxD','Max depth from wall',30,8,60),
+   {head:'Boards and long walls'},
    {k:'board',label:'Longest board you can haul',opts:[['96','8 ft'],['120','10 ft'],['144','12 ft'],['192','16 ft']],v:'96'},
    RACK_BUILD_FIELD,
    {head:'Access and lighting'},
@@ -28,19 +35,26 @@ const PRESETS=[
    {k:'rail',label:'Shelf rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4'],['2x6','2x6 (for rows of different depths)'],['2x8','2x8 (for rows of different depths)']],v:'auto'},
    {k:'brace',label:'Diagonal back braces',check:1,v:true},
+   // A row's own tank counts with the number of rows on Auto as well (it can make room for one more row), so the
+   // six boxes come with their box, not with the number of rows; with a number of rows chosen, only that many.
+   {k:'rowTanks',label:'Different tank on each row (bottom row first)',check:1,v:false},
+   ...under('rowTanks',[1,2,3,4,5,6].map(i=>({k:'r'+i,label:'Row '+i+(i===1?' (bottom)':''),opts:[['','Main tank'],...TANK_OPTS,['store','Storage / sump shelf, no tanks']],v:'',
+     show:p=>!+p.levels||i<=+p.levels}))),
+   {head:'Under the tanks'},
    {k:'base',label:'Under the bottom row',opts:[['open','Nothing: tanks start near the floor'],['shelf','Open storage shelf'],['cabinet','Cabinet with doors']],v:'open'},
-   {head:'Different tank on each row (bottom row first)'},
-   ...[1,2,3,4,5,6].map(i=>({k:'r'+i,label:'Row '+i+(i===1?' (bottom)':''),opts:[['','Main tank'],...TANK_OPTS,['store','Storage / sump shelf, no tanks']],v:''})),
-   num('storeH','Storage or cabinet height',16,6,48)],
+   // the height of a storage shelf or a cabinet: under the bottom row, or of a row set to a storage shelf above
+   {...num('storeH','Storage or cabinet height',16,6,48),show:p=>p.base!=='open'||[1,2,3,4,5,6].some(i=>p['r'+i]==='store')}],
   info:p=>rackNotes(p).slice(0,5).join(' '),notes:p=>rackNotes(p),build:buildRack,hw:p=>rackHw(p),
   uses:RACK_USES,wall:rackWallIfNeeded,check:p=>rackCheck(p),joints:rackJoints,hiddenFace:fishStandHiddenFace,
   stand:p=>isStandPlan(p),   // on a cabinet base it is built as a stand: center posts in a long bay (STAND_RULES, js/verify.js)
   ...rackPresetHooks(p=>p,(p,args,pl)=>rackWallGap(args,pl))},   // wallScrews and place: the screws into the wall studs and the section bolts (js/rackwall.js)
  {name:'Single aquarium stand',spec:'One tank, cabinet below',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
+  // opens short: the tank, the stand's height and what goes under the tank; the sizes of the lumber under More options
+  short:['size','tl','td','th','gal','standH','under'],
   params:[{head:'Tank'},
    {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3]}]))},
-   num('tl','Tank length',24,8,96),num('td','Tank front-to-back',12,6,36),num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS},
+   ...under('size',[num('tl','Tank length',24,8,96),num('td','Tank front-to-back',12,6,36),num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS}],size=>size==='custom'),
    {head:'Stand'},
    num('standH','Stand height',30,STAND_MIN_HEIGHT,STAND_MAX_HEIGHT),
    {k:'under',label:'Underneath the tank',opts:[['cabinet','Cabinet with doors'],['panels','Closed back and sides, open front'],['shelf','Open storage shelf'],['tank','A second tank']],v:'cabinet'},
@@ -60,6 +74,8 @@ const PRESETS=[
   },
   build(p){const a=standArgs(p);return a?buildRack(a):[];}},   // a closed stand gets its panels, doors and countertop there (js/fishtop.js)
  {name:'Cabinet stand with a row of tanks',tile:'Cabinet stand',spec:'Doors below, tanks on top',desc:'A long cabinet with doors and one or more rows of tanks on top. Looks like furniture, works like a rack.',
+  // opens short: the tank, how many rows, the length and the cabinet's height; the rest under More options
+  short:['size','tl','td','th','gal','levels','W','storeH','build'],
   params:[{head:'Tanks'},
    // (the tanks the stand can take: a tank shallower than CABINET_STAND_LEAST.td is not on its list, js/fishtop.js)
    {k:'size',label:'Tank size',opts:[...cabinetStandTankOpts(TANK_OPTS),['custom','Custom (type below)']],v:'g20h',
@@ -68,7 +84,7 @@ const PRESETS=[
    // 9" front to back, leaves no room to keep the pocket screws of its cross pieces clear of those that hold the feet
    // of its uprights; a cabinet less than 7" tall inside, no room for a drill at those feet: CABINET_STAND_LEAST; the
    // box says why when a smaller one is typed, CABINET_STAND_TD_WHY)
-   num('tl','Tank length',24,8,96),{...num('td','Tank front-to-back',12,CABINET_STAND_LEAST.td,36),why:CABINET_STAND_TD_WHY},num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS},
+   ...under('size',[num('tl','Tank length',24,8,96),{...num('td','Tank front-to-back',12,CABINET_STAND_LEAST.td,36),why:CABINET_STAND_TD_WHY},num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS}],size=>size==='custom'),
    {k:'levels',label:'Rows of tanks on top',opts:[['1','1 row'],['2','2 rows'],['3','3 rows']],v:'1'},
    num('clr','Hand room above each tank',8,0,24),
    {head:'Cabinet'},
@@ -83,12 +99,19 @@ const PRESETS=[
  {name:'Platform bed',spec:'2x6 frame, 1x4 slats',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
   params:[{k:'size',label:'Mattress',opts:[['twin','Twin'],['twinxl','Twin XL'],['full','Full'],['queen','Queen'],['king','King'],['calking','California king'],['custom','Custom (type below)']],v:'queen',
      fill:{twin:{Wm:38,Lm:75},twinxl:{Wm:38,Lm:80},full:{Wm:54,Lm:75},queen:{Wm:60,Lm:80},king:{Wm:76,Lm:80},calking:{Wm:72,Lm:84}}},
-   num('Wm','Mattress width',60,28,84),num('Lm','Mattress length',80,52,90),num('H','Top of frame off floor',14,9,24)],
+   // (the mattress's own sizes only with Custom picked: a size picked fills them in, presetChoiceValue in js/presetentry.js)
+   ...under('size',[num('Wm','Mattress width',60,28,84),num('Lm','Mattress length',80,52,90)],size=>size==='custom'),num('H','Top of frame off floor',14,9,24)],
   build:buildBed,notes:bedNotes,info:p=>bedNotes(p)[0],check:p=>bedPlan(p).problems,joints:BED_JOINTS,
   uses:{'Slat':'bedSlat','Cleat':'bedSlat','Center beam':'bedSlat','Side rail':'bedSlat','End rail':'bedSlat'}},
  {name:'Shed',spec:'Gable or lean-to roof',desc:'Adjustable storage shed: floor on skids, stud walls sheathed in plywood, a gable or lean-to roof, with a door opening and window openings where you want them. Build at your own risk.',
+  // opens short: the floor, the wall height and the roof; the studs, the door and the windows under More options,
+  // whose button says so (foldSays: the door and the window are in the picture, and nearly everyone moves them)
+  // (the openings are framed and left open as first opened, the plywood door and the window pictures off)
+  short:['W','D','Hb','roof','pitch'],
+  foldSays:'door, windows, wall studs',
   params:[{head:'Size'},
    // the size of the floor frame, as sheds are sold and permitted (the wall sheathing and the roof overhang go past it)
+   // (the wall height is every wall on a gable roof, and the low back wall on a lean-to)
    num('W','Floor width (left to right)',120,48,192),num('D','Floor depth (front to back)',96,48,144),num('Hb','Wall height (on a lean-to, the low back wall)',84,72,96),   // (one label for both roofs: the preset audit of 20 Nov, note 15)
    {head:'Roof'},
    {k:'roof',label:'Roof style',opts:[['gable','Gable: a peak in the middle'],['lean','Lean-to: one slope, high at the front']],v:'gable'},
@@ -101,9 +124,12 @@ const PRESETS=[
    {k:'door',label:'Add a plywood door (off: the opening is left open)',check:1,v:false},
    {head:'Window openings'},
    {k:'wn',label:'How many windows',v:1,int:1,min:0,max:8},
-   {k:'wwall',label:'Windows are on the',opts:[['right','Right wall'],['left','Left wall'],['both','Both side walls'],['back','Back wall'],['front','Front wall']],v:'right'},
-   num('ww','Window width',24,12,48),num('wh','Window height',24,12,48),num('sill','Bottom of window above floor',40,12,60),
-   {k:'glass',label:'Show the window (a bought window, drawn in each opening)',check:1,v:false}],
+   // (with no windows, where they go and how big they are means nothing, so those rows go with them)
+   ...under('wn',[{k:'wwall',label:'Windows are on the',opts:[['right','Right wall'],['left','Left wall'],['both','Both side walls'],['back','Back wall'],['front','Front wall']],v:'right'},
+     num('ww','Window width',24,12,48),num('wh','Window height',24,12,48),num('sill','Bottom of window above floor',40,12,60),
+     {k:'glass',label:'Show the window (a bought window, drawn in each opening)',check:1,v:false}],
+     // (a count box that is red or empty while it is retyped keeps its rows: they go only with 0 windows)
+     count=>!(count<=0))],
   info:p=>shedNotes(p).slice(0,2).join(' '),notes:shedNotes,build:buildShed,steps:shedSteps,hw:shedHardware,
   // the preset rule: what each piece is for, the numbers that cannot work (shedPlan in js/builders-shed.js
   // explains each one), and the other choices (the other roof style; the plywood door and the windows shown,
@@ -198,12 +224,15 @@ const PRESETS=[
    on the form only while the row `key` above it is ticked (or, with test, while test(p[key]) is true), and its own
    show(p) as well when it has one. The rows carry sub:1, and the form draws them indented under their option
    (presetField, js/app.js; .frow.sub in css/style.css). A hidden row hands build(p) its start value, as every
-   hidden row does. The owner: "i want most of the options hidden behind check boxes". Used by the Computer desk
-   (js/computerdesk.js); every other form can take it later. */
+   hidden row does. The owner: "i want most of the options hidden behind check boxes". Used by every form that
+   has options (js/shortforms.js checks them). Each row also keeps the key of its option (under), so a design
+   reopened with values that set one of its rows ticks the box (presetTickOptionsOf, js/presetentry.js). A row of
+   an option inside another option keeps the inner key (the Computer desk's shelf width is under "The shelf
+   runs", which is under "Monitor shelf"); the inner row itself carries the outer key. */
 function under(key,rows,test){
   return rows.map(row=>{
     const own=row.show;
-    return{...row,sub:1,show:p=>(test?test(p[key]):!!p[key])&&(own?own(p):true)};
+    return{...row,sub:1,under:row.under||key,show:p=>(test?test(p[key]):!!p[key])&&(own?own(p):true)};
   });
 }
 

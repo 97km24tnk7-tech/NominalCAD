@@ -1650,10 +1650,11 @@ function printHash(text){
   }
   return h.toString(36);
 }
-/* the fingerprint of one preset at its defaults (it is placed as the design, so the caller keeps the design) */
-function presetPrint(preset){
+/* the fingerprint of one preset at its defaults (it is placed as the design, so the caller keeps the design);
+   given: other form values, read from the form as it opens (presetFormsBuildTheirPrints, js/shortforms.js) */
+function presetPrint(preset,given){
   load(JSON.stringify(blank()),true);   // from an empty design, so piece numbers do not depend on what was open
-  const vals=presetDefaults(preset);
+  const vals=given||presetDefaults(preset);
   placePreset(preset,vals,preset.build(vals)||[],false);
   const joints=findJoints();
   let fasteners=0;

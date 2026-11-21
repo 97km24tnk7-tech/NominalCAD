@@ -251,8 +251,11 @@ function sizesToTry(preset){
   const usual=presetDefaults(preset),list=[{vals:usual,where:'default size'}];
   for(const q of preset.params){
     if(!q.k||q.opts||q.check||q.min===undefined||q.max===undefined)continue;
-    if(q.show&&!q.show(usual))continue;   // a row the form hides with the usual choices (the Bookshelf's openings)
-    list.push({vals:{...usual,[q.k]:q.min},where:`${q.label} ${q.min}`},{vals:{...usual,[q.k]:q.max},where:`${q.label} ${q.max}`});
+    // a row the form hides with the usual choices is skipped (the Bookshelf's openings), unless the choice above it
+    // brings it (a tank box with "Custom", a mattress size with "Custom": presetValuesThatShow, js/presetentry.js)
+    const at=presetValuesThatShow(preset,q,usual,{boxes:false});
+    if(!at)continue;
+    list.push({vals:{...at,[q.k]:q.min},where:`${q.label} ${q.min}`},{vals:{...at,[q.k]:q.max},where:`${q.label} ${q.max}`});
   }
   return list;
 }

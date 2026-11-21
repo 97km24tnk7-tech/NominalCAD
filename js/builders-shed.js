@@ -701,7 +701,7 @@ function shedNotIncluded(plan){
   if(missing.length){
     const openings=missing.length>1||several?'The openings are framed and left open, ready for the ones you choose':'The opening is framed and left open, ready for the one you choose';
     words+=`. Also not included: ${missing.join(' and ')}. ${openings}`+
-      (plan.plywoodDoor?'':' (the Shed preset can add a plain plywood door: tick "Add a plywood door")');
+      (plan.plywoodDoor?'':' (the Shed preset can add a plain plywood door: tick "Add a plywood door" in More options)');
   }
   // a window that is drawn is still a bought one: it is in no list, so say what size to buy
   if(plan.windowCount&&plan.showWindows){

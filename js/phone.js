@@ -1160,23 +1160,31 @@ SELFTESTS.push(function phoneSizePadReadsLikeTheDesktop(problems){
     if(!box.classList.contains('bad'))wrong('900 did not turn the box red');
     if(!line||line.textContent!==presetFieldNote||!presetFieldNote)wrong(`the red line says "${line&&line.textContent}", the desktop "${presetFieldNote}"`);
     box.blur();
-    // a step on a size that a size choice stands for switches the choice to Custom (Fish tank wall, tank length)
+    // a size that a size choice stands for (Fish tank wall, tank length) shows only with Custom picked (the short
+    // forms, js/shortforms.js); picked, + steps it and the choice stays Custom
     const rack=phoneEntryOf('Fish tank wall / rack');
     if(!rack||!phoneOpenSizes(rack))return wrong('the Fish tank wall cannot be opened');
     const tank=$('#presetForm [data-k="tl"]'),choice=curPreset.params.find(q=>q.fill);
     if(!tank||!choice)return wrong('the Fish tank wall has no tank length box or no size choice');
     const plus=tank.closest('.frow').querySelector('.ph-plus'),choiceBox=$(`#presetForm [data-k="${choice.k}"]`);
+    if(!tank.closest('.frow').hidden)wrong('the tank length shows while a named tank size is picked');
+    choiceBox.value='custom';
+    choiceBox.dispatchEvent(new Event('change',{bubbles:true}));
+    readVals(false);
+    phoneSyncForm();
+    if(tank.closest('.frow').hidden)return wrong('picking Custom does not bring the tank length');
     const press=(type,x)=>plus.dispatchEvent(new PointerEvent(type,{bubbles:true,button:0,pointerId:7,pointerType:'touch',isPrimary:true,clientX:x,clientY:10}));
     // a thumb that lands on + to scroll the form (the browser takes the gesture and sends pointercancel, and no
     // click) changes nothing: not the size, not the size choice
     const before={tank:tank.value,choice:choiceBox.value};
     press('pointerdown',10);press('pointermove',10);press('pointercancel',10);
     if(tank.value!==before.tank||choiceBox.value!==before.choice)wrong(`a scroll that started on + changed the tank length to ${tank.value} or the tank size to ${choiceBox.value}`);
-    if(choiceBox.value==='custom')wrong('the tank size is Custom before any step, so this check proves nothing');
-    // a tap (press, release, the browser's click) is one step, and switches the size choice to Custom
+    // a tap (press, release, the browser's click) is one step, and the size choice stays Custom
     press('pointerdown',10);press('pointerup',10);plus.click();
     if(phoneBoxValue(tank,phoneParamOf(tank.closest('.frow')))!==phoneBoxValue({value:before.tank},phoneParamOf(tank.closest('.frow')))+1)wrong(`a tap on + made the tank length ${tank.value} from ${before.tank}`);
-    if(choiceBox.value!=='custom')wrong('a step on the tank length did not switch the tank size to Custom');
+    if(choiceBox.value!=='custom')wrong('a step on the tank length took the tank size off Custom');
+    const stepped=readVals(false);
+    if(!stepped||Math.abs(stepped.tl-(phoneBoxValue({value:before.tank},phoneParamOf(tank.closest('.frow')))+1))>1e-6)wrong(`after a tap on + the form hands the builder a tank length of ${stepped&&stepped.tl}`);
   });
 });
 

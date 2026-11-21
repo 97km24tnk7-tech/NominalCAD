@@ -91,7 +91,8 @@ const CASE_PARAMS=[
   {...num('kickBack','Toe kick set back from the front',CASE_KINDS.basecab.kickBack,...CASE.limits.kickBack),show:p=>p.base!=='none'},
   {...num('overSide','Top overhang at each side',0,...CASE.limits.overSide),show:p=>p.top==='over'},
   {...num('overFront','Top overhang past the front',1,...CASE.limits.overFront),show:p=>p.top==='over'},
-  {k:'wall',label:'Fasten to the wall',opts:[['auto','When it needs it'],['yes','Always']],v:'auto'},
+  // (only while the case would not be fastened anyway: a case tall for its depth, or a kind always fastened, is)
+  {k:'wall',label:'Fasten to the wall',opts:[['auto','When it needs it'],['yes','Always']],v:'auto',show:p=>!casePlan({...p,wall:'auto'}).anchored},
 ];
 
 /* Other choices the structural sweep of selfTest tries at every limit (README, "The preset rule"): every recipe

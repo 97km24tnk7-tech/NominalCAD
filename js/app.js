@@ -287,6 +287,8 @@ function presetFieldChanged(field){
       const target=curPreset.params.find(q=>q.k===key);
       $(`#presetForm [data-k="${key}"]`).value=target.int||target.dec?value:boxLenOf(target,value);
     }
+  // (since the short forms the rows a size choice fills show only with "Custom", so this is for a filled row that
+  // shows with a named size; none does today: Hand room, clr, is left alone because it is the person's own)
   }else if(!param.fill&&sizeChoice&&param.k!=='clr'&&Object.values(sizeChoice.fill).some(set=>param.k in set)){
     $(`#presetForm [data-k="${sizeChoice.k}"]`).value='custom';
   }
@@ -306,8 +308,9 @@ function readVals(focusBad){
     const shown=presetRowShown(q,index,vals);
     if(q.head)return;
     const el=$(`#presetForm [data-k="${q.k}"]`);
-    // (hidden: the value the form starts with, which is the catalog entry's own when it gives one)
-    if(!shown){vals[q.k]=presetStartValue(q);el.classList.remove('bad');return;}
+    // (hidden: the value the form starts with, which is the catalog entry's own when it gives one, or what the size
+    // choice above it fills in: presetChoiceValue, js/presetentry.js)
+    if(!shown){vals[q.k]=presetChoiceValue(q,vals);el.classList.remove('bad');return;}
     if(q.opts){vals[q.k]=el.value;return;}
     if(q.check){vals[q.k]=el.checked;return;}
     const v=q.int?parseInt(el.value,10):q.dec?parseFloat(el.value):parseLen(el.value);

@@ -319,7 +319,8 @@ function nightstandInfo(p){
     // the sizes typed are the overall size: say what the cabinet under the top comes out at
     `The top overhangs the cabinet ${fmt(NS.topSide)} at each side and ${fmt(nightstandTopPast(plan.style))} at the front, so the cabinet under it is ${fmt(plan.W)} wide and ${fmt(plan.D)} deep.`,
     `${plan.drawers} drawer${plan.drawers>1?'s':''} on ${nightstandRunsOn(plan)}, each ${plan.style} front ${fmt(plan.frontHeight)} tall${plan.shelf?`, over an open shelf ${fmt(plan.shelfHeight)} tall`:''}. Inside, each drawer is ${fmt(plan.boxWidth-1)} wide and ${fmt(plan.boxHeight-plan.bottomThick)} deep, and comes out ${fmt(r16(plan.travel))}.`];
-  if(!plan.shelf&&p.fh!==undefined)text.push('With no open shelf the drawers share the whole height, so the drawer front height box is not used.');
+  // (the drawer front height box goes with the open shelf on the form, so it is not named here)
+  if(!plan.shelf&&p.fh!==undefined)text.push('With no open shelf the drawers share the whole height of the cabinet.');
   // a tip check that passes "but not by much" is said by the warning box above this remark (nightstandCheck)
   if(tip.factor>=NS.tipWarn)text.push(`Tip check: with the top drawer pulled all the way out and ${tip.load} lb in it, it stays put with room to spare.`);
   return text.join(' ');
@@ -412,12 +413,15 @@ function nightstandHardware(p){
 PRESETS.push({
   name:'Nightstand with drawers',tile:'Drawer nightstand',spec:'Plywood, 1 to 4 drawers',icon:'i-p-cabinet',
   desc:'A bedside cabinet in plywood with one to four drawers that really open, on metal slides or wooden runners, and an open shelf underneath if you want one.',
+  // opens short: the size, the drawers and the open shelf; how the drawers run and sit under More options
+  short:['W','D','H','N','cub','fh'],
   // the overall size, the top included (what is typed is what is built: nightstandCase works out the cabinet)
   params:[num('W','Width (of the top)',NIGHTSTAND_DEFAULTS.W,NS.minWidth,NS.maxWidth),num('D','Depth (of the top)',NIGHTSTAND_DEFAULTS.D,NS.minDepth,NS.maxDepth),
     num('H','Height (floor to the top)',NIGHTSTAND_DEFAULTS.H,NS.minHeight,NS.maxHeight),
     {k:'N',label:'Drawers',opts:[['1','1'],['2','2'],['3','3'],['4','4']],v:NIGHTSTAND_DEFAULTS.N},
     {k:'cub',label:'Open shelf under the drawers',check:1,v:NIGHTSTAND_DEFAULTS.cub},
-    num('fh','Drawer front height (with an open shelf)',NIGHTSTAND_DEFAULTS.fh,NS.minFront,NS.maxFront),
+    // (with no open shelf the drawers share the whole height, and the box would do nothing: it goes with the shelf)
+    ...under('cub',[num('fh','Drawer front height (with an open shelf)',NIGHTSTAND_DEFAULTS.fh,NS.minFront,NS.maxFront)]),
     {k:'slides',label:'Drawers run on',opts:[['slide','Metal slides'],['runner','Wooden runners']],v:NIGHTSTAND_DEFAULTS.slides},
     {k:'fronts',label:'Drawer fronts',opts:[['overlay','Overlay: over the cabinet edges'],['inset','Inset: inside the cabinet']],v:NIGHTSTAND_DEFAULTS.fronts}],
   build:buildNightstand,info:nightstandInfo,notes:nightstandNotes,steps:nightstandSteps,

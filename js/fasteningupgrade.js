@@ -249,14 +249,19 @@ function presetValuesOf(preset,parts,savedVals){
     if(!q.int)for(const v of sizes)if((q.min===undefined||v>=q.min)&&(q.max===undefined||v<=q.max))list.add(v);
     return[...list];
   };
-  const rows=preset.params.filter(q=>q.k&&!q.show&&!q.check);
+  // (a row with a show rule is searched while the form shows it with the values found so far, or with the option or
+  // choice above it that brings it: the tank boxes with "Custom", Row 1 with its box; presetValuesThatShow,
+  // js/presetentry.js. The builders read those rows directly, so the trial is a real build.)
+  const rows=preset.params.filter(q=>q.k&&!q.check);
   let best={...defaults},bestScore=score(best);
   for(let pass=0;pass<3;pass++){
     let better=false;
     for(const q of rows){
+      const at=presetValuesThatShow(preset,q,best);
+      if(!at)continue;
       for(const value of choicesOf(q)){
-        if(value===best[q.k])continue;
-        const trial={...best,[q.k]:value},trialScore=score(trial);
+        if(value===best[q.k]&&at===best)continue;
+        const trial={...at,[q.k]:value},trialScore=score(trial);
         if(trialScore>bestScore){best=trial;bestScore=trialScore;better=true;}
       }
     }

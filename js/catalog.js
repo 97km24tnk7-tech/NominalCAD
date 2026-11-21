@@ -464,6 +464,8 @@ function fillFormBoxes(values,fromEntry){
     else box.value=fromEntry&&box.hasAttribute('data-len')&&typeof value==='number'?boxLenIn(box,value):String(value);
     changed=true;
   }
+  // an option box the values leave out is ticked when they set one of its rows (js/presetentry.js)
+  if(values&&typeof presetTickOptionsOf==='function'&&presetTickOptionsOf(values))changed=true;
   return changed;
 }
 /* the form in the live pane is still the one the catalog filled (code may have drawn another since) */
