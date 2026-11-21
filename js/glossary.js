@@ -358,6 +358,8 @@ const TERMS=[
     what:'A drill bit that cuts a clean, flat-bottomed hole, from 1/4 inch to about 2 inches in the usual sets. Used for cup hinges and for neat round holes.'},
   {word:'Speed square',group:'measure',
     what:'A small triangle-shaped metal square marked in degrees. Hold it against the edge of a board to mark an angle, or to guide a circular saw along a straight cut.'},
+  {word:'Flush-cut saw',group:'measure',
+    what:'A thin hand saw whose teeth do not stick out to the sides, so it can lie flat on the wood and cut a plug or a piece of dowel off level with the surface without scratching it.'},
   {word:'Cut list',group:'measure',
     what:'The list of every piece to cut, with its size and the letter to pencil on it. The same letters are used in the cutting diagrams and the steps.'},
   {word:'On center',group:'measure',

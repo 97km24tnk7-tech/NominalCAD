@@ -290,3 +290,55 @@ SELFTESTS.push(function declarationsStayWithTheirPieces(problems){
     else if(!/drawer/.test($('#checkSum').textContent))problems.push('check dialog: with drawers in the design the clean verdict must say that a drawer pulled out is not part of the check');
   }
 });
+
+/* The preset rule says the wording shown to users stays honest that these are rules of thumb (README, "The preset
+   rule"). The preset audit of 20 Nov, finding 4, found the Storage box / toy chest and the Bird feeder saying nothing
+   like it. Every entry of the presets window, as Create makes it from its start values, carries a line in its notes
+   that says so: "rule of thumb" (or "rule-of-thumb", "rules of thumb"), or "not an engineer..." / "not engineered". */
+const HONEST_NOTE=/rules? of thumb|rule-of-thumb|not (an )?engineer/i;
+SELFTESTS.push(function everyPresetSaysRuleOfThumb(problems){
+  if(typeof catalogEntries!=='function')return;
+  const kept=JSON.stringify(S),draw=renderAll;
+  renderAll=()=>{};
+  try{
+    for(const entry of catalogEntries()){
+      const preset=PRESETS.find(row=>row.name===entry.builder);
+      if(!preset)continue;
+      const vals={...presetDefaults(preset),...(entry.start||{})},parts=preset.build(vals);
+      if(!parts.length)continue;
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,parts,false);
+      if(!HONEST_NOTE.test((S.notes||[]).join(' ')))problems.push(`honest notes: the ${entry.name} does not say in its notes that its sizes are a rule of thumb, not engineered`);
+    }
+  }finally{renderAll=draw;load(kept,true);}
+});
+/* The preset audit of 20 Nov, note 12: the screw-head line at the end of the notes (headsNote, js/showfaces.js)
+   spoke of shelves "more than 54 in. up" and of books on a dining table, a bench, a bed and a toy chest. Each entry
+   of the presets window at its start values speaks of boards that high only when it has one, and a Bookshelf
+   84" tall still does. */
+SELFTESTS.push(function screwHeadLineFitsTheDesign(problems){
+  if(typeof catalogEntries!=='function'||typeof HEADS_NOTE_HIGH==='undefined')return;
+  const wrong=text=>problems.push('screw-head line: '+text);
+  const high=HEADS_NOTE_HIGH.trim();
+  const kept=JSON.stringify(S),draw=renderAll;
+  renderAll=()=>{};
+  try{
+    const place=(preset,vals)=>{
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,preset.build(vals),false);
+      const tall=S.parts.some(piece=>!isProp(piece)&&plainBox(piece).lo[1]>SEEN.underAbove);
+      return{tall,says:(S.notes||[]).some(note=>note.includes(high))};
+    };
+    for(const entry of catalogEntries()){
+      const preset=PRESETS.find(row=>row.name===entry.builder);
+      if(!preset||!HOUSE_FURNITURE.includes(preset.name))continue;
+      const{tall,says}=place(preset,{...presetDefaults(preset),...(entry.start||{})});
+      if(says&&!tall)wrong(`the ${entry.name} has no board more than ${SEEN.underAbove}" up, yet its notes speak of one`);
+    }
+    const builder=PRESETS.find(row=>row.name===CASE_BUILDER),bookshelf=CATALOG.find(entry=>entry.id==='bookshelf');
+    if(builder&&bookshelf){
+      const{tall,says}=place(builder,{...presetDefaults(builder),...bookshelf.start,H:84});
+      if(tall&&!says)wrong('a Bookshelf 84" tall does not say where the holes of its high shelves go');
+    }
+  }finally{renderAll=draw;load(kept,true);}
+});

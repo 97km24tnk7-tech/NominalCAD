@@ -201,6 +201,7 @@ window.addEventListener('keydown',e=>{
 let curPreset=null;          // the preset whose form is showing
 let presetTimer=0;           // delays the live summary a moment while someone is typing
 let presetEdited=null;       // the box of the form that was changed last; it is the one marked when nothing fits
+let presetLastCheck=null;    // what the live summary found last: {preset, vals (as text), refused}
 const LAST_PRESET_KEY='woodshop.preset'; // browser storage: the name of the preset that was created last
 const PREVIEW_JOINTS_MAX=1500; // above this many pieces the skill and time estimate is left out of the preview (it would make typing sluggish)
 renderPresetCards();
@@ -382,6 +383,11 @@ function showPresetSummary(){
   found.innerHTML='';
   found.title='';
   $('#bPGo').disabled=$('#bPAdd').disabled=!vals;
+  // While a box cannot be read, the summary and the remark keep the room they took, so the picture does not grow
+  // and push the boxes down under the mouse (the review of the audit fixes, real thing 8: the next click landed in
+  // the wrong box). Any sizes that can be read give the room back.
+  if(!vals){sum.style.minHeight=sum.offsetHeight+'px';info.style.minHeight=info.offsetHeight+'px';}
+  else sum.style.minHeight=info.style.minHeight='';
   if(!vals){
     say(presetFieldNote);
     info.textContent='';
@@ -391,6 +397,7 @@ function showPresetSummary(){
   // the remark and the findings under the form quote the sizes typed in its boxes the way the boxes show them
   const remark=speakAsBoxes(()=>curPreset.info?curPreset.info(vals):'');
   const check=speakAsBoxes(()=>checkPreset(curPreset,vals,null,{maxPieces:LIVE_CHECK_MAX_PIECES})),parts=check.parts;
+  presetLastCheck={preset:curPreset,vals:JSON.stringify(vals),refused:check.stops.length>0};   // (typedIsRefused, js/catalog.js)
   found.innerHTML=findingsHtml(check.shown,false);   // the preset's own reasons alone when it refuses (checkPreset)
   found.title=check.shown.length?'Create will '+(check.stops.length?'not build this until the red items are fixed.':'ask before building this.'):'';
   showPreview(picture,parts);
@@ -441,8 +448,9 @@ function makePreset(add){
 function placePreset(preset,vals,parts,add,entryName){
   const shownName=entryName||preset.name;
   // (furniture for the house also says where screw heads show in each style, and how to hide any: headsNote, js/showfaces.js)
-  // (a preset that places several kinds of thing says its heads notes itself: the Dining table with its chairs)
-  const notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals):headsNote(preset.name));
+  // (a preset that places several kinds of thing says its heads notes itself: the Dining table with its chairs; the
+  //  pieces go along, so the line speaks of boards more than 54" up only when the design has some)
+  const notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals,parts):headsNote(preset.name,parts));
   const stepsOf=preset.steps||STEPS[preset.name],steps=stepsOf?stepsOf(vals):[];
   // What each piece is for, which pieces go on the wall and which hang on bought hardware: Check my design reads
   // them later. They are kept for THIS placement, under a number that each of its pieces carries (piece.set), not

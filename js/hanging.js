@@ -149,6 +149,10 @@ function hangPlan(door,opts){
   opts=opts||{};
   const fail=message=>({ok:false,message,items:[]});
   if(!door||isProp(door))return fail('Select a wooden door or lid first.');
+  // A builder may hang a piece with no pull (piece.noPull: the toy chest's lid is lifted by its front lip). Every
+  // way of hanging it again honors that (Connect, holds.js, the Hang dialog's start), unless the person asks for a
+  // pull themselves (opts.pull true: the Hang dialog's box ticked by hand). The code review of the audit fixes, 3.
+  if(door.noPull&&opts.pull===undefined)opts={...opts,pull:false};
   if(tilted(door))return fail(`${door.name} is set at an angle. Hinges can only be worked out for a piece that stands square.`);
   const T=door.ax[2],lid=T===1,b=plainBox(door),middle=middleOf(b),thick=b.hi[T]-b.lo[T];
   const near=doorNeighbors(door,b);
@@ -391,6 +395,7 @@ function hangPresetDoors(ids){
   for(const door of doors){
     const lid=door.ax[2]===1;
     // a catch only where the preset's own list asks for one (cup hinges close by themselves); a lid always gets its stay
+    // (a piece the builder hangs with no pull, piece.noPull, gets none: hangPlan)
     const opts={catch:lid||/catch|latch|hasp/i.test(listed)};
     // a builder may say which edge a door hangs on (piece.hinge: 'left' or 'right'); when that edge has nothing
     // to hang it on, the edge is found as for any other door. Older designs have no such field.
@@ -424,7 +429,7 @@ function openHang(){
     .map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
   $('#hangKind').innerHTML='<option value="">Choose for me</option>'+
     Object.entries(HARDWARE).filter(([,kind])=>kind.motion==='swing').map(([key,kind])=>`<option value="${key}">${esc(kind.name)}</option>`).join('');
-  $('#hangPull').checked=true;
+  $('#hangPull').checked=!selParts()[0].noPull;   // (a lid lifted by its lip starts with no pull: hangPlan)
   $('#hangCatch').checked=true;
   showHangPlan();
   $('#hangDlg').showModal();
@@ -612,7 +617,9 @@ SELFTESTS.push(function presetDoorsOpen(problems){
         const reachToFrame=item.kind==='cup'?door.t+.3:.3; // the pin of a cup hinge is at the front of the door, the cabinet behind it
         if(gapTo(door)>.3||gapTo(byId(item.to))>reachToFrame)wrong(`${variant.name}: a hinge of ${door.name} is ${fmt(gapTo(door))} off the door and ${fmt(gapTo(byId(item.to)))} off ${byId(item.to).name}`);
       }
-      if(!hardwareOn(door.id).some(item=>item.kind==='pull'||item.kind==='knob'))wrong(`${variant.name}: ${door.name} has no pull`);
+      // (every door has a pull, but a piece the builder hangs without one: the toy chest's lid, lifted by its lip)
+      if(!door.noPull&&!hardwareOn(door.id).some(item=>item.kind==='pull'||item.kind==='knob'))wrong(`${variant.name}: ${door.name} has no pull`);
+      if(door.noPull&&hardwareOn(door.id).some(item=>item.kind==='pull'||item.kind==='knob'))wrong(`${variant.name}: ${door.name} is lifted by its lip, yet a pull is mounted on it`);
     }
     // the steps of the preset name the kind of hinge that is placed and listed: a builder who reads "the kind that
     // simply screws on" above "4 concealed cup hinges" does not know which to buy

@@ -267,10 +267,12 @@ const DINING_TABLE_PRESET=PRESETS.find(preset=>preset.name==='Dining table');
     const plan=chairSetPlan(p),chairNotes=diningChairNotes(plan.chairVals);
     return notes.concat(chairNotes[0].replace(/^How this chair holds together\./,'How each dining chair holds together.'),chairNotes.slice(1));
   };
-  // the screw heads of the table and of the chairs, each said as whose it is (placePreset adds them after the notes)
-  table.headsNotes=p=>{
+  // the screw heads of the table and of the chairs, each said as whose it is (placePreset adds them after the notes).
+  // parts (optional): the pieces placed, so the line speaks of boards more than 54" up only when there are some
+  // (headsNote, js/showfaces.js: the preset audit of 20 Nov, note 12; kept at the merge of branch auditfix)
+  table.headsNotes=(p,parts)=>{
     const whose=(notes,who)=>notes.map(note=>note.replace(/^Screw heads:/,`${who} screw heads:`));
-    return on(p)&&!chairSetPlan(p).problems.length?whose(headsNote('Dining table'),"The table's").concat(whose(headsNote('Dining chair'),"The chairs'")):headsNote('Dining table');
+    return on(p)&&!chairSetPlan(p).problems.length?whose(headsNote('Dining table',parts),"The table's").concat(whose(headsNote('Dining chair',parts),"The chairs'")):headsNote('Dining table',parts);
   };
   table.steps=p=>on(p)?chairSetSteps(p,own.steps(p)):own.steps(p);
   table.hw=p=>on(p)&&!chairSetPlan(p).problems.length?DINING_CHAIR_PRESET.hw(chairSetPlan(p).chairVals).map(([label,qty])=>[label,qty*chairSetPlan(p).count]):[];

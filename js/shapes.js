@@ -1575,6 +1575,10 @@ SELFTESTS.push(function shapeWordsExplained(problems){
    again, from an empty design, twice, with the same result, after a full selfTest showed the others reading back
    unchanged. The Shed's floor pieces are their full size again, as on main (the two 24" x 48" end pieces
    share a sheet because they are cut with the grain across the joists, shedFloorPieces), so its line is main's.)
+   (Branch auditfix, the preset audit of 20 Nov: the Storage box / toy chest's lid reaches 3/4" past the front, its
+   lip, and the walls stand that much less deep (finding 3: no pull on the top of the lid); the Bird feeder's roof
+   posts are pointed shaped pieces (finding 6). Only those two were recorded again, from an empty design, twice, with
+   the same result, and only after the other rows read back unchanged.)
    (Branch fishtop, the owner's "one flat countertop" with no screw heads on the top (js/fishtop.js): the three fish
    presets were changed on purpose and only their lines were recorded again, from an empty design, twice, with the
    same result, after a full selfTest showed the other 21 reading back unchanged. The Single aquarium stand and the
@@ -1591,7 +1595,7 @@ const PRESET_PRINTS={
   "Cabinet stand with a row of tanks":[36,117,246,"18fh8cy","1uauem2"],  // recorded again on branch fishtop, 20 Nov
   "Platform bed":[28,95,142,"1hachhz","1agns1k"],
   "Shed":[124,356,1407,"1fct8b8","t4pvx6"],
-  "Bird feeder":[9,12,16,"1mh07bv","3ds3br"],
+  "Bird feeder":[9,12,16,"1naz0es","5cdz0z"],   // recorded again on branch auditfix: its roof posts pointed (audit finding 6)
   "Bookshelf":[11,27,102,"1haojk5","wytljj"],
   "Dining table":[15,35,60,"10rz846","1qqg79y"],
   "Coffee table":[25,55,94,"1mt3rdl","ljvb7v"],
@@ -1601,7 +1605,7 @@ const PRESET_PRINTS={
   "Five-board bench":[5,8,20,"dbcrj0","1hvsbq8"],
   "Workbench":[19,49,115,"d4wis","uaazbz"],
   "Garage shelves":[28,92,194,"c59xx6","1yf85rn"],   // recorded again on branch buying2: decks 47 15/16"
-  "Storage box / toy chest":[6,12,28,"1j7uql2","3m9e2j"],   // recorded again on branch fix-house: its air holes (review E3)
+  "Storage box / toy chest":[6,12,28,"e7z0aa","1pnsjhb"],   // recorded again on branch fix-house: its air holes (review E3); and on branch auditfix: the lid's front lip, walls 3/4" less deep (audit finding 3)
   "Planter box":[20,62,78,"w1hui8","1vjtz3k"],
   "Raised garden bed":[12,28,48,"urv8mo","yfeo9i"],
   "Entryway shoe bench":[24,54,94,"18cr36y","i0c8pa"],
@@ -1620,7 +1624,8 @@ const PRESET_PRINTS={
    woodworker's-eye review, E3; buildStorageBox in js/builders-storage.js). */
 const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side'],
   'Dining chair':['Back leg'],    // js/diningchair.js: the one cut on each back leg that leans the back
-  'Computer desk':['Top']};       // js/computerdesk.js: cable holes, cup holder, rounded front corners (options, off as first opened)
+  'Computer desk':['Top'],        // js/computerdesk.js: cable holes, cup holder, rounded front corners (options, off as first opened)
+  'Bird feeder':['Roof post']};   // js/builders-outdoor.js: the top of each post pointed at the roof slope (preset audit of 20 Nov, finding 6)
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same
    way: main's loading now adds fields of its own, so the text read back is longer than it was on 40ae483) */
 const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg","mat":"2x4","l":30,"w":3.5,"t":1.5,"ax":[1,2,0],"pos":[0,0,0]},{"id":2,"name":"Top","mat":"ply34","l":24,"w":18,"t":0.75,"ax":[0,2,1],"pos":[0,30,0]},{"id":3,"name":"Brace","mat":"1x4","l":20,"w":3.5,"t":0.75,"ax":[0,1,2],"pos":[2,10,4],"rot":{"k":2,"deg":30}}],"joints":{},"stock":{},"notes":[],"steps":[],"hw":[],"nextId":4,"nextGrp":1}';
@@ -1630,8 +1635,11 @@ const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg
    by stage 2 of "Drill your pieces" (FASTENING_NOW 5 to 6), the same way: with "fastening":6 put back to 5 the text
    hashes to the earlier '8ulbgm' at the same 477 characters. Branch fishtop had also raised it from 5 to 6 for the
    fish tops held from underneath; at its merge with main the fish tops became rule 7 (FASTENING_NOW 7), and the print
-   was recorded again the same way: with "fastening":7 put back to 6 the text hashes to main's '8uogyl' at 477. */
-const OLD_PROJECT_PRINT=['7qt7oo',477];
+   was recorded again the same way: with "fastening":7 put back to 6 the text hashes to main's '8uogyl' at 477.
+   Branch auditfix had also taken 7 (the high second shelf of a Bookshelf at a divider); at its merge with main that
+   became rule 8, and the print was recorded again the same way: with "fastening":8 put back to 7 the text hashes
+   to main's '7qt7oo' at 477. */
+const OLD_PROJECT_PRINT=['7qwd6n',477];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){

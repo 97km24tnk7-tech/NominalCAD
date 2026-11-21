@@ -664,7 +664,8 @@ SELFTESTS.push(function casePlanSpeed(problems){
      caseOldNamesOpenTheirEntry   a browser that last made the old Bookshelf opens the Bookshelf entry, not the
                                   retired preset; the name the builder goes by is never shown (the tile's tip)
      oldBookshelfKeepsItsScrews   a design of the retired Bookshelf keeps its angled screws where its steps say (the
-                                  underside), however high the shelf: rule 13 for those screws is the builder's own
+                                  underside), but never more than 54" up: a shelf that high on the right of a
+                                  divider takes pocket screws there (the review of the audit fixes)
      caseDrillsAheadAndHasRoom    Everyday: every pocket hole is drilled in the marking step; a case too narrow for a
                                   pocket-hole drill asks for no right-angle attachment; a step that does is on the
                                   Tools list; a close-up at a divider is seen from the front */
@@ -694,8 +695,12 @@ SELFTESTS.push(function oldBookshelfKeepsItsScrews(problems){withoutDrawing(()=>
   const kept=JSON.stringify(S);
   try{
     placeInStyle(old,{...presetDefaults(old),W:48,H:84,n:8},'std');
-    const moved=fastenerHeads().filter(head=>head.f.through.name==='Shelf'&&head.f.into.name==='Divider'&&head.out[1]>.5);
+    // (the second shelf more than 54" up takes pocket screws at the divider since the review of the audit fixes:
+    // oldBookshelfHighSecondShelf; those holes are in its top face, as at its other end, and are not angled screws)
+    const moved=fastenerHeads().filter(head=>head.f.kind!=='pocket'&&head.f.through.name==='Shelf'&&head.f.into.name==='Divider'&&head.out[1]>.5);
     if(moved.length)problems.push(`old Bookshelf: ${moved.length} angled screws at its divider start in the top face of a shelf, while its steps say the underside`);
+    const highAngled=fastenerHeads().filter(head=>head.f.kind!=='pocket'&&head.f.through.name==='Shelf'&&head.f.into.name==='Divider'&&head.f.through.pos[1]>SEEN.underAbove);
+    if(highAngled.length)problems.push(`old Bookshelf: ${highAngled.length} angled screws hold a shelf more than ${SEEN.underAbove}" up at its divider, heads in plain sight from below`);
   }finally{load(kept,true);}
 });});
 SELFTESTS.push(function caseDrillsAheadAndHasRoom(problems){withoutDrawing(()=>{
@@ -732,4 +737,158 @@ SELFTESTS.push(function caseDrillsAheadAndHasRoom(problems){withoutDrawing(()=>{
     if(plan.steps.some(step=>(step.tight||[]).length))wrong('the 12" Bookshelf asks for a right-angle drill attachment: a bay this narrow is screwed through the sides');
     if(fastenerHeads().some(head=>head.f.kind==='pocket'&&head.f.into.name==='Side'))wrong('the 12" Bookshelf has pocket screws into its sides, in a bay too narrow for the drill');
   }finally{load(kept,true);}
+});});
+
+/* The preset audit of 20 Nov, finding 1: a Bookshelf with a divider and a shelf more than 54" up drove the two
+   angled screws of the second shelf (the one on the right of the divider) down through that shelf's top face, in
+   plain sight on the floor of the open shelf, in Everyday and Fine furniture. Such a shelf now takes pocket screws
+   there, as at its other end (caseHighSecondShelf, js/casecheck.js). Over the sizes the audit measured and a
+   narrow three-bay case: in Everyday and Fine no head on the floor of an open shelf or on a show face, the second
+   shelf high up held by pocket screws, a lower one still by angled screws, and the shelves step saying so (never
+   "start them in the top face"); Rustic / rough keeps the angled screws (its heads may show). */
+SELFTESTS.push(function caseHighShelvesHideTheirScrews(problems){withoutDrawing(()=>{
+  const wrong=text=>problems.push('cabinet high shelves at a divider: '+text);
+  const builder=caseBuilder();
+  if(!builder)return;
+  const kept=JSON.stringify(S);
+  const sizes=[{W:36,H:72},{W:72,H:84},{W:48,H:84,n:5},{W:36,H:72,bays:'3'}];
+  try{
+    for(const more of sizes){
+      const vals=caseEntryVals('bookshelf',more),label=`${more.W}" x ${more.H}"${more.bays?' in '+more.bays+' bays':''}: `;
+      for(const style of Object.keys(STYLES)){
+        placeInStyle(builder,vals,style);
+        const pairs=connGraph().links.filter(link=>link.joint&&link.fastened&&[link.joint.a.name,link.joint.b.name].sort().join()==='Divider,Shelf');
+        let high=0,low=0;
+        for(const link of pairs){
+          const divider=link.joint.a.name==='Divider'?link.joint.a:link.joint.b,shelf=divider===link.joint.a?link.joint.b:link.joint.a;
+          const second=fastenersOfLink(link).every(f=>f.through===shelf);   // the board whose fasteners start in it
+          if(!second||shelf.pos[0]<divider.pos[0])continue;
+          const kinds=new Set(fastenersOfLink(link).map(f=>f.kind+(f.toe||f.angledAt?' angled':'')));
+          const isHigh=shelf.pos[1]>SEEN.underAbove;
+          if(isHigh)high++;else low++;
+          if(!isHigh&&!kinds.has('screw angled'))wrong(`${label}${STYLES[style][0]}: the shelf at ${fmt(shelf.pos[1])} on the right of a divider lost its angled screws (${[...kinds].join(', ')})`);
+          if(style!=='rustic'&&isHigh&&!(kinds.size===1&&kinds.has('pocket')))wrong(`${label}${STYLES[style][0]}: the shelf at ${fmt(shelf.pos[1])} on the right of a divider is held by ${[...kinds].join(', ')}, not pocket screws`);
+        }
+        if(!high||!low)wrong(`${label}${STYLES[style][0]}: found ${high} second shelves more than ${SEEN.underAbove}" up and ${low} lower: the check needs both to look at`);
+        if(style==='rustic')continue;
+        const onFloor=headsOnAnOpenFloor(),showing=headsOnShowFaces();
+        if(onFloor.length)wrong(`${label}${STYLES[style][0]}: ${onFloor.length} heads on the floor of an open shelf (${onFloor[0].f.through.name} into ${onFloor[0].f.into.name})`);
+        if(showing.length)wrong(`${label}${STYLES[style][0]}: ${showing.length} heads on the ${showing[0].face} (${showing[0].f.through.name} into ${showing[0].f.into.name})`);
+        const words=caseSteps(vals).map(step=>step.byStyle?step.byStyle[style]:step.t).join(' ');
+        if(/start them in the top face/.test(words))wrong(`${label}${STYLES[style][0]}: the steps still start angled screws in the top face of a shelf`);
+        if(!/hold it with pocket screws instead|drive the pocket screws listed below from the holes near that end/.test(words))wrong(`${label}${STYLES[style][0]}: the steps do not say the high shelf on the right of a divider takes pocket screws`);
+        // The review of the audit fixes (real thing 4, 5 and 7; code 2). The shelves step: in Everyday it says the
+        // holes on top of a high shelf stay open and how to plug them; in Fine the plugs come after the last pocket
+        // screw of the step. In a narrow case the high second shelf is the one place with pocket holes in a shelf:
+        // the marking step names its holes and says how they are driven, and the step that drives them asks for the
+        // right-angle drill attachment, which the Tools list then has.
+        const shelfStep=caseSteps(vals).find(step=>(step.add||[]).includes('Shelf'));
+        const shelfWords=shelfStep?(shelfStep.byStyle?shelfStep.byStyle[style]:shelfStep.t):'';
+        if(style==='std'&&!/stay open in this style[^.]*\. To hide them, glue in pocket-hole plugs/.test(shelfWords))wrong(`${label}Everyday: the shelves step does not say the pocket holes on top of the high shelf stay open, or how to hide them`);
+        if(style==='fine'){
+          const plugAt=shelfWords.lastIndexOf('pocket-hole plugs'),lastScrew=shelfWords.lastIndexOf('pocket screws');
+          if(plugAt<0||plugAt<lastScrew)wrong(`${label}Fine furniture: the shelves step says to plug the pocket holes before the last pocket screws are driven`);
+        }
+        if(more.bays==='3'){
+          if(!casePlan(vals).narrow)wrong(`${label}the case is no longer narrow: pick another size for this check`);
+          const marking=caseSteps(vals)[1];
+          const markWords=marking.byStyle?marking.byStyle[style]:marking.t;
+          if(!/near the left end of the shelf at [^;.]* on the right of each divider, in its top face, for the divider/.test(markWords)||!/The one exception/.test(markWords))wrong(`${label}${STYLES[style][0]}: the marking step of a narrow case does not name the pocket holes of the high shelf beside a divider`);
+          const plan=buildPlan();
+          if(!plan.steps.some(step=>(step.tight||[]).length))wrong(`${label}${STYLES[style][0]}: no step asks for the right-angle drill attachment in a bay this narrow`);
+          if(!toolList(findJoints(),plan).some(tool=>/right-angle/i.test(tool)))wrong(`${label}${STYLES[style][0]}: the Tools list has no right-angle drill attachment`);
+        }
+        // the new pocket screws enter the divider beside the straight screws of the shelf on its left: they must
+        // not meet them, and nothing may poke out (the code review of the audit fixes, 16)
+        const met=screwsThatMeet();
+        if(met.length)wrong(`${label}${STYLES[style][0]}: ${met[0].a.through.name} into ${met[0].a.into.name} meets ${met[0].b.through.name} into ${met[0].b.into.name}`);
+        for(const link of pairs)for(const f of fastenersOfLink(link)){
+          const problem=fastenerProblem(f);
+          if(problem){wrong(`${label}${STYLES[style][0]}: ${f.through.name} into ${f.into.name}: ${problem}`);break;}
+        }
+      }
+    }
+  }finally{load(kept,true);}
+});});
+
+/* The review of the audit fixes (code reader 1, real thing 3): a Bookshelf saved by the site before the high second
+   shelf took pocket screws opens with today's fastening (FASTENING_NOW 8, js/fasteningupgrade.js): no head on the
+   floor of an open shelf or on a show face, its steps written again (never "start them in the top face"), and one
+   line that says so. Two saved designs, each as that program saved it (its pieces are today's: they did not change):
+     - the Cabinet / case Bookshelf, 36" x 72": the site stored the joint of the divider and the high shelf on its
+       right as a fixed 'screw' (S.joints and S.named, from the old row ['Divider','Shelf','screw']), and its shelves
+       step ended with the angled-screw words of CASE_SECOND_BOARD (which Rustic still uses, so they are taken from
+       the Rustic words of the same step);
+     - the retired Bookshelf, 36" x 72": the site named nothing for that joint, and its steps had no pocket-screw
+       sentence for the high shelf.
+   Each is opened as saved under 5, 6 and 7 (the numbers the site has saved; 7 is the fish tops of main), in
+   Everyday and Fine; Rustic keeps its angled screws. */
+SELFTESTS.push(function savedBookshelvesHideHighShelfScrews(problems){withoutDrawing(()=>{
+  const wrong=text=>problems.push('saved Bookshelf, high shelf at a divider: '+text);
+  const builder=caseBuilder(),retired=PRESETS.find(preset=>preset.name==='Bookshelf');
+  if(!builder||!retired)return;
+  const kept=JSON.stringify(S),said=[],keepSay=sayFasteningUpgrade;
+  sayFasteningUpgrade=text=>said.push(text);
+  // the joints of a divider and a shelf on its right, high up
+  const highSecondKeys=()=>findJoints().filter(j=>{
+    if([j.a.name,j.b.name].sort().join()!=='Divider,Shelf')return false;
+    const divider=j.a.name==='Divider'?j.a:j.b,shelf=divider===j.a?j.b:j.a;
+    return shelf.pos[0]>divider.pos[0]&&shelf.pos[1]>SEEN.underAbove;
+  }).map(j=>j.key);
+  // the design as the site saved it, made from today's pieces
+  const asSaved=(preset,vals,fixedScrew)=>{
+    load(JSON.stringify(blank()),true);
+    placePreset(preset,vals,preset.build(vals),false);
+    const keys=highSecondKeys();
+    const old=JSON.parse(JSON.stringify(S));
+    for(const key of keys){
+      delete old.styled[key];
+      if(fixedScrew){old.joints[key]='screw';old.named[key]='screw';}
+    }
+    for(const step of old.steps||[]){
+      if(fixedScrew&&step.byStyle&&/start them in the top face/.test(step.byStyle.rustic||'')){
+        const tail=step.byStyle.rustic.slice(step.byStyle.rustic.indexOf('At each divider'));
+        for(const style of['std','fine'])step.byStyle[style]=step.byStyle[style].slice(0,step.byStyle[style].indexOf('At each divider'))+tail;
+        step.t=step.byStyle.std;
+      }
+      if(!fixedScrew){
+        const before=text=>text.replace(/ For the shelf(s)? at [^:]*?, hold the second board with pocket screws instead[^:]*: angled screws that high would leave their heads in plain sight\./,'');
+        if(typeof step.t==='string')step.t=before(step.t);
+        for(const style of Object.keys(step.byStyle||{}))step.byStyle[style]=before(step.byStyle[style]);
+      }
+    }
+    return{old,keys};
+  };
+  const designs=[['the Cabinet / case Bookshelf',builder,caseEntryVals('bookshelf',{W:36,H:72}),true],
+    ['the retired Bookshelf',retired,{...presetDefaults(retired),W:36,H:72},false]];
+  try{
+    for(const[label,preset,vals,fixedScrew]of designs){
+      const{old,keys}=asSaved(preset,vals,fixedScrew);
+      if(!keys.length){wrong(`${label}: no shelf more than ${SEEN.underAbove}" up on the right of a divider, so this check proves nothing`);continue;}
+      for(const savedUnder of[5,6,7])for(const style of['std','fine','rustic']){
+        const at=`${label} saved under ${savedUnder} (${STYLES[style][0]})`;
+        said.length=0;
+        load(JSON.stringify({...old,fastening:savedUnder,look:{...old.look,style}}),true);
+        if(S.fastening!==FASTENING_NOW)wrong(`${at}: not marked as fastened the current way`);
+        const words=buildPlan(true).steps.map(step=>step.words).join(' ');
+        if(style==='rustic'){
+          if(said.length)wrong(`${at}: Rustic keeps its screws, yet it says: ${said[0]}`);
+          continue;
+        }
+        const onFloor=headsOnAnOpenFloor(),showing=headsOnShowFaces();
+        if(onFloor.length)wrong(`${at}: ${onFloor.length} heads on the floor of an open shelf (${onFloor[0].f.through.name} into ${onFloor[0].f.into.name})`);
+        if(showing.length)wrong(`${at}: ${showing.length} heads on the ${showing[0].face}`);
+        for(const key of keys){
+          const j=findJoints().find(row=>row.key===key);
+          if(j&&jType(j)!=='pocket')wrong(`${at}: the high shelf on the right of the divider is held by ${jType(j)}, not pocket screws`);
+        }
+        if(/start them in the top face/.test(words))wrong(`${at}: the steps still start angled screws in the top face of a shelf`);
+        // (the retired Bookshelf in Fine furniture was already held by pocket screws at every divider, the style's own
+        // choice: nothing changes there, so nothing is written again or said)
+        if(style==='fine'&&!fixedScrew)continue;
+        if(!/pocket screws instead/.test(words))wrong(`${at}: the steps do not say the high shelf on the right of a divider takes pocket screws`);
+        if(!said.length||!/written again to match/.test(said[0]))wrong(`${at}: it does not say that its fasteners and steps were brought up to date (said: ${said.join(' / ')||'nothing'})`);
+      }
+    }
+  }finally{sayFasteningUpgrade=keepSay;load(kept,true);}
 });});

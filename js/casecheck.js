@@ -138,6 +138,22 @@ function caseShelfPairedAtDivider(s,j){
   const other=s.bays[onLeft?k:k-1];
   return other.shelfY.some(y=>Math.abs(y-shelf.pos[1])<1/32);
 }
+/* Is this joint of a Divider and a Shelf the SECOND board of a pair (the shelf on the right of the divider, with a
+   shelf on its left at the same height) on a shelf whose underside is seen from below (more than SEEN.underAbove
+   up, rule 13 in js/fasteners.js)? Such a shelf cannot take the angled screws of the second board: from its
+   underside their heads are in plain sight from below, and from its top face they sit on the floor of an open
+   shelf below the eye (the preset audit of 20 Nov, finding 1: the 36" x 72" Bookshelf). It is held the way its
+   other end is held at the side: pocket screws from the face rule 13 gives it, plugged in Fine furniture
+   (casePocketsPlugged), and in Rustic / rough the screws of the style. Judged from the plan and the two pieces.
+   For stage 2 (doors, adjustable shelves): behind a door the angled screws would be hidden, and the words of
+   CASE_SECOND_BOARD_HIDDEN ("angled screws that high would leave their heads in plain sight") would no longer be
+   true there; this rule and those words then need to know about the door (the code review of the audit fixes, 15). */
+function caseHighSecondShelf(s,j){
+  if(!caseShelfPairedAtDivider(s,j))return false;
+  const divider=j.a.name==='Divider'?j.a:j.b,shelf=divider===j.a?j.b:j.a;
+  const onRight=shelf.pos[0]>divider.pos[0];
+  return onRight&&shelf.pos[1]>SEEN.underAbove;
+}
 /* the dividers that have a shelf on both of their faces (the steps speak of the second shelf only at those) */
 function caseDividersWithPairedShelves(s){
   return s.bays.slice(1).filter((bay,k)=>bay.shelfY.length&&s.bays[k].shelfY.length).length;
@@ -157,6 +173,8 @@ function caseJoints(p){
   // that the shapes or the style never choose another way the words do not describe. A shelf with no shelf on the
   // divider's other face (an open middle bay) is held as at a side: no head is left in plain sight in the open bay.
   const paired={when:j=>caseShelfPairedAtDivider(s,j)};
+  // (the second shelf of a pair, high up: pocket screws as at a side, never angled screws on a show face)
+  rows.push(['Divider','Shelf','pocketUnlessRustic',{when:j=>caseHighSecondShelf(s,j)}]);
   for(const board of['Bottom','Shelf','Toe kick','Base rail','Back rail'])rows.push(['Divider',board,'screw',...(board==='Shelf'?[paired]:[])]);
   rows.push(['Divider','Shelf',atSide]);
   if(s.top==='rails')rows.push(['Divider','Top rail','screw']);

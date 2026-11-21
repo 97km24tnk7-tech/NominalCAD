@@ -248,7 +248,7 @@ function cutListSection(list){
     // A shaped piece says how it is cut and points at its drawing (Shapes to cut, js/shapedrawings.js); a tilted one
     // whose ends are cut no longer says "cut the ends at an angle to fit".
     const shaped=g.sample&&g.sample.shape,endsCut=shaped&&(shapeEnd(g.sample,0)||shapeEnd(g.sample,1));
-    const angled=!g.deg||m.kind==='sheet'||endsCut?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut its ends`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
+    const angled=!g.deg||m.kind==='sheet'||endsCut?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut it`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
     const shapeWords=shaped?shapeRowNote(g):[];   // js/shapedrawings.js
     const grain=m.kind==='sheet'&&g.grainOnWidth?`Cut it with the grain of the face along its ${fmt(g.w)} width`:'';
     const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,grain,...shapeWords].filter(Boolean).join('. ');

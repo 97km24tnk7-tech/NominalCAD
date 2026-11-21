@@ -41,7 +41,7 @@ function rewriteWordsFromPreset(placement){
   if(!vals)return false;
   const stepsOf=preset.steps||STEPS[preset.name];
   if((S.steps||[]).length&&stepsOf)S.steps=stampSteps(stepsOf(vals),parts);
-  S.notes=(preset.notes?preset.notes(vals):[]).concat(headsNote(preset.name));
+  S.notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals,parts):headsNote(preset.name,parts));
   if(set)set.vals={...vals};
   return true;
 }
@@ -66,8 +66,27 @@ function upgradeToyChest(placement,alone){
   if(!holes&&!oldNote)return null;
   const total=walls.reduce((sum,wall)=>sum+shapeFeatures(wall).filter(f=>f.kind==='hole').length,0);
   let rewritten=alone&&rewriteWordsFromPreset(placement);
-  if(!rewritten)S.notes=(S.notes||[]).map(note=>OLD_TOY_CHEST_NOTE.test(note)?toyChestWarning(total):note);
+  if(!rewritten){
+    S.notes=(S.notes||[]).map(note=>OLD_TOY_CHEST_NOTE.test(note)?toyChestWarning(total):note);
+    // its steps cannot be written again from the preset (a chest of the published program: no lip; or pieces
+    // changed by hand): the holes just drilled still get a step of their own, after the cutting step
+    const steps=S.steps||[];
+    if(holes&&steps.length&&!steps.some(step=>Array.isArray(step.shapes)||/air holes/.test(stepText(step)))){
+      steps.splice(Math.min(1,steps.length),0,toyChestAirStepFromWalls(walls));
+    }
+  }
   return{holes,total,rewritten};
+}
+/* The step that drills the air holes, worked out from the walls as they are (the code review of the audit fixes, 4:
+   an old chest whose steps could not be written again kept steps that never named its new holes). The places are
+   on the drawings of Shapes to cut, so the step gives the count and the size. */
+function toyChestAirStepFromWalls(walls){
+  const count=name=>{
+    const list=walls.filter(wall=>wall.name===name).map(wall=>shapeFeatures(wall).filter(f=>f.kind==='hole').length);
+    return list.length?Math.max(...list):0;
+  };
+  return{t:`The holes that Shapes to cut shows in the front and the sides are air holes. Drill them while those pieces lie flat on the bench, before anything goes together: ${count('Front')} in the front and ${count('Side')} in each side, ${fmt(AIR_HOLES.d)} across, where the drawings on Shapes to cut place them (on the cut list page). `+
+    toyChestAirHoleHow(),add:[],ids:[],sig:null,shapes:['Front','Side']};
 }
 /* a slatted shelf of an old design: the step that fastened the slats from below */
 function upgradeSlattedShelf(placement,alone){
@@ -134,6 +153,10 @@ SELFTESTS.push(function savedDesignsGetTheReviewFixes(problems){withoutDrawing((
   try{
     // a toy chest saved before the air holes: it gets them, its words follow, and it says so once
     const toy=reviewOldToyChest();
+    // (the fixture is the published program's chest, not today's: the lid flush with the front, a pull on the lid)
+    const lidOf=toy.parts.find(piece=>piece.name==='Lid'),frontOf=toy.parts.find(piece=>piece.name==='Front');
+    if(Math.abs(plainBox(lidOf).hi[2]-plainBox(frontOf).hi[2])>.01)wrong('the old toy chest of this check has a lip: it is today\'s chest, not the published one');
+    if(!(toy.hardware||[]).some(item=>item.on===lidOf.id&&item.kind==='pull'))wrong('the old toy chest of this check has no pull on its lid, as the published program hung it');
     let lines=open(toy);
     const walls=S.parts.filter(piece=>piece.name==='Front'||piece.name==='Side');
     if(walls.some(wall=>!shapeFeatures(wall).some(f=>f.kind==='hole')))wrong('a toy chest saved before the air holes opens with a wall that has none');
@@ -185,12 +208,28 @@ SELFTESTS.push(function savedDesignsGetTheReviewFixes(problems){withoutDrawing((
 });});
 /* An old toy chest: what the published program builds and saves at the default size (no holes, its own steps and
    the note that offers air holes as a choice), made here from today's preset by taking the holes and the marks off
-   and putting back the words that program wrote. */
+   and putting back the words that program wrote. Its pieces are the published program's too (the code review of the
+   audit fixes, 4): the walls the full depth typed and the lid flush with them all round (today's chest has a 3/4"
+   lip, STORAGE_BOX_LID_LIP), and a pull screwed to the top of the lid, as that program hung it. Today's preset does
+   not build these pieces, so its words cannot be written again from it (presetValuesOf finds no values): the air
+   holes must still get their step (toyChestAirStepFromWalls). */
 function reviewOldToyChest(){
   const preset=PRESETS.find(row=>row.name===TOY_CHEST);
   const kept=JSON.stringify(S);
   load(JSON.stringify(blank()),true);
   placeInStyle(preset,presetDefaults(preset),'std');
+  // the published program's pieces: no lip, the walls and the bottom that much deeper
+  for(const piece of S.parts){
+    if(piece.name==='Front')piece.pos[2]+=STORAGE_BOX_LID_LIP;
+    if(piece.name==='Side'||piece.name==='Bottom'){
+      const along=piece.ax.indexOf(2);   // which of l, w, t runs front to back
+      piece[['l','w','t'][along]]+=STORAGE_BOX_LID_LIP;
+    }
+    delete piece.noPull;
+  }
+  const lid=S.parts.find(piece=>piece.name==='Lid');
+  hangDoor(lid,{catch:true});   // hinges, a lid stay, and the pull on its top
+  S.steps=stampSteps(S.steps,S.parts);   // the steps as they were saved with these pieces
   const old=JSON.parse(JSON.stringify(S));
   load(kept,true);
   for(const piece of old.parts)delete piece.shape;
@@ -198,6 +237,8 @@ function reviewOldToyChest(){
   old.notes=['The lid is stiff enough for someone to sit on. Do not stand on it.',
     'For a toy chest, fit a soft-close lid support so the lid cannot slam on fingers, and leave a finger gap or drill air holes so a child cannot be shut inside.'].concat(headsNote(TOY_CHEST));
   old.steps=(old.steps||[]).filter(step=>!Array.isArray(step.shapes));
+  const lidStep=old.steps.find(step=>(step.add||[]).includes('Lid'));
+  if(lidStep)lidStep.t='Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit the lid support inside, one that holds the lid open at any position, so the lid cannot fall or slam on a child. Fit no latch or lock.';
   return old;
 }
 /* An old Coffee table or shoe bench: today's design at its usual size with the slat step the published program wrote

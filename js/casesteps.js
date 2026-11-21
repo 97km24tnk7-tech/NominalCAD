@@ -24,6 +24,35 @@
    have a shelf on both faces (the others stand beside an open bay). */
 const CASE_SECOND_BOARD=(high,some)=>`At each divider${some?' with a shelf on both of its faces':''}, screw through the divider into the end of the board in the bay on its left first (left as you face the front of the case), as the list below says. That board then covers the spot where a straight screw into the board on its right would go in. So glue the board on the right and fasten it with two of the same screws driven at an angle: start each one in the underside of the board, near its end, and slant it up into the divider`+
   (high.length?` (for the ${high.length>1?'shelves':'shelf'} at ${listWords(high)}, start them in the top face instead and slant them down: an underside that high is in plain sight from below)`:'')+'. Drill the pilot holes at the same slant.';
+/* The same words for Everyday and Fine furniture. A shelf on the right of a divider that is more than
+   SEEN.underAbove up takes pocket screws there instead of angled screws (caseHighSecondShelf, js/casecheck.js):
+   angled screws would put their heads on the shelf, in plain sight. high: the heights of those shelves; lowToo:
+   some shelf (or bottom) of a pair is lower and still gets the angled screws. */
+const CASE_SECOND_BOARD_HIDDEN=(high,some,lowToo=true,narrow=false)=>{
+  if(!high.length)return CASE_SECOND_BOARD([],some);
+  const first=`At each divider${some?' with a shelf on both of its faces':''}, screw through the divider into the end of the board in the bay on its left first (left as you face the front of the case), as the list below says. That board then covers the spot where a straight screw into the board on its right would go in.`;
+  const angled=' So glue the board on the right and fasten it with two of the same screws driven at an angle: start each one in the underside of the board, near its end, and slant it up into the divider. Drill the pilot holes at the same slant.';
+  const shelves=`the ${high.length>1?'shelves':'shelf'} at ${listWords(high)}`;
+  // (in a narrow bay the other end is screwed through the side, so the pocket holes are named by the list)
+  const how=narrow?'from the pocket holes near that end that the list below names':'from the holes near that end, the same way as at its other end';
+  const pocket=lowToo?` For ${shelves}, glue the board on the right and hold it with pocket screws instead, ${how}: angled screws that high would leave their heads in plain sight.`
+    :` So glue the board on the right and drive the pocket screws listed below ${how}.`;
+  return first+(lowToo?angled:'')+pocket;
+};
+/* The heights of the shelves that are the second board of a pair at a divider and more than SEEN.underAbove up
+   (they take pocket screws there, caseHighSecondShelf), and whether any shelf of a pair is lower than that. */
+function caseHighPairedShelves(s){
+  const high=new Set();
+  let low=false;
+  s.bays.forEach((bay,k)=>{
+    if(!k)return;
+    for(const y of bay.shelfY){
+      if(!s.bays[k-1].shelfY.some(other=>Math.abs(other-y)<1/32))continue;
+      if(y>SEEN.underAbove)high.add(r16(y));else low=true;
+    }
+  });
+  return{high:[...high].sort((a,b)=>a-b),low};
+}
 /* Rule 13 (js/fasteners.js) as the fastener layout decides it, asked of the very pieces this case is built from:
    the words read the same function as the layout (undersideHoleFace), so a step can never say "in its top face"
    while its "Fasten with" lines say "the underside" (the woodworker's-eye review, E1: the top of a 40" x 84"
@@ -48,19 +77,24 @@ const CASE_SECOND_RAIL='the one in the bay on its left (as you face the front) i
    "Drill your pieces" (js/drillplan.js) holds every pocket hole on its drawings. The screw holes through the sides
    of a narrow bay are a drill sentence of kind 'screw' (left out while step 2 holds them). faces: caseHoleFaces, the faces the fastener
    layout really drills (the top's face named from it). */
-function casePocketHolesAhead(s,heights,highShelves,faces){
-  const words=casePocketHolesAheadWords(s,heights,highShelves,faces);
+function casePocketHolesAhead(s,heights,highShelves,faces,highSecond=[]){
+  const words=casePocketHolesAheadWords(s,heights,highShelves,faces,highSecond);
   const at=words.indexOf(' Then drill ');
   // (stage 2: the screw holes and counterbores through the sides of a narrow bay are on the drawings of step 2 too)
   return{words,drill:(at<0?[]:[words.slice(at)]).concat(s.narrow?[{text:at<0?words:words.slice(0,at),kind:'screw'}]:[])};
 }
-function casePocketHolesAheadWords(s,heights,highShelves,faces){
+/* highSecond: the heights of the shelves on the right of a divider, more than SEEN.underAbove up, that take pocket
+   screws into it (caseHighSecondShelf). In a narrow case they are the one place with pocket holes in a shelf: the
+   list names them, and the narrow sentence says why and how they are driven (the review of the audit fixes, real
+   thing 5 and code 2: the list left them out, and the sentence said no pocket screws are used). */
+function casePocketHolesAheadWords(s,heights,highShelves,faces,highSecond=[]){
   const div=s.dividers,bottoms=div?'each bottom board':'the bottom board',where=[];
   const shelvesToo=heights.length?(heights.length>1?' and of every shelf':' and of the shelf'):'';
+  const highWords=`the ${highSecond.length>1?'shelves':'shelf'} at ${listWords(highSecond)} on the right of ${div>1?'each divider':'the divider'}`;
   if(!s.narrow){
     where.push(`near both ends of ${bottoms}${shelvesToo}, in its underside`+
       (highShelves.length?` (in the top face instead for the ${highShelves.length>1?'shelves':'shelf'} at ${listWords(highShelves)})`:''));
-  }
+  }else if(highSecond.length)where.push(`near the left end of ${highWords}, in its top face, for the divider`);
   if(s.base==='kick')where.push(s.narrow?`in each toe kick${s.baseRail?' and base rail':''}, along the face that will look into the space under the bottom, for the bottom board`
     :`in each toe kick${s.baseRail?' and base rail':''}, on the face that will look into the space under the bottom, near its ends and along it`);
   if(s.backRail)where.push('in each back rail, on its back face, near its ends and along it');
@@ -71,7 +105,8 @@ function casePocketHolesAheadWords(s,heights,highShelves,faces){
   if(!s.narrow&&s.top==='over')where.push('near both ends of the two top rails, in their undersides');
   if(!s.narrow&&s.top==='rails')where.push('near both ends of each top rail: the front one on the face that will look into the case, the back one on its back face');
   if(div&&s.top!=='rails')where.push(`in ${div>1?'each divider':'the divider'}, near its top end on both faces, for the ${s.top==='over'?'top rails':'top'}`);
-  const narrowWords=s.narrow?` In a bay this narrow a pocket-hole drill has no room, so the boards are screwed through the sides instead: at every mark, drill the screw holes through the sides now, each with a counterbore (a wider hole for the head) as deep as the lists of the next steps say.`:'';
+  const narrowWords=s.narrow?` In a bay this narrow a pocket-hole drill has no room, so the boards are screwed through the sides instead: at every mark, drill the screw holes through the sides now, each with a counterbore (a wider hole for the head) as deep as the lists of the next steps say.`+
+    (highSecond.length?` The one exception is the left end of ${highWords}: there is no side to screw through there, and angled screws that high would show, so it takes two pocket screws into the divider, driven with a right-angle drill attachment.`:''):'';
   if(!where.length)return narrowWords;
   return narrowWords+` Then drill ${s.narrow?'the pocket holes':'every pocket hole'} now, before anything goes together, so that what follows is only putting the pieces together: ${where.length<2?where.join(''):where.slice(0,-1).join('; ')+'; and '+where[where.length-1]}. The steps below say which screw goes in which hole.`;
 }
@@ -90,6 +125,9 @@ function caseSteps(p){
   const pairedDividers=caseDividersWithPairedShelves(s);
   const seenUnder=s.shelfY.filter(faces.shelfOnTop).map(fmt);
   const atDividerHigh=pairedDividers?' '+CASE_SECOND_BOARD(seenUnder,pairedDividers<div):'';
+  // Everyday and Fine furniture: the second shelf of a pair high up takes pocket screws (caseHighSecondShelf)
+  const highPairs=caseHighPairedShelves(s);
+  const atDividerHidden=pairedDividers?' '+CASE_SECOND_BOARD_HIDDEN(highPairs.high.map(fmt),pairedDividers<div,highPairs.low,s.narrow):'';
   const railAtDivider=div?` At each divider, ${CASE_SECOND_RAIL}.`:'';
   const steps=[STORAGE_CUT_STEP];
   // Everyday and Fine furniture in a bay too narrow for a pocket-hole drill (casePlan: narrow): screws through the
@@ -108,7 +146,7 @@ function caseSteps(p){
   const shorter=!div?'':s.top==='rails'?` The ${div>1?'dividers are':'divider is'} as tall as the sides: the top rails fit between them.`
     :` The ${div>1?'dividers are':'divider is'} 3/4" shorter than the sides, because the ${s.top==='over'?'top rails sit':'top sits'} on ${div>1?'them':'it'}.`;
   const marking=`Lay ${uprights} next to each other with their bottom ends lined up, and mark the shelf positions across all of them at once so they match. Underside of each piece, measured from the bottom end of the side: ${bottomMark}${heights.length?`, ${shelfWord} `+heights.join(', '):''}.`+openings+shorter;
-  const ahead=casePocketHolesAhead(s,heights,highShelves,faces);
+  const ahead=casePocketHolesAhead(s,heights,highShelves,faces,highPairs.high.map(fmt));
   steps.push(styledStep({std:marking+ahead.words,rustic:marking},['Side','Divider'],ahead.drill));
 
   // the bottoms
@@ -141,9 +179,18 @@ function caseSteps(p){
     const where=div?`uprights, bottom up, one bay at a time from the left`:heights.length===1?'sides':'sides, bottom up';
     const shelfLead=`Fasten ${shelvesThe} between the ${where}, at the marks, flush with the front and back edges, the same way as the ${bottomWord}`;
     const shelfPockets=`${shelfLead}: glue, and the pocket screws listed below from the holes near the ends of each shelf, in its underside${highNote}, into the ${div?'uprights':'sides'}.`;
+    // Pocket holes in the top face of a shelf more than 54" up: Fine furniture plugs them, Everyday leaves them open
+    // (the owner has not ruled on plugging them in Everyday: casePocketsPlugged). Everyday says so and how to cover
+    // them, as the owner asked for a head that stays ("mention and explain how to cover"); Fine says to plug them
+    // after the last pocket screw of the step, the ones at a divider included (the review of the audit fixes, real
+    // thing 4 and 7).
+    const topHoleShelves=[...new Set(highShelves.concat(highPairs.high.map(fmt)))];
+    const openOnTop=topHoleShelves.length?` The pocket holes in the top face of the ${topHoleShelves.length>1?'shelves':'shelf'} at ${listWords(topHoleShelves)} stay open in this style, and they show while the shelf is not full. To hide them, glue in pocket-hole plugs (one for each hole, bought to match the wood) and sand them flush, as Fine furniture does.`:'';
+    const plugAll=' Then fill all those pocket holes, at the sides and at the dividers, with glued pocket-hole plugs and sand them flush, as the list says, so no hole shows.';
     steps.push(styledStep({
-      std:(s.narrow?shelfLead+'.'+plugged(eachShelf):shelfPockets)+atDividerHigh,
-      fine:(s.narrow?shelfLead+'.'+plugged(eachShelf):shelfPockets+plugPockets)+atDividerHigh,
+      std:(s.narrow?shelfLead+'.'+plugged(eachShelf):shelfPockets)+atDividerHidden+openOnTop,
+      fine:s.narrow?shelfLead+'.'+plugged(eachShelf)+atDividerHidden+(highPairs.high.length?' Then fill those pocket holes with glued pocket-hole plugs and sand them flush, as the list says, so no hole shows.':'')
+        :shelfPockets+(highPairs.high.length?atDividerHidden+plugAll:plugPockets+atDividerHidden),
       rustic:`${shelfLead}: pilot holes, glue, and two screws through the ${upright} into each end of a shelf.`+atDividerHigh},['Shelf']));
   }
 

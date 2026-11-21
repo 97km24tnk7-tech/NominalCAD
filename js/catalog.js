@@ -126,7 +126,12 @@ const CATALOG=[
     desc:'Sides, fixed shelves, toe kick and a thin plywood back. Wide ones get upright dividers so the shelves cannot sag.',
     start:{kind:'bookshelf',mat:'boards',board:'1x10',D:12,W:32,H:48,fill:'shelves',n:3,use:'books',top:'inside',back:'panel',kickBack:1},
     short:['W','H','board','back','spacing','n','gap','extra','o1','o2','o3','o4','o5','o6','o7','o8'],
-    limits:{W:[12,72],H:[24,84],D:[8,16]}},
+    // A low bookcase (24" to 31" tall, under a window) is a stock size, so the form goes down to 24". With the 3
+    // shelves it starts with, a case under 32" is refused in plain words, with the fix ("Use 1 or fewer shelves at
+    // this height"); with 1 shelf it builds at 24". fitsAtLimit says so, and the self-check entriesBuildAtTheirLimits
+    // builds it (the preset audit of 20 Nov, note 10; the review of the audit fixes: 32" lost the low bookcases).
+    limits:{W:[12,72],H:[24,84],D:[8,16]},
+    fitsAtLimit:{H:{n:1}}},
   {id:'garage-shelves',name:'Garage shelves',group:'storage',spec:'2x4 frame, plywood decks',icon:'i-p-shelf',
     builder:'Garage shelves',tags:['shop','beginner','shelves','garage','shelving unit']},
   {id:'base-cabinet',name:'Base cabinet',group:'storage',spec:'Shelf, doors and a top',icon:'i-p-cabinet',
@@ -463,7 +468,36 @@ function fillFormBoxes(values,fromEntry){
 }
 /* the form in the live pane is still the one the catalog filled (code may have drawn another since) */
 function formIsOurs(){
-  return !!(catalogState.formNode&&catalogState.formNode.isConnected&&catalogState.picked);
+  // (formFor: the entry the form was drawn for, so a form of one piece is never kept under another that was
+  // picked by code since: the code review of the audit fixes, 17)
+  return !!(catalogState.formNode&&catalogState.formNode.isConnected&&catalogState.picked&&catalogState.formFor===catalogState.picked);
+}
+/* Keeps what is typed in the live pane for its piece, for the rest of the visit (typed), unless Create would refuse
+   it: a box outside its limits, or sizes the warning box or the structural check stops (checkPreset, as presetGate
+   asks). Those are forgotten, so the piece starts again from where it starts (the preset audit of 20 Nov, note 17:
+   a Dining table refused at 108" x 50" kept those numbers after Cancel, and the phone page could then not build
+   it). Called when the person moves to another piece and when the window closes. */
+function keepTypedForPicked(){
+  if(!formIsOurs())return false;
+  const refused=typedIsRefused();
+  if(refused)delete catalogState.typed[catalogState.picked];
+  else catalogState.typed[catalogState.picked]=readFormBoxes();
+  return refused;
+}
+/* Whether Create would refuse what the form holds now. The live summary has usually just checked these very
+   values (presetLastCheck, js/app.js), so its answer is used; otherwise the check runs with the same cap on the
+   number of pieces as the live summary (LIVE_CHECK_MAX_PIECES), so leaving a fish wall of thousands of pieces does
+   not hold the window up for a full check (the code review of the audit fixes, 9). */
+function typedIsRefused(){
+  if(typeof curPreset==='undefined'||!curPreset||typeof checkPreset!=='function')return false;
+  const vals=readVals(false);
+  if(!vals)return true;   // a box outside its limits: Create says why and builds nothing
+  // the piece as it starts is never refused (selfTest builds every entry so): no need to check it again
+  const entry=catalogEntry(catalogState.picked),start={...presetDefaults(curPreset),...(entry&&entry.start||{})};
+  if(Object.keys(vals).every(key=>vals[key]===start[key]))return false;
+  const key=JSON.stringify(vals);
+  if(typeof presetLastCheck!=='undefined'&&presetLastCheck&&presetLastCheck.preset===curPreset&&presetLastCheck.vals===key)return presetLastCheck.refused;
+  try{return checkPreset(curPreset,vals,null,{maxPieces:LIVE_CHECK_MAX_PIECES}).stops.length>0;}catch(e){return false;}
 }
 /* Chooses an entry: the live pane shows its builder's form at once, with the entry's start values and then
    whatever was typed for this piece earlier in this visit.
@@ -476,11 +510,12 @@ function catalogPick(id,options){
   if(index<0)return false;
   // keep the numbers of the piece we leave; a fresh start of the same piece leaves nothing to keep
   const restartingThisPiece=options.fresh&&catalogState.picked===id;
-  if(formIsOurs()&&!restartingThisPiece)catalogState.typed[catalogState.picked]=readFormBoxes();
+  if(!restartingThisPiece)keepTypedForPicked();
   if(options.fresh)delete catalogState.typed[id];
   catalogState.picked=id;
   choosePreset(index,entry);                             // js/app.js: the form, the live picture, the summary (the entry's start, short list and limits: js/presetentry.js)
   catalogState.formNode=$('#presetForm .pform-h');
+  catalogState.formFor=id;
   if(entry.desc){
     $('#presetForm .pform-h h4').textContent=entry.name;
     $('#presetForm .pform-h p').textContent=entry.desc;
@@ -540,6 +575,13 @@ function catalogOpened(){
   catalogState.chips.clear();
   const find=$('#presetFind');
   if(find)find.value='';
+  // A size Create refused is not shown again. The browser's "close" event that would have put the form back
+  // (catalogWindowClosed) can come late, after the window is open again, or not at all while the page is not drawn
+  // (seen in the Browser pane: never within 1.5 s), so the same is done here, as the window opens.
+  if(formIsOurs()&&typedIsRefused()){
+    delete catalogState.typed[catalogState.picked];
+    catalogPick(catalogState.picked,{fresh:true});
+  }
   // code may have drawn another form since the catalog last filled one (the self-check puts the form back the
   // way it was): show that preset's entry, with what was typed for it in this visit
   const entry=entryForPreset(curPreset);
@@ -746,11 +788,16 @@ function setupCatalogEvents(){
   // the live pane is kept, so it is still there if code draws another form before the window opens again.
   // The browser sends "close" a moment after the window shuts (much later while the page is not drawn): when the
   // window has been opened again by then, that late "close" must not wipe what the new opening noted.
-  dialog.addEventListener('close',()=>{
-    if(dialog.open)return;
-    catalogState.nextSetAtOpen=null;
-    if(formIsOurs())catalogState.typed[catalogState.picked]=readFormBoxes();
-  });
+  dialog.addEventListener('close',catalogWindowClosed);
+}
+/* The presets window was closed (its "close" event; the self-check calls it the same way). What was typed is kept
+   for the piece, unless Create would refuse it: then the form itself goes back to where the piece starts, so the
+   refused size and its "Cannot work" box are not there when the window opens again (openPresets shows the form as
+   it was left; the review of the audit fixes, 2: the boxes still held 9'-0" x 4'-2" after Cancel). */
+function catalogWindowClosed(){
+  if($('#presetDlg').open)return;
+  catalogState.nextSetAtOpen=null;
+  if(keepTypedForPicked())catalogPick(catalogState.picked,{fresh:true});
 }
 setupCatalogEvents();
 
@@ -1330,5 +1377,80 @@ SELFTESTS.push(function catalogPanesFit(problems){
     if(buttons.bottom>dialog.bottom+1)wrong('the buttons of the window are cut off at the bottom');
   }finally{
     if(!dialogWasOpen)$('#presetDlg').close();
+  }
+});
+
+/* The preset audit of 20 Nov, note 17: a size Create refuses is not remembered for the piece after Cancel or after
+   moving to another piece (keepTypedForPicked); a size that can be built still is. */
+SELFTESTS.push(function refusedSizesAreNotKept(problems){
+  const wrong=text=>problems.push('presets window, refused sizes: '+text);
+  const dialog=$('#presetDlg'),keepPicked=catalogState.picked,keepTyped={...catalogState.typed};
+  const type=(key,value)=>{const box=$(`#presetForm [data-k="${key}"]`);if(box){box.value=String(value);box.dispatchEvent(new Event('change',{bubbles:true}));}return!!box;};
+  // (the browser's own close event comes later, and then finds the window already handled: catalogWindowClosed)
+  const closeWindow=()=>{dialog.close();catalogWindowClosed();};
+  const box=key=>$(`#presetForm [data-k="${key}"]`);
+  try{
+    openPresets();
+    catalogPick('dining-table',{fresh:true});
+    const table=PRESETS.find(preset=>preset.name==='Dining table');
+    const refused={...presetDefaults(table),L:108,W:50};
+    if(!checkPreset(table,refused).stops.length){wrong('a Dining table 108" x 50" is no longer refused: pick other sizes for this check');return;}
+    type('L',108);type('W',50);
+    closeWindow();
+    if(catalogState.typed['dining-table'])wrong('a Dining table refused at 108" x 50" kept those numbers after the window was closed');
+    // opened again the way the button opens it (openPresets alone: the form as it was left, no new pick), once after
+    // the close event was handled and once with that event not come yet (it comes late, or not at all while the
+    // page is not drawn)
+    openPresets();
+    if(parseLen(box('L').value)===108||parseLen(box('W').value)===50)wrong(`the refused size came back in the boxes when the window was opened again (${box('L').value} x ${box('W').value})`);
+    type('L',108);type('W',50);
+    dialog.close();
+    openPresets();
+    if(parseLen(box('L').value)===108||parseLen(box('W').value)===50)wrong(`the refused size came back in the boxes when the window was opened again (${box('L').value} x ${box('W').value})`);
+    if(/Cannot work|cannot be built/i.test($('#presetCheck').textContent+$('#presetSum').textContent))wrong('the refusal box came back when the window was opened again');
+    catalogPick('dining-table');
+    if(parseLen(box('L').value)===108)wrong('the refused length came back when the Dining table was picked again');
+    type('L',108);type('W',50);
+    catalogPick('desk');
+    if(catalogState.typed['dining-table'])wrong('a refused Dining table kept its numbers after moving to another piece');
+    catalogPick('dining-table');
+    type('L',72);
+    closeWindow();
+    if(!catalogState.typed['dining-table']||parseLen(catalogState.typed['dining-table'].L)!==72)wrong('a length that can be built (72") was not kept after the window was closed');
+  }finally{
+    if(dialog.open)dialog.close();
+    catalogState.typed=keepTyped;
+    if(keepPicked&&catalogEntry(keepPicked))catalogState.picked=keepPicked;
+    catalogState.formFor=null;   // the form this check typed in is never kept for anyone (the late close event)
+  }
+});
+
+/* An entry's own limits (entry.limits) agree with its start values: each box at the smallest and at the largest the
+   entry's form allows, the rest as the entry starts, can be built (the preset audit of 20 Nov, note 10: the
+   Bookshelf was refused at the 24" its form allowed, with the 3 shelves it starts with). An entry may say that a
+   limit needs another choice to be built (entry.fitsAtLimit: the Bookshelf 24" tall takes 1 shelf, not the 3 it
+   starts with). Then the start values at that limit are refused with a fix the person can type, and the limit
+   builds with that choice. */
+SELFTESTS.push(function entriesBuildAtTheirLimits(problems){
+  for(const entry of catalogEntries()){
+    if(!entry.limits)continue;
+    const preset=PRESETS.find(row=>row.name===entry.builder);
+    if(!preset)continue;
+    const start={...presetDefaults(preset),...(entry.start||{})};
+    const stopsOf=vals=>{try{return checkPreset(preset,vals).stops;}catch(e){return[{text:e.message}];}};
+    for(const[key,range]of Object.entries(entry.limits)){
+      const other=entry.fitsAtLimit&&entry.fitsAtLimit[key];
+      for(const value of range){
+        const vals={...start,[key]:value};
+        const stops=stopsOf(vals);
+        if(stops.length&&other){
+          if(!stops.every(stop=>stop.fix))problems.push(`presets window: the ${entry.name} at ${key} = ${value} is refused with no fix to type: ${stops.find(stop=>!stop.fix).text}`);
+          const fitted=stopsOf({...vals,...other});
+          if(fitted.length)problems.push(`presets window: the ${entry.name} is refused at ${key} = ${value}, a limit of its own form, even with ${JSON.stringify(other)}: ${fitted[0].text}`);
+          continue;
+        }
+        if(stops.length)problems.push(`presets window: the ${entry.name} is refused at ${key} = ${value}, a limit of its own form, with its start values: ${stops[0].text}`);
+      }
+    }
   }
 });

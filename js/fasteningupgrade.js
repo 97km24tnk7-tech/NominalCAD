@@ -29,10 +29,15 @@
                    and the frames of the two cabinet stands are held from inside (js/fishtop.js, TOP_JOINTS).
                    (Both were 6 on their own branches; at the merge the fish tops became 7, so a fish design saved
                    by the published program under rule 6 still switches to its countertop's fastening.)
+                   8: a Bookshelf shelf more than 54" up on the right of a divider takes pocket screws there, not
+                   angled screws whose heads show (caseHighSecondShelf in js/casecheck.js,
+                   oldBookshelfHighSecondShelf in js/builders-storage.js; branch auditfix, which took 7 on its own
+                   and became 8 at its merge with main, where the fish tops had taken 7). A design the site saved
+                   under 5, 6 or 7 is fastened again when opened.
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=7;
+const FASTENING_NOW=8;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);
@@ -191,7 +196,7 @@ function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo)
   if(vals){
     const stepsOf=preset.steps||STEPS[preset.name];
     if(saved.length&&stepsOf)S.steps=stampSteps(stepsOf(vals),parts);
-    S.notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals):headsNote(preset.name));
+    S.notes=(preset.notes?preset.notes(vals):[]).concat(preset.headsNotes?preset.headsNotes(vals,parts):headsNote(preset.name,parts));
     if(setNumber!==undefined&&S.sets&&S.sets[setNumber])S.sets[setNumber].vals={...vals};
     return saved.length?'preset':'notes';
   }
@@ -205,7 +210,7 @@ function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo)
     if(!owner.has(a)||!owner.has(b))continue;
     saved[Math.max(owner.get(a),owner.get(b))].refresh=true;
   }
-  const line=headsNote(preset.name);
+  const line=headsNote(preset.name,parts);
   if(line.length&&!(S.notes||[]).some(note=>/^(The \w+'s? )?[Ss]crew heads:/.test(note)))S.notes=(S.notes||[]).concat(line);
   return'refreshed';
 }

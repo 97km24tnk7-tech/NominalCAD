@@ -976,14 +976,19 @@ function backRailCoveredFace(rail,axis){
      - the top of an upright only carries the rail, which rests on it, and is held by its pocket screw up into the
        cross piece over it (no L-bracket under the rail);
      - an end upright is screwed to the post beside it with its heads sunk and covered by glued wooden plugs, cut
-       flush (pluggedUnlessRustic: the screws carry the post, and no hidden fastener joins two wide faces).
+       flush (pluggedUnlessRustic: the screws carry the post, and no hidden fastener joins two wide faces);
+     - on a long stand built as one wall, the two uprights side by side under a rail joint (js/rackjoints.js) are
+       screwed to each other the same way, heads plugged: the face the heads sit on looks into the next bay, in
+       sight from the front (found by the wider show-face check of branch auditfix at the merge with main: a
+       Cabinet stand 50 ft long with 2 rows of tanks showed 20 heads there).
    Rustic keeps its pocket screws and plain screws. */
 function openRowJoints(p){
   const pl=p?rackPlan(cabArgs(p)):null;
   if(!pl||!pl.countertop||!postsPassTop(pl))return[];
   const from=deckTopOf(pl,pl.rows[COUNTERTOP_ROW])-.01;   // the countertop's top face: the open rows stand on it
   const open=j=>{const up=j.a.name==='Upright'?j.a:j.b;return up.pos[1]>=from;};
-  return[['Upright','Rail','restsInHouse',{when:open}],['Upright','Post','pluggedUnlessRustic',{when:open}]];
+  return[['Upright','Rail','restsInHouse',{when:open}],['Upright','Post','pluggedUnlessRustic',{when:open}],
+    ['Upright','Upright','pluggedUnlessRustic',{when:open}]];
 }
 /* the Cabinet stand with a row of tanks: the rack's fastening, with the frames in sight held from inside; with rows
    above its countertop, the front and the ends of the frames there are in sight too (openRowJoints) */
@@ -1104,8 +1109,12 @@ function rackSteps(p,unused,thing){
   // uprights are screwed to the posts with plugged heads, since a person looks straight into those rows
   const openRows=thing==='cabinet stand'&&pass;
   const openTopWords=style=>openRows&&style!=='rustic'?'with a pocket screw up into the cross piece over it (the rail only rests on the upright, so nothing shows under the rail)':uprightTopWords(style);
+  // (on a stand built as one wall, the two uprights side by side under each rail joint are screwed to each other
+  //  with plugged heads too: openRowJoints)
+  const pairedJoints=joinedWall&&pl.su<3;
   const openEndUprightWords=style=>openRows&&style!=='rustic'
-    ?'Screw the end uprights to the posts from the inside too (through the upright into the post), with each head sunk under a glued wooden plug cut flush, as the lines below say: those faces are in sight inside the open rows.'
+    ?'Screw the end uprights to the posts from the inside too (through the upright into the post), with each head sunk under a glued wooden plug cut flush, as the lines below say: those faces are in sight inside the open rows.'+
+      (pairedJoints?' Screw the two uprights side by side under each rail joint to each other the same way, heads sunk under glued plugs.':'')
     :'Screw the end uprights to the posts from the inside too (through the upright into the post).';
   const uprightTopWords=style=>fineLike(style,house)?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece';
   const topOnPosts=style=>style==='rustic'?`When the top frame is on, screw the ends of its ${topName} down into the tops of the posts.`

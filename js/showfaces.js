@@ -53,7 +53,10 @@ const SHOW_FACE_ALLOWED=[
 /* The line the notes of a preset of furniture for the house end with: where screw heads show, in each style, and
    how to hide the ones that stay (placePreset in js/app.js adds it). The notes are written once, when the design
    is made, so the line speaks of all three styles. [] for any other preset. */
-const HEADS_NOTE_USUAL='Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front or the sides. Those joints are held from underneath or from inside with pocket screws. On a board more than 54" up, where an underside is seen from below, the holes go in its top face (a shelf, under the books; a top above eye level) or are filled with glued pocket-hole plugs. In Rustic / rough the screws go in from outside and their heads show, on the top and the sides too.';
+/* (its sentence about boards more than 54" up is left out of a design that has none: headsNote below) */
+const HEADS_NOTE_HIGH=' On a board more than 54" up, where an underside is seen from below, the holes go in its top face (a shelf, under the books; a top above eye level) or are filled with glued pocket-hole plugs.';
+const HEADS_NOTE_LOW='Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front or the sides. Those joints are held from underneath or from inside with pocket screws. In Rustic / rough the screws go in from outside and their heads show, on the top and the sides too.';
+const HEADS_NOTE_USUAL=HEADS_NOTE_LOW.replace(' In Rustic',HEADS_NOTE_HIGH+' In Rustic');
 /* the two fish stands (js/fishtop.js): the brads of the thin end panels are the only heads on the outside */
 const FISH_STAND_HEADS='Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front or the ends. The countertop (or the top deck of an open stand) is held from underneath by pocket screws in the rails and cross pieces of its frame, and the frames are held from inside, or by screws the thin side panels cover. The thin plywood ends are glued and nailed on with small brads, because nothing else holds a panel that thin: set each brad a little below the surface with a nail set and fill the holes with wood filler before the finish, as the step says, and they do not show. In Rustic / rough the top is screwed down from above and the heads show, on the ends too.';
 const HEADS_NOTES={
@@ -66,9 +69,14 @@ const HEADS_NOTES={
   'Cabinet stand with a row of tanks':FISH_STAND_HEADS.replace(' In Rustic',' With more than one row of tanks, the end uprights of the open rows on the countertop are screwed to the posts with their heads sunk under glued wooden plugs, cut flush. In Rustic'),
   'Wall shelf':'Screw heads: in the Everyday and Fine furniture styles none shows on the shelf or the supports: the pocket holes are on the back of the cleat, against the wall, and on the inside faces of the supports. A shelf hung so high that those faces are seen from below (more than 54" up) gets its support holes filled with glued pocket-hole plugs, sanded flush; the step and the shopping list say so. In Rustic / rough the shelf is screwed down from above and the heads show.'
 };
-function headsNote(presetName){
+/* The usual line speaks of boards more than 54" up only for a design that has one (the preset audit of 20 Nov, note
+   12: shelves and books in the notes of a dining table, a bench or a toy chest). parts (optional): the pieces the
+   preset builds; without them the line is the whole usual one. */
+function headsNote(presetName,parts){
   if(!HOUSE_FURNITURE.includes(presetName))return[];
-  return[HEADS_NOTES[presetName]||HEADS_NOTE_USUAL];
+  if(HEADS_NOTES[presetName])return[HEADS_NOTES[presetName]];
+  const high=!parts||parts.some(piece=>!isProp(piece)&&plainBox(piece).lo[1]>SEEN.underAbove);
+  return[high?HEADS_NOTE_USUAL:HEADS_NOTE_LOW];
 }
 const showFaceAllowed=(presetName,style,head)=>SHOW_FACE_ALLOWED.some(row=>row.preset===presetName&&row.style===style&&
   head.f.through.name===row.through&&head.f.into.name===row.into);
@@ -248,18 +256,121 @@ function sizesToTry(preset){
   }
   return list;
 }
-/* For every preset of house furniture, at its usual size and at the smallest and largest of each number, in
+/* The designs the show-face check builds for one preset (the preset audit of 20 Nov, finding 2: moving one number
+   at a time from the builder's own defaults never built the catalog's Bookshelf, two sizes changed together, or
+   an option, so the screws on the 36" x 72" Bookshelf slipped through). For each catalog entry the preset makes
+   (CATALOG, js/catalog.js), or its own defaults when no entry uses it (the retired Bookshelf):
+     - the entry's start values;
+     - each number the form shows at its smallest and at its largest, inside the entry's own limits;
+     - the corners of the overall size: every mix of smallest and largest of its Length, Width, Depth and Height
+       boxes, and every number at its smallest together and at its largest together;
+     - each choice of each pulldown and each check box turned over, at the start values and at the corner where
+       the overall sizes are all at their largest.
+   A design that comes out the same twice is tried once. A retired preset (no new design is made with it; it only
+   opens designs saved with it) keeps the sizes it was always tried at (sizesToTry). [{vals, where}] */
+const SHOW_FACE_SIZE_KEYS=['L','W','D','H'];
+function showFaceTrials(preset){
+  if(preset.retired)return sizesToTry(preset);
+  const entries=typeof CATALOG==='undefined'?[]:CATALOG.filter(entry=>entry.builder===preset.name);
+  const starts=entries.length?entries:[{name:preset.name,start:{},limits:{}}];
+  const trials=[],seen=new Set();
+  const add=(vals,where)=>{
+    const key=JSON.stringify(vals);
+    if(seen.has(key))return;
+    seen.add(key);
+    trials.push({vals,where});
+  };
+  for(const entry of starts){
+    const base={...presetDefaults(preset),...(entry.start||{})},limits=entry.limits||{};
+    const shown=q=>q.k&&!q.head&&(!q.show||q.show(base));
+    // the numbers of the form, with the limits the entry's form holds them to
+    const numbers=preset.params.filter(q=>shown(q)&&!q.opts&&!q.check).map(q=>{
+      const own=limits[q.k];
+      return{key:q.k,label:q.label,min:own?own[0]:q.min,max:own?own[1]:q.max};
+    }).filter(number=>number.min!==undefined&&number.max!==undefined);
+    const at=where=>`${entry.name}, ${where}`;
+    add(base,at('start values'));
+    for(const number of numbers){
+      add({...base,[number.key]:number.min},at(`${number.label} ${number.min}`));
+      add({...base,[number.key]:number.max},at(`${number.label} ${number.max}`));
+    }
+    // the corners of the overall size
+    const sizes=numbers.filter(number=>SHOW_FACE_SIZE_KEYS.includes(number.key));
+    let largest=base;
+    for(let mask=0;mask<1<<sizes.length;mask++){
+      const vals={...base};
+      sizes.forEach((number,i)=>{vals[number.key]=mask&1<<i?number.max:number.min;});
+      add(vals,at('corner '+sizes.map((number,i)=>`${number.key} ${vals[number.key]}`).join(', ')));
+      if(mask===(1<<sizes.length)-1)largest=vals;
+    }
+    add({...base,...Object.fromEntries(numbers.map(number=>[number.key,number.min]))},at('every number at its smallest'));
+    add({...base,...Object.fromEntries(numbers.map(number=>[number.key,number.max]))},at('every number at its largest'));
+    // a limit the entry says needs another choice to be built (entry.fitsAtLimit: the Bookshelf 24" tall takes
+    // 1 shelf): tried with that choice too, so the limit is not only refused and skipped
+    for(const number of numbers){
+      const other=entry.fitsAtLimit&&entry.fitsAtLimit[number.key];
+      if(!other)continue;
+      for(const value of[number.min,number.max])add({...base,...other,[number.key]:value},at(`${number.label} ${value} with ${JSON.stringify(other)}`));
+    }
+    // each option, at the start values and at the largest overall size. A box or choice that reveals rows of its
+    // own (the owner's pattern: an option's own fields appear when its box is ticked) has those rows tried too,
+    // with the option on: each number it reveals at its smallest and largest, each choice it reveals turned over
+    // (the code review of the audit fixes, 7: the Monitor shelf's sizes, the case's depth and overhangs were never
+    // varied).
+    const shownIn=vals=>q=>q.k&&!q.head&&(!q.show||q.show(vals));
+    for(const q of preset.params.filter(row=>shown(row)&&(row.opts||row.check))){
+      const values=q.check?[!base[q.k]]:q.opts.map(([value])=>value).filter(value=>value!==base[q.k]);
+      for(const value of values){
+        const label=`${q.label||q.k}: ${value}`;
+        const flipped={...base,[q.k]:value};
+        add(flipped,at(label));
+        add({...largest,[q.k]:value},at(label+', largest size'));
+        const revealed=preset.params.filter(row=>row!==q&&shownIn(flipped)(row)&&!shown(row));
+        for(const row of revealed){
+          if(row.opts||row.check){
+            const more=row.check?[!flipped[row.k]]:row.opts.map(([choice])=>choice).filter(choice=>choice!==flipped[row.k]);
+            for(const choice of more)add({...flipped,[row.k]:choice},at(`${label}, ${row.label||row.k}: ${choice}`));
+          }else{
+            const own=limits[row.k],min=own?own[0]:row.min,max=own?own[1]:row.max;
+            if(min===undefined||max===undefined)continue;
+            add({...flipped,[row.k]:min},at(`${label}, ${row.label} ${min}`));
+            add({...flipped,[row.k]:max},at(`${label}, ${row.label} ${max}`));
+          }
+        }
+      }
+    }
+    // the other choices the preset declares (preset.variants: the Bookshelf's shelf spacing at a chosen gap, the
+    // heights of each opening, three bays with an open middle bay), at the start values and at the largest size
+    (preset.variants||[]).forEach((variant,i)=>{
+      add({...base,...variant},at(`variant ${i+1}`));
+      add({...largest,...variant},at(`variant ${i+1}, largest size`));
+    });
+  }
+  return trials;
+}
+/* For every preset of house furniture, over the designs showFaceTrials gives (each catalog entry's start values,
+   each number at its limits, the size corners, each option with the rows it reveals, the preset's variants), in
    Everyday and in Fine furniture: no fastener head can be seen on the top surface or on the front, and no point
    comes through the top. In all three styles no fastener pokes out of its wood (fastenerProblem). Rustic: the
-   table tops are screwed down from above. The Workbench keeps its screws through the top in Everyday. */
+   table tops are screwed down from above. The Workbench keeps its screws through the top in Everyday.
+   A trial the preset refuses is not built; the check fails when an entry's start values are refused, or when
+   not one of a preset's other trials is built, so it can never quietly build less (the code review of the audit
+   fixes, 7). */
 SELFTESTS.push(function showFacesOfHouseFurniture(problems){withoutDrawing(()=>{
   const wrong=text=>{if(problems.length<80)problems.push('show faces: '+text);};
   const seen=new Set(),once=(key,text)=>{if(!seen.has(key)){seen.add(key);wrong(text);}};
   for(const name of HOUSE_FURNITURE){
     const preset=PRESETS.find(candidate=>candidate.name===name);
     if(!preset){wrong(`${name}: the preset is missing`);continue;}
-    for(const{vals,where}of sizesToTry(preset)){
-      if(preset.check&&(preset.check(vals)||[]).some(f=>f.level==='stop'))continue;   // refused at this size: nothing is built
+    // (the catalog entries' start values, the size corners and every option: showFaceTrials)
+    const trials=showFaceTrials(preset);
+    let built=0;
+    for(const{vals,where}of trials){
+      if(preset.check&&(preset.check(vals)||[]).some(f=>f.level==='stop')){   // refused at this size: nothing is built
+        if(/start values$|default size$/.test(where))wrong(`${name} (${where}): refused, so nothing of it is checked`);
+        continue;
+      }
+      built++;
       for(const style of Object.keys(STYLES)){
         if(!placeInStyle(preset,vals,style))continue;
         const at=`${name} (${where}, ${STYLES[style][0]})`;
@@ -284,6 +395,7 @@ SELFTESTS.push(function showFacesOfHouseFurniture(problems){withoutDrawing(()=>{
         if(loose.length)once(name+style+'ends',`${at}: a ${loose[0].name} is not held near both of its ends`);
       }
     }
+    if(trials.length>1&&built<2)wrong(`${name}: only ${built} of its ${trials.length} designs could be built, so the rest is never checked`);
   }
   // Rustic / rough: the table tops are screwed down from above, heads showing; and back to Everyday gives the
   // same fasteners as before (switching the style and back changes nothing)

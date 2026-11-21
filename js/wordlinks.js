@@ -33,10 +33,20 @@ const WORD_LINKS=[
   {re:/\bcounterbores?\b/i,word:'Counterbore'},
   {re:/\bcountersink\b/i,word:'Countersink'},
   {re:/\bbrad-point bit\b/i,word:'Brad-point bit'},
-  {re:/\bflush\b/i,word:'Flush'},
+  // (a flush-cut saw is a tool of its own, not the word "flush": the code review of the audit fixes, 5)
+  {re:/\bflush-cut saws?\b/i,word:'Flush-cut saw'},
+  {re:/\bflush\b(?!-)/i,word:'Flush'},
+  // A word that is only the first part of a longer name is not that word: "square" in "the square-drive bit" (or
+  // "square driver bit") is the shape of the bit's tip, not the tool that checks corners (the preset audit of 20
+  // Nov, finding 7). The whole name goes to the card of what it is, and the rows below never take "square" there.
+  {re:/\bsquare[- ]drive(?:r)? bits?\b/i,word:'Driver bit'},
+  // a speed square has a card of its own: above the tool row below, which would take "speed square" first (the
+  // code review of the audit fixes, 6)
+  {re:/\bspeed squares?\b/i,word:'Speed square'},
   // the tool, not the corner: "a square" in the tools list, "check each corner with a square" in a step
-  {re:/\b(?:a|the|carpenter's|framing|speed) square\b(?! (foot|feet|inch|inches|yard|corner)\b)/i,word:'Square (the tool)'},
-  {re:/\bsquare\b(?! (foot|feet|inch|inches|yard)\b)/i,word:'Square'},   // not "lb per square foot"
+  // ("pencil and square" and "tape measure, square and pencil" in the Tools lines of the steps are the tool too)
+  {re:/(?:\b(?:a|the|carpenter's|framing) |(?<=\bpencil and |\btape measure, ))square\b(?! (foot|feet|inch|inches|yard|corner)\b)(?![- ]drive)/i,word:'Square (the tool)'},
+  {re:/\bsquare\b(?! (foot|feet|inch|inches|yard)\b)(?![- ]drive)/i,word:'Square'},   // not "lb per square foot"
   {re:/\bset back\b/i,word:'Set back'},
   {re:/\boverhang(?:s|ing)?\b/i,word:'Overhang'},
   {re:/\bspans?\b/i,word:'Span'},
@@ -69,7 +79,6 @@ const WORD_LINKS=[
   {re:/\bhole saw\b/i,word:'Hole saw'},
   {re:/\bspade bits?\b/i,word:'Spade bit'},
   {re:/\bforstner bits?\b/i,word:'Forstner bit'},
-  {re:/\bspeed square\b/i,word:'Speed square'},
   {re:/\bon center\b/i,word:'On center'},
   {re:/\brip cuts?\b|\bcrosscuts?\b/i,word:'Crosscut and rip cut'},
   {re:/\bclamps?\b|\bclamped\b/i,word:'Clamp'},
@@ -254,4 +263,82 @@ SELFTESTS.push(function clickableWords(problems){
   closeInfoCard();
   if(card.style.display!=='none')problems.push('word links: the card did not close');
   page.remove();
+});
+
+/* The preset audit of 20 Nov, finding 7: in "drill/driver with the square driver bit" the words "the square" opened
+   the card of the square that checks corners. A word that is only the first part of a longer name must not be
+   linked as that word. Every tool the program names (STEP_TOOLS, the Tools list of the shopping page and the
+   tools of each step) of a few designs that between them use every kind of fastener and shaped pieces (the Desk,
+   the Bookshelf, the Garage shelves, the Shed, the Bird feeder, the Storage box) is linked as the pages link it:
+     - no link stops in the middle of a word joined by a hyphen ("square" of "square-drive");
+     - "square" is never linked where it names the tip of a bit (followed by "drive" or "driver"), and in a list
+       of tools it is the tool ("tape measure, pencil and square"), never the square corner;
+     - the square-drive bit opens the driver bit's card. */
+SELFTESTS.push(function wordsInsideLongerNames(problems){
+  const wrong=text=>problems.push('word links: '+text);
+  const linkedIn=text=>{
+    const page=document.createElement('section');
+    const item=document.createElement('p');
+    item.textContent=text;
+    page.appendChild(item);
+    linkWords(page);
+    // what follows each link in the tool's words (other links included: "the square" + " driver bit")
+    return[...page.querySelectorAll('.term')].map(span=>{
+      const before=document.createRange();
+      before.setStart(item,0);
+      before.setEndBefore(span);
+      const after=text.slice(before.toString().length+span.textContent.length);
+      const link=WORD_LINKS[+span.dataset.link];
+      return{span,word:link.word||link.joint,after};
+    });
+  };
+  const tools=new Set(Object.values(STEP_TOOLS));
+  const kept=JSON.stringify(S),draw=renderAll;
+  renderAll=()=>{};
+  // Every entry of the presets window at its start values, in Everyday; furniture for the house in Fine furniture
+  // too, where plugs and their flush-cut saw come in (the code review of the audit fixes, 5: the few presets tried
+  // before never plugged anything, so "flush-cut saw" was never read)
+  const designs=[];
+  for(const entry of(typeof catalogEntries==='function'?catalogEntries():[])){
+    const preset=PRESETS.find(row=>row.name===entry.builder);
+    if(!preset)continue;
+    const vals={...presetDefaults(preset),...(entry.start||{})};
+    designs.push([preset,vals,'std']);
+    if(HOUSE_FURNITURE.includes(preset.name))designs.push([preset,vals,'fine']);
+  }
+  try{
+    for(const[preset,vals,style]of designs){
+      const parts=preset.build(vals);
+      if(!parts.length)continue;
+      load(JSON.stringify(blank()),true);
+      placePreset(preset,vals,parts,false);
+      look().style=style;
+      connCache=null;
+      const plan=buildPlan(true);
+      for(const tool of toolList(findJoints(),plan))tools.add(tool);
+      for(const step of plan.steps){
+        const own=stepTools(step);
+        for(const tool of own)tools.add(tool);
+        // the drill is named once in a step's Tools line (the review of the audit fixes, real thing 11)
+        if(own.filter(tool=>/drill\/driver/.test(tool)).length>1)wrong(`the ${preset.name} (${STYLES[style][0]}), step ${step.no}: the Tools line names the drill twice: ${own.join('; ')}`);
+      }
+      if(typeof drillTools==='function'&&plan.drill&&plan.drill.total)for(const tool of drillTools(plan.drill))tools.add(tool);   // step 2, Drill your pieces
+    }
+  }finally{renderAll=draw;load(kept,true);}
+  for(const tool of tools){
+    for(const{span,word,after}of linkedIn(tool)){
+      if(/^-[a-z]/i.test(after))wrong(`"${span.textContent}" is linked inside the longer word "${span.textContent+after.match(/^-[a-z]+/i)[0]}" in the tool "${tool}"`);
+      if(/^Square/.test(word)&&/^[- ]?driv/i.test(after))wrong(`"${span.textContent}" in "${tool}" opens the card of a ${word.toLowerCase()}, but it is the tip of a driver bit`);
+      // in a list of tools a square is the tool, never the corner
+      else if(word==='Square')wrong(`"${span.textContent}" in the tool "${tool}" opens the card of a square corner, not of the tool`);
+    }
+  }
+  const bit=linkedIn('Drill/driver with the square-drive bit for the pocket screws');
+  if(!bit.some(link=>link.word==='Driver bit'&&/square-drive bit/i.test(link.span.textContent)))wrong('"the square-drive bit" does not open the card of a driver bit');
+  if(bit.some(link=>/^Square/.test(link.word)))wrong('"the square-drive bit" still links "square" to the card of a square');
+  // (the code review of the audit fixes, 5 and 6: two more names whose first word has a card of its own)
+  for(const[text,name,word]of[['Miter saw (or a circular saw and a speed square)','speed square','Speed square'],['flush-cut saw, for the plugs','flush-cut saw','Flush-cut saw']]){
+    const links=linkedIn(text);
+    if(!links.some(link=>link.word===word&&link.span.textContent.toLowerCase()===name))wrong(`"${name}" in "${text}" does not open the card of a ${word.toLowerCase()} (it opens ${links.map(link=>link.word).join(', ')||'nothing'})`);
+  }
 });

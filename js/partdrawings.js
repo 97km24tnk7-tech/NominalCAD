@@ -2091,7 +2091,11 @@ for(const name of DRILL_CHECKS){
    held from underneath by pocket screws in the rails and cross pieces, so the clearance holes down through the top
    deck and the screws through it into the post tops are gone; the two cabinet stands' top is the 3/4" Countertop
    (Rustic screws it down, so its holes are on the Countertop, and the rack's top deck is named Top deck); the frames
-   in sight are held from inside. Every other preset reads back as main recorded it. */
+   in sight are held from inside. Every other preset reads back as main recorded it.
+   Recorded again when branch auditfix was merged with main, the Storage box / toy chest only, in all three styles,
+   twice the same: its lid has a 3/4" lip over the front (the preset audit of 20 Nov, finding 3), so its walls and
+   bottom stand 3/4" less deep. The same 28 holes (40 in Rustic), each moved only across the depth of the bottom and
+   the ends (14 1/2" deep on main, 13 3/4" now). Every other preset reads back as main recorded it. */
 const DRILL_PRINTS_RECORDED={
   "Fish tank wall / rack":{"std":[570,"1si7anw"],"fine":[404,"s8o11m"],"rustic":[632,"f39hn3"]},          // recorded again at the fishtop merge
   "Single aquarium stand":{"std":[160,"1h0o42o"],"fine":[144,"1y2nfu0"],"rustic":[208,"b1o0ge"]},         // recorded again at the fishtop merge
@@ -2108,7 +2112,8 @@ const DRILL_PRINTS_RECORDED={
   "Five-board bench":{"std":[20,"3qi8d8"],"fine":[20,"3qi8d8"],"rustic":[44,"krwp0d"]},
   "Workbench":{"std":[198,"1tzl7wr"],"fine":[130,"1o7s03l"],"rustic":[166,"lgq7fn"]},
   "Garage shelves":{"std":[388,"iavqmk"],"fine":[244,"10asvl8"],"rustic":[388,"iavqmk"]},
-  "Storage box / toy chest":{"std":[28,"1t5nm5p"],"fine":[28,"1t5nm5p"],"rustic":[40,"tiv8do"]},
+  "Storage box / toy chest":{"std":[28,"67yfsl"],"fine":[28,"67yfsl"],"rustic":[40,"ib8an0"]},   // recorded again at the auditfix merge: walls 3/4" less deep for the lid's lip
+
   "Planter box":{"std":[156,"10rcc5o"],"fine":[118,"4elxkx"],"rustic":[156,"10rcc5o"]},
   "Raised garden bed":{"std":[96,"6jc24k"],"fine":[80,"f1z4eg"],"rustic":[96,"6jc24k"]},
   "Entryway shoe bench":{"std":[94,"d0vlq1"],"fine":[94,"d0vlq1"],"rustic":[212,"1q9nm0w"]},

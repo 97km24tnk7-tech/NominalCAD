@@ -1609,7 +1609,7 @@ const STEP_TOOLS={
   plugTapped:'a small hammer, for the plugs',   // the counterbores drilled in step 2 (js/drillplan.js)
   dowelDriven:'mallet',                          // the dowel holes drilled in step 2
   pocket:'pocket-hole jig and drill/driver',
-  pocketDriven:'drill/driver with the square driver bit of the pocket screws',
+  pocketDriven:'drill/driver with the square-drive bit for the pocket screws',   // (the bit's trade name; js/wordlinks.js links it as a driver bit, not as a square)
   dowel:'dowel jig, drill and mallet',
   nail:'brad nailer (or hammer and nail set)',
   bracket:'drill/driver',
@@ -1618,6 +1618,7 @@ const STEP_TOOLS={
   clamps:'clamps',
   glue:'wood glue',
   banding:'household iron, and an edge banding trimmer or a sharp chisel',   // iron-on edge banding (the Computer desk)
+  pocketBit:'the square-drive bit for the pocket screws',   // pocketDriven, in a step that names the drill already (its screws)
 };
 /* the tools a preset step's own words name that the fasteners do not tell (step.tools, a list, or a list for each
    build style: the Dining chair's block plane, its two clamps and, for the plugs, its flush-cut saw) */
@@ -1711,8 +1712,12 @@ function stepTools(step){
   // (pocket holes drilled in step 2 need no jig here: only the driver bit of the screws, js/drillplan.js; dowel
   //  holes drilled there need only the mallet that taps the dowels home)
   const drilledAll=type=>step.groups.some(group=>group.type===type)&&step.groups.every(group=>group.type!==type||group.predrilled);
+  // (a step that names the drill already, for its screws, names only the bit: the drill is said once, the review of
+  //  the audit fixes, real thing 11: "drill/driver, ...; drill/driver with the square-drive bit")
+  const drillNamed=tools.some(tool=>/^drill\/driver/.test(tool));
+  const pocketTool=drillNamed?STEP_TOOLS.pocketBit:STEP_TOOLS.pocketDriven;
   for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))
-    add(type==='pocket'&&drilledAll('pocket')?STEP_TOOLS.pocketDriven:type==='dowel'&&drilledAll('dowel')?STEP_TOOLS.dowelDriven:STEP_TOOLS[type]);
+    add(type==='pocket'&&drilledAll('pocket')?pocketTool:type==='dowel'&&drilledAll('dowel')?STEP_TOOLS.dowelDriven:STEP_TOOLS[type]);
   if(step.tight&&step.tight.length)add('right-angle drill attachment and a 3" driver bit, for the pocket screws with little room');
   if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners

@@ -89,7 +89,7 @@ const PRESETS=[
  {name:'Shed',spec:'Gable or lean-to roof',desc:'Adjustable storage shed: floor on skids, stud walls sheathed in plywood, a gable or lean-to roof, with a door opening and window openings where you want them. Build at your own risk.',
   params:[{head:'Size'},
    // the size of the floor frame, as sheds are sold and permitted (the wall sheathing and the roof overhang go past it)
-   num('W','Floor width (left to right)',120,48,192),num('D','Floor depth (front to back)',96,48,144),num('Hb','Wall height (the low back wall of a lean-to)',84,72,96),
+   num('W','Floor width (left to right)',120,48,192),num('D','Floor depth (front to back)',96,48,144),num('Hb','Wall height (on a lean-to, the low back wall)',84,72,96),   // (one label for both roofs: the preset audit of 20 Nov, note 15)
    {head:'Roof'},
    {k:'roof',label:'Roof style',opts:[['gable','Gable: a peak in the middle'],['lean','Lean-to: one slope, high at the front']],v:'gable'},
    {k:'pitch',label:'Roof slope (inches up per foot)',v:4,dec:1,min:1,max:12},{k:'sp',label:'Wall studs, middle to middle',opts:[['16','16" apart'],['24','24" apart']],v:'16'},
@@ -151,7 +151,9 @@ const PRESETS=[
  tablePreset('Sturdy bench','Outdoor-style bench from 4x4s, 2x4s and 2x6s.',
   [num('L','Length',48,24,108),num('W','Seat depth',16.5,14,24),num('H','Seat height',18,14,24)]),
  {name:'Five-board bench',spec:'Classic first project',desc:'Classic beginner bench: two plank legs, a seat, and two aprons lapped over the legs.',
-  params:[num('L','Length',36,18,72),num('H','Seat height',18,10,20),{k:'board',label:'Seat board',opts:[['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x12'}],
+  // (Length at most 55": the 1x4 aprons span too far for a seat past that with either board, so 72" was always
+  // refused; found by the wider show-face sweep of the preset audit of 20 Nov)
+  params:[num('L','Length',36,18,55),num('H','Seat height',18,10,20),{k:'board',label:'Seat board',opts:[['1x10','9 1/4" (1x10)'],['1x12','11 1/4" (1x12)']],v:'1x12'}],
   build:buildFiveBoard,notes:fiveBoardNotes,info:p=>fiveBoardNotes(p)[0],check:p=>fiveBoardPlan(p).problems,joints:FIVE_BOARD_JOINTS,
   uses:{'Seat':'seat','Apron':'seat'}},
  tablePreset('Workbench','Heavy 4x4 frame, 3/4" plywood top on cross rails, and a lower shelf.',

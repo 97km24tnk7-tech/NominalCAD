@@ -149,7 +149,8 @@ function soilBoxSteps(kind,p){
 /* ======================================================================================================
    Bird feeder: a tray with a rim, a post at each end, and two roof boards that meet at the ridge.
    The top of each post is cut to a point at the roof slope, so the roof boards lie flat on the cut ends and
-   are glued and screwed down into them. The drawing shows the posts at their full length to the tip. The
+   are glued and screwed down into them; the posts are shaped pieces (pointEnd, js/shapes.js), drawn with that
+   point and listed at their full length to the tip. The
    feeder hangs from a screw eye driven through the ridge into each post, so the chain pulls on the posts and
    not on the roof.
    ====================================================================================================== */
@@ -178,6 +179,10 @@ function buildFeeder(p){
     mk('End rim','1x2',[.75,1.5,width-1.5],[0,.75,.75]),mk('End rim','1x2',[.75,1.5,width-1.5],[L-.75,.75,.75]),
     mk('Roof post','1x4',[.75,FEEDER.POST_LENGTH,FEEDER.POST_WIDTH],[.75,.75,middle-FEEDER.POST_WIDTH/2]),
     mk('Roof post','1x4',[.75,FEEDER.POST_LENGTH,FEEDER.POST_WIDTH],[L-1.5,.75,middle-FEEDER.POST_WIDTH/2]));
+  // The top of each post is cut to a point at the roof slope, across its width (js/shapes.js): the model, the cut
+  // list's Shapes to cut drawing and the cutting step all show the cut, and the roof boards lie on the two cuts (the
+  // preset audit of 20 Nov, finding 6: the posts were drawn square, with a note that said so).
+  for(const post of P.filter(piece=>piece.name==='Roof post'))pointEnd(post,'high',FEEDER.SLOPE,'w');
   for(const side of[-1,1]){
     // A roof board lies flat, then is turned to the roof slope about its middle. Its middle is placed so that the
     // upper edge of its top face lands on the ridge; the two boards overlap below that, which is the bevel.
@@ -189,14 +194,48 @@ function buildFeeder(p){
   return P;
 }
 function feederNotes(){
-  return['The drawing shows the roof posts square at the top. Cut each top to a point as the steps say; the cut list gives the full length to the tip.',
-    'The lists are for cedar, which stands up to weather, and exterior screws. Buy glue marked exterior or waterproof. Leave the inside bare: birds eat from it.'];
+  return['The top of each roof post is cut to a point at the slope of the roof, so the roof boards lie flat on the two cuts. The cut list gives each post at its full length to the tip, and Shapes to cut on the cut list page shows how to mark and cut the point.',
+    'The lists are for cedar, which stands up to weather, and exterior screws. Buy glue marked exterior or waterproof. Leave the inside bare: birds eat from it.',
+    'The tray, the posts and the roof are rule-of-thumb sizes for seed, birds and the weather, not an engineer\'s numbers.'];
 }
-function feederSteps(p){
-  const s=feederPlan(p);
+/* A Bird feeder saved before its roof posts were shaped pieces (the preset audit of 20 Nov, finding 6) has square
+   posts. Opened now, its posts get their point (the same cut as buildFeeder makes), so the model, Shapes to cut and
+   the words agree whichever words it keeps: words written again from the preset (presetValuesOf matches these
+   pieces exactly, since a shape is not part of the match) say Shapes to cut shows the point, and an old step that
+   cuts it by hand is left out, as the cutting step and Shapes to cut now say how. The note about square posts is
+   replaced. Done once per placement (S.sets[n].pointedPosts), so a point taken off by hand stays off. The code
+   review of the audit fixes, 12. One line says what changed (sayFeederUpgrade, the self-check listens in). */
+let sayFeederUpgrade=text=>toast(text);
+const OLD_FEEDER_NOTE=/roof posts square at the top/;
+const OLD_FEEDER_POINT_STEP=/^Cut the top of each roof post to a point/;
+function pointOldFeederPosts(){
+  if(!S||!Array.isArray(S.parts)||!S.sets)return;
+  let pointed=0;
+  for(const[number,set]of Object.entries(S.sets)){
+    if(!set||set.name!=='Bird feeder'||set.pointedPosts)continue;
+    set.pointedPosts=true;
+    const posts=S.parts.filter(piece=>String(piece.set)===number&&piece.name==='Roof post');
+    for(const post of posts){
+      if(post.shape)continue;
+      pointEnd(post,'high',FEEDER.SLOPE,'w');
+      pointed++;
+    }
+  }
+  if(!pointed)return;
+  S.notes=(S.notes||[]).map(note=>OLD_FEEDER_NOTE.test(note)?feederNotes()[0]:note);
+  S.steps=(S.steps||[]).filter(step=>!(step&&(step.add||[]).length===0&&OLD_FEEDER_POINT_STEP.test(step.t||'')));
+  sayFeederUpgrade('Updated to the current plans: the roof posts of this Bird feeder are drawn with their pointed tops, and Shapes to cut on the cut list page shows how to mark and cut them.');
+}
+ON_LOAD.push(pointOldFeederPosts);
+/* a Bird feeder made today has its pointed posts from the start: marked at its first commit */
+ON_COMMIT.push(()=>{
+  if(!S||!S.sets)return;
+  for(const set of Object.values(S.sets))if(set&&set.name==='Bird feeder'&&!set.pointedPosts)set.pointedPosts=true;
+});
+function feederSteps(){
   return[{t:'Cut every piece on the cut list and pencil its letter on it.',add:[]},
     {t:'Glue the four rim strips around the top of the tray, flush with its edges, and drive two screws up through the tray into each strip. Drill pilot holes first: the strips are thin and split easily. Then drill four 1/4" drain holes through the tray.',add:['Tray','Long rim','End rim']},
-    {t:`Cut the top of each roof post to a point. Mark the middle of the top end, then saw down and away from the mark at ${FEEDER.SLOPE} degrees on each side, so the two corners end up ${fmt(s.shoulderDrop)} lower than the tip. The roof boards will lie flat on these two cuts.`,add:[]},
+    // (the pointed tops of the roof posts are cut with the other pieces: the cutting step and Shapes to cut say how)
     {t:'Stand a roof post at each end of the tray, centered, tight against the inside of the end rim. Glue it, drive two screws up through the tray into its end and two through the end rim into its face.',add:['Roof post']},
     {t:`Saw or plane a ${FEEDER.SLOPE} degree bevel along one long edge of each roof board, so the two boards meet tightly at the ridge. Glue and screw them onto the sloped tops of the posts with the beveled edges together, hanging over 1" at each end. Drill pilot holes first so the post tops do not split, and drive one screw through each board into each post: the glue does most of the holding. Run a thin line of exterior glue along the ridge.`,add:['Roof board'],
       // the roof boards are set at the slope, so the program sees no joint there: the screws are counted here and
@@ -207,6 +246,42 @@ function feederSteps(p){
 }
 
 /* ---------- self-check (selfTest runs every function in SELFTESTS, see js/core.js) ---------- */
+/* A Bird feeder as the published program saved it (square posts, the note that says so, the step that points the
+   posts by hand; its pieces are otherwise today's), opened under the fastening rule it was saved with (5) and under
+   today's: its posts are pointed, the notes and the steps never speak of a point that the model does not have, it
+   says so once, and opened again nothing more happens. A point taken off by hand stays off. */
+SELFTESTS.push(function oldFeederGetsPointedPosts(problems){withoutDrawing(()=>{
+  const wrong=text=>problems.push('old Bird feeder: '+text);
+  const preset=PRESETS.find(row=>row.name==='Bird feeder');
+  if(!preset){wrong('the preset is missing');return;}
+  const kept=JSON.stringify(S),keepSay=sayFeederUpgrade,said=[];
+  sayFeederUpgrade=text=>said.push(text);
+  const open=project=>{said.length=0;load(JSON.stringify(project),true);return said.slice();};
+  try{
+    load(JSON.stringify(blank()),true);
+    placeInStyle(preset,presetDefaults(preset),'std');
+    const old=JSON.parse(JSON.stringify(S));
+    for(const piece of old.parts)if(piece.name==='Roof post')delete piece.shape;
+    for(const set of Object.values(old.sets||{}))delete set.pointedPosts;
+    old.notes=['The drawing shows the roof posts square at the top. Cut each top to a point as the steps say; the cut list gives the full length to the tip.'].concat(old.notes.slice(1));
+    old.steps.splice(2,0,{t:'Cut the top of each roof post to a point. Mark the middle of the top end, then saw down and away from the mark at 25 degrees on each side, so the two corners end up 13/16" lower than the tip. The roof boards will lie flat on these two cuts.',add:[],ids:[],sig:null});
+    for(const savedUnder of[5,FASTENING_NOW]){
+      const lines=open({...old,fastening:savedUnder});
+      const posts=S.parts.filter(piece=>piece.name==='Roof post');
+      if(posts.length!==2||posts.some(post=>!post.shape))wrong(`saved under ${savedUnder}: its roof posts are not pointed`);
+      if((S.notes||[]).some(note=>OLD_FEEDER_NOTE.test(note)))wrong(`saved under ${savedUnder}: the notes still say the posts are drawn square`);
+      if(!(S.notes||[]).some(note=>/Shapes to cut on the cut list page shows how to mark and cut the point/.test(note)))wrong(`saved under ${savedUnder}: the notes do not say where the point is drawn`);
+      const words=buildPlan(true).steps.map(step=>step.words).join(' ');
+      if(OLD_FEEDER_POINT_STEP.test(words)||/Cut the top of each roof post to a point/.test(words))wrong(`saved under ${savedUnder}: a step still cuts the points by hand beside Shapes to cut`);
+      if(lines.length!==1||!/pointed tops/.test(lines[0]))wrong(`saved under ${savedUnder}: it must say once that its posts are pointed now, and said: ${lines.join(' / ')||'nothing'}`);
+      if(open(JSON.parse(JSON.stringify(S))).length)wrong(`saved under ${savedUnder}: brought up to date, it is updated again when opened again`);
+    }
+    for(const post of S.parts.filter(piece=>piece.name==='Roof post'))delete post.shape;
+    commit();
+    open(JSON.parse(JSON.stringify(S)));
+    if(S.parts.some(piece=>piece.name==='Roof post'&&piece.shape))wrong('a point taken off by hand comes back when the design is opened again');
+  }finally{sayFeederUpgrade=keepSay;load(kept,true);}
+});});
 /* A design made for outdoors starts as bare wood, so its shopping list does not ask for polyurethane: every
    preset in the Outdoors group must say so with look:{finish:'none'} (OUTDOOR_LOOK in js/presets.js), and the
    name of that finish must still exist. */

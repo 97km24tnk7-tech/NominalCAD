@@ -79,7 +79,17 @@ const BOOKSHELF_MIN_OPENING={plain:4,atDivider:6};
    the case, and the toy chest's sides, back and bottom by pocket holes on the inside. A divider or a partition is
    inside the case: the screws through it are covered by the board on its other side, as before. */
 const CASE_SIDE_JOINTS=['Top','Bottom','Shelf','Toe kick','Base rail','Back rail','Top rail'].map(board=>['Side',board,'pocketUnlessRustic']);
-const BOOKSHELF_JOINTS=[['Top','Back rail','pocketUnlessRustic'],['Top','Divider','pocketUnlessRustic'],...CASE_SIDE_JOINTS,
+/* The retired Bookshelf (designs saved with it still open): a shelf on the right of a divider that is more than
+   SEEN.underAbove up takes pocket screws there, as at its other end, never the angled screws of the second board,
+   whose heads would be in plain sight from below (the review of the audit fixes: a saved 36" x 72" Bookshelf still
+   had two). Every shelf of this builder has a shelf at the same height on the divider's other face. The same rule
+   as caseHighSecondShelf (js/casecheck.js) for the Cabinet / case builder; judged from the two pieces alone. */
+function oldBookshelfHighSecondShelf(j){
+  const divider=j.a.name==='Divider'?j.a:j.b,shelf=divider===j.a?j.b:j.a;
+  return shelf.pos[0]>divider.pos[0]&&shelf.pos[1]>SEEN.underAbove;
+}
+const BOOKSHELF_JOINTS=[['Divider','Shelf','pocketUnlessRustic',{when:oldBookshelfHighSecondShelf}],
+  ['Top','Back rail','pocketUnlessRustic'],['Top','Divider','pocketUnlessRustic'],...CASE_SIDE_JOINTS,
   ['Bottom','Toe kick','pocketUnlessRustic'],['Bottom','Base rail','pocketUnlessRustic']];
 const STORAGE_BOX_JOINTS=[['Front','Side','pocketUnlessRustic'],['Front','Bottom','pocketUnlessRustic'],
   ['Back','Side','pocketUnlessRustic'],['Back','Bottom','pocketUnlessRustic'],['Side','Bottom','pocketUnlessRustic']];
@@ -342,6 +352,7 @@ function bookshelfSteps(p){
   // (read from the pieces with the fastener layout's own rule, caseHoleFaces in js/casesteps.js, not from the heights)
   const faces=caseHoleFaces(buildBookshelf(p));
   const highShelves=s.shelfY.filter(faces.shelfOnTop).map(fmt);
+  const highSecond=s.shelfY.filter(y=>y>SEEN.underAbove).map(fmt);   // their second board at a divider: pocket screws
   const highNote=highShelves.length?` (in its top face instead for the ${highShelves.length>1?'shelves':'shelf'} at ${listWords(highShelves)}: an underside more than ${SEEN.underAbove}" up is in plain sight from below, and the books cover the top face)`:'';
   const topFace=faces.top;
   const topHoles=topFace==='top'?`from holes drilled in its top face near each end (the top is more than ${SEEN.topFrom}" up, above the eye, where nobody sees them; underneath they would be in plain sight from below), so nothing shows on the sides`
@@ -372,7 +383,9 @@ function bookshelfSteps(p){
       [` Drill the pocket holes listed below in the face of each one that looks into the case: ${div?'at an end that meets a side, for the side':'at each end, for the sides'}, and along it, for the bottom board above it.`]),
     ...(heights.length?[styledStep({
       std:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pocket holes near the ends of each shelf, in its underside${highNote}, glue, and the pocket screws listed below into the ${div?'uprights':'sides'}.`+
-        (div?` At a divider, screw through the divider into the first shelf, as you did with the bottom boards. ${secondSideOfUpright('divider')}`:''),
+        (div?` At a divider, screw through the divider into the first shelf, as you did with the bottom boards. ${secondSideOfUpright('divider')}`:'')+
+        // (a second shelf high up takes pocket screws at the divider: oldBookshelfHighSecondShelf)
+        (div&&highSecond.length?` For the ${highSecond.length>1?'shelves':'shelf'} at ${listWords(highSecond)}, hold the second board with pocket screws instead, from the holes near that end, the same way as at its other end: angled screws that high would leave their heads in plain sight.`:''),
       rustic:`Fasten the shelves between the ${div?'uprights, one bay at a time':'sides'}, at the marks, flush with the front and back edges, the same way as the bottom board: pilot holes, glue, and two screws through the ${div?'upright':'side'} into each end of a shelf.`+
         (div?' '+secondSideOfUpright('divider'):'')},['Shelf'])]:[]),
     styledStep({
@@ -704,28 +717,47 @@ function wallShelfSteps(p){
    span too far for a person gets a 3/4" lid.
    ====================================================================================================== */
 /* The form asks for the OVERALL size (what a person types is what they get): with the lid on, the height is to the
-   top of the lid, and the walls are that much lower (the lid lies on them and is as wide and deep as the box). */
+   top of the lid, and the walls are that much lower (the lid lies on them, as wide as the box; it is the depth typed,
+   and the walls stand back from its front edge by the lip a person lifts it by, STORAGE_BOX_LID_LIP). */
 const STORAGE_BOX_LIMITS={W:[12,48],D:[10,24],H:[9,24]};
-const STORAGE_BOX_USES={Lid:'lid',Bottom:'general',Front:'none',Back:'none',Side:'none'};
+/* What the structural check loads each piece with: the lid as a lid people sit on (USES.seatLid: a seat's load, and
+   like any lid it only rests on the walls, held by its hinges) and the bottom as a shelf, because the notes say a
+   grown person may sit on the lid and the bottom carries toys and blankets (the preset audit of 20 Nov, note 11; the
+   code review of the audit fixes, 11: what a preset claims is checked by code). */
+const STORAGE_BOX_USES={Lid:'seatLid',Bottom:'shelf',Front:'none',Back:'none',Side:'none'};
+/* How far the lid reaches past the front wall: the lip a person lifts it by (the preset audit of 20 Nov, finding 3:
+   the bar pull screwed to the top of the lid was in the way of someone sitting on it, and a child could trip on
+   it). Reference sheet 20 says a chest lid "has a front lip or pull" and gives about 1/2" of overhang on a starter
+   plan (one source); 3/4" is the program's own choice (PRACTICE), enough for the fingertips. The lid stays flush
+   with the back, where it is hinged, and with the two ends; nothing is fastened to its top. */
+const STORAGE_BOX_LID_LIP=.75;
+/* how the air holes are drilled and why, the end of the step that drills them (also written into an old chest that
+   gets its holes when it is opened: toyChestAirStepFromWalls, js/reviewupgrade.js) */
+const toyChestAirHoleHow=()=>`Use a ${fmt(AIR_HOLES.d)} spade bit with a scrap clamped under the wood, so it does not splinter where the bit comes out. `+
+  'They let air in if a child is shut inside, so a chest that may hold toys must have them: never leave them out, and never put them only in the back or the bottom, where a wall or the floor can block them.';
 
 function storageBoxPlan(p){
   const ply=M[p.ply]&&M[p.ply].kind==='sheet'&&M[p.ply].t>=.5?p.ply:'ply34',t=M[ply].t;
   const W=sizeWithin(p.W,STORAGE_BOX_LIMITS.W),D=sizeWithin(p.D,STORAGE_BOX_LIMITS.D),overallH=sizeWithin(p.H,STORAGE_BOX_LIMITS.H);
+  // with a lid, the walls stand the lip less deep than the depth typed, so the lid's front edge is the front of
+  // the chest (the depth typed is the overall depth, js/overallsizes.js)
+  const lip=p.lid?STORAGE_BOX_LID_LIP:0,wallD=r16(D-lip);
   // The lid is held along all four walls, so it only has to make the shorter distance. Somebody will sit on it,
   // so when the chosen plywood cannot carry a person that far the lid is cut from 3/4" plywood instead.
-  const lidSpan=Math.min(W,D)-2*t;
+  const lidSpan=Math.min(W,wallD)-2*t;
   const lidPly=lidSpan>flatSpanLimit(t,true,'seat')*.98?'ply34':ply,lidT=M[lidPly].t;
   // H from here on is the height of the walls: the overall height less the lid that lies on them
   const H=r16(p.lid?overallH-lidT:overallH);
-  return{ply,t,W,D,H,overallH,lid:!!p.lid,lidSpan,lidPly,lidT,thickerLid:lidPly!==ply};
+  return{ply,t,W,D,wallD,lip,H,overallH,lid:!!p.lid,lidSpan,lidPly,lidT,thickerLid:lidPly!==ply};
 }
 function buildStorageBox(p){
-  const s=storageBoxPlan(p),{ply,t,W,D,H}=s;
-  const P=[mk('Front',ply,[W,H,t],[0,0,D-t]),mk('Back',ply,[W,H,t],[0,0,0]),
-    mk('Side',ply,[t,H,D-2*t],[0,0,t]),mk('Side',ply,[t,H,D-2*t],[W-t,0,t]),
-    mk('Bottom',ply,[W-2*t,t,D-2*t],[t,0,t])];
+  const s=storageBoxPlan(p),{ply,t,W,D,H}=s,wallD=s.wallD;
+  const P=[mk('Front',ply,[W,H,t],[0,0,wallD-t]),mk('Back',ply,[W,H,t],[0,0,0]),
+    mk('Side',ply,[t,H,wallD-2*t],[0,0,t]),mk('Side',ply,[t,H,wallD-2*t],[W-t,0,t]),
+    mk('Bottom',ply,[W-2*t,t,wallD-2*t],[t,0,t])];
   if(s.lid){
-    P.push(mk('Lid',s.lidPly,[W,s.lidT,D],[0,H,0]));
+    // (noPull: hung without a pull, hangPresetDoors in js/hanging.js; the lip at the front is what lifts it)
+    P.push({...mk('Lid',s.lidPly,[W,s.lidT,D],[0,H,0]),noPull:true});
     // a chest a child can be shut in gets its air holes, as real holes in the front and the two ends
     for(const wall of P.filter(piece=>piece.name==='Front'||piece.name==='Side'))drillAirHoles(wall);
   }
@@ -774,12 +806,16 @@ function storageBoxInfo(p){
   // the height typed is the overall height: with the lid on, the walls are the lid's thickness lower
   return thicker+(s.lid?`The walls are ${fmt(s.H)} tall, so with the ${fmt(s.lidT)} lid on top it stands ${typedLen(s.overallH)} tall.`:'');
 }
+/* the honest line every preset carries (the preset audit of 20 Nov, finding 4) */
+const storageBoxRuleOfThumb=lid=>(lid?'The lid is sized for a grown person sitting on it, and the bottom for toys and blankets.':'The bottom is sized for toys and blankets.')+
+  ' These are rule-of-thumb sizes, not an engineer\'s numbers.';
 function storageBoxNotes(p){
   const s=storageBoxPlan(p);
-  if(!s.lid)return[];
+  if(!s.lid)return[storageBoxRuleOfThumb(false)];
   const holes=storageBoxAirHoles(p);
-  return[(s.thickerLid?'The lid is cut from 3/4" plywood, because a thinner lid this wide would crack if someone sat on it. ':'')+'The lid is stiff enough for someone to sit on. Do not stand on it.',
-    toyChestWarning(holes.total)];
+  return[(s.thickerLid?'The lid is cut from 3/4" plywood, because a thinner lid this wide would crack if someone sat on it. ':'')+
+    `The lid is stiff enough for someone to sit on. Do not stand on it. It reaches ${fmt(s.lip)} past the front, and you lift it by that lip: no pull is screwed to its top, where someone sits.`,
+    storageBoxRuleOfThumb(true),toyChestWarning(holes.total)];
 }
 /* reference sheet 20, section 6: the toy chest warnings (CPSC), for a chest with this many air holes (also written
    into a design saved before the air holes, when it is opened: js/reviewupgrade.js) */
@@ -791,7 +827,7 @@ function toyChestWarning(total){
 function storageBoxAirHoles(p){
   const s=storageBoxPlan(p);
   if(!s.lid)return{front:[],side:[],total:0};
-  const front=airHolePlaces(s.W),side=airHolePlaces(s.D-2*s.t);
+  const front=airHolePlaces(s.W),side=airHolePlaces(s.wallD-2*s.t);
   return{front,side,total:front.length+2*side.length};
 }
 function storageBoxHardware(p){
@@ -817,8 +853,7 @@ function storageBoxSteps(p){
   const frontNames=sideNames('Front'),endNames=sideNames('Side');
   const airStep={t:`The holes that Shapes to cut shows in the front and the sides are air holes. Drill them while those pieces lie flat on the bench, before anything goes together: ${holes.front.length} in the front and ${holes.side.length} in each side, ${fmt(AIR_HOLES.d)} across, `+
     `each center ${fmt(AIR_HOLES.down)} down from the top of the piece. In the front: ${listWords(holes.front.map(fmt))} from its ${frontNames.from} (and ${fmt(AIR_HOLES.down)} from its ${frontNames.top}). In each side: ${listWords(holes.side.map(fmt))} from its ${endNames.from}, the one that meets the front (and ${fmt(AIR_HOLES.down)} from its ${endNames.top}). `+
-    `Shapes to cut is on the cut list page. Use a ${fmt(AIR_HOLES.d)} spade bit with a scrap clamped under the wood, so it does not splinter where the bit comes out. `+
-    'They let air in if a child is shut inside, so a chest that may hold toys must have them: never leave them out, and never put them only in the back or the bottom, where a wall or the floor can block them.',add:[],
+    'Shapes to cut is on the cut list page. '+toyChestAirHoleHow(),add:[],
     // this step, not the cutting step, makes the shapes of these pieces (js/buildsteps.js: the cutting step leaves
     // them out, and this step lists the bit they need)
     shapes:['Front','Side']};
@@ -834,7 +869,7 @@ function storageBoxSteps(p){
       std:'Drill the pocket holes listed below in the underside of the bottom, along all four edges. Turn the chest upside down, drop the bottom in flush with the lower edges, glue it and drive the pocket screws into the front, the back and the two sides, so nothing shows on the outside of the chest.',
       rustic:'Drop the bottom in flush with the lower edges and fasten it through all four walls with glue and a screw every 6".'},['Bottom'],
       ['Drill the pocket holes listed below in the underside of the bottom, along all four edges. ']),
-    {t:'Set the lid on top, flush with the walls all round, and hang it on two hinges along the back. Fit the lid support inside, one that holds the lid open at any position, so the lid cannot fall or slam on a child. Fit no latch or lock.',add:['Lid']},
+    {t:`Set the lid on top, flush with the back and the two ends, with its front edge ${fmt(s.lip)} past the front of the chest: that lip is what you lift it by, so nothing is fastened to the top of the lid. Hang it on two hinges along the back. Fit the lid support inside, one that holds the lid open at any position, so the lid cannot fall or slam on a child. Fit no latch or lock.`,add:['Lid']},
     STORAGE_FINISH_STEP];
   return stepsForPieces(s.lid?steps:steps.filter(step=>!step.add.includes('Lid')),buildStorageBox(p));
 }
@@ -1179,5 +1214,56 @@ SELFTESTS.push(function toyChestHasAirHoles(problems){withoutDrawing(()=>{
     placeInStyle(preset,{...presetDefaults(preset),lid:false},'std');
     if(S.parts.some(piece=>shapeFeatures(piece).length))wrong('a box with no lid has holes');
     if((S.steps||[]).some(step=>/air holes/.test(stepText(step))))wrong('a box with no lid has a step for air holes');
+  }finally{load(kept,true);}
+});});
+
+/* The preset audit of 20 Nov, finding 3: the toy chest's bar pull was screwed to the top of the lid, which the notes
+   say can be sat on (someone sits on the pull, a child trips on it). A chest lid is lifted by a lip past the front
+   (reference sheet 20). At the usual size, at each limit, at the smallest and largest of all and in 1/2" plywood, as
+   Create places it: nothing is mounted on the lid but its hinges (no pull, no knob), no fastener head is on its top
+   face in any style, the lid reaches STORAGE_BOX_LID_LIP past the front wall and is flush with the back and the
+   ends, the overall depth is still the depth typed, and the step and the notes say how it is lifted. */
+SELFTESTS.push(function toyChestLidTopIsClear(problems){withoutDrawing(()=>{
+  const wrong=text=>{if(problems.length<80)problems.push('toy chest lid: '+text);};
+  const preset=PRESETS.find(row=>row.name==='Storage box / toy chest');
+  if(!preset){wrong('the preset is missing');return;}
+  const kept=JSON.stringify(S),L=STORAGE_BOX_LIMITS;
+  const sizes=[{},{W:L.W[0]},{W:L.W[1]},{D:L.D[0]},{D:L.D[1]},{ply:'ply12'},
+    {W:L.W[0],D:L.D[0],H:L.H[0]},{W:L.W[1],D:L.D[1],H:L.H[1]}];
+  try{
+    for(const size of sizes){
+      const vals={...presetDefaults(preset),...size},label=JSON.stringify(size);
+      for(const style of Object.keys(STYLES)){
+        load(JSON.stringify(blank()),true);
+        placeInStyle(preset,vals,style);
+        const lid=S.parts.find(piece=>piece.name==='Lid'),front=S.parts.find(piece=>piece.name==='Front');
+        if(!lid||!front){wrong(`${label}: no lid or no front`);return;}
+        const on=hardwareList().filter(item=>item.on===lid.id&&!['butt','piano','strap','cup'].includes(item.kind));
+        if(on.length)wrong(`${label} (${STYLES[style][0]}): a ${on[0].kind} is mounted on the lid`);
+        const onTop=fastenerHeads().filter(head=>head.f.through===lid&&faceOfHead(head.out)==='top');
+        if(onTop.length)wrong(`${label} (${STYLES[style][0]}): ${onTop.length} fastener heads on the top of the lid`);
+        const lidBox=plainBox(lid),frontBox=plainBox(front),wood=S.parts.filter(piece=>!isProp(piece)).map(plainBox);
+        if(Math.abs(lidBox.hi[2]-frontBox.hi[2]-STORAGE_BOX_LID_LIP)>.01)wrong(`${label}: the lid reaches ${fmt(lidBox.hi[2]-frontBox.hi[2])} past the front, not ${fmt(STORAGE_BOX_LID_LIP)}`);
+        if(Math.abs(lidBox.lo[2]-Math.min(...wood.map(b=>b.lo[2])))>.01)wrong(`${label}: the lid is not flush with the back`);
+        const deep=Math.max(...wood.map(b=>b.hi[2]))-Math.min(...wood.map(b=>b.lo[2]));
+        if(Math.abs(deep-sizeWithin(vals.D,L.D))>.01)wrong(`${label}: the chest is ${fmt(deep)} deep, not the ${fmt(vals.D)} typed`);
+        if(style!=='std')continue;
+        const words=(S.steps||[]).map(stepText).join(' '),notes=(S.notes||[]).join(' ');
+        if(!/that lip is what you lift it by/.test(words))wrong(`${label}: the lid step does not say the lid is lifted by its lip`);
+        if(!/you lift it by that lip/.test(notes))wrong(`${label}: the notes do not say how the lid is lifted`);
+      }
+    }
+    // Hung again by hand, the lid still gets no pull (the code review of the audit fixes, 3): its hinges taken off,
+    // then Connect to the back (which hangs a door or a lid, connectWhatOpens in js/connections.js); and the Hang
+    // dialog's plan with nothing asked. A pull asked for by hand is still given.
+    load(JSON.stringify(blank()),true);
+    placeInStyle(preset,presetDefaults(preset),'std');
+    const lid=S.parts.find(piece=>piece.name==='Lid'),back=S.parts.find(piece=>piece.name==='Back');
+    removeHardware(hardwareList().filter(item=>item.on===lid.id||(item.geo&&item.geo.for===lid.id)).map(item=>item.id));
+    const said=connectWhatOpens(lid,back);
+    if(!hardwareList().some(item=>item.on===lid.id&&['butt','piano','strap','cup'].includes(item.kind)))wrong(`unfastened and connected again, the lid is not hung on hinges (${said})`);
+    if(hardwareList().some(item=>item.on===lid.id&&(item.kind==='pull'||item.kind==='knob')))wrong('unfastened and connected again, the lid gets a pull on its top');
+    if(hangPlan(lid,{}).items.some(item=>item.kind==='pull'||item.kind==='knob'))wrong('hung again with nothing asked, the lid gets a pull on its top');
+    if(!hangPlan(lid,{pull:true}).items.some(item=>item.kind==='pull'||item.kind==='knob'))wrong('a pull asked for by hand on the lid is not given');
   }finally{load(kept,true);}
 });});

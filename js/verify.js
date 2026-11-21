@@ -298,6 +298,7 @@ const USES={
   tankRail:{label:'full fish tanks',               psf:50, sag:480,stopSag:1,permanent:true}, // psf counts only where no tank stands on it
   tankDeck:{label:'the deck under fish tanks',     psf:50, sag:240},
   lid:     {label:'a lid',                         psf:20, sag:180,loose:true},
+  seatLid: {label:'a lid people sit on',           psf:100,sag:240,people:true,loose:true},   // a toy chest's lid: hinged, so it rests on the walls
   general: {label:'light things set on it',        psf:20, sag:180},
   door:    {label:'a door on hinges',              psf:0,  sag:180,skip:true,hinged:true},
   none:    {label:'nothing but itself',            psf:0,  sag:180,skip:true}
