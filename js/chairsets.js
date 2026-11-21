@@ -507,9 +507,11 @@ function chairSetStepFaults(n,label,wrong){
     if(n>1&&step.kind==='note'&&/sit still/.test(step.words)&&!new RegExp(`Do this for each of the ${n} dining chairs\\.$`).test(step.words))wrong(`${label}: the step that levels the feet is not said for each of the ${n} chairs`);
     if(step.kind==='note'&&/lists below/.test(step.words))wrong(`${label}: step ${step.no} speaks of lists below and has none`);
   }
-  const cut=plan.steps.find(step=>step.kind==='cut');
-  if(n>1&&(!cut||!new RegExp(`You are making ${n} dining chairs: cut each dining chair piece`).test(cut.words)))wrong(`${label}: the cutting step does not say to cut the ${n} chairs alike`);
-  if(cut&&/: [A-Z]/.test(cut.words.replace(/Shapes to cut|Tip: [A-Z]/g,'')))wrong(`${label}: a capital after a colon in the cutting step: ${cut.words.match(/.{30}: [A-Z].{20}/)}`);
+  // (the cutting is in the shop packet on the Cut list page, not a step: js/shoppacket.js, plan.shop)
+  const shop=plan.shop,cutWords=[shop.cutWords,shop.copiesLine].concat(shop.boxLines,shop.make.filter(entry=>!entry.draft).map(entry=>entry.words)).join(' ');
+  if(n>1&&!new RegExp(`You are making ${n} dining chairs: cut each dining chair piece`).test(shop.copiesLine))wrong(`${label}: the shop packet does not say to cut the ${n} chairs alike`);
+  if(/: [A-Z]/.test(cutWords.replace(/Shapes to cut|Tip: [A-Z]/g,'')))wrong(`${label}: a capital after a colon in the cutting words of the packet: ${cutWords.match(/.{30}: [A-Z].{20}/)}`);
+  if(shop.beforeStart)wrong(`${label}: cutting words of the chairs landed in the first line of the steps: ${shop.beforeStart.slice(0,90)}`);
   const finish=plan.steps.findIndex(step=>step.kind==='finish');
   if(finish<0||finish<plan.steps.indexOf(chairSteps[chairSteps.length-1]))wrong(`${label}: the finish does not come after the chairs`);
 }

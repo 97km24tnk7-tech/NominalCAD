@@ -26,8 +26,10 @@ const PHONE_PARTS={
   'Shopping list':'shop',
   'Hardware':'shop',
   'Cut list':'cut',
-  'Shapes to cut':'cut',
+  'Shapes to cut':'cut',      // (a section of the pages before the shop packet: kept for pages drawn before it)
   'Cutting diagrams':'cut',
+  'Part drawings':'cut',      // the shop packet's drawings, one per part (js/shoppacket.js)
+  'Notes for making the parts':'cut',   // (the notes about making the parts: on the Cut list page only, shopNotes)
   'Notes':'steps',
   'Words used in this design':'steps',
   'Views with sizes':'steps',
@@ -61,7 +63,8 @@ const PHONE_SLIDES=[
   {kind:'sheet',match:'.cut.ply',width:560},
   {kind:'shape',match:'svg.shape-draw',width:0},                // drawn at its own size (its width attribute)
   // (a part drawing is 920 units wide with 14 to 16 unit words: at 800 px they read at 12 to 14 px)
-  {kind:'drawing',match:'.drill-legend,svg.pd',width:800},
+  // (the plain outline of a part, svg.pp, is drawn to fit the screen: it does not slide, js/shoppacket.js)
+  {kind:'drawing',match:'.drill-legend,svg.pd:not(.pp)',width:800},
 ];
 /* over every drawing that slides */
 const PHONE_SLIDE_LINE='Wider than your screen: slide it sideways.';
@@ -70,8 +73,10 @@ const PHONE_SLIDE_LINE='Wider than your screen: slide it sideways.';
    desktop's own are put back by phonePagesUndo. */
 const PHONE_WORDS=[
   ['Click a picture to see it large.','Tap a picture to see it large.'],
-  ['The Drill first column says which pieces','The Drill first line of each piece says which pieces'],
-  [/Build instructions, step (\d+), has a drawing of each\./,'the Steps tab, step $1, has a drawing of each.'],
+  ['Click a letter to see the drawing of that piece.','Tap a letter to see the drawing of that piece.'],   // (the cut list's hint, js/shoppacket.js)
+  // (the shop packet's words for the desktop's tabs: on the phone those things are under the Shopping and Cut list tabs)
+  ['Each part has its own drawing on the Cut list & shopping page under','Each part has its own drawing under the Cut list tab, in'],
+  ['are on the Cut list & shopping page, with the tools for making the parts.','are under the Shopping and Cut list tabs, with the tools for making the parts.'],
 ];
 /* What the pages offer that does not fit a phone without being made again for it. Each is left out on the phone and
    one plain line says the full program has it (phoneFullProgramLines); the self-check phoneShowsEverythingTheDesktopShows
@@ -130,7 +135,8 @@ function phoneFullProgramLines(doc){
    remembered with its desktop words, so phonePagesUndo can put them back. */
 const phoneSwapped=[];   // {node, text}
 function phoneSwapWords(doc){
-  const walker=document.createTreeWalker(doc,NodeFilter.SHOW_TEXT,{acceptNode:node=>node.parentNode.closest('.hint')?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT});
+  // (and the first line of the steps, which names the desktop's Cut list page: js/shoppacket.js, .shop-first)
+  const walker=document.createTreeWalker(doc,NodeFilter.SHOW_TEXT,{acceptNode:node=>node.parentNode.closest('.hint,.shop-first')?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT});
   for(let node=walker.nextNode();node;node=walker.nextNode()){
     let text=node.nodeValue;
     for(const[desktop,phoneWords]of PHONE_WORDS)text=text.replace(desktop,phoneWords);
@@ -612,9 +618,10 @@ SELFTESTS.push(function phoneListsMatchTheDesktop(problems){
    the order of the page, every picture and every button, link, box and choice) must be readable somewhere under the
    phone's tabs, with nothing hidden by a style rule; and every part of a page must have its place on the phone. */
 
-/* the designs the first check builds: one with a drill step and words, the one with the biggest lists, one with a
-   fish tank */
-const PHONE_WHOLE_DESIGNS=['Desk','Shed','Single aquarium stand'];
+/* the designs the first check builds: one with drilled parts and words, the one with the biggest lists, one with a
+   fish tank; and (the shop packet, spec 14) one with a shaped part, a letter drilled two ways and a mirror pair, and
+   one with pull holes */
+const PHONE_WHOLE_DESIGNS=['Desk','Shed','Single aquarium stand','Dining chair','Nightstand with drawers'];
 /* can a person see this element: it takes room, is not made invisible, and its text is not shrunk to nothing */
 function phoneReadable(element,page){
   if(!element||!element.getClientRects().length)return false;

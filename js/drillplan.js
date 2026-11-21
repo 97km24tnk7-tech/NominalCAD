@@ -32,8 +32,9 @@
      benchFrame(...)      how a person sees one face of a piece on the bench: the end with the label on one side,
                           the top edge up (frames below)
      placementWords(step, plan)   the "Put in" line of an assembly step
-     drilledAlready(cover)        "The holes are drilled already: drawing C, holes ⬡1."
-     drillColumn(row, plan)       the text of the Drill first column of the cut list
+     drilledAlready(cover)        "The holes are made already: part drawing C, holes ⬡1."
+     drillHolesWords(row, drill)  what the drill labels of one cut-list row get, for its Drawing column
+                                  (drawingColumnText, js/shoppacket.js)
 
    A frame (how one piece is drilled and put in), in world terms:
      {n: [x, y, z] the face the label is on (out of the wood), up: [x, y, z] toward the top edge,
@@ -45,7 +46,7 @@
 'use strict';
 
 const DRILL_STAGE=2;
-const DRILL_DRAWINGS_MAX=40;
+const DRILL_DRAWINGS_MAX=60;   // (one cap with the part drawings of the shop packet: PART_DRAWINGS_MAX, js/shoppacket.js)
 const DRILL_VIEWS_MAX=4;      // views on one drawing at most (a face, the face behind it, an edge, an end): self-checked
 const DRILL_SAME=1/32+1e-6;   // two holes are in the same place within this (inches)
 /* A wood screw driven square into its face, whose two holes can be drilled ahead: not a structural screw (no hole),
@@ -811,9 +812,10 @@ const settingWords=setup=>`Jig set for ${jigWords(setup.jig)} stock`;
 /* The reference that replaces the "where" sentence of a pre-drilled line (spec 11, 1.4) */
 function drilledAlready(cover){
   const names=cover.labels.map(name=>cover.mirrors&&cover.mirrors.has(name)?`${name} (${cover.mirrors.get(name)} is its mirror image)`:name);
-  const drawings=names.length>1?`drawings ${listWords(names)}`:`drawing ${names[0]}`;
+  // ("part drawing C" is a link to the drawing on the Cut list page: linkPartWords, js/shoppacket.js)
+  const drawings=names.length>1?`part drawings ${listWords(names)}`:`part drawing ${names[0]}`;
   const holes=cover.tagWords||cover.tags.map(tag=>'⬡'+tag);
-  return`The holes are drilled already: ${drawings}, holes ${listWords(holes)}.`;
+  return`The holes are made already: ${drawings}, holes ${listWords(holes)}.`;
 }
 /* the tag of a setting in words: '⬡1' for a setting of the pocket-hole jig, '(3)' for a bit (the drawings draw that
    one in a circle) */
@@ -947,7 +949,7 @@ const PILOT_WORDS=[
   [/ with pilot holes, heads just below the surface/g,', heads just below the surface'],   // (js/diningchair.js, Rustic front seat board: C22)
   [/: pilot holes, glue, and two screws/g,': glue, and two screws'],
   [/wood screws take a pilot hole, structural screws do not, and the list says where a head needs a deep hole first/g,'the holes of the wood screws are drilled already, and structural screws need none'],
-  [/Drill the pilot holes for the screws listed below straight down through the top, on the line where each support's bottom edge will sit\./g,'The holes for the screws listed below are drilled already (step 2).'],
+  [/Drill the pilot holes for the screws listed below straight down through the top, on the line where each support's bottom edge will sit\./g,'The holes for the screws listed below are made already, from the part drawings.'],
   // (js/computerdesk.js, the cable tray step, deskTraySteps: the lip onto the tray bottom, then the tray onto the
   //  back apron; the screws are wood screws, so step 2 drills their holes)
   [/; drill pilot holes through the bottom into the lip and drive the screws/g,'; drive the screws'],
@@ -966,28 +968,27 @@ function pilotOrders(text){
     (/\bdrill(?:s|ing)? (?:the |a )?pilot holes?\b|\bpilot holes, glue\b|\bwood screws take a pilot hole\b/i.test(sentence))&&
     !/\bthin pilot hole\b|\bscrew eye\b|\bsame slant\b|\bbrads?\b/i.test(sentence));
 }
-/* The Drill first column of the cut list (spec 11, 1.3): for one cut-list row */
-function drillColumn(row,drill){
+/* What the drilled pieces of one cut-list row get, for its Drawing column (spec 14, 4.1; it was the Drill first
+   column of spec 11, 1.3): '11 pocket holes each', '1 as H1, 1 as H2 (mirror images): 3 pocket holes each', or ''
+   when no piece of the row has a hole drilled ahead. Every way of a letter is named, the pieces of it with nothing
+   to drill too. */
+function drillHolesWords(row,drill){
   if(!drill||!drill.total)return'';
   const labels=drill.labels.filter(label=>label.letter===row.id);
-  if(!labels.length){
-    // round holes of its shape are not drilled in step 2, they are cut in their own step (Shapes to cut)
-    const entry=drill.nothing.find(e=>e.letter===row.id&&!e.label);
-    return entry&&entry.pieces.some(hasShapeHoles)?'no pocket holes; its round holes: see Shapes to cut':'nothing';
-  }
+  if(!labels.length)return'';
   // every kind, counted: '11 pocket holes, 4 pilot holes each'
   const holes=label=>holeCountWords(label.way.holes,false);
   // the pieces of this letter that have nothing to drill ('A2 (1)' on the Nothing line), said in every form
   const bare=drill.nothing.filter(entry=>entry.letter===row.id&&entry.label);
-  const bareWords=bare.map(entry=>`; ${entry.count} as ${entry.name}: nothing`).join('');
+  const bareWords=bare.map(entry=>`; ${entry.count} as ${entry.name}: nothing to drill`).join('');
   if(labels.length===1&&!bare.length){
     const label=labels[0],count=label.members.length;
-    return`${holes(label)}${count>1?' each':''} (step ${drill.stepNo})`;
+    return`${holes(label)}${count>1?' each':''}`;
   }
   const mirrorPair=labels.length===2&&labels[1].mirror&&labels[1].twin===labels[0];
-  if(mirrorPair)return`${labels[0].members.length} as ${labels[0].name}, ${labels[1].members.length} as ${labels[1].name} (mirror images): ${holes(labels[0])} each${bareWords} (step ${drill.stepNo})`;
+  if(mirrorPair)return`${labels[0].members.length} as ${labels[0].name}, ${labels[1].members.length} as ${labels[1].name} (mirror images): ${holes(labels[0])} each${bareWords}`;
   return labels.map(label=>`${label.members.length} as ${label.name}: ${holes(label)}${label.members.length>1?' each':''}${label.mirror?' (mirror image of '+label.twin.name+')':''}`)
-    .concat(bare.map(entry=>`${entry.count} as ${entry.name}: nothing`)).join('; ')+` (step ${drill.stepNo})`;
+    .concat(bare.map(entry=>`${entry.count} as ${entry.name}: nothing to drill`)).join('; ');
 }
 
 /* ---------- Put in (spec 11, 3.4) ----------
@@ -1221,23 +1222,44 @@ function placesApart(groups){
 /* a piece with round holes or cut-outs of its shape (js/shapes.js): those are cut in a step of their own, so the
    piece is never said to have "nothing to drill" */
 const hasShapeHoles=p=>typeof shapeFeatures==='function'&&shapeFeatures(p).some(f=>f.kind==='hole');
+/* The Nothing line, said for each kind of piece by what really goes into it (the merge check of drill stage 2: the
+   Gaming desk spoke of nails for pieces that take only pocket screws): {entries, why, groups: [{entries, why}]},
+   one group per sentence, in cut-list order of their first piece. */
 function nothingWords(drill){
   const entries=drill.nothing.filter(entry=>!entry.pieces.some(hasShapeHoles));
   if(!entries.length)return null;
-  const ids=new Set(entries.flatMap(entry=>entry.pieces.map(p=>p.id)));
-  // what goes into those pieces: pocket screws only, or other fasteners too (screws, nails: only those there, R17)
-  let other=false,screws=false,nails=false;
-  for(const link of connGraph().links){
-    if(!link.joint||!link.fastened||(!ids.has(link.a.id)&&!ids.has(link.b.id)))continue;
-    if(link.type==='pocket'||link.type==='glue')continue;
-    other=true;
-    if(/^(nail|frame|toenail)$/.test(link.type))nails=true;else screws=true;
+  // what goes into the pieces of one entry: pocket screws only, or other fasteners too (screws, nails: only those
+  // there, R17)
+  const intoEntry=entry=>{
+    const ids=new Set(entry.pieces.map(p=>p.id));
+    let screws=false,nails=false,pockets=false,glued=false;
+    for(const link of connGraph().links){
+      if(!link.joint||!link.fastened||(!ids.has(link.a.id)&&!ids.has(link.b.id)))continue;
+      if(link.type==='glue'){glued=true;continue;}
+      if(link.type==='pocket'){pockets=true;continue;}
+      if(/^(nail|frame|toenail)$/.test(link.type))nails=true;else screws=true;
+    }
+    // (no joint the program sees at all: a piece set at a slope that its preset fastens itself, the Bird feeder's
+    //  roof boards: their screws are in the steps; a piece that is only glued, or only rests in place, takes no
+    //  screw at all: the code reviewer's finding 26)
+    if(screws||nails)return screws&&nails?'screws and nails':nails?'nails':'screws';
+    if(pockets)return'';
+    if(glued)return'glue';
+    return entry.pieces.some(p=>tilted(p))?'screws':'rest';
+  };
+  const byWhat=new Map();
+  for(const entry of entries){
+    const what=intoEntry(entry);
+    if(!byWhat.has(what))byWhat.set(what,[]);
+    byWhat.get(what).push(entry);
   }
-  // (spec 11, 1.6: structural screws are named)
-  const structural=drill.other.some(entry=>entry.row.key==='structural');
-  const what=screws&&nails?'screws and nails':nails?'nails':'screws';
-  const why=other?`Their ${what} go in when you put it together, and the steps say where.`:'The pocket screws cut their own way into them.';
-  return{entries,why:why+(structural?' Structural screws need no hole.':'')};
+  const whyOf=what=>what==='glue'?'They are only glued, as the steps say.':what==='rest'?'They only rest in place, as the steps say.':
+    what?`Their ${what} go in when you put it together, and the steps say where.`:'The pocket screws cut their own way into them.';
+  // (spec 11, 1.6: structural screws are named, once, after the last group)
+  const structural=drill.other.some(entry=>entry.row.key==='structural')?' Structural screws need no hole.':'';
+  const groups=[...byWhat].map(([what,list])=>({entries:list,why:whyOf(what)}));
+  groups[groups.length-1].why+=structural;
+  return{entries,why:groups.map(group=>group.why).join(' '),groups};
 }
 /* how many pocket-hole screws of each size the shopping list buys, and the plugs */
 function pocketScrewsListed(){
@@ -1349,17 +1371,6 @@ function labelFaceShows(label){
 }
 /* the names of the pieces of a label ('Toe kick, Base rail'), as the cut list gives a row of several names */
 const labelNames=label=>[...new Set(label.members.map(member=>member.piece.name))].join(', ');
-/* what "You need" lists for step 2: the pieces that get holes, by label */
-function drillNeeds(drill){
-  const pieces=[];
-  for(const label of drill.labels){
-    if(!label.drawn)continue;
-    const p=label.members[0].piece;
-    pieces.push({qty:label.members.length,letter:label.name,name:labelNames(label),length:fmt(p.l)});
-  }
-  return{pieces,fasteners:[],hardware:[],tools:drillTools(drill)};
-}
-const DRILL_WORDS='Drill your pieces. Drill every hole on the drawings below now, while each piece lies flat on the bench: once the pieces are put together the pocket-hole jig no longer fits. After this step you only put the pieces together and drive the screws.';
-/* the words of step 2 without pocket holes (a Rustic design: wood screws only): why now. drillStepWords
-   (js/buildsteps.js) picks one of the two. */
-const DRILL_WORDS_BITS='Drill your pieces. Drill every hole on the drawings below now, while each piece lies flat on the bench, where every hole is easy to place and to drill square. After this step you only put the pieces together and drive the screws.';
+/* (drillNeeds, DRILL_WORDS and DRILL_WORDS_BITS, the You need line and the words of the step "Drill your pieces",
+   are retired with that step: the hint of the Part drawings section says why the holes are drilled first, and
+   drillTools gives its tools to the packet's Tools for making the parts: js/shoppacket.js) */

@@ -238,27 +238,35 @@ function cutRows(){
     letterOfStrip:item=>groups.has(stripKey(item))?groups.get(stripKey(item)).id:''};
 }
 function cutListSection(list){
-  const plan=S.parts.length?buildPlan():null,drill=plan&&plan.drill&&plan.drill.total?plan.drill:null;
+  const plan=S.parts.length?buildPlan():null;
   const rows=list.rows.map(g=>{
     const m=M[g.mat],ripped=m.kind==='board'&&g.w<m.w-.01;
-    // A board that sits at an angle may need its ends cut to fit. A design with steps of its own says exactly
-    // how (a rafter: slanted at the top, square at the bottom), so the note points there instead of guessing.
-    // A sheet that lies on a slope (a roof deck) is cut square: it gets no note.
-    const ownSteps=S.steps&&S.steps.length;
+    // A board that sits at an angle may need its ends cut to fit. A design whose preset says exactly how (a rafter:
+    // slanted at the top, square at the bottom) has it on the row's part drawing (the shop packet, js/shoppacket.js),
+    // so the note points there instead of guessing. A sheet that lies on a slope (a roof deck) is cut square: it
+    // gets no note.
+    // (only an entry about the ends says so: the bevel of the Bird feeder's roof boards is on an edge, its ends are
+    //  square; a design with steps of its own, where nothing says how its ends are cut, is not given a guess)
+    const endsSaid=!!plan&&shopMakeOf(g,plan).some(entry=>entry.ends);
+    const ownSteps=endsSaid||(!!plan&&!plan.suggested);
     // A shaped piece says how it is cut and points at its drawing (Shapes to cut, js/shapedrawings.js); a tilted one
     // whose ends are cut no longer says "cut the ends at an angle to fit".
     const shaped=g.sample&&g.sample.shape,endsCut=shaped&&(shapeEnd(g.sample,0)||shapeEnd(g.sample,1));
-    const angled=!g.deg||m.kind==='sheet'||endsCut?'':ownSteps?`Sits at ${g.deg}°. The steps say how to cut it`:`Sits at ${g.deg}°: cut the ends at an angle to fit`;
+    const angled=!g.deg||m.kind==='sheet'||endsCut?'':endsSaid?`Sits at ${g.deg}°. Its part drawing says how to cut its ends`:ownSteps?'':`Sits at ${g.deg}°: cut the ends at an angle to fit`;
     const shapeWords=shaped?shapeRowNote(g):[];   // js/shapedrawings.js
     const grain=m.kind==='sheet'&&g.grainOnWidth?`Cut it with the grain of the face along its ${fmt(g.w)} width`:'';
     const note=[ripped?'Rip to '+fmt(g.w)+' wide'+(g.strip?`, or buy ${fmt(g.w)} square stock (a square dowel) and only cut it to length`:''):'',angled,grain,...shapeWords].filter(Boolean).join('. ');
-    return`<tr><td>${keyBox(g.id)}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
-      `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td>${drill?`<td>${esc(drillColumn(g,drill))}</td>`:''}<td>${note}</td></tr>`;
+    // the letter is the part mark: the Label box and the Drawing cell are links to the row's part drawing (js/shoppacket.js)
+    const label=plan?partLinkHtml(g.id,keyBox(g.id)):keyBox(g.id);
+    return`<tr><td>${label}</td><td class="num">${g.qty}</td><td>${esc([...g.names].join(', '))}</td><td class="nowrap">${esc(m.short)}</td>`+
+      `<td class="num">${fmt(g.l)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.t)}</td>${plan?`<td>${drawingColumnHtml(g,plan)}</td>`:''}<td>${note}</td></tr>`;
   });
-  // Drill first: which pieces get holes before anything is put together (step 2, js/drillplan.js)
-  return`<h2>Cut list</h2><p class="hint">Write the letter on each piece as you cut it. The same letters are used in the cutting diagrams and the steps.`+
-    (drill?` The Drill first column says which pieces get holes before you put anything together; Build instructions, step ${drill.stepNo}, has a drawing of each.`:'')+`</p>`+
-    docTable([['Label',''],['Qty','num'],['Piece',''],['Cut from',''],['Length','num'],['Width','num'],['Thick','num']].concat(drill?[['Drill first','']]:[],[['Note','']]),rows);
+  // the parts list, the cover sheet of the shop packet (spec 14, 4.1): the Drawing column says what each part's
+  // drawing holds and links to it
+  // (and under it the small parts a person makes, each with its letter and drawing: js/shoppacket.js)
+  return`<h2>Cut list</h2><p class="hint">${esc(CUT_LIST_HINT)}</p>`+
+    docTable([['Label',''],['Qty','num'],['Piece',''],['Cut from',''],['Length','num'],['Width','num'],['Thick','num']].concat(plan?[['Drawing','']]:[],[['Note','']]),rows)+
+    (plan?smallPartsTableHtml(plan):'');
 }
 /* Cutting diagrams: for each material what to buy, then one bar per board (or one drawing per plywood sheet)
    with the cuts marked. Returns the html and the list of what to buy, which the shopping list is made from. */
@@ -339,13 +347,14 @@ function stepTextHtml(step){
   const pieces=need.pieces.map(row=>`<span class="pc">${row.qty} × ${keyBox(row.letter)}${esc(row.name)}${row.length?', '+row.length:''}</span>`).join('');
   const rows=[];
   if(pieces)rows.push(`<dt>Pieces</dt><dd class="pcs">${pieces}</dd>`);
-  if(need.fasteners.length)rows.push(`<dt>${step.kind==='cut'?'Wood':step.kind==='finish'?'Supplies':'Fasteners'}</dt><dd>${esc(need.fasteners.join('; '))}</dd>`);
+  if(need.fasteners.length)rows.push(`<dt>${step.kind==='finish'?'Supplies':'Fasteners'}</dt><dd>${esc(need.fasteners.join('; '))}</dd>`);
   if((need.hardware||[]).length)rows.push(`<dt>Hardware</dt><dd>${esc(need.hardware.join('; '))}</dd>`);
   if(need.tools.length)rows.push(`<dt>Tools</dt><dd>${esc(need.tools.join('; '))}</dd>`);
   const youNeed=`<div class="need you"><h4>You need</h4>${rows.length?`<dl>${rows.join('')}</dl>`:'<div>Nothing new for this step.</div>'}</div>`;
   // Fasten with: numbered lines; the preset's own lines for joints the program cannot see come after them
-  // (a line whose holes are drilled in step 2 names their settings with the hexagon tag of the drawings: js/drillplan.js)
-  const tagged=text=>esc(text).replace(/⬡(\d+)/g,(all,no)=>typeof tagSvg==='function'?tagSvg(no):all);
+  // (a line whose holes are made from the part drawings names their settings with the hexagon tag of the drawings,
+  //  js/drillplan.js, and "part drawing C" is a link to that drawing on the Cut list page: linkPartWords, js/shoppacket.js)
+  const tagged=text=>linkPartWords(esc(text).replace(/⬡(\d+)/g,(all,no)=>typeof tagSvg==='function'?tagSvg(no):all));
   const lines=step.groups.map(group=>`<li data-line="${group.no}">${balloonMark(group.no)}<span>${esc(group.line)}${group.where?' '+tagged(group.where):''}</span></li>`)
     .concat(step.extra.map(line=>`<li><span class="bal none"></span><span>${esc(line)}</span></li>`));
   const fasten=lines.length?`<div class="need fasten"><h4>Fasten with</h4><ul>${lines.join('')}</ul></div>`:'';
@@ -368,7 +377,8 @@ function stepsSection(plan,shots){
     const fresh=plan.added?`${plan.added===1?'one step was':plan.added+' steps were'} added for the pieces you added`:'';
     intro+=` You changed the design after the preset made it, so ${[again,fresh].filter(Boolean).join(' and ')}.`;
   }
-  let h=`<h2>Steps</h2><p class="hint">${esc(intro)}</p>`;
+  // the first line: every part is made first, from its part drawing on the Cut list page (spec 14, 7.1)
+  let h=`<h2>Steps</h2><p class="hint">${esc(intro)}</p>${shopFirstHtml(plan)}`;
   plan.steps.forEach((step,index)=>{
     const shot=shots[index]||{src:'',closeups:[]};
     const under=(shot.notes||[]).slice();   // what the picture shows when that is not simply "the design so far" (stepScene, js/steppictures.js)
@@ -380,8 +390,6 @@ function stepsSection(plan,shots){
       (close.mark?`<img ${markImageSource(close.mark)} alt="Close-up of line ${close.no} of step ${step.no}: where to mark">`:'')+
       `</div><figcaption>${balloonMark(close.no)} <span>${esc(close.caption)}</span></figcaption></figure>`).join('')}</div>`:'';
     const marks=shot.markView?`<div class="markviews"><figure><img ${markImageSource(shot.markView.src)} alt="The pencil marks of step ${step.no}"><figcaption>${esc(shot.markView.caption)}</figcaption></figure></div>`:'';
-    // step 2, Drill your pieces: its drawings span the width of the page (js/partdrawings.js)
-    if(step.kind==='drill'){h+=`<div class="step nopic drill" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>${drillStepHtml(step,plan)}</div>`;return;}
     h+=`<div class="step${shot.src?'':' nopic'}" data-step="${step.no}" data-source="${step.source}"><div class="no">${step.no}</div>`+
       `<div class="step-text">${stepTextHtml(step)}</div>${picture}${marks}${closeups}</div>`;
   });
@@ -483,7 +491,12 @@ function renderCut(instr){
   }
   let h=docHead(sheetName)+
     `<div class="lead"><img id="shot" src="${pics.overview||''}" alt="The finished design"><dl class="facts">${facts.map(([name,value])=>`<dt>${name}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`;
-  if(S.notes&&S.notes.length)h+=`<h2>Notes</h2><ul>${S.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
+  // (a note about making the parts, "Cut the plywood with its face grain running the long way", is on the Cut list
+  //  page only, under its own heading (the phone shows it under the Cut list tab); Build instructions keeps the rest:
+  //  shopNotes, js/shoppacket.js)
+  const split=shopNotes(S.notes||[]);
+  if(split.assembly.length)h+=`<h2>Notes</h2><ul>${split.assembly.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
+  if(!instr&&split.making.length)h+=`<h2>Notes for making the parts</h2><ul>${split.making.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`;
   if(window.wordsSection)h+=wordsSection(); // Beginner: the names this design uses for its pieces, explained (js/glossary.js)
   if(instr&&pics.views.length){
     // three drawings, two to a row; the fourth place says what the sizes measure
@@ -492,15 +505,24 @@ function renderCut(instr){
       `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(p=>isProp(p)&&!M[p.mat].picture)?', counting a fish tank or a mattress that is drawn':''}${S.parts.some(p=>M[p.mat].picture)?' (not the pictures of a monitor or a computer, which only show where they go)':''}. Wide is left to right, deep is front to back, tall is from the floor up.${unitWords(S.parts)?' '+unitWords(S.parts):''} The size of every single piece is in the cut list.</p></div>`+
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one, each with its letter from the cut list. The steps below show the order.</p>`;
   }
-  if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
-  const diagrams=diagramSection(list),hardware=hardwareTotals(joints);
-  h+=cutListSection(list)+shapesSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js; shapesSection: js/shapedrawings.js
+  // The two documents of the shop packet (spec 14, stage A): Cut list & shopping is the shop (the parts list, the
+  // shopping list, the cutting diagrams, the hardware and the part drawings: every part is made there); Build
+  // instructions only puts the made parts together (its tools are the assembly tools, js/shoppacket.js).
+  const hardware=hardwareTotals(joints);
+  if(instr){
+    h+=`<h2>Tools you need</h2><ul class="cols">${assemblyTools(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`+
+      `<p class="hint">${esc(SHOP_ELSEWHERE_WORDS)}</p>`;
+  }else{
+    const diagrams=diagramSection(list);
+    h+=cutListSection(list)+shoppingSection(diagrams.buy,hardware)+diagrams.html; // shoppingSection: js/prices.js
+  }
   h+=`<h2>Hardware</h2>`+hwTable(hardwareWithoutSheets(hardware));   // (a sheet of plywood to cut on site is lumber: js/prices.js)
   if(instr)h+=stepsSection(buildPlan(),pics.steps);
+  else h+=partDrawingsSection(list,buildPlan());   // the part drawings, one for each cut-list row (js/shoppacket.js)
   h+=fastenerSection(joints);
 
   page.innerHTML=`<div class="doc">${h}</div>`; // (the price boxes of the shopping list are wired in js/prices.js)
-  if(instr)fillMarkViews(page);   // the marking views are drawn as they are seen (js/markingview.js)
+  fillMarkViews(page);   // the marking views (of the steps, and the pencil marks of the part drawings) are drawn as they are seen (js/markingview.js)
   // a board length chosen on the cutting diagrams; "Best mix" (0) takes the choice away again (js/buying.js)
   page.querySelectorAll('select[data-stock]').forEach(choice=>choice.onchange=()=>{
     if(+choice.value)S.stock[choice.dataset.stock]=+choice.value;else delete S.stock[choice.dataset.stock];

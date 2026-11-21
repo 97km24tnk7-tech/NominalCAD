@@ -418,10 +418,12 @@ SELFTESTS.push(function slattedShelfBuiltOnTheBench(problems){withoutDrawing(()=
           if(slatLinks.some(index=>index!==shelfStep[0]))wrong(`${label}: a joint of a slat is fastened outside the shelf step`);
           const legLinks=plan.steps.flatMap((step,index)=>linesOf(step).filter(link=>[link.a.name,link.b.name].includes('Long stretcher')&&[link.a.name,link.b.name].includes('Leg')).map(()=>index));
           if(!legLinks.length||legLinks.some(index=>index!==apronStep[0]))wrong(`${label}: the stretchers are not fastened to the legs in the step that sets the shelf in place`);
-          // where each slat starts, as built, from the end of the stretchers
+          // where each slat starts, as built, from the end of the stretchers (pencilled on the stretchers from their
+          // part drawing on the Cut list page: the shop packet, js/shoppacket.js)
           const stretcher=S.parts.find(piece=>piece.name==='Long stretcher');
-          const missing=S.parts.filter(piece=>piece.name==='Shelf slat').map(slat=>fmt(r16(slat.pos[0]-stretcher.pos[0]))).filter(text=>!shelf.words.includes(text));
-          if(missing.length)wrong(`${label}: the shelf step does not give where the slats start at ${missing.join(', ')}`);
+          const marked=shelf.words+' '+plan.shop.make.filter(entry=>entry.on.includes('Long stretcher')).map(entry=>entry.words).join(' ');
+          const missing=S.parts.filter(piece=>piece.name==='Shelf slat').map(slat=>fmt(r16(slat.pos[0]-stretcher.pos[0]))).filter(text=>!marked.includes(text));
+          if(missing.length)wrong(`${label}: neither the shelf step nor the stretchers' part drawing gives where the slats start at ${missing.join(', ')}`);
           if(style==='rustic')continue;
           // every line of pocket screws into the slats: the places in numbers, and a marking view with sizes
           for(const group of shelf.groups){

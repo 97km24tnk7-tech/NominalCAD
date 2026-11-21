@@ -114,7 +114,7 @@ function upgradeReviewFixes(){
       rewritten=rewritten||done.rewritten;
       // (the preset's name has a slash in it: "this toy chest" reads better than "this Storage box / toy chest")
       const chest=name===TOY_CHEST?'toy chest':name;
-      said.push(done.holes?`this ${chest} now has ${done.total} air holes, ${fmt(AIR_HOLES.d)} across, high on the front and on both ends, so a child shut inside can breathe (the drawings are in Shapes to cut)`
+      said.push(done.holes?`this ${chest} now has ${done.total} air holes, ${fmt(AIR_HOLES.d)} across, high on the front and on both ends, so a child shut inside can breathe (their drawings are on the Cut list page, under Part drawings)`
         :`the notes of this ${chest} now say it must have its air holes`);
     }else{
       const done=upgradeSlattedShelf(placement,alone);
@@ -167,7 +167,8 @@ SELFTESTS.push(function savedDesignsGetTheReviewFixes(problems){withoutDrawing((
     const holesOf=parts=>parts.filter(piece=>shapeFeatures(piece).length).map(piece=>piece.name+':'+shapeFeatures(piece).length).sort().join(',');
     if(holesOf(S.parts)!==holesOf(today))wrong(`the old toy chest has holes ${holesOf(S.parts)}, a chest made today ${holesOf(today)}`);
     if((S.notes||[]).some(note=>OLD_TOY_CHEST_NOTE.test(note)))wrong('the old toy chest still offers the air holes as a choice');
-    if(!buildPlan(true).steps.some(step=>/air holes/.test(step.words)))wrong('the old toy chest has no step that drills its air holes');
+    // (the air holes are made from the part drawings of the front and the sides: the shop packet, js/shoppacket.js)
+    if(!buildPlan(true).shop.make.some(entry=>/air holes/.test(entry.words)))wrong('the old toy chest\'s part drawings do not give its air holes');
     if(lines.length!==1||!/air holes/.test(lines[0]))wrong(`the old toy chest must say once that it has air holes now, and said: ${lines.join(' / ')||'nothing'}`);
     if(shapeFindings().length)wrong(`the old toy chest's holes break a shape rule: ${shapeFindings()[0].text||shapeFindings()[0].code}`);
     // opened again: nothing more happens; a hole taken away by hand stays away

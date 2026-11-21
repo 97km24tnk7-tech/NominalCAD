@@ -71,8 +71,9 @@ function showBuildStep(index){
   sel=new Set([...sel].filter(id=>!hiddenIds.has(id)));
   $('#stepCount').textContent=`Step ${step.no} of ${steps.length}`;
   const skipped=beforeBuilding?'<p class="hint">The view shows the finished design: this is what you are going to build. From the first building step on it shows the build as it stands at that step.</p>':'';
-  // (step 2, Drill your pieces: its words, the jig settings, and where its drawings are: js/partdrawings.js)
-  $('#stepBody').innerHTML=(stepMode.index===0&&plan.note?`<p class="hint">${esc(plan.note)}</p>`:'')+skipped+(step.kind==='drill'?drillModeHtml(step,plan):stepTextHtml(step));
+  // (step 1 starts with the line that every part is made first, from its part drawing on the Cut list page: js/shoppacket.js)
+  const first=stepMode.index===0?`<p class="hint shop-first-line">${esc(SHOP_FIRST_WORDS)}</p>`:'';
+  $('#stepBody').innerHTML=first+(stepMode.index===0&&plan.note?`<p class="hint">${esc(plan.note)}</p>`:'')+skipped+stepTextHtml(step);
   $('#stepBody').scrollTop=0;
   linkWords($('#stepBody'));   // the highlighted words of the printed page work here too (js/wordlinks.js)
   $('#stepBack').disabled=stepMode.index===0;
@@ -86,9 +87,8 @@ SCENE_EXTRAS.push(function paintBuildStep(){
   const step=buildPlan().steps[stepMode.index];
   if(!step)return;
   const hosts=step.hardware.flatMap(row=>row.items.map(item=>item.on));
-  // brought: a part built earlier that this step sets in place; step 2 shows the pieces that get holes
-  const drilled=step.kind==='drill'?S.parts.filter(p=>buildPlan().drill.byPiece.has(p.id)):[];
-  const added=step.pieces.concat(step.brought||[],drilled);
+  // brought: a part built earlier that this step sets in place
+  const added=step.pieces.concat(step.brought||[]);
   for(const id of added.length?added.map(p=>p.id):hosts){
     const group=meshes.get(id);
     if(group&&!sel.has(id)&&!isProp(byId(id)))group.children[0].material.color.setHex(STEP_COL.added);
@@ -224,9 +224,11 @@ SELFTESTS.push(function stepPicturesAndPage(problems){
     const plan=buildPlan();
     if(!stepMode||$('#stepPanel').hidden)wrong('Build step by step did not start');
     else{
-      // it opens on step 1 (cutting), with the whole design in view; the building starts at the first step with pieces
+      // it opens on step 1 (the first assembly step: the parts are made from the Cut list page, js/shoppacket.js);
+      // a step before the first one with pieces shows the whole design
       if(stepMode.index!==0)wrong('Build step by step does not open on step 1');
-      if(hiddenIds.size)wrong('Build step by step hides pieces on the cutting step, where the whole design is to be seen');
+      if(!plan.steps[0].pieces.length&&hiddenIds.size)wrong('Build step by step hides pieces on a step before the building starts, where the whole design is to be seen');
+      if(!$('#stepBody .shop-first-line'))wrong('Build step by step, step 1, does not say that the parts are made first');
       const index=plan.steps.findIndex(step=>step.pieces.length);
       showBuildStep(index);
       const later=S.parts.filter(p=>plan.stepOfPiece.get(p.id)>index);

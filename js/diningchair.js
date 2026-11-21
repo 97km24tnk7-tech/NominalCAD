@@ -1510,11 +1510,11 @@ SELFTESTS.push(function diningChairStepsInOrder(problems){
         // the tools each step's words name are in its You need, and no tool its words do not use (the chair maker's
         // review: a saw where nothing is cut, a level that is never used, no flush-cut saw for the plugs)
         const toolsOf=index=>(plan.steps[index]&&plan.steps[index].need.tools||[]).join('; ');
-        const cutStep=plan.steps.findIndex(step=>step.kind==='cut');
-        if(!/block plane/.test(toolsOf(cutStep)))wrong(`${label}: the cutting step rounds the front edge with a block plane but does not list one`);
+        // (the cutting and the rounded front edge are in the shop packet now: its tools, js/shoppacket.js)
+        if(!/block plane/.test(shopTools(plan).join('; ')))wrong(`${label}: the part drawings round the front edge with a block plane but the packet does not list one`);
         if(/\bsaw\b/.test(toolsOf(indexOf[0]))||/\bsaw\b/.test(toolsOf(indexOf[1])))wrong(`${label}: a step that cuts nothing lists a saw`);
         // one saw line in the cutting step, not "saw" and again "saw (a circular saw or jigsaw ...)" (stage 1 left it)
-        if(toolsOf(cutStep).split('; ').filter(tool=>/^saw\b/.test(tool)).length>1)wrong(`${label}: the cutting step lists a saw twice (${toolsOf(cutStep)})`);
+        if(shopTools(plan).filter(tool=>/^saw\b/i.test(tool)).length>1)wrong(`${label}: the tools for making the parts list a saw twice (${shopTools(plan).join('; ')})`);
         if(!/band clamp/.test(toolsOf(indexOf[1])))wrong(`${label}: the step that joins the side frames names a band clamp but does not list one`);
         if(!/two bar clamps/.test(toolsOf(indexOf[2])))wrong(`${label}: the seat step does not list the two clamps it is written for`);
         if(/(^|; )saw(;|$)/.test(toolsOf(indexOf[3])))wrong(`${label}: the back step lists a plain saw as well as the flush-cut saw`);
@@ -1539,7 +1539,7 @@ SELFTESTS.push(function diningChairStepsInOrder(problems){
     if(set.steps.some(step=>step.source!=='preset'&&step.kind==='build'))wrong('four chairs made with Copy in a row get steps the chair does not have');
     const sideStep=set.steps.find(step=>step.pieces.some(p=>p.name==='Side seat rail'));
     if(!sideStep||sideStep.pieces.filter(p=>p.name==='Side seat rail').length!==8||!/each of the 4 dining chairs/.test(sideStep.words))wrong('the side frame step of four chairs does not build all 8 side frames, for each chair');
-    if(!/You are making 4 dining chairs/.test(set.steps.find(step=>step.kind==='cut').words))wrong('the cutting step of four chairs does not say to cut them alike');
+    if(!/You are making 4 dining chairs/.test(set.shop.copiesLine))wrong('the cutting of four chairs (the shop packet, js/shoppacket.js) does not say to cut them alike');
   })(problems);
 });
 

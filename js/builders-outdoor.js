@@ -180,7 +180,7 @@ function buildFeeder(p){
     mk('Roof post','1x4',[.75,FEEDER.POST_LENGTH,FEEDER.POST_WIDTH],[.75,.75,middle-FEEDER.POST_WIDTH/2]),
     mk('Roof post','1x4',[.75,FEEDER.POST_LENGTH,FEEDER.POST_WIDTH],[L-1.5,.75,middle-FEEDER.POST_WIDTH/2]));
   // The top of each post is cut to a point at the roof slope, across its width (js/shapes.js): the model, the cut
-  // list's Shapes to cut drawing and the cutting step all show the cut, and the roof boards lie on the two cuts (the
+  // list's part drawing of the post (the shop packet) both show the cut, and the roof boards lie on the two cuts (the
   // preset audit of 20 Nov, finding 6: the posts were drawn square, with a note that said so).
   for(const post of P.filter(piece=>piece.name==='Roof post'))pointEnd(post,'high',FEEDER.SLOPE,'w');
   for(const side of[-1,1]){
@@ -194,7 +194,7 @@ function buildFeeder(p){
   return P;
 }
 function feederNotes(){
-  return['The top of each roof post is cut to a point at the slope of the roof, so the roof boards lie flat on the two cuts. The cut list gives each post at its full length to the tip, and Shapes to cut on the cut list page shows how to mark and cut the point.',
+  return['The top of each roof post is cut to a point at the slope of the roof, so the roof boards lie flat on the two cuts. The cut list gives each post at its full length to the tip, and its part drawing on the cut list page shows how to mark and cut the point.',
     'The lists are for cedar, which stands up to weather, and exterior screws. Buy glue marked exterior or waterproof. Leave the inside bare: birds eat from it.',
     'The tray, the posts and the roof are rule-of-thumb sizes for seed, birds and the weather, not an engineer\'s numbers.'];
 }
@@ -204,7 +204,9 @@ function feederNotes(){
    pieces exactly, since a shape is not part of the match) say Shapes to cut shows the point, and an old step that
    cuts it by hand is left out, as the cutting step and Shapes to cut now say how. The note about square posts is
    replaced. Done once per placement (S.sets[n].pointedPosts), so a point taken off by hand stays off. The code
-   review of the audit fixes, 12. One line says what changed (sayFeederUpgrade, the self-check listens in). */
+   review of the audit fixes, 12. One line says what changed (sayFeederUpgrade, the self-check listens in).
+   (Since the shop packet, spec 14, "Shapes to cut" is the shape block of the post's part drawing on the Cut list
+   page; the note and the line say so.) */
 let sayFeederUpgrade=text=>toast(text);
 const OLD_FEEDER_NOTE=/roof posts square at the top/;
 const OLD_FEEDER_POINT_STEP=/^Cut the top of each roof post to a point/;
@@ -224,7 +226,7 @@ function pointOldFeederPosts(){
   if(!pointed)return;
   S.notes=(S.notes||[]).map(note=>OLD_FEEDER_NOTE.test(note)?feederNotes()[0]:note);
   S.steps=(S.steps||[]).filter(step=>!(step&&(step.add||[]).length===0&&OLD_FEEDER_POINT_STEP.test(step.t||'')));
-  sayFeederUpgrade('Updated to the current plans: the roof posts of this Bird feeder are drawn with their pointed tops, and Shapes to cut on the cut list page shows how to mark and cut them.');
+  sayFeederUpgrade('Updated to the current plans: the roof posts of this Bird feeder are drawn with their pointed tops, and their part drawing on the cut list page shows how to mark and cut them.');
 }
 ON_LOAD.push(pointOldFeederPosts);
 /* a Bird feeder made today has its pointed posts from the start: marked at its first commit */
@@ -235,7 +237,8 @@ ON_COMMIT.push(()=>{
 function feederSteps(){
   return[{t:'Cut every piece on the cut list and pencil its letter on it.',add:[]},
     {t:'Glue the four rim strips around the top of the tray, flush with its edges, and drive two screws up through the tray into each strip. Drill pilot holes first: the strips are thin and split easily. Then drill four 1/4" drain holes through the tray.',add:['Tray','Long rim','End rim']},
-    // (the pointed tops of the roof posts are cut with the other pieces: the cutting step and Shapes to cut say how)
+    // (the pointed tops of the roof posts are cut with the other pieces: the posts' part drawing on the Cut list page
+    //  says how; "Shapes to cut" was retired by the shop packet, js/shoppacket.js)
     {t:'Stand a roof post at each end of the tray, centered, tight against the inside of the end rim. Glue it, drive two screws up through the tray into its end and two through the end rim into its face.',add:['Roof post']},
     {t:`Saw or plane a ${FEEDER.SLOPE} degree bevel along one long edge of each roof board, so the two boards meet tightly at the ridge. Glue and screw them onto the sloped tops of the posts with the beveled edges together, hanging over 1" at each end. Drill pilot holes first so the post tops do not split, and drive one screw through each board into each post: the glue does most of the holding. Run a thin line of exterior glue along the ridge.`,add:['Roof board'],
       // the roof boards are set at the slope, so the program sees no joint there: the screws are counted here and
@@ -270,9 +273,9 @@ SELFTESTS.push(function oldFeederGetsPointedPosts(problems){withoutDrawing(()=>{
       const posts=S.parts.filter(piece=>piece.name==='Roof post');
       if(posts.length!==2||posts.some(post=>!post.shape))wrong(`saved under ${savedUnder}: its roof posts are not pointed`);
       if((S.notes||[]).some(note=>OLD_FEEDER_NOTE.test(note)))wrong(`saved under ${savedUnder}: the notes still say the posts are drawn square`);
-      if(!(S.notes||[]).some(note=>/Shapes to cut on the cut list page shows how to mark and cut the point/.test(note)))wrong(`saved under ${savedUnder}: the notes do not say where the point is drawn`);
+      if(!(S.notes||[]).some(note=>/part drawing on the cut list page shows how to mark and cut the point/.test(note)))wrong(`saved under ${savedUnder}: the notes do not say where the point is drawn`);
       const words=buildPlan(true).steps.map(step=>step.words).join(' ');
-      if(OLD_FEEDER_POINT_STEP.test(words)||/Cut the top of each roof post to a point/.test(words))wrong(`saved under ${savedUnder}: a step still cuts the points by hand beside Shapes to cut`);
+      if(OLD_FEEDER_POINT_STEP.test(words)||/Cut the top of each roof post to a point/.test(words))wrong(`saved under ${savedUnder}: a step still cuts the points by hand beside the part drawing`);
       if(lines.length!==1||!/pointed tops/.test(lines[0]))wrong(`saved under ${savedUnder}: it must say once that its posts are pointed now, and said: ${lines.join(' / ')||'nothing'}`);
       if(open(JSON.parse(JSON.stringify(S))).length)wrong(`saved under ${savedUnder}: brought up to date, it is updated again when opened again`);
     }

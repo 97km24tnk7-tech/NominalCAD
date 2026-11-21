@@ -1799,11 +1799,14 @@ function markingPlansOfDesign(name){
       // (a line whose holes are drilled in step 2 shows the drawing there instead: its view is checked, not needed)
       list.push({label:`${name}, step ${step.no}, line ${group.no}`,plan:jointMarkPlan(group,plan.letterOf),needed:!group.predrilled&&(!rule.free||!!rule.gap)});
     }
-    for(const row of step.hardware)list.push({label:`${name}, step ${step.no}, ${row.kind} line ${row.no}`,plan:hardwareMarkPlan(row,plan.letterOf),needed:['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind)});
+    // (the holes of cup hinges and pulls are made from the part drawings: their views are listed with those below)
+    for(const row of step.hardware)if(!row.make)list.push({label:`${name}, step ${step.no}, ${row.kind} line ${row.no}`,plan:hardwareMarkPlan(row,plan.letterOf),needed:['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind)});
     const fresh=new Set(step.pieces.concat(step.brought||[]).map(p=>p.id));
     const marks=markingLines(step,fresh);
     if(marks.length)list.push({label:`${name}, step ${step.no}, pencil marks`,plan:marksMarkPlan(marks,plan.letterOf,step.words),marks:true});
   }
+  // the pencil marks made on the loose pieces from their part drawings (the shop packet, js/shoppacket.js)
+  for(const mark of shopMarkPlans(plan))list.push({label:`${name}, part drawing ${mark.letter}, ${mark.hole?mark.hole+' holes':'pencil marks'}`,plan:mark.plan,marks:!mark.hole,needed:!!mark.hole});
   return list;
 }
 SELFTESTS.push(function markingViewsMeasureTrue(problems){
@@ -1869,8 +1872,8 @@ SELFTESTS.push(function markingViewsMeasureTrue(problems){
     const figures=[...$('#instrPage').querySelectorAll('.closeups figure')];
     // (each marking view is drawn when it is seen: drawn here, it must be a picture)
     const pairs=shots.reduce((sum,shot)=>sum+shot.closeups.filter(close=>/^data:image\/png/.test(close.mark?markingSource(close.mark):'')).length,0);
-    // (a close-up of a line drilled in step 2 is one picture, its caption naming the drawing: js/drillplan.js)
-    const total=shots.reduce((sum,shot)=>sum+shot.closeups.filter(close=>!/drilled already, drawing/.test(close.caption)).length,0);
+    // (a close-up of a line drilled from the part drawings is one picture, its caption naming the drawing: js/drillplan.js)
+    const total=shots.reduce((sum,shot)=>sum+shot.closeups.filter(close=>!/made already, part drawings?/.test(close.caption)).length,0);
     if(pairs!==total)wrong(`the Nightstand has ${total} close-ups and ${pairs} marking views`);
     if(figures.filter(figure=>figure.classList.contains('pair')&&figure.querySelectorAll('img').length===2).length!==pairs)wrong('the Build instructions page does not show each close-up as a pair of pictures');
     // the marking views on the page are drawn once they are seen, and all of them before printing

@@ -1638,8 +1638,10 @@ const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg
    was recorded again the same way: with "fastening":7 put back to 6 the text hashes to main's '8uogyl' at 477.
    Branch auditfix had also taken 7 (the high second shelf of a Bookshelf at a divider); at its merge with main that
    became rule 8, and the print was recorded again the same way: with "fastening":8 put back to 7 the text hashes
-   to main's '7qt7oo' at 477. */
-const OLD_PROJECT_PRINT=['7qwd6n',477];
+   to main's '7qt7oo' at 477. The shop packet had also taken 8 on its own branch; at its merge with main it became
+   rule 9 (FASTENING_NOW 8 to 9, js/shoppacket.js), and the print was recorded again the same way: with
+   "fastening":9 put back to 8 the text hashes to main's '7qwd6n' at the same 477 characters. */
+const OLD_PROJECT_PRINT=['8uxxgi',477];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){

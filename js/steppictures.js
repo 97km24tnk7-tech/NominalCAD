@@ -757,12 +757,15 @@ function stepPictures(plan){
       if(spot&&view.visible(row.items[0].on))balloons.push({no:row.no,spot});
     }
     const lettered=S.parts.filter(p=>view.fresh.has(p.id)&&view.visible(p.id)&&!isProp(p));
-    const marks=markingLines(step,view.fresh).filter(line=>view.visible(line.piece.id));
-    if(marks.length){
+    // (the pencil lines of the step's own words, and those made on its pieces from their part drawings: only the
+    //  step's own get a marking view under the picture, the others are on the part drawings, js/shoppacket.js)
+    const pencil=stepPencilLines(plan,step,view.fresh);
+    const marks=pencil.lines.filter(line=>view.visible(line.piece.id)),own=pencil.own.filter(line=>view.visible(line.piece.id));
+    if(own.length){
       entry.notes.push('The dark lines are the pencil marks this step asks for: each shows where the underside of a piece will sit. Their heights are in "The pencil marks" under the picture.');
-      const markPlan=marksMarkPlan(marks,plan.letterOf,step.words);
+      const markPlan=marksMarkPlan(own,plan.letterOf,step.words);
       if(markPlan)entry.markView={src:markingPictureLater(markPlan),caption:`The pencil marks of step ${step.no}, with their heights measured up from the bottom end.`};
-    }
+    }else if(marks.length)entry.notes.push('The dark lines are the pencil lines you made on the pieces from their part drawings: each shows where the underside of a piece will sit.');
     entry.marks=marks.length;
     entry.src=annotatedPicture(camera,pen=>{
       const written=drawMarks(pen,marks);
@@ -787,8 +790,9 @@ function stepPictures(plan){
       const others=group.places-1;
       // (words: where the line says the fasteners go, shown under the picture when it is opened large)
       // (mark: the marking view, a key drawn when it is seen; markingSource(mark) draws it)
-      // (a line whose holes are drilled in step 2 has no "Where to mark": its caption names the drawing, js/drillplan.js)
-      const drilled=group.predrilled?` Where to mark: drilled already, drawing ${listWords(group.predrilled.labels)}.`:'';
+      // (a line whose holes are made from the part drawings has no "Where to mark": its caption names the drawing,
+      //  js/drillplan.js and js/shoppacket.js)
+      const drilled=group.predrilled?` Where to mark: made already, part drawing${group.predrilled.labels.length>1?'s':''} ${listWords(group.predrilled.labels)}.`:'';
       // (a line whose places are marked differently names the one shown: group.sampleAt, js/buildsteps.js; when the
       //  holes are drilled already there is nothing to mark at the other places, only the pieces to put in)
       const otherPlaces=others>1?`At the other ${others} places`:'At the other place';
@@ -802,7 +806,11 @@ function stepPictures(plan){
     for(const row of step.hardware){
       if(entry.closeups.length>=CLOSEUPS_MAX)break;
       const src=hardwareCloseupPicture(row,view.fresh);
-      if(src)entry.closeups.push({no:row.no,src,mark:markingPictureLater(hardwareMarkPlan(row,plan.letterOf)),caption:`Close-up of line ${row.no}: the numbers of that line, measured on the piece.`,words:row.line||''});
+      // (the holes of cup hinges and pulls are made from the part drawing: the close-up shows how the hardware goes
+      //  in, and says where the holes were made: js/shoppacket.js)
+      const madeOn=row.make?plan.letterOf(row.hosts[0]):'';
+      if(src)entry.closeups.push({no:row.no,src,mark:row.make?null:markingPictureLater(hardwareMarkPlan(row,plan.letterOf)),
+        caption:row.make?`Close-up of line ${row.no}. Where to mark: made already, part drawing ${madeOn}.`:`Close-up of line ${row.no}: the numbers of that line, measured on the piece.`,words:row.line||''});
     }
     const left=withSample.filter(group=>!chosen.includes(group)).map(group=>group.no);
     if(left.length)entry.notes.push(`No close-up for line${left.length>1?'s':''} ${listWords(left.map(String))}: ${left.length>1?'they are':'it is'} driven like the lines above.`);
@@ -862,7 +870,8 @@ SELFTESTS.push(function stepPicturesShowTheWork(problems){
       if(!['cup','pull','slide','runner','kicker','wallscrew','bolt'].includes(row.kind))continue;
       const close=hardwareCloseupPlan(row);
       if(!close||!close.dims.length){wrong(`${name}: the ${row.kind} line has no close-up with its numbers`);continue;}
-      const missing=close.dims.find(dim=>!row.line.includes(dim.text));
+      // (a line whose holes are made from the part drawing: its numbers are the drawing's words, row.make)
+      const missing=close.dims.find(dim=>!(row.line+' '+(row.make||'')).includes(dim.text));
       if(missing)wrong(`${name}: the close-up of the ${row.kind} line shows ${missing.text}, which its line does not say: ${row.line.slice(0,160)}`);
     }
   }
@@ -870,12 +879,14 @@ SELFTESTS.push(function stepPicturesShowTheWork(problems){
   const garage=place('Garage shelves');
   const decks=garage.steps.findIndex(step=>step.pieces.some(p=>p.name==='Shelf deck'));
   if(!stepScene(garage,decks).notes.some(note=>/where they end up/.test(note)))wrong('Garage shelves: the deck step draws the frames in the air and does not say so');
-  // a step that says "mark" draws every mark it gives a height for, on each piece it marks
+  // the step that puts in the marked pieces draws every pencil line their part drawing gives a height for, on each
+  // of them (the marking words are on the part drawings: the shop packet, js/shoppacket.js)
   for(const[name,heights,pieces]of[['Bookshelf',4,2],['Base cabinet with doors',2,2],['Garage shelves',4,2]]){
     const plan=place(name);
-    const index=plan.steps.findIndex(step=>/\bmark\b/i.test(step.words)&&step.pieces.length);
-    const lines=index<0?[]:markingLines(plan.steps[index],stepScene(plan,index).fresh);
-    if(lines.length!==heights*pieces)wrong(`${name}: the marking step draws ${lines.length} pencil marks, it gives ${heights} heights on ${pieces} pieces`);
+    const marked=plan.shop.make.filter(entry=>entry.kind==='mark'&&entry.view).flatMap(entry=>entry.on);
+    const index=plan.steps.findIndex(step=>step.pieces.some(piece=>marked.includes(piece.name)));
+    const lines=index<0?[]:stepPencilLines(plan,plan.steps[index],stepScene(plan,index).fresh).lines;
+    if(lines.length!==heights*pieces)wrong(`${name}: the step that puts in the marked pieces draws ${lines.length} pencil marks, their drawing gives ${heights} heights on ${pieces} pieces`);
   }
   const bench=place('Workbench');
   const pocket=bench.steps.flatMap(step=>step.groups).find(group=>group.sample&&group.sample.layout[0].kind==='pocket');

@@ -34,10 +34,15 @@
                    oldBookshelfHighSecondShelf in js/builders-storage.js; branch auditfix, which took 7 on its own
                    and became 8 at its merge with main, where the fish tops had taken 7). A design the site saved
                    under 5, 6 or 7 is fastened again when opened.
+                   9: every part is made from its part drawing on the Cut list page (the shop packet, spec 14,
+                   js/shoppacket.js): a saved step whose part-making words the packet cannot move (shopLeavesMakeWords)
+                   is written again too. (The packet took 7 on its own branch and 8 at its first merge with main;
+                   at its second merge, where the audit fixes already had 8, it became 9, so a design saved by the
+                   published program under rule 8 is still written again.)
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=8;
+const FASTENING_NOW=9;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);
@@ -154,8 +159,9 @@ function upgradeFastening(){
   // (5: steps saved before "Drill your pieces" tell the person to drill pocket holes that step 2 holds now: they are
   //  written again, quietly, as the fasteners did not change, js/drillplan.js)
   // (6: the same for the drill words of stage 2: dowel holes, clearance holes, counterbores, the marks pencilled on)
-  if(!changedKeys.length){if(savedUnder<6)bringWordsUpToDate(placements,[],true);return;}
-  const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<6);
+  // (9: the same for part-making words the shop packet cannot move, js/shoppacket.js)
+  if(!changedKeys.length){if(savedUnder<9)bringWordsUpToDate(placements,[],true);return;}
+  const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<9);
   const names=[...new Set(placements.map(entry=>entry.entry||entry.preset.name))];   // (an entry's name, never a hidden builder's: "this Bookshelf")
   const text=`Updated the fasteners of this ${names.join(' and ')} to the current way: ${upgradeWords(keptByHand,plugsBefore,changedKeys.length)}.`+
     (words==='preset'?' Its build steps and notes were written again to match.':words==='notes'?' Its notes were written again to match.':
@@ -183,6 +189,7 @@ function staleDrillWords(step){
   const objects=held.filter(one=>one&&typeof one==='object'&&!Array.isArray(one));
   if(drillOrders(text).length&&!step.drill)return true;
   if(boreOrders(text).length&&!objects.some(one=>one.kind))return true;
+  if(shopLeavesMakeWords(step))return true;   // (7: part-making words the shop packet cannot move, js/shoppacket.js)
   return/Mark those places on both aprons first/.test(text)&&!objects.some(one=>one.pencilled);
 }
 function bringWordsUpToDate(placements,changedKeys,drillWordsOnly,drillWordsToo){

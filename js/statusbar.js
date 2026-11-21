@@ -48,8 +48,9 @@ const TOOL_PROMPTS={
 /* the prompt on the other tabs says what the page is for */
 const PAGE_PROMPTS={
   joints:['i-screw','Fasteners','Every place two pieces touch, with a suggested fastener. Pick another in the Fasten with column and the hardware list follows.'],
-  cut:['i-list','Cut list & shopping','What to buy and how to cut it. Type the prices from your store into the boxes and the total follows.'],
-  instr:['i-print','Build instructions','Shopping list, cut list and the steps in order. '+PRINT_HINT], // PRINT_HINT: hosted.js
+  // (the shop packet, js/shoppacket.js: every part is made from the Cut list page; Build instructions only assembles)
+  cut:['i-list','Cut list & shopping','What to buy, and a drawing of every part to cut, drill and shape. Type the prices from your store into the boxes and the total follows.'],
+  instr:['i-print','Build instructions','Putting the made parts together, step by step. '+PRINT_HINT], // PRINT_HINT: hosted.js
 };
 
 /* ---------- the prompt ---------- */

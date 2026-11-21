@@ -772,11 +772,14 @@ function bracketScrewWords(spec){
    finishing step (finText, js/style.js) says how the plugs are cut flush or the holes filled. */
 function plugWords(f,drilled){
   const painted=FINISHES[look().finish][2]===2,deep=inchWords(f.sunk);
-  // (drilled: the counterbores and the pilot holes are drilled in step 2, js/drillplan.js)
-  const start=drilled?` These heads would show, so they sink into the 3/8" counterbores drilled in step 2, ${deep} deep.`
+  // (drilled: the counterbores and the pilot holes are made on the part drawings, js/drillplan.js and js/shoppacket.js;
+  //  the pieces of dowel rod for the plugs are cut there too, on its Also cut list: plugDowelPieces)
+  const start=drilled?` These heads would show, so they sink into the 3/8" counterbores made on the part drawings, ${deep} deep.`
     :` These heads would show, so sink them: drill a 3/8" hole ${deep} deep for each one first (a counterbore), then drill the pilot hole in its middle and drive the screw.`;
   // deeper than a store plug is long (3/8"): a length of dowel rod fills the hole, under paint too
-  if(plugIsDowel(f.sunk))return start+` A store-bought plug is only about 3/8" long and would sit deep in that hole, so cut a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long for each hole, put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`;
+  if(plugIsDowel(f.sunk))return start+(drilled
+    ?` A store-bought plug is only about 3/8" long and would sit deep in that hole, so each hole takes a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long (Also cut, on the Cut list page): put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`
+    :` A store-bought plug is only about 3/8" long and would sit deep in that hole, so cut a piece of 3/8" dowel rod ${inchWords(f.sunk+.25)} long for each hole, put a little glue in the hole and tap the dowel in until it bottoms. It sticks out 1/4" and is cut flush when you finish.`);
   return start+(painted?' Under paint the holes are filled with wood filler when you finish.'
       :' Put a little glue in each hole and tap in a 3/8" wooden plug, with its grain running the same way as the wood around it. It is cut flush when you finish.');
 }
@@ -1295,11 +1298,12 @@ function hardwareLines(items,letterOf,stripLetterOf){
     const hosts=[...new Set(list.map(item=>item.on))].map(byId);
     const alike=S.parts.filter(p=>p.name===hosts[0].name&&letterOf(p)===letterOf(hosts[0]));
     // each kind that needs more than "where its middle is" writes its own line
-    let line='';
+    let line='',make='';
     if(kind.motion==='slide'&&group.other)line=slideLine(group,hosts,letterOf,stripLetterOf);
     else if(group.kind==='kicker')line=kickerLine(group,hosts,letterOf,stripLetterOf);
-    else if(group.kind==='cup'&&group.other)line=cupHingeLine(group,hosts,alike,letterOf);
-    else if(group.kind==='pull')line=pullLine(group,hosts,alike,letterOf);
+    // (cup hinges and pulls: their holes are part making, on the part drawing of the door or front: make)
+    else if(group.kind==='cup'&&group.other)({line,make}=cupHingeLine(group,hosts,alike,letterOf));
+    else if(group.kind==='pull')({line,make}=pullLine(group,hosts,alike,letterOf));
     else if(kind.line)line=kind.line(group,hosts,letterOf);   // a kind that writes its own line (HARDWARE[kind].line)
     if(!line){
       const each=list.length/hosts.length;
@@ -1320,7 +1324,7 @@ function hardwareLines(items,letterOf,stripLetterOf){
       if(group.other)where+=` The other half of ${list.length>1?'each':'it'} is screwed to the ${pieceLabel(group.other,letterOf)}.`;
       line=`${head}, ${onWhat}. ${where} Screws: ${kind.screws}.`;
     }
-    lines.push({items:list,kind:group.kind,line});
+    lines.push({items:list,kind:group.kind,line,...(make?{make,hosts}:{})});
   }
   return lines;
 }
@@ -1448,11 +1452,16 @@ function cupHingeLine(group,hosts,alike,letterOf){
   const doors=`${hosts.length>1?`the ${hosts.length} ${pluralName(hosts[0].name)}`:`the ${hosts[0].name}`}${letterOf(hosts[0])?` (${letterOf(hosts[0])})`:''}`;
   const where=said.size===1?`${hosts.length>1?'Each door is':'It is'} ${[...said.keys()][0]}.`
     :[...said.entries()].map(([words,doorsLikeThis])=>`${capital(listWords(doorsLikeThis.map(host=>whichOne(host,alike))))}: ${words}.`).join(' ');
-  return`${capital(hardwareWords(list))}${Number.isInteger(each)&&hosts.length>1?`, ${countWord(each)} on each of ${doors}`:`, on ${doors}`}. `+
-    `The round cup of each hinge sits in a hole in the BACK face of the door: ${inchWords(CUP_HOLE.wide)} wide and ${inchWords(deep)} deep, drilled with a ${inchWords(CUP_HOLE.wide)} Forstner bit. Do not drill through: stop ${inchWords(deep)} down. `+
-    `${where} Left and right are as you look at the front of the closed door. `+
-    `Press the cup into its hole, square to the edge, and drive its 2 small screws. Then hold the door in place and screw the plate of each hinge to the inside face of the ${pieceLabel(group.other,letterOf)}, at the height of its cup, with its screw holes about ${inchWords(CUP_HOLE.plateBack)} back from the front edge (the sheet in the package gives the exact distance for your hinges). `+
+  // (the shop packet: the cup holes are drilled in the loose door, on the Cut list page, from its part drawing; the
+  //  step only fits the hinges. make: the words of the part drawing, js/shoppacket.js shopTakesHardwareHoles)
+  const make=`The round cup of each hinge sits in a hole in the BACK face of the door: ${inchWords(CUP_HOLE.wide)} wide and ${inchWords(deep)} deep, drilled with a ${inchWords(CUP_HOLE.wide)} Forstner bit. Do not drill through: stop ${inchWords(deep)} down. `+
+    `${where} Left and right are as you look at the front of the closed door.`;
+  const letter=letterOf(hosts[0]);
+  const line=`${capital(hardwareWords(list))}${Number.isInteger(each)&&hosts.length>1?`, ${countWord(each)} on each of ${doors}`:`, on ${doors}`}. `+
+    `The cup holes are made already${letter?`: part drawing ${letter}`:', in the back face of the door'}. `+
+    `Press the cup of each hinge into its hole, square to the edge, and drive its 2 small screws. Then hold the door in place and screw the plate of each hinge to the inside face of the ${pieceLabel(group.other,letterOf)}, at the height of its cup, with its screw holes about ${inchWords(CUP_HOLE.plateBack)} back from the front edge (the sheet in the package gives the exact distance for your hinges). `+
     `Screws: ${HARDWARE.cup.screws}.`;
+  return{line,make};
 }
 /* Pull handles: two holes, each given from an end and an edge of the piece that is drilled, and how much wood the
    screws must pass through (a drawer front has the front of the drawer box behind it). */
@@ -1496,7 +1505,12 @@ function pullLine(group,hosts,alike,letterOf){
   const screws=through>hostThick+.01
     ?`The screws pass through ${inchWords(through)} of wood here (the ${hosts[0].name} and the piece behind it), so use screws about ${inchWords(drawerPullScrewLength(through))} long: the short ones in the package will not reach.`
     :`The screws pass through ${inchWords(through)} of wood: the ones in the package (about 1" long) fit.`;
-  return`${capital(hardwareWords(list))}, ${sizeLabel(list[0])} between holes, ${what}. ${where} The holes are ${sizeLabel(list[0])} apart. Mark them with a square so the pull sits straight, drill from the front with a scrap held behind so the back does not splinter, and screw the pull on from the back. ${screws}`;
+  // (the shop packet: the holes are drilled in the loose piece, on the Cut list page, from its part drawing; the step
+  //  only screws the pull on. make: the words of the part drawing, js/shoppacket.js shopTakesHardwareHoles)
+  const make=`${where} The holes are ${sizeLabel(list[0])} apart, for a pull with ${sizeLabel(list[0])} between its holes. Mark them with a square so the pull sits straight, and drill from the front with a scrap held behind so the back does not splinter.`;
+  const letter=letterOf(hosts[0]);
+  const line=`${capital(hardwareWords(list))}, ${sizeLabel(list[0])} between holes, ${what}. The holes are made already${letter?`: part drawing ${letter}`:''}. Screw the pull on from the back. ${screws}`;
+  return{line,make};
 }
 
 /* ---------- where each sheet of a wall goes ----------
@@ -1722,9 +1736,11 @@ function stepTools(step){
   if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners
   step.glued=step.groups.some(group=>GLUED_TYPES[group.type])||(step.groups.length>0&&/\bglue\b/i.test(words+' '+step.groups.map(group=>group.line).join(' ')));
-  if(hardwareKinds.has('cup'))add('1 3/8" Forstner bit for the cup holes');
+  // (cup holes and pull holes made from the part drawings take their bits on the Cut list page: js/shoppacket.js)
+  const madeAhead=kind=>(step.hardware||[]).some(row=>row.kind===kind&&row.make);
+  if(hardwareKinds.has('cup')&&!madeAhead('cup'))add('1 3/8" Forstner bit for the cup holes');
   if(['slide','runner','kicker'].some(kind=>hardwareKinds.has(kind)))add('level, and a scrap of wood for a spacer block');
-  if(hardwareKinds.has('pull')||hardwareKinds.has('knob'))add('3/16" drill bit');
+  if((hardwareKinds.has('pull')&&!madeAhead('pull'))||hardwareKinds.has('knob'))add('3/16" drill bit');
   if(/stud finder/i.test(words))add('stud finder');
   if(/\blevel\b|\bplumb\b/i.test(words)&&!tools.some(tool=>/level/.test(tool)))add('level');
   // what the words and the preset's own lines ask for beyond the joints the program sees
@@ -1988,24 +2004,8 @@ function suggestedOrder(pieces,builtIds,graph){
 }
 
 /* ---------- the plan ---------- */
-/* The words of step 2 "Drill your pieces". DRILL_WORDS ends "After this step you only put the pieces together",
-   which is not true when the step after it is a preset step that makes the shapes of some pieces (its `shapes`:
-   the toy chest's air holes, drilled while the front and the sides are still flat). Then step 2 says so.
-   Without pocket holes (a Rustic design: wood screws only) the words start from DRILL_WORDS_BITS (js/drillplan.js). */
-function drillStepWords(next,drill){
-  const base=drill&&!drill.pockets?DRILL_WORDS_BITS:DRILL_WORDS;
-  const shapes=next&&next.source!=='generated'&&next.preset&&Array.isArray(next.preset.shapes)?next.preset.shapes:[];
-  if(!shapes.length)return base;
-  const names=listWords(shapes.map(name=>name.toLowerCase()));
-  // what that step really does to those pieces: drills holes, cuts other shapes (rounded corners, notches), or both
-  const pieces=S.parts.filter(p=>shapes.includes(p.name)&&hasShape(p));
-  const holes=pieces.some(p=>shapeFeatures(p).some(f=>f.kind==='hole'));
-  const other=pieces.some(p=>shapeFeatures(p).some(f=>f.kind!=='hole')||(p.shape.corners||[]).some(Boolean)||(p.shape.ends||[]).some(Boolean));
-  const does=holes&&other?'drills the other holes and cuts the shapes':holes?'drills the other holes':'cuts the shapes';
-  const what=pieces.length>1?`the ${names} pieces, while those pieces are`:`the ${names}, while it is`;
-  return base.replace('After this step you only put the pieces together',
-    `The next step ${does} ${holes?'in':'of'} ${what} still flat. After that you only put the pieces together`);
-}
+/* (The words of the old step 2 "Drill your pieces", drillStepWords, are retired with that step: the part drawings
+   of the Cut list page say it, js/shoppacket.js.) */
 let planMemo=null;
 const SUGGESTED_NOTE='Suggested order. The program worked this order out from what touches what: what stands on the floor first, then what is fastened to that, tops after the frame, doors and drawers last. Before each step, check that you can reach every screw of that step with the drill. Where you cannot, fasten that piece one step earlier.';
 function buildPlan(fresh){
@@ -2099,22 +2099,13 @@ function makeBuildPlan(graph){
     for(const pieces of suggestedOrder(S.parts,new Set(),graph))drafts.push({kind:'build',source:'generated',words:'',was:'',pieces,extra:[],preset:null});
     drafts.push({kind:'finish',source:'preset',words:finText(),was:'',pieces:[],extra:[],preset:FIN});
   }
-  // every cut and hole in a piece is made in the cutting work, before the piece is fastened to anything: the
-  // cutting step names the shaped rows as they are now (shapeCutStepLine, js/shapedrawings.js)
-  // (except the pieces whose shapes a preset step of their own makes, named in its `shapes`: the toy chest's air
-  // holes; that step lists their tools too, stepTools)
-  const shapesElsewhere=[...new Set(drafts.flatMap(draft=>draft.source!=='generated'&&draft.preset&&Array.isArray(draft.preset.shapes)?draft.preset.shapes:[]))];
-  const shapedLine=shapeCutStepLine(cutList,shapesElsewhere);
-  for(const draft of drafts)if(draft.kind==='cut'){
-    if(shapedLine)draft.words+=' '+shapedLine;
-    draft.shapesElsewhere=shapesElsewhere;
-  }
-  // Drill your pieces (js/drillplan.js): right after cutting, when the design has a hole that is drilled ahead
+  // The shop packet (spec 14, stage A; js/shoppacket.js): every piece is made on the Cut list page from its part
+  // drawing (cut, drilled, shaped, marked) before anything is put together. So the cutting step, "Drill your
+  // pieces" and every part-making sentence of the preset steps leave the steps: they are kept in plan.shop and
+  // drawn on the part drawings. A preset step left with no words and no pieces (the toy chest's air holes, the
+  // Computer desk's edge banding) is dropped. What is left only puts the parts together, numbered from 1.
   const drill=drillPlan(graph,letterOf);
-  if(drill.total){
-    const cutAt=drafts.findIndex(draft=>draft.kind==='cut');
-    drafts.splice(cutAt+1,0,{kind:'drill',source:'generated',words:drillStepWords(drafts[cutAt+1],drill),was:'',pieces:[],extra:[],preset:null});
-  }
+  const shop=shopPacketOf(drafts,drill);
 
   // the step of every piece, then the joints and the hardware of every step
   const stepOfPiece=new Map();
@@ -2218,6 +2209,7 @@ function makeBuildPlan(graph){
     if(draft.source==='preset')step.words=withoutDrillWords(step.words,draft.preset,drill,step.groups);
     step.hardware=hardwareLines(draft.items,letterOf,cutList.letterOfStrip);
     step.hardware.forEach((row,index)=>{row.no=step.groups.length+index+1;});   // numbered on after the "Fasten with" lines, for the balloons
+    shopTakesHardwareHoles(shop,step);   // the cup holes and pull holes go on the part drawings (js/shoppacket.js)
     if(draft.source==='generated'&&draft.kind==='build'){
       step.words=generatedWords(draft.pieces,before,letterOf,graph,firstBuild&&!before.size);
     }else if(draft.source==='rewritten'){
@@ -2227,7 +2219,7 @@ function makeBuildPlan(graph){
     }else if(draft.kind==='hardware'){
       const kinds=[...new Set(draft.items.map(item=>item.kind))];
       step.words=`Mount the ${listWords([...new Set(draft.items.map(item=>HARDWARE[item.kind].name.toLowerCase().replace(/ \(.*| ?,.*/g,'')+'s'))])} on the ${pluralOrOne(draft.items,letterOf)}. `+
-        kinds.map(kind=>HARDWARE[kind].mount).join(' ');
+        kinds.map(kind=>shopMountWords(kind,step)).join(' ');   // (holes made from the part drawings are not drilled here: js/shoppacket.js)
     }
     // pocket holes with little room behind them for the drill, with the pieces that are in place by then: the
     // pieces built so far, less a part built apart that is not set in place yet; a part built apart is built
@@ -2246,16 +2238,16 @@ function makeBuildPlan(graph){
     const layout=sheetLayoutWords(draft.pieces,letterOf);
     if(layout)step.words+=' '+layout;
     if(draft.kind==='build')firstBuild=false;
-    step.need=draft.kind==='drill'?drillNeeds(drill):stepNeeds(step,letterOf,glueListed,cutList.letterOfStrip,suppliesClaimed);
+    step.need=stepNeeds(step,letterOf,glueListed,cutList.letterOfStrip,suppliesClaimed);
     steps.push(step);
   }
   // the step that drives each hole of step 2, and the Put in line of each step (js/drillplan.js)
   const stepOfLink=new Map();
   for(const step of steps)for(const group of step.groups)for(const link of group.links)stepOfLink.set(link,step.no);
   drill.number(stepOfLink);
-  const drillStep=steps.find(step=>step.kind==='drill');
-  drill.stepNo=drillStep?drillStep.no:0;
-  drill.steps=steps;   // (the hardware holes of the At assembly part of step 2 name their steps: hardwareHoleWords)
+  drill.steps=steps;   // (the hardware holes of the At assembly line of the packet name their steps: hardwareHoleWords)
+  // the steps the packet's notes name ("the scrap blocks of step 3"), by their numbers now
+  shop.number(draftIndex=>finalIndexOf.has(draftIndex)?finalIndexOf.get(draftIndex)+1:0);
   // setInPlace: piece id -> index of the step that sets it in place, for the parts that are built apart first
   const setInPlace=new Map();
   for(const[id,draftIndex]of placedAt)if(finalIndexOf.has(draftIndex))setInPlace.set(id,finalIndexOf.get(draftIndex));
@@ -2264,8 +2256,9 @@ function makeBuildPlan(graph){
   for(const[id,list]of placements)placedIn.set(id,list.filter(placed=>finalIndexOf.has(placed.at)).map(placed=>({at:finalIndexOf.get(placed.at),group:placed.group})));
   // added: the steps the program wrote for pieces that were added to a preset design (rule 4)
   const added=own?steps.filter(step=>step.source==='generated'&&step.kind==='build').length:0;
-  const plan={steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,placedIn,partOf,letterOf,note:own?'':SUGGESTED_NOTE,drill};
+  const plan={steps,suggested:!own,rewritten,added,stepOfPiece:pieceStep,setInPlace,placedIn,partOf,letterOf,note:own?'':SUGGESTED_NOTE,drill,shop};
   for(const step of steps)step.put=step.kind==='build'?placementWords(step,plan):'';
+  smallPartsOf(plan);   // the small things a step cuts are parts with letters and drawings (js/shoppacket.js)
   return plan;
 }
 /* The pieces that are not to be seen at one step (index from 0): those of later steps, and a part that was built
@@ -2542,7 +2535,8 @@ SELFTESTS.push(function buildStepsFollowTheDesign(problems){
   if(!plan.suggested||!plan.note)wrong('a design drawn by hand is not marked as a suggested order');
   if(!(order[0]===order[1]&&order[0]<order[2]&&order[2]<order[3]))wrong('a hand-drawn bookcase is not built sides first, then the shelf, then the top');
   if(!/Start with the 2 Sides/.test(plan.steps[order[0]].words)||!/24" apart/.test(plan.steps[order[0]].words))wrong('the first step of a hand-drawn design does not say what to start with and how far apart');
-  if(plan.steps[0].kind!=='cut'||plan.steps[plan.steps.length-1].kind!=='finish')wrong('a hand-drawn design does not start with cutting and end with finishing');
+  // (the cutting is in the shop packet now, js/shoppacket.js: the steps start with the first piece put in)
+  if(!plan.shop.cutWords||plan.steps[0].kind!=='build'||plan.steps[plan.steps.length-1].kind!=='finish')wrong('a hand-drawn design does not have its cutting in the packet, start with putting a piece in, and end with finishing');
   buildStepProblems('a design drawn by hand').slice(0,3).forEach(wrong);
   // two designs in one project: a suggested order, one design finished before the other is started
   place('Bookshelf');
@@ -2559,9 +2553,11 @@ SELFTESTS.push(function buildStepsFollowTheDesign(problems){
   place('Base cabinet with doors');
   plan=buildPlan(true);
   const hinges=plan.steps.flatMap(step=>step.hardware).find(row=>row.kind==='cup');
-  const hingeLine=hinges?hinges.line:'';
+  // (the cup hole is drilled from the door's part drawing: its numbers are the drawing's words, row.make, and the
+  //  line says where they are; js/shoppacket.js)
+  const hingeLine=hinges?hinges.line+' '+(hinges.make||''):'';
   if(!hingeLine.includes('hinged on its left edge; the middle of each hole is 7/8" in from that edge, 3" from its bottom end and 3" from its top end')||
-    !hingeLine.includes('1 3/8" wide and 1/2" deep')||!hingeLine.includes('inside face of the Side')){
+    !hingeLine.includes('1 3/8" wide and 1/2" deep')||!hingeLine.includes('inside face of the Side')||!/made already: part drawing [A-Z]/.test(hinges.line)){
     wrong('the hinge line of the Base cabinet does not give the cup hole (how wide, how deep, how far from the hinged edge and from the ends of the door) and the piece the plates go on: '+hingeLine);
   }
   const nightstand=place('Nightstand with drawers');
@@ -2666,13 +2662,19 @@ function whatABeginnerReads(wrong,place){
   place('Bookshelf');
   const shelves=S.parts.filter(p=>p.name==='Shelf').sort((a,b)=>a.pos[1]-b.pos[1]),topShelf=shelves[shelves.length-1];
   const gone=fmt(r16(topShelf.pos[1]));
-  const quoting=buildPlan(true).steps.filter(step=>step.words.includes(gone));
-  if(!quoting.length)wrong('the Bookshelf has no step that gives the height of its top shelf (the marking step), so this check checks nothing');
+  // (the marking words are on the part drawing of the sides now: the shop packet, js/shoppacket.js)
+  const saying=plan=>plan.steps.map(step=>step.words).concat(plan.shop.make.map(entry=>entry.words)).filter(words=>words.includes(gone));
+  if(!saying(buildPlan(true)).length)wrong('the Bookshelf gives the height of its top shelf nowhere (the marking words), so this check checks nothing');
   S.parts=S.parts.filter(p=>p!==topShelf);
   commit();
   plan=buildPlan(true);
-  const stillSaid=plan.steps.filter(step=>step.words.includes(gone));
-  if(stillSaid.length)wrong(`after the top shelf of the Bookshelf was deleted, step ${stillSaid[0].no} still gives its height (${gone})`);
+  const stillSaid=saying(plan);
+  if(stillSaid.length)wrong(`after the top shelf of the Bookshelf was deleted, its height (${gone}) is still given: ${stillSaid[0].slice(0,100)}`);
+  // ... and the heights of the shelves that are left are still on the drawing of the sides (the step that marked
+  // them was written again: the packet works its pencil lines out from the pieces as they are now)
+  const sideWords=plan.shop.make.filter(entry=>entry.kind==='mark'&&entry.on.includes('Side')).map(entry=>entry.words).join(' ');
+  const left=shelves.filter(p=>p!==topShelf).map(p=>fmt(r16(p.pos[1])));
+  if(!left.length||left.some(height=>!sideWords.includes(height)))wrong(`after the top shelf of the Bookshelf was deleted, the drawing of the sides no longer gives the heights of the other shelves (${left.join(', ')}): ${sideWords.slice(0,140)||'no pencil lines at all'}`);
   // a shelf made deeper: the step that is written again names each shelf with its own letter and says how it lines up
   const deep=S.parts.filter(p=>p.name==='Shelf')[0];
   deep.mat='1x12';deep.w=M['1x12'].w;
@@ -2749,7 +2751,7 @@ SELFTESTS.push(function pocketHolesHaveRoomForTheDrill(problems){withoutDrawing(
    - the plugged screws of the Platform bed's corners (moved apart at each corner to pass the screws that cross
      it) are one line, whose words name every corner they give marks for, or say that all are marked alike;
    - a Bookshelf with every joint of its sides plugged by hand says the paragraph once in each step. */
-const PLUG_PARAGRAPH=/sink them: drill a 3\/8" hole|sink into the 3\/8" counterbores drilled in step/g;   // (the second: drilled in step 2, js/drillplan.js)
+const PLUG_PARAGRAPH=/sink them: drill a 3\/8" hole|sink into the 3\/8" counterbores made on the part drawings/g;   // (the second: drilled ahead from the part drawings, js/shoppacket.js)
 SELFTESTS.push(function plugWordsOncePerStep(problems){withoutDrawing(()=>{
   const wrong=text=>{if(problems.length<60)problems.push('plugged screws: '+text);};
   const place=(name,choose)=>{

@@ -1189,21 +1189,20 @@ SELFTESTS.push(function toyChestHasAirHoles(problems){withoutDrawing(()=>{
         const close=ends.some(point=>[-.3,0,.3].some(dy=>nearAHole([point[0],point[1]+dy,point[2]],ROOM)));
         if(close)wrong(`${label}: the lid stay is screwed within 3/8" of an air hole`);
       }
-      // the words: a step of its own before the walls go together, with every place of the front's holes; the notes
-      const plan=buildPlan(true),stepAt=plan.steps.findIndex(step=>/air holes/.test(step.words));
-      const frontStep=plan.steps.findIndex(step=>step.pieces.some(piece=>piece.name==='Front'));
-      if(stepAt<0||!(stepAt<frontStep))wrong(`${label}: no step drills the air holes before the walls go together`);
+      // the words: on the part drawing of the front (the shop packet, js/shoppacket.js), made before anything goes
+      // together, with every place of the front's holes and the words of its old step; no step drills them; the
+      // packet's tools name the bit they need
+      const plan=buildPlan(true),list=cutRows(),holder=document.createElement('div');
+      holder.innerHTML=partDrawingsSection(list,plan);
+      const frontRow=list.rows.find(row=>row.names.has('Front')),drawing=frontRow&&holder.querySelector(`#part-${frontRow.id}`);
+      if(!drawing||!/air holes/.test(drawing.textContent))wrong(`${label}: the part drawing of the front does not give the air holes`);
       else{
         const front=S.parts.find(piece=>piece.name==='Front'),datum=shapeDatum(front);
-        const missing=shapeFeatures(front).map(f=>fmt(featureFromDatum(front,f,datum).along[0].value)).filter(text=>!plan.steps[stepAt].words.includes(text));
-        if(missing.length)wrong(`${label}: the air holes step does not give the front's holes at ${missing.join(', ')}`);
-        // drilled in that step only: the cutting step does not also send a person to cut them, and the step names
-        // the bit they need (not a saw because its words mention "Shapes to cut")
-        const cutStep=plan.steps.find(step=>step.kind==='cut');
-        if(cutStep&&/Then cut the shape/.test(cutStep.words))wrong(`${label}: the cutting step also tells a person to cut the air holes: ${cutStep.words.slice(cutStep.words.indexOf('Then cut'))}`);
-        const tools=stepTools(plan.steps[stepAt]);
-        if(!tools.some(tool=>/spade bit|forstner/i.test(tool)))wrong(`${label}: the air holes step does not list the bit for them (it lists ${tools.join('; ')})`);
-        if(tools.includes('saw'))wrong(`${label}: the air holes step lists a saw`);
+        const missing=shapeFeatures(front).map(f=>fmt(featureFromDatum(front,f,datum).along[0].value)).filter(text=>!drawing.textContent.includes(text));
+        if(missing.length)wrong(`${label}: the part drawing of the front does not give its holes at ${missing.join(', ')}`);
+        if(plan.steps.some(step=>/air holes/.test(step.words)&&makeOrders(step.words).length))wrong(`${label}: a step still drills the air holes`);
+        const tools=shopTools(plan);
+        if(!tools.some(tool=>/spade bit|forstner/i.test(tool)))wrong(`${label}: the shop packet does not list the bit for the air holes (it lists ${tools.join('; ')})`);
       }
       const notes=(S.notes||[]).join(' ');
       if(/finger gap or drill air holes|or drill air holes/.test(notes))wrong(`${label}: the notes still offer the air holes as a choice`);

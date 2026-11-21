@@ -10,10 +10,10 @@
                                places its numbers and names
      shapeDrawingSvg(plan)     that drawing as SVG: the face seen square on, edge 0 at the bottom, end 0 at the
                                left, with extension lines, slash ticks and the number on its own line
-     shapesSection(list)       "Shapes to cut" on the cut list page: one drawing per shaped row, its numbered
-                               "How to cut" lines and its tools
-     shapeCutStepLine(list, elsewhere)  the line the cutting step gets: "Then cut the shapes of C, E and F ...",
-                               leaving out the pieces whose shapes a later step of their own makes
+     shapeBlockHtml(row)       the shape block of a shaped row's part drawing on the Cut list page (the shop
+                               packet, js/shoppacket.js): its drawing, its numbered "How to cut" lines and its tools.
+                               (It was the section "Shapes to cut", shapesSection, and the cutting step's line
+                               shapeCutStepLine: both retired by the packet, spec 14.)
      sheetRects(pieces, nameOf) the rectangles a list of plywood pieces is packed as: one per piece, except that a
                                piece cut once from corner to corner (a corner shelf) is packed two to a square
      sheetShapePath(item)      the outline of a shaped piece inside its rectangle on a cutting diagram
@@ -732,7 +732,8 @@ function rowHands(g){
 function shapeRowNote(g){
   const p=g.sample;
   if(!p||!p.shape)return[];
-  const out=[`${shapeNote(p)}. See drawing ${g.id}`];
+  // (where its drawing is, the Drawing column says: js/shoppacket.js)
+  const out=[shapeNote(p)];
   if([0,1].some(i=>{const e=shapeEnd(p,i);return e&&e.cut==='saw';}))out.push('Length is long point to long point');
   if(isDiagonalHalf(p)){
     const squares=Math.ceil(g.qty/2);
@@ -743,32 +744,26 @@ function shapeRowNote(g){
   return out;
 }
 
-/* ---------- the pages ---------- */
-function shapesSection(list){
-  const rows=list.rows.filter(g=>g.sample&&g.sample.shape);
-  if(!rows.length)return'';
-  let h=`<h2>Shapes to cut</h2><p class="hint">Cut each blank to the size in the cut list first, then mark and cut its shape as its drawing shows. Sizes are in inches, measured from the end or edge they start at. A dashed line is the outline on the far face (a cut with the blade tilted).</p>`;
-  for(const g of rows){
-    const plan=shapeMarkPlan(g),how=shapeHowLines(g.sample),tools=shapeTools(g.sample),hands=rowHands(g);
-    // a mirror-twin row: the drawing shows one hand; the other gets its own last line
-    if(hands)how.push(hands.line);
-    const count=hands?`${g.qty} to cut: ${hands.asDrawn}, ${hands.other}`:`${g.qty} to cut`;
-    const layout=shapeDrawingLayout(plan);
-    if(layout.brk)plan.notes.push(`The middle of the piece is left out of the drawing between the two zigzag lines (${fmt(layout.brk.u1-layout.brk.u0)} of plain board). The sizes are the real ones.`);
-    h+=`<div class="shape-cut"><h3>${keyBox(g.id)} ${esc([...g.names].join(', '))}, ${esc(count)}</h3>${shapeDrawingSvgOf(layout)}`+
-      (plan.notes.length?`<ul class="shape-notes">${plan.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:'')+
-      `<h4>How to cut</h4><ol>${how.map(line=>`<li>${esc(line)}</li>`).join('')}</ol>`+
-      `<p class="shape-tools"><b>Tools:</b> ${esc(tools.join('; '))}.</p></div>`;
-  }
-  return h;
+/* ---------- the shape block of a part drawing ----------
+   A shaped cut-list row's drawing, its notes, How to cut and its tools: one block inside the row's part drawing on
+   the Cut list page (partFigure, js/shoppacket.js; the shop packet of spec 14 retired the section "Shapes to cut").
+   Returns {html, how, tools, count}: how and tools are also read by the packet (no sentence said twice). */
+function shapeBlockHtml(g){
+  const plan=shapeMarkPlan(g),how=shapeHowLines(g.sample),tools=shapeTools(g.sample),hands=rowHands(g);
+  // a mirror-twin row: the drawing shows one hand; the other gets its own last line
+  if(hands)how.push(hands.line);
+  const count=hands?`${g.qty} to cut: ${hands.asDrawn}, ${hands.other}`:`${g.qty} to cut`;
+  const layout=shapeDrawingLayout(plan);
+  if(layout.brk)plan.notes.push(`The middle of the piece is left out of the drawing between the two zigzag lines (${fmt(layout.brk.u1-layout.brk.u0)} of plain board). The sizes are the real ones.`);
+  const html=`<div class="shape-cut"><h4 class="pf-sub">The shape: ${esc(count)}</h4>${shapeDrawingSvgOf(layout)}`+
+    (plan.notes.length?`<ul class="shape-notes">${plan.notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:'')+
+    `<h4>How to cut</h4><ol>${how.map(line=>`<li>${esc(line)}</li>`).join('')}</ol>`+
+    `<p class="shape-tools"><b>Tools:</b> ${esc(tools.join('; '))}.</p></div>`;
+  return{html,how,tools,count};
 }
-/* elsewhere: names of pieces whose shapes a later step of their own makes (a preset step's `shapes`, such as the
-   toy chest's air holes, js/builders-storage.js): the cutting step leaves them to that step */
-function shapeCutStepLine(list,elsewhere=[]){
-  const letters=list.rows.filter(g=>g.sample&&g.sample.shape&&!elsewhere.includes(g.sample.name)).map(g=>g.id);
-  if(!letters.length)return'';
-  const named=letters.length===1?letters[0]:letters.slice(0,-1).join(', ')+' and '+letters[letters.length-1];
-  return`Then cut the shape${letters.length>1?'s':''} of ${named} as ${letters.length>1?'their drawings show':'its drawing shows'} (Shapes to cut, on the cut list page).`;
+/* every shape block of a cut list, one after another (the self-checks of this file read them) */
+function shapeBlocksOf(list){
+  return list.rows.filter(g=>g.sample&&g.sample.shape).map(g=>shapeBlockHtml(g).html).join('');
 }
 /* the tools the shaped pieces need; only: names to ask about (a step that makes the shapes of those pieces), or
    leaving out: names whose shapes another step makes */
@@ -841,12 +836,12 @@ SELFTESTS.push(function shapeCutRows(problems){
     if(list.rows.length!==1||list.rows[0].mirrored!==1)wrong('a bevelled leg and its mirror image are not one row with a left and a right');
     // the note and the drawing's numbers
     const html=cutListSection(list);
-    if(!/cut at 11°, long point on the \w+ edge/.test(html)||!/See drawing A/.test(html))wrong('the cut list note does not say how the end is cut and where its long point is');
+    if(!/cut at 11°, long point on the \w+ edge/.test(html)||!/href="#part-A"[^>]*>A: shape/.test(html))wrong('the cut list note does not say how the end is cut and where its long point is, or its Drawing column does not link to its shape');
     if(!/Length is long point to long point/.test(html))wrong('the cut list does not say the length of an angled piece is long point to long point');
     if(!/2: 1 with the long point of the \w+ end's tilted cut on the \w+ face, 1 with it on the \w+ face/.test(html))wrong('the cut list does not say how the two hands of a bevelled pair differ');
     if(/\bleft, \d+ right/.test(html))wrong('the cut list still names the hands "left" and "right"');
-    const drawn=shapesSection(list);
-    if(!/For the other one: make the same cuts the other way round/.test(drawn))wrong('Shapes to cut gives the other hand no line of its own');
+    const drawn=shapeBlocksOf(list);
+    if(!/For the other one: make the same cuts the other way round/.test(drawn))wrong('the part drawing of the shape gives the other hand no line of its own');
     // a trapezoid and a parallelogram do not read the same
     load(JSON.stringify(blank()),true);
     addParts([mk('Trap','1x4',[24,.75,3.5],[0,0,0]),mk('Para','1x4',[24,.75,3.5],[0,0,10])]);
@@ -854,11 +849,11 @@ SELFTESTS.push(function shapeCutRows(problems){
     tidyShapes();
     const sides=cutListSection(cutRows());
     if(!/ends slant opposite ways/.test(sides)||!/ends parallel/.test(sides))wrong('a trapezoid and a parallelogram read the same in the cut list');
-    // the cutting step names the tools the shapes need
+    // the shop packet names the tools the shapes need (its Tools for making the parts, js/shoppacket.js)
     commit();
-    const cutStep=buildPlan(true).steps.find(step=>step.kind==='cut');
-    if(!cutStep)wrong('a design of two shaped boards has no cutting step');
-    else if(!stepTools(cutStep).includes('miter saw (or a circular saw and a speed square)'))wrong('the cutting step does not list the miter saw the angled ends need');
+    const shop=buildPlan(true).shop;
+    if(!shop||!shop.cutWords)wrong('a design of two shaped boards has no cutting in its shop packet');
+    else if(!shopTools(buildPlan()).includes('miter saw (or a circular saw and a speed square)'))wrong('the shop packet does not list the miter saw the angled ends need');
     const plan=shapeMarkPlan(list.rows[0]),set=plan.dims.find(d=>/set-back/.test(d.what));
     if(!set||fmt(set.value)!=='11/16"'||set.text!=='11/16"')wrong(`the drawing marks the 11° set-back as ${set?set.text:'nothing'}, not 11/16"`);
     for(const d of plan.dims)if(d.text!==fmt(d.value)||Math.abs(d.to-d.from-d.value)>1e-6)wrong(`a size on the drawing says ${d.text} for ${d.what}, which measures ${fmt(d.to-d.from)}`);
@@ -874,7 +869,7 @@ SELFTESTS.push(function shapeCutRows(problems){
     const rects=sheetRects(S.parts,p=>'A: '+p.name);
     if(rects.length!==3||!rects.every(r=>/x2: cut on the diagonal/.test(r.name)))wrong(`six corner-to-corner shelves pack as ${rects.length} rectangles, not 3`);
     if(!/Cut 3 squares: each one, cut once corner to corner, gives 2/.test(cutListSection(cutRows())))wrong('the cut list row of six corner shelves does not say to cut 3 squares');
-    if(!/1\/16(&quot;|") to 1\/8(&quot;|") short/.test(shapesSection(cutRows())))wrong('the drawing of a corner shelf does not mention the saw cut on the diagonal');
+    if(!/1\/16(&quot;|") to 1\/8(&quot;|") short/.test(shapeBlocksOf(cutRows())))wrong('the drawing of a corner shelf does not mention the saw cut on the diagonal');
   }finally{
     load(kept,true);
   }

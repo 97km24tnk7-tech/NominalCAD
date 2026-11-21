@@ -163,6 +163,23 @@ html.phone-page dialog.dlg textarea.fld{height:auto;min-height:132px;padding:8px
 #phone .ph-docs .fig-head .done input{appearance:none;-webkit-appearance:none;width:44px;height:44px;margin:0;border:0;border-radius:0;cursor:pointer;
   background:linear-gradient(#fff,#fff) center/22px 22px no-repeat,linear-gradient(var(--n500),var(--n500)) center/24px 24px no-repeat}
 #phone .ph-docs .fig-head .done input:checked{background:var(--tick-w) center/16px no-repeat,linear-gradient(var(--blue),var(--blue)) center/24px 24px no-repeat}
+/* the shop packet's part drawings (js/shoppacket.js): the header wraps, the Done boxes are 44 px, the title block
+   two cells to a row, the plain outline fits the screen (it does not slide), every word 13 px or more */
+#phone .ph-docs .pf-head{flex-wrap:wrap;font-size:15px;line-height:21px}
+#phone .ph-docs .pf-what,#phone .ph-docs .pf-what b{font-size:15px;line-height:21px}
+#phone .ph-docs .pf-head .done{min-height:44px;gap:2px}
+#phone .ph-docs .pf-head .done input{appearance:none;-webkit-appearance:none;width:44px;height:44px;margin:0;border:0;border-radius:0;cursor:pointer;
+  background:linear-gradient(#fff,#fff) center/22px 22px no-repeat,linear-gradient(var(--n500),var(--n500)) center/24px 24px no-repeat}
+#phone .ph-docs .pf-head .done input:checked{background:var(--tick-w) center/16px no-repeat,linear-gradient(var(--blue),var(--blue)) center/24px 24px no-repeat}
+#phone .ph-docs svg.pp-iso{width:120px;height:69px}
+/* the outline is 640 units wide and shown about 330 px wide: its words drawn larger, so they read at 13 px or more */
+#phone .ph-docs svg.pp .pp-t{font-size:26px}
+#phone .ph-docs svg.pp .pp-n{font-size:28px}
+#phone .ph-docs .pf-tb{grid-template-columns:repeat(2,minmax(0,1fr))}
+#phone .ph-docs .pf-tb>div{border-left:0;border-top:1px solid var(--n900);font-size:13px;line-height:18px}
+#phone .ph-docs .pf-tb small{font-size:13px}
+#phone .ph-docs .pf-how,#phone .ph-docs .pf-note,#phone .ph-docs .pf-marks figcaption,#phone .ph-docs .shop-first,#phone .ph-docs .packet .shop-after{font-size:15px;line-height:21px}
+#phone .ph-docs a.part-link{display:inline-flex;align-items:center;min-height:44px}
 #phone .ph-docs .drill-fig .tbl td:first-child{width:auto}
 #phone .ph-docs .drill-fig table.tbl[data-ph-table] tr{padding:10px}
 #phone .ph-docs .drill-fig table.tbl[data-ph-table] tr:last-child{border-bottom:0}

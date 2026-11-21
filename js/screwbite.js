@@ -161,8 +161,8 @@ SELFTESTS.push(function pluggedHeadsSayTheirDepth(problems){withoutDrawing(()=>{
     const steps=buildPlan(true).steps,step=steps.find(candidate=>candidate.groups.some(group=>group.type==='plug'));
     if(!step)wrong(`${at}: no step drives the plugged screws`);
     else{
-      // (or, with the counterbores drilled in step 2 "Drill your pieces" (js/drillplan.js), the depth they were drilled to)
-      if(!/drill a 3\/8" hole 1 1\/4" deep|3\/8" counterbores drilled in step \d+, 1 1\/4" deep/.test(step.words+step.groups.map(group=>group.line).join(' '))||!/dowel rod/.test(step.groups.map(group=>group.line).join(' ')))wrong(`${at}: the step does not say to drill 1 1/4" deep and fill the hole with dowel rod`);
+      // (or, with the counterbores made on the part drawings of the Cut list page (js/shoppacket.js), the depth they were drilled to)
+      if(!/drill a 3\/8" hole 1 1\/4" deep|3\/8" counterbores made on the part drawings, 1 1\/4" deep/.test(step.words+step.groups.map(group=>group.line).join(' '))||!/dowel rod/.test(step.groups.map(group=>group.line).join(' ')))wrong(`${at}: the step does not say to drill 1 1/4" deep and fill the hole with dowel rod`);
       if(/tap in a 3\/8" wooden plug/.test(step.groups.map(group=>group.line).join(' ')))wrong(`${at}: the step still taps a 3/8" plug into a hole 1 1/4" deep`);
       if(!step.need.tools.some(tool=>/hammer/.test(tool)))wrong(`${at}: the step's tools have no hammer for tapping the dowel in`);
     }

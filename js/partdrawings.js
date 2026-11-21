@@ -14,8 +14,10 @@
      partDrawingLayout(label, letterOf)   everything on the paper, measured: {width, height, views, texts, items,
                                  dims, holes, scale}  (no drawing: the self-check reads it)
      partDrawingSvg(layout)      the SVG
-     drillStepHtml(step, plan)   step 2 on the Build instructions page
-     drillModeHtml(step, plan)   the same step in Build step by step (js/stepmode.js)
+     drawingFigure(label, plan)  one label's drawing with its header, hole table and notes: a "way" block inside the
+                                 part drawing of its letter on the Cut list page (partFigure, js/shoppacket.js)
+   (The step "Drill your pieces", drillStepHtml and drillModeHtml, was retired by the shop packet of spec 14: every
+    piece is made from its part drawing on the Cut list page before the steps begin.)
 
    Why its own layout and not layoutMarkPlan: a marking view is one face of one joint, windowed and broken around
    its fasteners, one picture per plan. A piece drawing is the whole piece, one or two views at one scale, every
@@ -225,10 +227,27 @@ function layPlaces(out,view,index,ctx){
   const above=!!ctx.above,start=ctx.below;
   // the corner of each place, where its sizes start: a small circle with a corner mark that runs along the place's
   // two sides, so it is told apart from the circle at the end with the label (C9 of the stage 2 review)
+  // (the owner's addendum, point 9: a corner mark never sits on a hole. Its two strokes run along the place's sides
+  //  when that is clear of the holes, else along the same lines outward, away from the place, where no hole of it
+  //  is; its small circle is left off where it would cover a hole: the strokes still show the corner)
   for(const place of places){
     const toward=(from,to)=>to>=from?1:-1;
-    out.items.push({type:'corner',x:px(place.corner.a),y:py(place.corner.b),
-      dx:(view.datumLeft?1:-1)*toward(place.corner.a,place.far.a),dy:toward(place.corner.b,place.far.b)});
+    const x=px(place.corner.a),y=py(place.corner.b);
+    const dx0=(view.datumLeft?1:-1)*toward(place.corner.a,place.far.a),dy0=toward(place.corner.b,place.far.b);
+    const legBoxes=(sx,sy,long)=>[{x:Math.min(x,x+sx*long)-2.5,y:y-2.5,w:long+5,h:5},{x:x-2.5,y:Math.min(y,y+sy*long)-2.5,w:5,h:long+5}];
+    // (clear of the holes, and of the corner marks and small circles already drawn)
+    const others=paperMarks(out).filter(mark=>!mark.labelbox);
+    const onHole=boxes=>boxes.some(box=>holeMarks.some(mark=>boxesOverlap(box,mark.box,1))||others.some(mark=>boxesOverlap(box,mark,0)));
+    // (inward along both sides first; then one or both strokes turned outward; then shorter strokes)
+    let legs=null;
+    for(const long of[12,7])for(const[sx,sy]of[[dx0,dy0],[-dx0,dy0],[dx0,-dy0],[-dx0,-dy0]]){
+      if(!legs&&!onHole(legBoxes(sx,sy,long)))legs={dx:sx*long/12,dy:sy*long/12};
+    }
+    // (holes all round the corner, at a small scale: no mark at all; the dashed outline still shows the corner, and
+    //  the table says which corner each place is measured from)
+    if(!legs)continue;
+    const circle={x:x-V.datumR-1.5,y:y-V.datumR-1.5,w:2*V.datumR+3,h:2*V.datumR+3};
+    out.items.push({type:'corner',x,y,dx:legs.dx,dy:legs.dy,noCircle:onHole([circle])});
   }
   chains.along.forEach((chain,k)=>{
     const base=above?yTop-V.gap-bandOf[k]*bandHeight:yBottom+start+V.gap+bandOf[k]*bandHeight;
@@ -251,9 +270,10 @@ function layPlaces(out,view,index,ctx){
       if(last!==null&&tx-V.number*.78<last+3)tx=last+3+V.number*.78;
       const ty=above?base+out1-4:base+out1+4;
       const entry=addText(text,tx,ty,V.number,{rotate:true,anchor:above?'start':'end',bold:true,role:'dim'});
-      if(Math.abs(tx-(point.x+5))>.5)line(point.x,base+out1,tx-5,above?ty-2:ty+2,'thin');
+      const slide=Math.abs(tx-(point.x+5))>.5?line(point.x,base+out1,tx-5,above?ty-2:ty+2,'thin'):null;
       last=entry.box.x+entry.box.w;
-      out.dims.push({kind:'place',axis:'along',value:point.value,text,x:point.x,base,entry,view:index,chain,top:above});
+      out.dims.push({kind:'place',axis:'along',value:point.value,text,x:point.x,base,entry,view:index,chain,top:above,
+        slide,foot:[point.x,base+out1],outward:above?-1:1});
     }
   });
   // across: bands beside the piece
@@ -276,9 +296,10 @@ function layPlaces(out,view,index,ctx){
         let ty=point.y+5;
         if(last!==null&&ty-V.number*.78<last+2)ty=last+2+V.number*.78;
         const entry=addText(text,right?xb+10:xb-10,ty,V.number,{anchor:right?'start':'end',bold:true,role:'dim'});
-        if(Math.abs(ty-(point.y+5))>.5)line(right?xb+V.extOver:xb-V.extOver,point.y,right?xb+9:xb-9,ty-5,'thin');
+        const slide=Math.abs(ty-(point.y+5))>.5?line(right?xb+V.extOver:xb-V.extOver,point.y,right?xb+9:xb-9,ty-5,'thin'):null;
         last=entry.box.y+entry.box.h;
-        out.dims.push({kind:'place',axis:'across',value:point.value,text,y:point.y,base:xb,entry,view:index,chain});
+        out.dims.push({kind:'place',axis:'across',value:point.value,text,y:point.y,base:xb,entry,view:index,chain,
+          slide,foot:[right?xb+V.extOver:xb-V.extOver,point.y],outward:right?1:-1});
       }
     }
   }
@@ -309,6 +330,108 @@ function packBands(chains,gap){
   });
 }
 
+/* ---------- keeping the paper clear (the owner's addendum to the shop packet, point 9) ----------
+   "the overlap here is horrible this has to have some sort of check so this cant happen": no number, name or tag
+   may touch another text, cover a hole, a small circle, a corner mark, a tag or the label box, or be crossed by a
+   line that is not its own. The layout asks paperClear before it settles a name, and untangleTexts moves each
+   number or name that still meets something to the nearest clear place, on a short leader from its own tick (what
+   a drafter does where sizes crowd). The self-check is drawingMarksNeverOverlap (js/drawingclear.js). */
+const PAPER_ROOM={text:5,mark:3,own:8};
+/* the small circles, corner marks, tags and label boxes laid so far, as boxes */
+function paperMarks(out){
+  const V=PART_VIEW,marks=[];
+  for(const item of out.items){
+    if(item.type==='datum'||(item.type==='corner'&&!item.noCircle))marks.push({x:item.x-V.datumR-1,y:item.y-V.datumR-1,w:2*V.datumR+2,h:2*V.datumR+2});
+    if(item.type==='corner'){
+      const ex=item.x+item.dx*12,ey=item.y+item.dy*12;
+      marks.push({x:Math.min(item.x,ex)-2.5,y:item.y-2.5,w:Math.abs(ex-item.x)+5,h:5},{x:item.x-2.5,y:Math.min(item.y,ey)-2.5,w:5,h:Math.abs(ey-item.y)+5});
+    }
+    if(item.type==='hex')marks.push({x:item.cx-V.hexR,y:item.cy-V.hexR,w:2*V.hexR,h:2*V.hexR});
+    if(item.type==='labelbox')marks.push({x:item.x,y:item.y,w:item.w,h:item.h,labelbox:true});
+  }
+  return marks;
+}
+/* every line laid so far, as segments (the outline of the piece and of the dashed pieces too) */
+function paperSegments(out){
+  const segments=[];
+  for(const item of out.items){
+    if(item.type==='line'||item.type==='leader')segments.push({a:[item.x1,item.y1],b:[item.x2,item.y2],tick:item.cls==='tick',item});
+    if(item.type==='rect'){
+      const{x,y,w,h}=item;
+      segments.push({a:[x,y],b:[x+w,y]},{a:[x+w,y],b:[x+w,y+h]},{a:[x+w,y+h],b:[x,y+h]},{a:[x,y+h],b:[x,y]});
+    }
+  }
+  return segments;
+}
+/* Is this box clear on the paper (self: the text it is for, left out; limit: the bottom of the paper)? */
+function paperClear(out,box,self,limit){
+  const R=PAPER_ROOM;
+  if(box.x<2||box.y<2||box.x+box.w>out.width-2||(limit&&box.y+box.h>limit))return false;
+  if(out.texts.some(text=>text!==self&&boxesOverlap(box,text.box,R.text)))return false;
+  if(out.holes.some(mark=>boxesOverlap(box,mark.box,R.mark)||(mark.arrow&&boxesOverlap(box,arrowBox(mark),1))))return false;
+  // (the marks and lines worked out once for as long as no item is added: untangleTexts clears it when it moves one)
+  if(!out.paperKept||out.paperKept.count!==out.items.length)out.paperKept={count:out.items.length,marks:paperMarks(out),segments:paperSegments(out)};
+  if(out.paperKept.marks.some(mark=>!(mark.labelbox&&self&&self.role==='labelbox')&&boxesOverlap(box,mark,R.mark)))return false;
+  const inner={x:box.x-1,y:box.y-1,w:box.w+2,h:box.h+2};
+  // (a leader is a text's own only at its start, where its name is)
+  const ownEnd=segment=>(segment.item&&segment.item.type==='leader'?[segment.a]:[segment.a,segment.b]).some(([x,y])=>x>=box.x-R.own&&x<=box.x+box.w+R.own&&y>=box.y-R.own&&y<=box.y+box.h+R.own);
+  return!out.paperKept.segments.some(segment=>!(self&&segment.item&&segment.item===self.slideItem)&&segmentHitsRect(segment.a,segment.b,inner,0)&&(segment.tick||!ownEnd(segment)));
+}
+/* does a leader from a to b run clear of every text but its own, and of the holes? */
+function leaderRunsClear(out,a,b,self){
+  return!out.texts.some(text=>text!==self&&segmentHitsRect(a,b,text.box,1))&&!out.holes.some(mark=>segmentHitsRect(a,b,mark.box,1));
+}
+/* Each number (and the name of the top edge) that touches something is moved to the nearest clear place: slid along
+   its band, then a level further out, each with a leader from the end of its extension line. A number never goes
+   more than 36 px from its own tick along the band (partLayoutProblems holds it within 40). */
+function untangleTexts(out,limit){
+  const V=PART_VIEW;
+  for(let pass=0;pass<2;pass++){
+    let moved=false;
+    for(const dim of out.dims){
+      const text=dim.entry;
+      text.slideItem=dim.slide||null;
+      if(paperClear(out,text.box,text,limit))continue;
+      const rotated=text.rotate,size=text.size,length=rotated?text.box.h:text.box.w;
+      const shifts=[0];
+      for(let s=6;s<=36;s+=6)shifts.push(s,-s);
+      let best=null;
+      for(const level of[0,1,2,3]){
+        const lift=level*(rotated?length+8:length+10);
+        for(const shift of shifts){
+          // the place of the text: along the band by shift, out from the piece by lift
+          let x=text.x,y=text.y;
+          if(rotated){x=dim.foot[0]+5+shift;y=(text.anchor==='start'?dim.foot[1]-4:dim.foot[1]+4)+dim.outward*lift;}
+          else{y=dim.foot[1]+5+shift;x=(text.anchor==='start'?dim.foot[0]+4:dim.foot[0]-4)+dim.outward*lift;}
+          const box=rotated?{x:x-size*.78,y:text.anchor==='start'?y-length:y,w:size,h:length}
+            :{x:text.anchor==='start'?x:x-length,y:y-size*.78,w:length,h:size};
+          if(!paperClear(out,box,text,limit))continue;
+          // the leader from the end of its extension line, when the number is not in line with it
+          const inLine=shift===0&&level===0;
+          const to=rotated?[x-5,text.anchor==='start'?y-2:y+2]:[text.anchor==='start'?x-2:x+2,y-5];
+          if(!inLine&&!leaderRunsClear(out,dim.foot,to,text))continue;
+          best={x,y,box,inLine,to};
+          break;
+        }
+        if(best)break;
+      }
+      if(!best)continue;
+      if(dim.slide){const at=out.items.indexOf(dim.slide);if(at>=0)out.items.splice(at,1);dim.slide=null;}
+      out.paperKept=null;   // (an item moves: the kept marks and lines are worked out again)
+      text.x=best.x;text.y=best.y;text.box=best.box;
+      if(!best.inLine){
+        const item={type:'line',x1:dim.foot[0],y1:dim.foot[1],x2:best.to[0],y2:best.to[1],cls:'thin'};
+        out.items.push(item);
+        dim.slide=item;
+      }
+      text.slideItem=dim.slide;
+      moved=true;
+    }
+    if(!moved)break;
+  }
+  for(const text of out.texts)delete text.slideItem;
+}
+
 /* ---------- the layout ---------- */
 function partDrawingLayout(label,plan){
   const V=PART_VIEW,views=label.views,piece=label.way.sample;
@@ -331,7 +454,7 @@ function partDrawingLayout(label,plan){
     out.texts.push(entry);
     return entry;
   };
-  const line=(x1,y1,x2,y2,cls)=>out.items.push({type:'line',x1,y1,x2,y2,cls});
+  const line=(x1,y1,x2,y2,cls)=>{const item={type:'line',x1,y1,x2,y2,cls};out.items.push(item);return item;};
   // the scale: the length of the piece across the paper, at most 40 px per inch, at most PART_VIEW.maxHeight tall
   // (every view at one scale, the length of the faces and edges across the paper; an end view is drawn at its true
   //  shape and size beside them, not stretched to their width: the end of a 2x4 must look like the end of a 2x4)
@@ -359,6 +482,9 @@ function partDrawingLayout(label,plan){
     const block=layView(out,view,index,label,{x0,x1,y,scale,addText,line,letterOf:plan.letterOf,stepOfPiece:plan.stepOfPiece});
     y=block.bottom+14;
   });
+  // (the owner's addendum, point 9: no number or name may touch another, a mark or a line it does not belong to;
+  //  each one that does is moved to the nearest clear place, on a short leader from its own tick)
+  untangleTexts(out,y);
   // (the legend is drawn once for the whole step, above the first drawing: drillLegendLayout)
   out.legend=legendEntries(label,out);
   out.height=Math.ceil(y+2);
@@ -460,7 +586,11 @@ function layView(out,view,index,label,ctx){
   // sizes along the piece from the corners of its places (layPlaces)
   const placeBands=runTop.length?null:placeAlongBands(view,px);
   const placesAbove=!!placeBands&&placeBands.bands>0;
-  const topBand=runTop.length?numberLen(runTop)+V.gap+22:placesAbove?V.gap+placeBands.bands*placeBands.bandHeight+6:30;
+  // (a run whose ticks stand closer than a number is wide gets the room of a second row of numbers, so the numbers
+  //  that would touch can be staggered onto it: untangleTexts)
+  const crowded=values=>values.slice(1).some((value,i)=>Math.abs(px(value)-px(values[i]))<V.number+PAPER_ROOM.text);
+  const stagger=values=>values.length&&crowded(values)?numberLen(values)+10:0;
+  const topBand=runTop.length?numberLen(runTop)+V.gap+22+stagger(runTop):placesAbove?V.gap+placeBands.bands*placeBands.bandHeight+6:30;
   const yTop=y+topBand,yBottom=yTop+view.height*sy;
   const py=b=>yTop+b*sy;                             // b: down from the top edge
   const xDatum=view.datumLeft?x0:x1,xFar=view.datumLeft?x1:x0;
@@ -517,9 +647,9 @@ function layView(out,view,index,label,ctx){
       if(last&&tx-V.number*.78<last+3)tx=last+3+V.number*.78;
       const ty=top?to-4:to+4;
       const entry=addText(text,tx,ty,V.number,{rotate:true,anchor:top?'start':'end',bold:true,role:'dim'});
-      if(Math.abs(tx-(x+5))>.5)line(x,to,tx-5,top?ty-2:ty+2,'thin');
+      const slide=Math.abs(tx-(x+5))>.5?line(x,to,tx-5,top?ty-2:ty+2,'thin'):null;
       last=entry.box.x+entry.box.w;
-      out.dims.push({kind:'along',value,text,x,base,entry,view:index,top});
+      out.dims.push({kind:'along',value,text,x,base,entry,view:index,top,slide,foot:[x,to],outward:top?-1:1});
       void w;
     }
   };
@@ -544,23 +674,24 @@ function layView(out,view,index,label,ctx){
       let ty=yy+5;
       if(last!==null&&ty-V.number*.78<last+2)ty=last+2+V.number*.78;
       const entry=addText(text,right?xb+10:xb-10,ty,V.number,{anchor:right?'start':'end',bold:true,role:'dim'});
-      if(Math.abs(ty-(yy+5))>.5)line(right?xb+V.extOver:xb-V.extOver,yy,right?xb+9:xb-9,ty-5,'thin');
+      const slide=Math.abs(ty-(yy+5))>.5?line(right?xb+V.extOver:xb-V.extOver,yy,right?xb+9:xb-9,ty-5,'thin'):null;
       last=entry.box.y+entry.box.h;
-      out.dims.push({kind:'across',value,text,y:yy,base:xb,entry,view:index,side});
+      out.dims.push({kind:'across',value,text,y:yy,base:xb,entry,view:index,side,slide,foot:[right?xb+V.extOver:xb-V.extOver,yy],outward:right?1:-1});
     }
   };
   chainAcross(ends.left,'left');
   chainAcross(ends.right,'right');
   // the places of the holes a bit makes, their corners located first, then the holes from each corner
   const placed=layPlaces(out,view,index,{x0,x1,yTop,yBottom,px,py,scale,addText,line,holeMarks,ends,above:placesAbove,
-    below:runBottom.length?numberLen(runBottom)+V.gap+14:0,letterOf:ctx.letterOf});
+    below:runBottom.length?numberLen(runBottom)+V.gap+14+stagger(runBottom):0,letterOf:ctx.letterOf});
   // (a place whose piece is already drawn dashed for a moved pocket hole is named once)
   others.push(...placed.names.filter(name=>!others.some(other=>other.piece===name.place.other)));
   // the label, written in the corner with the small circle, its arrow to the top edge (on face 1 only: face 2 shows
   // where the end with the label is by its heavy line and small circle)
   // (an edge or an end view does not show the face the label is on: its title says where that face is)
-  if(view.kind==='face1'||view.kind==='mirror')placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom});
+  // (the names first, then the label box where no leader, line or word is: the owner's addendum, point 9)
   layViewNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDatum,addText,runBottom,numberLen,rows,extraBelow:placed.below});
+  if(view.kind==='face1'||view.kind==='mirror')placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom});
   return{bottom:out.bottomOfView};
 }
 function placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom}){
@@ -568,42 +699,111 @@ function placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom}){
   const tag=`${(view.kind==='mirror'?label.mirrorLabel:label).name} ↑`;
   const tagW=partTextWidth(tag,V.label,true)+12,tagH=18;
   // in the corner when it is clear of the holes; else lower down the same end; else slid along the top edge
-  const blocked=box=>holeMarks.some(mark=>boxesOverlap(box,mark.box,2)||boxesOverlap(box,arrowBox(mark),1));
+  // (clear of the holes, and of the small circles and corner marks of the places: the owner's addendum, point 9)
+  // (and, where it can, off the dashed pieces: the leader of a dashed piece's name may end inside it)
+  const marks=paperMarks(out),dashed=out.items.filter(item=>item.type==='rect'&&item.cls==='hid'&&item.view===out.views.length-1);
+  let offDashed=true;
+  // (the names are laid first: the box keeps off their words and every leader, tick and extension line)
+  const lines=out.items.filter(item=>item.type==='line'||item.type==='leader');
+  const crossed=box=>out.texts.some(text=>boxesOverlap(box,text.box,4))||lines.some(item=>segmentHitsRect([item.x1,item.y1],[item.x2,item.y2],box,1));
+  const blocked=box=>holeMarks.some(mark=>boxesOverlap(box,mark.box,2)||boxesOverlap(box,arrowBox(mark),1))||marks.some(mark=>boxesOverlap(box,mark,3))||
+    (offDashed&&dashed.some(rect=>boxesOverlap(box,rect,2)))||crossed(box);
   const cornerX=view.datumLeft?x0+4:x1-4-tagW;
+  // just under the piece, near the end with the label, where nothing is (the leader of "end with the label" runs
+  // up that end, so the box keeps a little off it)
+  const underPiece=()=>{
+    const fits=box=>!blocked(box)&&paperClear(out,{x:box.x-6,y:box.y,w:box.w+12,h:box.h},null);
+    for(let along=14;along<x1-x0-tagW;along+=8){
+      const box={x:view.datumLeft?x0+along:x1-along-tagW,y:yBottom+6,w:tagW,h:tagH};
+      if(fits(box))return box;
+    }
+    // (sizes run under a thin piece: then beside its end with the label, or just over the piece)
+    const middle=(yTop+yBottom)/2-tagH/2;
+    for(const out2 of[10,40,70,100]){
+      const box={x:view.datumLeft?x0-out2-tagW:x1+out2,y:middle,w:tagW,h:tagH};
+      if(fits(box))return box;
+    }
+    for(let along=14;along<x1-x0-tagW;along+=8){
+      const box={x:view.datumLeft?x0+along:x1-along-tagW,y:yTop-tagH-6,w:tagW,h:tagH};
+      if(fits(box))return box;
+    }
+    return{x:view.datumLeft?x0:x1-tagW,y:yBottom+6,w:tagW,h:tagH};
+  };
   let tagBox=null;
-  if(yBottom-yTop<tagH+8)tagBox={x:view.datumLeft?x0:x1-tagW,y:yBottom+6,w:tagW,h:tagH};
-  for(let dy=4;!tagBox&&yTop+dy+tagH<=yBottom-3;dy+=2){
-    const box={x:cornerX,y:yTop+dy,w:tagW,h:tagH};
-    if(!blocked(box))tagBox=box;
-  }
-  // (then anywhere in the half of the piece nearer the end with the label, the place nearest the corner first: a
-  //  panel with holes along all its edges, a deck with plugged screws near the corner)
+  if(yBottom-yTop<tagH+8)tagBox=underPiece();
+  // (the places inside the piece: the corner first, lower down the same end, then anywhere in the half nearer the
+  //  end with the label, the place nearest the corner first: a panel with holes along all its edges, a deck with
+  //  plugged screws near the corner; first off the dashed pieces, then on them)
   const tries=[];
   for(let along=0;along<(x1-x0)/2;along+=6)for(let dy=4;yTop+dy+tagH<=yBottom-3;dy+=4)tries.push({along,dy,far:Math.hypot(along,dy)});
   tries.sort((a,b)=>a.far-b.far);
-  for(const one of tries){
+  for(const off of[true,false]){
+    offDashed=off;
+    for(let dy=4;!tagBox&&yTop+dy+tagH<=yBottom-3;dy+=2){
+      const box={x:cornerX,y:yTop+dy,w:tagW,h:tagH};
+      if(!blocked(box))tagBox=box;
+    }
+    for(const one of tries){
+      if(tagBox)break;
+      const box={x:cornerX+(view.datumLeft?one.along:-one.along),y:yTop+one.dy,w:tagW,h:tagH};
+      if(!blocked(box))tagBox=box;
+    }
     if(tagBox)break;
-    const box={x:cornerX+(view.datumLeft?one.along:-one.along),y:yTop+one.dy,w:tagW,h:tagH};
-    if(!blocked(box))tagBox=box;
   }
   // (no room among the holes: just under the piece at the end with the label, as for a thin piece)
-  if(!tagBox)tagBox={x:view.datumLeft?x0:x1-tagW,y:yBottom+6,w:tagW,h:tagH};
+  offDashed=true;
+  if(!tagBox)tagBox=underPiece();
   out.items.push({type:'labelbox',...tagBox});
   out.texts.push({text:tag,x:tagBox.x+tagW/2,y:tagBox.y+13.5,size:V.label,anchor:'middle',rotate:false,box:{...tagBox},cls:'labt',bold:true,role:'labelbox'});
 }
 /* the names of a view: the top edge (in the widest gap above the piece), and the row under the piece: the end with
    the label (with a leader), a tag for each row of the table, the pieces that sit here later */
-function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDatum,addText,runBottom,numberLen,rows,extraBelow,tagsReversed},namesFirst,nameOrder){
+function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDatum,addText,runBottom,numberLen,rows,extraBelow,tagsReversed,shortNames},namesFirst,nameOrder){
   const V=PART_VIEW;
   let crossed=false;   // (a name had to take a place whose leader is not clear: layViewNames tries the other order)
   const xs=[x0,x1].concat(out.dims.filter(dim=>dim.view===index&&(dim.kind==='along'||dim.kind==='place'&&dim.axis==='along')&&dim.top).map(dim=>dim.x)).sort((a,b)=>a-b);
   let bestGap=null;
   for(let i=1;i<xs.length;i++)if(!bestGap||xs[i]-xs[i-1]>bestGap[1]-bestGap[0])bestGap=[xs[i-1],xs[i]];
   {
-    // (clear of a hole drawn right at the top edge: a plug's flag, a countersink ring reach above it)
-    const text=sidesOf(view).top,w=partTextWidth(text,V.label,false),x=(bestGap[0]+bestGap[1])/2;
-    const under=holeMarks.filter(mark=>mark.box.x<x+w/2+2&&mark.box.x+mark.box.w>x-w/2-2).map(mark=>mark.box.y-3);
-    addText(text,x,Math.min(yTop-7,...under),V.label,{anchor:'middle',cls:'lb',role:'name'});
+    // (clear of a hole drawn right at the top edge: a plug's flag, a countersink ring reach above it; and clear of
+    //  every line, circle and corner mark: the owner's addendum, point 9. The widest gap between the extension
+    //  lines above the piece first, its middle, then slid along it; then the other gaps; then a little higher)
+    const text=sidesOf(view).top,w=partTextWidth(text,V.label,false);
+    const gaps=[];
+    for(let i=1;i<xs.length;i++)gaps.push([xs[i-1],xs[i]]);
+    gaps.sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]));
+    if(bestGap&&!gaps.includes(bestGap))gaps.unshift(bestGap);
+    const boxAt=(x,y)=>({x:x-w/2,y:y-V.label*.78,w,h:V.label});
+    let at=null;
+    for(const lift of[0,6,12,18]){
+      for(const gap of gaps){
+        const middle=(gap[0]+gap[1])/2,room=(gap[1]-gap[0]-w)/2;
+        for(const shift of[0,-room*.5,room*.5,-room*.9,room*.9]){
+          const x=middle+shift;
+          const under=holeMarks.filter(mark=>mark.box.x<x+w/2+2&&mark.box.x+mark.box.w>x-w/2-2).map(mark=>mark.box.y-3);
+          const y=Math.min(yTop-7,...under)-lift;
+          if(paperClear(out,boxAt(x,y),null)){at={x,y};break;}
+        }
+        if(at)break;
+      }
+      if(at)break;
+    }
+    // (no clear place between the extension lines over the piece: beside its far end or its end with the label,
+    //  level with the top edge; inside the piece just under the top edge; then over the sizes above it)
+    const tries=[];
+    const level=yTop+V.label*.4;
+    for(const out2 of[12,40,70])tries.push([x1+out2+w/2,level],[x0-out2-w/2,level]);
+    for(let x=x0+w/2+6;x<=x1-w/2-6;x+=12)tries.push([x,yTop+V.label+5]);
+    const ownTexts=out.dims.filter(dim=>dim.view===index&&dim.entry.box.y+dim.entry.box.h<=yTop+1).map(dim=>dim.entry);
+    const overSizes=(ownTexts.length?Math.min(...ownTexts.map(text=>text.box.y)):yTop)-6;
+    for(let x=x0+w/2;x<=x1-w/2;x+=12)tries.push([x,overSizes]);
+    for(const[x,yy]of tries){
+      if(at)break;
+      if(paperClear(out,boxAt(x,yy),null))at={x,y:yy};
+    }
+    if(!at){const x=(bestGap[0]+bestGap[1])/2;at={x,y:yTop-7};}
+    const entry=addText(text,at.x,at.y,V.label,{anchor:'middle',cls:'lb',role:'name'});
+    entry.topName=true;
   }
   // (extraBelow: the bands of the places, layPlaces, already take in the bottom row's band)
   const bottomBand=extraBelow||(runBottom.length?numberLen(runBottom)+V.gap+14:0);
@@ -623,7 +823,8 @@ function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDat
     const lineTries=(line,withLeader)=>{
       if(!lines[line])lines[line]=[];
       const taken=lines[line],low=8,high=PART_VIEW.width-8-width,y=rowY+line*LINE;
-      const free=x=>x>=low-1e-6&&x<=high+1e-6&&!taken.some(box=>x<box.x+box.w+14&&x+width>box.x-14);
+      // (and clear of every line, leader, hole and mark already on the paper: the owner's addendum, point 9)
+      const free=x=>x>=low-1e-6&&x<=high+1e-6&&!taken.some(box=>x<box.x+box.w+14&&x+width>box.x-14)&&paperClear(out,{x,y:y-10,w:width,h:20},null);
       const tries=[];
       for(const desired of wanted){
         const start=Math.max(low,Math.min(high,desired.x));
@@ -685,7 +886,8 @@ function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDat
     const at=place(wanted,w,leaderOf);
     const leader=leaderOf(at);
     leaders.push(leader);
-    const tagBox={x:at.x,y:at.y-V.hexR,w:2*V.hexR,h:2*V.hexR};
+    // (the whole tag, its words too: a later leader may not run between the hexagon and its words)
+    const tagBox={x:at.x,y:at.y-V.hexR,w,h:2*V.hexR};
     tagBoxes.push(tagBox);
     tags.push({row,words,w,at,leaderOf,leader,tagBox});
   }
@@ -744,7 +946,7 @@ function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDat
   if(nameOrder==='desc')entries.sort((a,b)=>xOf(b[1])-xOf(a[1]));
   // (more than three: each by its name alone, "Top rail (E), 2 places": the legend says what a dashed piece is, and
   //  shorter names leave their leaders room)
-  const short=entries.length>3;
+  const short=entries.length>3||!!shortNames;
   for(const[text,list]of entries){
     const base=text.replace(/ sits here.*$/,'');
     const many=short?(list.length>1?`${base}, ${list.length} places`:base):list.length>1?text.replace(/ sits here/,` sits at the dashed places (${list.length})`):text;
@@ -790,10 +992,13 @@ function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDat
         if(boxA.x+boxA.w>PART_VIEW.width-4||boxB.x+boxB.w>PART_VIEW.width-4||boxesOverlap(boxA,boxB,4)||!clearOfTexts(boxA,skip)||!clearOfTexts(boxB,skip))continue;
         const segA=a.leaderOf(atA),segB=b.leaderOf(atB);
         if(segmentsCross(segA,segB))continue;
+        // (and no other leader runs through either name in its new place)
+        const others2=leaders.filter(segment=>segment!==a.segment&&segment!==b.segment);
+        if(others2.some(segment=>segmentHitsRect(segment[0],segment[1],boxA,0)||segmentHitsRect(segment[0],segment[1],boxB,0)))continue;
         for(const[one,at,seg,b2]of[[a,atA,segA,boxA],[b,atB,segB,boxB]]){
           one.at=at;one.entry.x=at.x;one.entry.y=at.y+4.5;one.entry.box=b2;
           one.segment.splice(0,2,...seg);
-          Object.assign(one.item,{x1:seg[0][0],y1:seg[0][1],x2:seg[1][0],y2:seg[1][1]});
+          Object.assign(one.item,{x1:seg[0][0],y1:seg[0][1],x2:seg[1][0],y2:seg[1][1]});out.paperKept=null;
         }
         swapped=true;
       }
@@ -801,7 +1006,9 @@ function layNames(out,view,index,label,holeMarks,others,{x0,x1,yTop,yBottom,xDat
     }
     // (what is left decides whether layViewNames tries another order: a leader that crosses another, or runs
     //  through a text other than its own, as partLayoutProblems judges it)
-    const own=(segment,b)=>segment[0][0]>=b.x-16&&segment[0][0]<=b.x+b.w+16&&segment[0][1]>=b.y-16&&segment[0][1]<=b.y+b.h+16;
+    // (a leader starts a few pixels over its own name: only that close is it the name's own; a leader that starts
+    //  under a name on the line above and runs up through it is not: the owner's addendum, point 9)
+    const own=(segment,b)=>segment[0][0]>=b.x-6&&segment[0][0]<=b.x+b.w+6&&segment[0][1]>=b.y-6&&segment[0][1]<=b.y+b.h+6;
     crossed=leaders.some((one,i)=>leaders.some((other,j)=>j>i&&segmentsCross(one,other)))||
       leaders.some(segment=>out.texts.some(text=>!own(segment,text.box)&&segmentHitsRect(segment[0],segment[1],text.box,0)));
   }
@@ -815,14 +1022,18 @@ function layViewNames(out,view,index,label,holeMarks,others,ctx){
   const first=layNames(out,view,index,label,holeMarks,others,ctx,false);
   if(!first.crossed)return;
   const kept={texts:out.texts.splice(textsBefore),items:out.items.splice(itemsBefore),bottom:out.bottomOfView};
+  out.paperKept=null;
   // (then the names before the tags, and the names left to right or right to left by where their pieces are, so
   //  leaders to pieces side by side do not cross; then the tags laid in the other order (a row along the top edge
   //  over a row along the bottom edge): the first clear one is kept)
-  const tries=others.length?[[true,''],[false,'asc'],[true,'asc'],[false,'desc'],[true,'desc'],[false,'',true],[true,'',true]]:[[false,'',true]];
-  for(const[namesFirst,order,tagsReversed]of tries){
-    const again=layNames(out,view,index,label,holeMarks,others,{...ctx,tagsReversed},namesFirst,order);
+  // (last, the names of the pieces that sit here in their short form, "Post (C), 2 places", which leaves their
+  //  leaders more room: the owner's addendum, point 9)
+  const orders=[[true,''],[false,'asc'],[true,'asc'],[false,'desc'],[true,'desc'],[false,'',true],[true,'',true]];
+  const tries=others.length?orders.concat(orders.map(one=>[...one.slice(0,2),!!one[2],true]),[[false,'',false,true]]):[[false,'',true]];
+  for(const[namesFirst,order,tagsReversed,shortNames]of tries){
+    const again=layNames(out,view,index,label,holeMarks,others,{...ctx,tagsReversed,shortNames},namesFirst,order);
     if(!again.crossed)return;
-    out.texts.splice(textsBefore);out.items.splice(itemsBefore);
+    out.texts.splice(textsBefore);out.items.splice(itemsBefore);out.paperKept=null;
   }
   out.texts.push(...kept.texts);out.items.push(...kept.items);out.bottomOfView=kept.bottom;
 }
@@ -915,7 +1126,7 @@ function partDrawingSvg(layout){
       case'rect':if(item.cls==='hid')parts.push(`<rect class="pd-hid" x="${attr(item.x)}" y="${attr(item.y)}" width="${attr(item.w)}" height="${attr(item.h)}"/>`);break;
       case'line':parts.push(`<line class="pd-${item.cls}" x1="${attr(item.x1)}" y1="${attr(item.y1)}" x2="${attr(item.x2)}" y2="${attr(item.y2)}"/>`);break;
       case'datum':parts.push(`<circle class="pd-dat" cx="${attr(item.x)}" cy="${attr(item.y)}" r="${V.datumR}"/>`);break;
-      case'corner':parts.push(`<circle class="pd-dat" cx="${attr(item.x)}" cy="${attr(item.y)}" r="${V.datumR}"/><path class="pd-heavy" d="M${attr(item.x+item.dx*12)} ${attr(item.y)}H${attr(item.x)}V${attr(item.y+item.dy*12)}"/>`);break;
+      case'corner':parts.push(`${item.noCircle?'':`<circle class="pd-dat" cx="${attr(item.x)}" cy="${attr(item.y)}" r="${V.datumR}"/>`}<path class="pd-heavy" d="M${attr(item.x+item.dx*12)} ${attr(item.y)}H${attr(item.x)}V${attr(item.y+item.dy*12)}"/>`);break;
       case'leader':parts.push(`<line class="${item.ink?'pd-ldk':'pd-ld'}" x1="${attr(item.x1)}" y1="${attr(item.y1)}" x2="${attr(item.x2)}" y2="${attr(item.y2)}"/>`+(item.dot?`<circle cx="${attr(item.x2)}" cy="${attr(item.y2)}" r="2.2" fill="${PART_INK}"/>`:''));break;
       case'hex':parts.push(`<polygon class="pd-hex" points="${hexPoints(item.cx,item.cy,V.hexR)}"/>`);break;
       case'hexno':parts.push(`<text class="pd-hexn" x="${attr(item.x)}" y="${attr(item.y)}">${item.no}</text>`);break;
@@ -1269,7 +1480,8 @@ function doneTicks(label){
 document.addEventListener('change',event=>{
   const box=event.target.closest&&event.target.closest('input[data-done-key]');
   if(!box)return;
-  const figure=box.closest('.drill-fig');
+  // (a way block of a drilled piece, or the part drawing of a piece with no holes: js/shoppacket.js)
+  const figure=box.closest('.drill-fig')||box.closest('.part-fig');
   // the design's own number, given once and kept in the design (autosaved now, so it is there when it is opened again)
   if(!S.drillId){
     S.drillId=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -1397,20 +1609,15 @@ function jigSettingsHtml(drill){
 }
 function drillTailHtml(drill,letterOf){
   const lines=[];
+  // (a piece with round holes of its shape, the toy chest's air holes, has them on its part drawing and is never on
+  //  the Nothing line: nothingWords leaves it out; spec 14 put them in the packet, R10 of the stage 2 review)
   const nothing=nothingWords(drill);
-  // pieces whose holes a step of their own drills right after this one (the toy chest's air holes, a step with
-  // shapes): never on the Nothing line, and that step is named (R10 of the stage 2 review)
-  const shapedStep=(drill.steps||[]).find(step=>step.no===drill.stepNo+1&&step.preset&&Array.isArray(step.preset.shapes)&&step.preset.shapes.length);
-  const shaped=new Set(shapedStep?shapedStep.preset.shapes:[]);
-  const entries=nothing?nothing.entries.filter(entry=>!entry.pieces.every(p=>shaped.has(p.name))):[];
-  const later=nothing?nothing.entries.filter(entry=>entry.pieces.every(p=>shaped.has(p.name))):[];
-  if(later.length){
-    const items=later.map(entry=>`${keyBox(entry.name)} ${esc(entry.pieces[0].name)} (${entry.count})`);
-    lines.push(`${listWords(items)}: ${later.length>1||later[0].count>1?'their':'its'} holes are drilled in step ${shapedStep.no}, the next step, while ${later.length>1||later[0].count>1?'they are':'it is'} still flat.`);
-  }
+  const entries=nothing?nothing.entries:[];
   if(entries.length){
-    const items=entries.map(entry=>`${keyBox(entry.name)} ${esc(entry.pieces[0].name)} (${entry.count})`);
-    lines.push(`Nothing to drill: ${listWords(items)}. ${esc(nothing.why)}`);
+    // (one sentence per kind of piece by what goes into it: nothingWords, js/drillplan.js)
+    const items=list=>listWords(list.map(entry=>`${keyBox(entry.name)} ${esc(entry.pieces[0].name)} (${entry.count})`));
+    if(nothing.groups.length===1)lines.push(`Nothing to drill: ${items(entries)}. ${esc(nothing.why)}`);
+    else lines.push(`Nothing to drill: ${nothing.groups.map(group=>`${items(group.entries)}. ${esc(group.why)}`).join(' ')}`);
   }else{
     // every piece has a hole, and structural screws join some of them: they are named all the same (spec 11, 1.6)
     const structural=drill.other.filter(entry=>entry.row.key==='structural');
@@ -1469,7 +1676,7 @@ const BEFORE_YOU_DRILL=[
      - no pocket holes: the test hole checks the bit and its depth, not the jig;
      - a hole that meets a hole in another piece (a clearance hole and its pilot, the two holes of a dowel): line 4. */
 const BEFORE_TAPE=' Where face 1 of a drawing is a face that shows once it is built (its drawing says "label on painter\'s tape"), write the label on a strip of painter\'s tape there instead: it peels off clean.';
-const BEFORE_PAIRS='A hole that meets a hole in another piece is measured on both drawings from the same end and edge, with the same numbers. Drill the first pair, hold the two pieces together to check, then drill the rest. If you prefer, leave the pilot holes in the second piece and drill them through the first piece when you put it together.';
+const BEFORE_PAIRS='A hole that meets a hole in another piece is measured on both drawings from the corner mark (the small circle with a corner line) of the place where the two pieces touch, with the same numbers. Drill the first pair, hold the two pieces together to check, then drill the rest. If you prefer, leave the pilot holes in the second piece and drill them through the first piece when you put it together.';
 function beforeYouDrillLines(drill){
   const lines=BEFORE_YOU_DRILL.slice();
   if(!drill.pockets)lines[0]='On each piece, find face 1 of its drawing: the face the holes are drilled into, or the hidden face of a piece whose holes are in an edge or an end. The label goes on that face.';
@@ -1484,32 +1691,13 @@ function beforeYouDrillLines(drill){
   if(drill.holes.some(hole=>hole.mate&&drawn(hole.piece)&&drawn(hole.mate.piece)))lines.push(BEFORE_PAIRS);
   return lines;
 }
-function drillStepHtml(step,plan){
-  const drill=plan.drill;
-  let h=stepTextHtml(step);
-  h+=`<div class="drill-box"><h4>Before you drill</h4><ol>${beforeYouDrillLines(drill).map(line=>`<li>${esc(line)}</li>`).join('')}</ol></div>`;
-  h+=settingsHtml(drill);
-  let figures='';
-  const made=drill.labels.filter(label=>!label.mirror&&label.drawn&&label.way).map(label=>drawingFigure(label,plan));
-  // one legend above the drawings: what the signs on every drawing mean
-  if(made.length)figures+=`<div class="drill-legend">${partDrawingSvg(drillLegendLayout(made.map(figure=>figure.layout)))}</div>`;
-  for(const figure of made)figures+=figure.html;
+/* (drillStepHtml and drillModeHtml, the step "Drill your pieces" on the Build instructions page and in Build step
+   by step, are retired: the Before you drill lines, the settings, the legend, the drawings and the lines after them
+   are on the Cut list page, partDrawingsSection in js/shoppacket.js.) */
+/* the line for the labels past DRILL_DRAWINGS_MAX, which have no drawing (their lines keep their own words) */
+function drillOverWords(drill){
   const over=drill.labels.filter(label=>!label.drawn);
-  if(over.length)figures+=`<p class="hint">More pieces have pocket holes than this page has room to draw: ${esc(listWords(over.map(label=>`${label.name} (${label.members.length})`)))}. Their holes are given in the steps that drive them, each with its marking view.</p>`;
-  return`<div class="step-text">${h}<div class="drill-body">${figures}${drillTailHtml(drill,plan.letterOf)}</div></div>`;
-}
-/* Build step by step: the words, the settings in one sentence, and where the drawings are */
-function drillModeHtml(step,plan){
-  const drill=plan.drill;
-  const jigs=drill.setups.filter(setup=>setup.kind==='jig'),bits=drill.setups.filter(setup=>setup.kind==='bit');
-  const jigWordsSaid=!jigs.length?'':jigs.length===1?`Your pocket-hole jig needs one setting: ${fmt(jigs[0].jig)} stock.`
-    :`Your pocket-hole jig needs ${jigs.length} settings: ${listWords(jigs.map(setup=>`${setup.no} for ${fmt(setup.jig)} stock`))}.`;
-  // (the bits in the order of work, one sentence)
-  const bitWordsSaid=bits.length?`${jigs.length?'Then the bits':'The bits, in this order'}: ${listWords(bits.map(setup=>`${setup.no}, ${setupWords(setup)}`))}.`:'';
-  const settings=[jigWordsSaid,bitWordsSaid].filter(Boolean).join(' ');
-  // (the words of the page say "the drawings below": here the drawings are on the Build instructions page)
-  const words=step.words.replace('on the drawings below now',`on the drawings of the Build instructions page, step ${step.no}, now`);
-  return stepTextHtml({...step,words})+`<p>${esc(settings)}</p>`;
+  return over.length?`More pieces have holes than the part drawings have room to draw: ${listWords(over.map(label=>`${label.name} (${label.members.length})`))}. Their holes are given in the steps that drive them, each with its marking view.`:'';
 }
 
 /* ---------- self-checks (spec 11, section 8; selfTest runs every function in SELFTESTS, see js/core.js) ----------
@@ -1526,7 +1714,8 @@ function drillCheckRuns(){
   for(const variant of presetVariants())if(variant.name!==variant.preset.name)runs.push({preset:variant.preset,vals:{...presetDefaults(variant.preset),...variant.vals},style:'std',name:variant.name});
   // (the Bookshelf the presets window makes is the cabinet builder's, "Cabinet / case"; "Bookshelf" is the retired
   //  preset that older designs still open with)
-  for(const name of['Desk','Bookshelf','Cabinet / case','Computer desk','Nightstand with drawers','Fish tank wall / rack']){
+  // (and the Base cabinet: at its largest it has a partition, marked on both faces: the shop packet's checks read it)
+  for(const name of['Desk','Bookshelf','Cabinet / case','Computer desk','Nightstand with drawers','Fish tank wall / rack','Base cabinet with doors']){
     const preset=PRESETS.find(candidate=>candidate.name===name);
     if(preset)for(const size of sizesToTry(preset).slice(1))runs.push({preset,vals:size.vals,style:'std',name:`${name} (${size.where})`,extreme:true});
   }
@@ -1535,6 +1724,9 @@ function drillCheckRuns(){
 function drillCheckPass(){
   const found=Object.fromEntries(DRILL_CHECKS.map(name=>[name,[]]));
   let designs=0,holes=0,drawings=0;
+  // (the checks of the shop packet read the same designs in this one pass: shopCheckVisit, js/shoppacket.js)
+  const visit=typeof shopCheckVisit==='function'?shopCheckVisit:null;
+  if(visit)shopCheckStart();
   withoutDrawing(()=>{
     for(const run of drillCheckRuns()){
       let placed=false;
@@ -1546,6 +1738,7 @@ function drillCheckPass(){
         const plan=buildPlan(true);
         holes+=plan.drill.total;
         drawings+=drillDesignProblems(plan,said,run);
+        if(visit)visit(plan,run);
       }catch(e){said('drillPlanHoldsEveryHole',`stopped: ${e.message}`);}
     }
   });
@@ -1568,10 +1761,10 @@ function drillDesignProblems(plan,said,run){
       liveHoles+=row.holes(f,link).length;
     }
   }
-  if(liveHoles!==drill.total)said('drillPlanHoldsEveryHole',`${liveHoles} holes drilled ahead in the model, ${drill.total} in step 2`);
-  const drillStep=plan.steps.find(step=>step.kind==='drill');
-  if(!!drillStep!==!!drill.total)said('drillPlanHoldsEveryHole',drill.total?'the design has pocket holes and no step "Drill your pieces"':'a step "Drill your pieces" with nothing to drill');
-  if(drillStep&&drillStep.no!==2)said('drillPlanHoldsEveryHole',`"Drill your pieces" is step ${drillStep.no}, not step 2`);
+  if(liveHoles!==drill.total)said('drillPlanHoldsEveryHole',`${liveHoles} holes drilled ahead in the model, ${drill.total} on the part drawings`);
+  // (the holes are made from the part drawings of the Cut list page, before step 1: spec 14, js/shoppacket.js)
+  if(plan.steps.some(step=>step.kind==='drill'||step.kind==='cut'))said('drillPlanHoldsEveryHole','the Build instructions still have a step that cuts or drills the pieces (that is on the Cut list page now)');
+  if(drill.total&&(!plan.shop||plan.shop.drill!==drill))said('drillPlanHoldsEveryHole','the design has holes to drill ahead and its shop packet does not hold them');
   let made=0,drawings=0;
   for(const label of drill.labels){
     made+=label.members.length*label.holesEach;
@@ -1623,13 +1816,14 @@ function drillDesignProblems(plan,said,run){
     }
   }
   if(made!==drill.total)said('drillPlanHoldsEveryHole',`the labels make ${made} holes, the plan has ${drill.total}`);
-  // the Drill first column of a letter cut more than one way names every way, the pieces with nothing to drill too
+  // the Drawing column of a letter cut more than one way names every way, the pieces with nothing to drill too
+  // (drawingColumnText, js/shoppacket.js)
   if(drill.total){
     for(const row of cutRows().rows){
       const names=drill.labels.filter(label=>label.letter===row.id).map(label=>label.name)
         .concat(drill.nothing.filter(entry=>entry.letter===row.id&&entry.label).map(entry=>entry.name));
-      const text=drillColumn(row,drill);
-      if(names.length>1&&names.some(name=>!new RegExp(`\\b${name}\\b`).test(text)))said('drillPlanHoldsEveryHole',`the Drill first column of ${row.id} says "${text}", not each of ${names.join(', ')}`);
+      const text=drawingColumnText(row,plan);
+      if(names.length>1&&names.some(name=>!new RegExp(`\\b${name}\\b`).test(text)))said('drillPlanHoldsEveryHole',`the Drawing column of ${row.id} says "${text}", not each of ${names.join(', ')}`);
     }
   }
   // 6. each piece is drilled in the hand its drawing shows: a piece drilled alike has its end with the label on the
@@ -1690,7 +1884,7 @@ function drillDesignProblems(plan,said,run){
     for(const one of drilledFastenerCounts(drill)){
       const later=drill.other.filter(entry=>entry.f.label===one.label).length;
       const pocket=/pocket-hole screw/.test(one.label);
-      if(pocket?one.drilled!==one.listed:one.drilled+later>one.listed)said('drillCountsMatchTheShoppingList',`${one.drilled} ${pluralName(one.label)} have holes in step 2${later?` and ${later} at assembly`:''}, the shopping list buys ${one.listed}`);
+      if(pocket?one.drilled!==one.listed:one.drilled+later>one.listed)said('drillCountsMatchTheShoppingList',`${one.drilled} ${pluralName(one.label)} have holes on the part drawings${later?` and ${later} at assembly`:''}, the shopping list buys ${one.listed}`);
     }
     const pockets=drill.holes.filter(hole=>hole.kind==='pocket').length;
     if(listed.screws.reduce((sum,[,count])=>sum+count,0)!==pockets)said('drillCountsMatchTheShoppingList',`${pockets} pocket holes, ${listed.screws.reduce((sum,[,count])=>sum+count,0)} pocket-hole screws on the shopping list`);
@@ -1706,10 +1900,11 @@ function drillDesignProblems(plan,said,run){
     const nouns=(hardware.split(': ')[1]||'').split(/, (?:and )?| and /).map(item=>item.replace(/ \(steps? .*$/,''));
     if(/wall stud|studs \(/i.test(hardware)||/\bt-hinge/.test(hardware)||new Set(nouns).size!==nouns.length)said('drillPlanHoldsEveryHole',`the hardware sentence reads wrong: ${hardware}`);
     const tail=drillTailHtml(drill,plan.letterOf);
-    // a piece whose holes the next step drills is not on the Nothing line (R10 of the stage 2 review)
-    const next=plan.steps.find(step=>step.no===drill.stepNo+1),nothingLine=(tail.match(/Nothing to drill:[^<]*(<[^>]*>[^<]*)*?<\/p>/)||[''])[0].replace(/<[^>]+>/g,' ');
-    for(const name of next&&next.preset&&Array.isArray(next.preset.shapes)?next.preset.shapes:[])
-      if(nothingLine.includes(` ${name} (`))said('noHoleDrilledTwice',`the ${name} is on the Nothing line, and step ${next.no} drills its holes`);
+    // a piece with round holes of its shape (the toy chest's air holes, on its part drawing) is not on the Nothing
+    // line (R10 of the stage 2 review)
+    const nothingLine=(tail.match(/Nothing to drill:[^<]*(<[^>]*>[^<]*)*?<\/p>/)||[''])[0].replace(/<[^>]+>/g,' ');
+    for(const name of new Set(S.parts.filter(hasShapeHoles).map(p=>p.name)))
+      if(nothingLine.includes(` ${name} (`))said('noHoleDrilledTwice',`the ${name} is on the Nothing line, and its part drawing has holes`);
     if(!tail.includes(`When you are done: ${drill.total} `)||!/That matches the shopping list|The shopping list has/.test(tail))said('drillCountsMatchTheShoppingList','the count line does not give the count that matches the shopping list');
   }
   // 4. the face a drawing names is the face its pieces' steps name ("inside face" on the drawing, "outside face" in
@@ -1753,7 +1948,8 @@ function drillDesignProblems(plan,said,run){
       // (stage 2, every step after step 2, a marking step with no lines too: no order to drill a dowel hole, a
       //  clearance hole or a counterbore that step 2 holds, the step's own lines of that kind all pre-drilled, or none
       //  in the step and every drawing shown)
-      if(step.kind!=='drill'&&step.no>2){
+      // (every step: the holes are all made before step 1, from the part drawings)
+      {
         const held=drillWordsHeld(drill,step.groups);
         const order=boreOrders(step.words).find(one=>held[one.kind]);
         if(order)said('noHoleDrilledTwice',`step ${step.no} still tells to drill ${order.kind==='dowel'?'dowel holes':'the holes of wood screws'}: "${order.sentence.trim().slice(0,90)}"`);
@@ -1767,10 +1963,10 @@ function drillDesignProblems(plan,said,run){
         const bore=screws.find(group=>/drill a 3\/8" hole|Drill a hole [^.]* deep for each head first/.test(group.line));
         if(bore)said('noHoleDrilledTwice',`step ${step.no}, line ${bore.no} still says to drill the counterbores: ${bore.line.slice(0,120)}`);
       }
-      for(const group of screws)if(group.predrilled&&!/drilled already: drawings? [A-Z]/.test(group.where))said('noHoleDrilledTwice',`step ${step.no}, line ${group.no} does not point to its drawing: ${group.where}`);
+      for(const group of screws)if(group.predrilled&&!/made already: part drawings? [A-Z]/.test(group.where))said('noHoleDrilledTwice',`step ${step.no}, line ${group.no} does not point to its drawing: ${group.where}`);
       for(const group of pockets){
         if(!group.predrilled){if(drill.complete)said('noHoleDrilledTwice',`step ${step.no}, line ${group.no}: its pocket holes are on no drawing`);continue;}
-        if(!/drilled already: drawings? [A-Z]/.test(group.where)||/Where to mark/.test(group.where))said('noHoleDrilledTwice',`step ${step.no}, line ${group.no} does not point to its drawing: ${group.where}`);
+        if(!/made already: part drawings? [A-Z]/.test(group.where)||/Where to mark/.test(group.where))said('noHoleDrilledTwice',`step ${step.no}, line ${group.no} does not point to its drawing: ${group.where}`);
         // every place the words gave (not a gap between two holes: "1 3/4" apart", "at gaps of") is on the drawing,
         // from the same edge or, measured from the other edge or end, as the rest of the piece
         const size='(?:\\d+ \\d+\\/\\d+|\\d+\\/\\d+|\\d+)"';
@@ -2222,7 +2418,6 @@ SELFTESTS.push(function oldFilesDrillNothingTwice(problems){
       load(JSON.stringify(old),true);
       const plan=buildPlan(true),drill=plan.drill,at=`the ${name} (${STYLES[style][0]}) saved by stage 1, opened today`;
       for(const step of plan.steps){
-        if(step.kind==='drill'||step.no<=2)continue;
         const held=drillWordsHeld(drill,step.groups);
         const bore=boreOrders(step.words).find(one=>held[one.kind]);
         if(bore){problems.push(`drill your pieces: ${at}, still says in step ${step.no}: "${bore.sentence.trim().slice(0,90)}"`);break;}
@@ -2317,32 +2512,31 @@ SELFTESTS.push(function drillStepStaysShort(problems){
     if(names!=='A,B,C')wrong(`the Desk is labelled ${names}, not A, B and C (the two long aprons drilled alike)`);
     if(drill.setups.length!==2||drill.total!==44)wrong(`the Desk has ${drill.setups.length} settings and ${drill.total} holes, not 2 and 44`);
     if(drill.nothing.map(entry=>entry.name).join(',')!=='D,E')wrong(`the Desk has ${drill.nothing.map(entry=>entry.name).join(', ')} on the Nothing line, not D and E`);
-    if(!plan.steps[1]||plan.steps[1].kind!=='drill')wrong('the Desk has no step 2 "Drill your pieces"');
-    // Build step by step shows no drawings: its words must not point to drawings "below"
+    // (spec 14: the drilling is on the Cut list page, in the part drawings, never a step of the Build instructions)
+    if(plan.steps.some(step=>step.kind==='drill'))wrong('the Desk still has a step "Drill your pieces" on the Build instructions page');
     else{
-      const mode=drillModeHtml(plan.steps[1],plan);
-      if(/below/.test(mode)||!/Build instructions page, step 2/.test(mode))wrong('Build step by step, step 2, points to drawings it does not show: '+mode.replace(/<[^>]+>/g,' ').slice(0,160));
+      const packet=partDrawingsSection(cutRows(),plan);
+      if(!/Before you make the parts/.test(packet)||!/id="part-A"/.test(packet)||!packet.includes(esc(BEFORE_YOU_DRILL[2])))wrong('the Desk\'s Cut list page has no part drawings with the Before you make the parts box');
     }
-    // (stage 2: the Rustic Desk is held by wood screws, so it has a step 2 too: no pocket-hole jig, a few drawings
-    //  a beginner can follow, the structural screws named as needing no hole)
+    // (stage 2: the Rustic Desk is held by wood screws, so its parts are drilled too: no pocket-hole jig, a few
+    //  drawings a beginner can follow, the structural screws named as needing no hole)
     look().style='rustic';commit();
     plan=buildPlan(true);
-    const rustic=plan.steps.find(step=>step.kind==='drill');
-    if(!rustic)wrong('the Desk in Rustic / rough has no step "Drill your pieces" for its wood screws');
+    if(!plan.drill.total)wrong('the Desk in Rustic / rough has no holes drilled ahead for its wood screws');
     else{
       const drill=plan.drill,drawn=drill.labels.filter(label=>!label.mirror);
       if(drill.setups.some(setup=>setup.kind==='jig'))wrong('the Desk in Rustic / rough asks for the pocket-hole jig');
       if(drawn.length>6)wrong(`the Desk in Rustic / rough has ${drawn.length} drawings`);
-      const html=drillStepHtml(rustic,plan);
+      const html=partDrawingsSection(cutRows(),plan);
       if(!/Structural screws need no hole/.test(html))wrong('the Desk in Rustic / rough does not say its structural screws need no hole');
-      if(!html.includes(BEFORE_PAIRS))wrong('the Desk in Rustic / rough does not say how holes that meet are measured (Before you drill, line 4)');
+      if(!html.includes(esc(BEFORE_PAIRS)))wrong('the Desk in Rustic / rough does not say how holes that meet are measured (Before you drill, line 4)');
       if(!/painter's tape/.test(html))wrong('the Desk in Rustic / rough does not put the label of its top on painter\'s tape');
     }
     const shed=PRESETS.find(candidate=>candidate.name==='Shed');
     if(shed){
       placeInStyle(shed,presetDefaults(shed),'std');
-      if(buildPlan(true).steps.some(step=>step.kind==='drill'))wrong('the Shed has a step "Drill your pieces"');
-      if(/Drill first/.test(cutListSection(cutRows())))wrong('the Shed has a Drill first column');
+      if(buildPlan(true).drill.total)wrong('the Shed has holes to drill ahead');
+      if(/pocket hole|pilot hole/.test(cutListSection(cutRows())))wrong('the Shed\'s Drawing column speaks of holes to drill');
     }
     const shelf=PRESETS.find(candidate=>candidate.name==='Bookshelf');
     if(shelf){
@@ -2368,9 +2562,9 @@ SELFTESTS.push(function drillPlanFollowsEdits(problems){
     commit();
     {
       const drill=buildPlan(true).drill,letter=drill.labelOf(screwed).replace(/\d+$/,'');
-      const row=cutRows().rows.find(one=>one.id===letter),text=row?drillColumn(row,drill):'';
+      const row=cutRows().rows.find(one=>one.id===letter),text=row?drawingColumnText(row,buildPlan()):'';
       const names=drill.labels.filter(label=>label.letter===letter).map(label=>label.name).concat(drill.nothing.filter(entry=>entry.letter===letter&&entry.label).map(entry=>entry.name));
-      if(names.length<2||names.some(name=>!new RegExp(`\\b${name}\\b`).test(text)))wrong(`a Desk with one long apron screwed: the Drill first column of ${letter} says "${text}", not each of ${names.join(', ')}`);
+      if(names.length<2||names.some(name=>!new RegExp(`\\b${name}\\b`).test(text)))wrong(`a Desk with one long apron screwed: the Drawing column of ${letter} says "${text}", not each of ${names.join(', ')}`);
     }
     placeInStyle(desk,{...presetDefaults(desk),L:60},'std');
     let plan=continuous('the Desk 60" wide');
@@ -2384,7 +2578,7 @@ SELFTESTS.push(function drillPlanFollowsEdits(problems){
     commit();
     plan=continuous('the Desk with a short apron deleted');
     if(!apronHoles||plan.drill.total!==before-apronHoles)wrong(`deleting a short apron (${apronHoles} holes) left ${plan.drill.total} holes of ${before}`);
-    if(!/Drill first/.test(columnSays()))wrong('the cut list has no Drill first column after an edit');
+    if(!/pocket holes/.test(columnSays()))wrong('the Drawing column of the cut list names no pocket holes after an edit');
     // a 2x4 added by hand under the top, between the long aprons, joined with pocket screws
     const aprons=S.parts.filter(p=>p.name==='Long apron').map(plainBox);
     const zLow=Math.min(aprons[0].hi[2],aprons[1].hi[2]),zHigh=Math.max(aprons[0].lo[2],aprons[1].lo[2]);
@@ -2392,7 +2586,7 @@ SELFTESTS.push(function drillPlanFollowsEdits(problems){
     for(const j of findJoints())if(j.a.id===braceId||j.b.id===braceId)S.joints[j.key]='pocket';
     commit();
     plan=continuous('the Desk with a brace added by hand');
-    if(!plan.drill.holesOfPiece(byId(braceId)).length)wrong('a 2x4 added by hand with pocket screws has no holes in step 2');
+    if(!plan.drill.holesOfPiece(byId(braceId)).length)wrong('a 2x4 added by hand with pocket screws has no holes on its part drawing');
     else if(!plan.drill.labels.some(label=>label.members.some(member=>member.piece.id===braceId)))wrong('a 2x4 added by hand with pocket screws has no drawing');
     const braceStep=plan.steps[plan.stepOfPiece.get(braceId)];
     if(!braceStep||!braceStep.groups.some(group=>group.predrilled)||!/^Put in: /.test(braceStep.put||''))wrong('the step of a board added by hand does not point to its drawing or say how it is put in');
@@ -2402,17 +2596,17 @@ SELFTESTS.push(function drillPlanFollowsEdits(problems){
     for(const j of findJoints())S.joints[j.key]='pocket';
     commit();
     plan=continuous('two boards drawn by hand');
-    if(!plan.drill.total||!plan.steps.some(step=>step.kind==='drill'))wrong('two boards drawn by hand and joined with pocket screws get no step "Drill your pieces"');
+    if(!plan.drill.total||!/id="part-B"/.test(partDrawingsSection(cutRows(),plan)))wrong('two boards drawn by hand and joined with pocket screws get no holes drilled ahead or no part drawings');
     else if(!plan.drill.holesOfPiece(byId(ids[1])).length)wrong('the board drawn by hand that takes the pocket holes has none on its drawing');
-    if(!/Drill first/.test(columnSays()))wrong('a design drawn by hand with pocket holes has no Drill first column');
+    if(!/pocket holes/.test(columnSays()))wrong('a design drawn by hand with pocket holes says none in the Drawing column');
     // (stage 2) the same two boards joined with plain wood screws, then with dowels: both pieces get their holes
     for(const[type,kinds]of[['screw',['clear','pilot']],['dowel',['dowel']]]){
       for(const j of findJoints())S.joints[j.key]=type;
       commit();
       plan=continuous(`two boards drawn by hand, joined with ${type}s`);
       const got=new Set(plan.drill.holes.map(hole=>hole.kind)),pieces=new Set(plan.drill.holes.map(hole=>hole.piece.id));
-      if(!plan.steps.some(step=>step.kind==='drill')||kinds.some(kind=>!got.has(kind))||pieces.size!==2)
-        wrong(`two boards drawn by hand and joined with ${type}s get ${[...got].join(', ')||'no holes'} in ${pieces.size} pieces in step 2, not ${kinds.join(' and ')} in both`);
+      if(!plan.drill.total||kinds.some(kind=>!got.has(kind))||pieces.size!==2)
+        wrong(`two boards drawn by hand and joined with ${type}s get ${[...got].join(', ')||'no holes'} in ${pieces.size} pieces on their part drawings, not ${kinds.join(' and ')} in both`);
       else if(plan.drill.labels.filter(label=>!label.mirror).length<2)wrong(`two boards joined with ${type}s do not get a drawing each`);
       if(pairProblems(plan.drill).length)wrong(`two boards joined with ${type}s: ${pairProblems(plan.drill)[0].text}`);
     }

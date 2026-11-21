@@ -620,6 +620,55 @@ svg.tag text{font:600 11px var(--font);fill:#0b3a8f;text-anchor:middle}
 .drill-fig .notes li{margin:1px 0}
 .drill .tail{margin:12px 0 0;font-size:var(--fs);line-height:17px}
 .drill .tail p{margin:0 0 5px}
+/* the shop packet (js/shoppacket.js): the Part drawings of the Cut list page look like a drawing set, separate from
+   the furniture pages: each part on a sheet with a black border and a title block, thin black line work on white.
+   The dark brown accent is only for the links (the letters and "part drawing C") */
+.doc a.part-link{color:var(--blue);text-decoration:none}
+.doc a.part-link:hover{text-decoration:underline}
+.doc a.part-link .key{border-color:var(--blue);color:var(--blue)}
+.packet .shop-before{border:1px solid var(--n800)}
+.packet .shop-tools{margin:6px 0 0}
+.part-fig{margin:18px 0 0;border:1.5px solid var(--n900);background:#fff;break-inside:avoid}
+.pf-head{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--n900)}
+.pf-head .pf-mark{min-width:32px;font-size:17px;line-height:26px;border-width:1.5px}
+.pf-what{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;font-size:var(--fs);line-height:17px}
+.pf-what b{font-size:var(--fs-doc)}
+.pf-holds{color:var(--n600)}
+.pf-head{flex-wrap:wrap}
+.pf-head .done{display:flex;flex-wrap:wrap;align-items:center;gap:4px;max-width:100%;color:var(--n600);font-size:var(--fs)}
+.pf-head input{width:13px;height:13px;margin:0;accent-color:var(--blue)}
+svg.pp-iso{flex:none;width:150px;height:86px}
+.pp-iso-box{display:flex;flex-direction:column;align-items:center;flex:none}
+.pp-iso-box small{color:var(--n600);font-size:11px}
+/* (a little room between the drilling drawing and the sheet border: the real-thing review, 14) */
+.part-fig .pf-way .drill-fig{margin:0;border:0;border-bottom:1px solid var(--n400);padding:6px 10px}
+/* the small parts a person makes, under the cut list */
+.doc h3+p.hint+table.small-parts{margin-top:4px}
+.part-fig .shape-cut{margin:0;padding:8px 10px;border-bottom:1px solid var(--n400)}
+.part-fig .shape-cut h4.pf-sub{margin-top:0}
+.part-fig>.hint{margin:6px 10px}
+.pf-plain{padding:8px 10px;border-bottom:1px solid var(--n400)}
+svg.pd.pp{display:block;width:100%;max-width:640px;height:auto;background:#fff}
+svg.pp .pp-t{font-size:13px;fill:#3c434b}
+svg.pp .pp-n{font-size:15px;font-weight:600;fill:#14181d}
+.pf-note{margin:4px 0 0!important;font-size:var(--fs);color:var(--n600)}
+.pf-marks{margin:0;padding:8px 10px;border-bottom:1px solid var(--n400)}
+.pf-marks img{display:block;width:100%;max-width:420px;border:1px solid var(--n300)}
+.pf-marks figcaption{margin-top:3px;font-size:var(--fs-s);line-height:15px;color:var(--n600)}
+.pf-how{padding:6px 10px 8px;border-bottom:1px solid var(--n400);font-size:var(--fs);line-height:17px}
+.pf-how h4{margin:0 0 2px;font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+.pf-how ol{margin:0;padding-left:18px}
+.pf-tb{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.7fr) minmax(0,.5fr) minmax(0,.7fr) minmax(0,1.3fr) minmax(0,.7fr)}
+.pf-tb>div{padding:3px 8px 4px;border-left:1px solid var(--n900);font-size:var(--fs);line-height:16px}
+.pf-tb>div:first-child{border-left:0}
+.pf-tb small{display:block;font-size:10px;line-height:13px;color:var(--n600)}
+.pf-tb b{font-weight:600}
+.packet .shop-after{margin:12px 0 0;font-size:var(--fs);line-height:17px}
+.packet .shop-after h4{margin:0 0 2px;font-size:var(--fs-s);font-weight:600;color:var(--n600)}
+/* the first line of the Steps of Build instructions: every part is made first, from its part drawing */
+.shop-first{margin:6px 0 4px;padding:6px 10px;border:1px solid var(--n800);font-size:var(--fs);line-height:17px}
+.shop-first p{margin:0}
+.shop-first p+p{margin-top:4px}
 /* the drawing itself: ink and the one dark blue of the marking views (MARK_VIEW, js/markingview.js) */
 svg.pd text{font-family:var(--font)}
 svg.pd .pd-t1{font-size:16px;font-weight:600;fill:#14181d}
@@ -830,6 +879,15 @@ body[data-stepmode] #stHidden{display:none}
   .fig-head input{appearance:none;-webkit-appearance:none;width:10px;height:10px;border:1px solid #000;background:#fff}
   .drill-box{border-color:#999}
   svg.pd,svg.tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* the shop packet (js/shoppacket.js): Part drawings starts a page; each part drawing is whole, with its title
+     strip (design, Part drawings, its letter, the date) over it and its title block under it */
+  #partDrawings{break-before:page}
+  .part-fig{break-inside:avoid;border-color:#000}
+  .part-fig .pf-strip{display:block;padding:2pt 6pt;border-bottom:.5pt solid #000;font-size:8pt;color:#444}
+  .pf-head,.pf-tb>div,.pf-tb{border-color:#000}
+  .pf-head input{appearance:none;-webkit-appearance:none;width:10px;height:10px;border:1px solid #000;background:#fff}
+  .pf-tb small,.pf-holds,.pf-note,.pf-marks figcaption{color:#444}
+  .shop-first{border-color:#000}
 }
 
 /* ===== woodworking words and joint cards (js/glossary.js, js/jointhelp.js, js/wordlinks.js) ===== */
