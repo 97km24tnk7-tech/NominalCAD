@@ -27,7 +27,11 @@ MATS.push({id:'ply34',name:'3/4" plywood',short:'3/4" plywood',kind:'sheet',t:.7
           // top row of a fish rack do not read as loose boards floating above the tanks
           {id:'light',name:'Tank light (not wood)',short:'Tank light',kind:'prop',t:0,color:0x2b2f33,opaque:true},
           {id:'mattress',name:'Mattress (not wood)',short:'Mattress',kind:'prop',t:0,color:0xffffff},
-          {id:'glass',name:'Window (not wood)',short:'Window',kind:'prop',t:0,color:0x9fd3f5});
+          {id:'glass',name:'Window (not wood)',short:'Window',kind:'prop',t:0,color:0x9fd3f5},
+          // the pictures on a Computer desk (js/computerdesk.js): drawn solid and dark, never weighed, cut or bought,
+          // and (picture) never counted in an overall size: they only show where a bought thing goes
+          {id:'monitor',name:'Monitor (not wood)',short:'Monitor',kind:'prop',t:0,color:0x26292d,opaque:true,picture:true},
+          {id:'pctower',name:'Computer tower (not wood)',short:'PC tower',kind:'prop',t:0,color:0x3a3f45,opaque:true,picture:true});
 const isProp=p=>M[p.mat].kind==='prop';
 /* a thing that is not wood but is drawn solid, not see-through (a tank light: a dark fixture) */
 const propIsSolid=p=>isProp(p)&&!!M[p.mat].opaque;

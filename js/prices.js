@@ -113,6 +113,9 @@ const HARDWARE_PRICES=[
   // the short screws of a bracket under a 3/4" top are 1/2" (bracketScrew, js/style.js)
   {id:'bracket-screws-half',name:'Short screws for brackets, #8 × 1/2"',match:/1\/2" screws for brackets/i,pack:100,sold:'box of 100',price:5},
   {id:'bracket-screws',name:'Short screws for brackets, #8 × 5/8"',match:/screws for brackets/i,pack:100,sold:'box of 100',price:5},
+  // the power strip's round-head screws (the Computer desk, priced below with its other rows): before the general
+  // wood screws row, whose words would match them too and buy a box of 100 for two screws
+  {id:'round-head-screws',name:'Round-head wood screws, #8 × 3/4"',match:/round-head (wood )?screws/i,pack:6,sold:'pack of 6',price:1.38,search:'#8 x 3/4 in. Phillips round head zinc plated wood screw'},
   {id:'wood-screws',name:'Wood screws, #8, other lengths',match:/wood screws/i,pack:100,sold:'box of 100',price:9},
   {id:'dowels',name:'Wood dowels',match:/wood dowels/i,pack:30,sold:'bag of 30',price:4},
   ...priceByLength('brads','Brad nails, 18 gauge',length=>`${length} brad nails`,1000,'box of 1,000',
@@ -164,7 +167,12 @@ const HARDWARE_PRICES=[
   {id:'edge-banding',name:'Edge banding, 13/16" iron-on',match:/edge banding/i,pack:1,sold:'25 ft roll',price:12,search:'13/16 in. iron-on edge banding 25 ft.'},
   {id:'power-strip',name:'Power strip, 6 outlets',match:/^power strip/i,pack:1,sold:'each',price:18.96,search:'6 outlet power strip surge protector keyhole mounting'},
   {id:'desk-hook',name:'Screw-on hook for headphones',match:/screw-on hook/i,pack:1,sold:'each',price:29,search:'screw mount under desk headphone hook'},
-  {id:'round-head-screws',name:'Round-head wood screws, #8 × 3/4"',match:/round-head (wood )?screws/i,pack:6,sold:'pack of 6',price:1.38,search:'#8 x 3/4 in. Phillips round head zinc plated wood screw'},
+  // the Computer desk's stage 2, from reference sheet 22: the grommets 2" Commercial Electric $6.97 each at Home Depot
+  // and 2 1/2" Rockler about $5 (4a, sources 24-25); the cup holder insert a plastic drop-in for a 3 3/4" hole,
+  // Sea-Dog, $2.20 (section 10, source 68; one listing). The 2 1/2" row first: the 2" row's words would match it too.
+  {id:'grommet-big',name:'Desk grommet, 2 1/2"',match:/desk grommet, 2 1\/2"/i,pack:1,sold:'each',price:5,search:'2-1/2 in. desk grommet'},
+  {id:'grommet',name:'Desk grommet, 2"',match:/desk grommet/i,pack:1,sold:'each',price:6.97,search:'2 in. furniture hole grommet'},
+  {id:'cup-insert',name:'Drop-in cup holder insert',match:/cup holder insert/i,pack:1,sold:'each',price:2.2,search:'drop in cup holder 3-3/4 in. hole'},
   {id:'sandpaper',name:'Sandpaper',match:/sandpaper/i,pack:1,sold:'pack',price:6,search:'sandpaper assorted grit pack'},
   {id:'filler',name:'Wood filler',match:/wood filler/i,pack:1,sold:'small tub',price:6,search:'wood filler'},
   {id:'conditioner',name:'Pre-stain wood conditioner',match:/conditioner/i,pack:1,sold:'quart',price:16,search:'pre-stain wood conditioner quart'},

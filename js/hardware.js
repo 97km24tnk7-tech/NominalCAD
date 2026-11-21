@@ -189,6 +189,18 @@ const HARDWARE={
     mount:'Hold it level where it goes, mark the two holes, drill small pilot holes and screw it on.',
     // x up and down, y out of the face, z along the apron: a plate, an arm out from its lower half, a tip turned up
     shape:s=>({on:[box3([0,.06,0],[1.6,.12,s],'dark'),box3([-.45,.82,0],[.25,1.4,.35],'dark'),box3([-.2,1.45,0],[.65,.2,.35],'dark')],to:[]})},
+  /* The Computer desk's stage 2 (js/computerdesk.js): a plastic grommet pressed into each cable hole of the top
+     (2" or 2 1/2", the two store sizes, reference sheet 22, 4a), and a drop-in cup holder insert in a 3 3/4" hole
+     (4k). Both sit in a hole on the top face; y is up out of the top, the sleeve and the cup reach down into it. */
+  grommet:{name:'Desk grommet',group:'Desk',sizes:[[2,'2"'],[2.5,'2 1/2"']],size:2,term:'Grommet',plain:/^Desk grommet/i,
+    buy:s=>`Desk grommet, ${s>2.25?'2 1/2"':'2"'}, with its cap (for a hole that size)`,screws:'None: it presses into the hole',
+    mount:'Push the grommet into the hole until its rim sits flat on the top, then set its cap in with the slot toward the back.',
+    shape:s=>({on:[cyl3([0,.05,0],s/2+.3,.1,'y','dark'),cyl3([0,-.375,0],s/2-.04,.75,'y','dark')],to:[]})},
+  cupinsert:{name:'Cup holder insert',group:'Desk',sizes:[[3.75,'3 3/4" hole']],size:3.75,term:'Cup holder',plain:/^Drop-in cup holder/i,
+    // a closed bottom (no drain hole): on the Computer desk it hangs over the computer, which may breathe out of its top
+    buy:()=>'Drop-in cup holder insert with a closed bottom (no drain hole), for a 3 3/4" hole',screws:'None: it drops into the hole',
+    mount:'Drop the insert into the hole so its rim sits flat on the top. A thin bead of clear silicone under the rim keeps it from turning. Use one with a closed bottom, so a spill stays in it.',
+    shape:s=>({on:[cyl3([0,.06,0],s/2+.3,.12,'y','steel'),cyl3([0,-2,0],s/2-.05,4,'y','steel')],to:[]})},
 };
 /* A plain line of a preset's hardware list (S.hw) that means one of these kinds. What is placed in the model is
    counted there, so that many are taken off the plain line (hardwareRows). A line that names screws or nails is

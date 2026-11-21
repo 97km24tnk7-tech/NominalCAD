@@ -696,6 +696,9 @@ function shapeNote(p){
 const halfShorter=p=>Math.min(p.l,p.w)/2;
 const edgeOptions=(p,names)=>[[0,names.edge[0]],[1,names.edge[1]]];
 const faceOptions=(p,names)=>[[0,names.face[0]],[1,names.face[1]]];
+/* a hole for something bought to fit it, at a size the program buys (the desk grommets, 2" and 2 1/2", and the
+   cup holder insert, 3 3/4"): cut with a hole saw of exactly that size. Any other size keeps the jigsaw words. */
+const holeForAnInsert=f=>f.use!=='plain'&&[2,2.5,3.75].some(size=>Math.abs(f.d-size)<1e-6);
 const SHAPE_KINDS={
   saw:{label:'Angled',group:'end',
     fields:[
@@ -798,12 +801,16 @@ const SHAPE_KINDS={
       const mark=`mark the center ${datumWords(p,f,names)}`;
       // tool breaks from design\reference\21-shaping-tools.md: spade bits are sold 1/4" to 1 1/2" (2i), hole saws
       // up to 6" (2g, 4); a hole saw cuts about 1 5/8" deep from one face (2g), so it is cut from both faces (3, item 7)
+      // a hole for a grommet or a drop-in cup holder must fit what goes in it: cut with a hole saw of its size
+      // (reference sheet 22, 4a: "bore before assembly; drill until the bit's tip breaks through, then finish from
+      // the other face")
+      if(holeForAnInsert(f))return`Hole: ${mark}. Cut it with a ${fmt(f.d)} hole saw, the size of the ${f.use==='cup'?'cup holder insert':'grommet'}: drill from this face until the tip of the pilot bit pokes through, then turn the piece over and finish from the other face, so neither face splinters. Sand the edge.`;
       if(f.d<.5)return`Hole: ${mark}. Drill it with a ${fmt(f.d)} drill bit, with a scrap of wood clamped under it so the wood does not splinter where the bit comes out.`;
       if(f.d<=1.5)return`Hole: ${mark}. Drill it with a ${fmt(f.d)} spade bit or Forstner bit. Stop when the point shows on the far side and finish from that side, so the wood does not splinter.`;
       const saw=f.d<=6?` (or use a ${fmt(f.d)} hole saw: drill until its pilot bit pokes through, then finish from the other face)`:'';
       return`Hole: ${mark}. Set a compass to ${fmt(f.d/2)} and draw the circle (${fmt(f.d)} across). Drill a 1/2" starter hole just inside the line and cut on the line with a jigsaw${saw}, then sand the edge.`;
     },
-    tools:(p,f)=>f.d<.5?[`Drill bit, ${fmt(f.d)}`]:f.d<=1.5?[`Spade bit or Forstner bit, ${fmt(f.d)}`]:[f.d<=6?`Jigsaw and a 1/2" drill bit for the starter hole (or a ${fmt(f.d)} hole saw)`:'Jigsaw and a 1/2" drill bit for the starter hole'],
+    tools:(p,f)=>holeForAnInsert(f)?[`Hole saw, ${fmt(f.d)}, in a drill`]:f.d<.5?[`Drill bit, ${fmt(f.d)}`]:f.d<=1.5?[`Spade bit or Forstner bit, ${fmt(f.d)}`]:[f.d<=6?`Jigsaw and a 1/2" drill bit for the starter hole (or a ${fmt(f.d)} hole saw)`:'Jigsaw and a 1/2" drill bit for the starter hole'],
   },
   cutout:{label:'Cut-out',group:'feature',plural:'cut-outs',
     fields:[
@@ -1602,7 +1609,8 @@ const PRESET_PRINTS={
    preset still builds none. The Storage box / toy chest: the air holes in its front and its two ends (the
    woodworker's-eye review, E3; buildStorageBox in js/builders-storage.js). */
 const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side'],
-  'Dining chair':['Back leg']};   // js/diningchair.js: the one cut on each back leg that leans the back
+  'Dining chair':['Back leg'],    // js/diningchair.js: the one cut on each back leg that leans the back
+  'Computer desk':['Top']};       // js/computerdesk.js: cable holes, cup holder, rounded front corners (options, off as first opened)
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same
    way: main's loading now adds fields of its own, so the text read back is longer than it was on 40ae483) */
 const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg","mat":"2x4","l":30,"w":3.5,"t":1.5,"ax":[1,2,0],"pos":[0,0,0]},{"id":2,"name":"Top","mat":"ply34","l":24,"w":18,"t":0.75,"ax":[0,2,1],"pos":[0,30,0]},{"id":3,"name":"Brace","mat":"1x4","l":20,"w":3.5,"t":0.75,"ax":[0,1,2],"pos":[2,10,4],"rot":{"k":2,"deg":30}}],"joints":{},"stock":{},"notes":[],"steps":[],"hw":[],"nextId":4,"nextGrp":1}';

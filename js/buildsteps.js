@@ -1201,7 +1201,10 @@ function hardwareSpotWords(items,host){
   const middleOf=axis=>axis===1?'halfway up':axis===0?'halfway across':'halfway from back to front';
   const cross=spots[0].cross;
   const crossSaid=cross.centered?middleOf(cross.axis):cross.distance<.13?`along its ${sideOf(cross)}`:`${inchWords(cross.distance)} in from its ${sideOf(cross)}`;
-  const alongSaid=listWords(spots.map(spot=>spot.along.centered?middleOf(spot.along.axis):`${inchWords(spot.along.distance)} from its ${sideOf(spot.along)}`));
+  // two or more each get their own place ("one 3" from its left end, the other 3" from its right end"), so that two
+  // places measured from opposite ends never read as one place
+  const places=spots.map(spot=>spot.along.centered?middleOf(spot.along.axis):`${inchWords(spot.along.distance)} from its ${sideOf(spot.along)}`);
+  const alongSaid=new Set(places).size===1?places[0]:places.length===2?`one ${places[0]}, the other ${places[1]}`:listWords(places.map(place=>'one '+place));
   return`${crossSaid}, ${alongSaid}`;
 }
 /* The hardware lines of one step: one line for each kind of hardware on each kind of piece.
@@ -1902,8 +1905,14 @@ function drillStepWords(next){
   const shapes=next&&next.source!=='generated'&&next.preset&&Array.isArray(next.preset.shapes)?next.preset.shapes:[];
   if(!shapes.length)return DRILL_WORDS;
   const names=listWords(shapes.map(name=>name.toLowerCase()));
+  // what that step really does to those pieces: drills holes, cuts other shapes (rounded corners, notches), or both
+  const pieces=S.parts.filter(p=>shapes.includes(p.name)&&hasShape(p));
+  const holes=pieces.some(p=>shapeFeatures(p).some(f=>f.kind==='hole'));
+  const other=pieces.some(p=>shapeFeatures(p).some(f=>f.kind!=='hole')||(p.shape.corners||[]).some(Boolean)||(p.shape.ends||[]).some(Boolean));
+  const does=holes&&other?'drills the other holes and cuts the shapes':holes?'drills the other holes':'cuts the shapes';
+  const what=pieces.length>1?`the ${names} pieces, while those pieces are`:`the ${names}, while it is`;
   return DRILL_WORDS.replace('After this step you only put the pieces together',
-    `The next step drills the other holes, in the ${names} pieces, while those pieces are still flat. After that you only put the pieces together`);
+    `The next step ${does} ${holes?'in':'of'} ${what} still flat. After that you only put the pieces together`);
 }
 let planMemo=null;
 const SUGGESTED_NOTE='Suggested order. The program worked this order out from what touches what: what stands on the floor first, then what is fastened to that, tops after the frame, doors and drawers last. Before each step, check that you can reach every screw of that step with the drill. Where you cannot, fasten that piece one step earlier.';

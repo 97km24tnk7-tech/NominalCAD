@@ -103,7 +103,7 @@ const CATALOG=[
   // builder started with its options shown off. Both open with a short form (COMPUTER_DESK_SHORT).
   {id:'computer-desk',name:'Computer desk',group:'tables',spec:'Drawers and a knee space',icon:'i-presets',
     builder:'Computer desk',short:COMPUTER_DESK_SHORT,tags:['doors','computer','office','desk','drawers','study','home office']},
-  {id:'gaming-desk',name:'Gaming desk',group:'tables',spec:'Drawers, shelf, tower bay',icon:'i-presets',
+  {id:'gaming-desk',name:'Gaming desk',group:'tables',spec:'Tower shelf, cable tray',icon:'i-presets',
     builder:'Computer desk',start:GAMING_DESK_START,short:COMPUTER_DESK_SHORT,desc:GAMING_DESK_WORDS,tags:['doors','gaming','computer','pc','tower','monitor shelf','desk','drawers']},
   // Seating
   // the Dining chair (js/diningchair.js): made from the Dining table's own lumber, to stand beside it

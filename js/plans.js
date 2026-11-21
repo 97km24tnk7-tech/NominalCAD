@@ -24,24 +24,27 @@ const FLAT_VIEWS=[
   {name:'Top',across:0,upward:2,from:[0,1,0],up:[0,0,-1],flipUpward:true,sizes:['wide','deep']},
 ];
 const FLAT_LABEL=.045; // height of a size label as a share of the picture's width: about 11px type when the picture is shown 360px wide
-/* Takes the picture of one flat view. b = the bounds of the design, W x H = the picture in pixels, snap = takes the
-   picture through a camera. Returns {name, src, caption}. Everything is laid out in label heights ("unit"), so
-   the labels read the same on every design, large or small. */
-function flatViewPicture(view,b,W,H,snap){
+/* Takes the picture of one flat view. b = the bounds of what is built (the size lines and their labels), frame = the
+   bounds of everything drawn, pictures of bought things included (the camera frames it; b when left out), W x H =
+   the picture in pixels, snap = takes the picture through a camera. Returns {name, src, caption}. Everything is laid
+   out in label heights ("unit"), so the labels read the same on every design, large or small. */
+function flatViewPicture(view,b,W,H,snap,frame){
+  frame=frame||b;
   const A=view.across,U=view.upward,depth=3-A-U;
   const sizeAcross=b.hi[A]-b.lo[A],sizeUp=b.hi[U]-b.lo[U];
+  const frameAcross=frame.hi[A]-frame.lo[A],frameUp=frame.hi[U]-frame.lo[U];
   const acrossLabel=textSprite(fmtFt(sizeAcross),[0,0,0],1,VIEW_COL.dimText),upLabel=textSprite(fmtFt(sizeUp),[0,0,0],1,VIEW_COL.dimText);
   upLabel.material.rotation=Math.PI/2; // the upright size is written along its line, reading upward, as on a drawing
   // Room around the design, in units: half a unit on the left and on top; below and to the right a gap, the
   // size line, and the half of its label that sticks out past the line (ROOM in all).
   const GAP=.8,PAD=.5,ROOM=GAP+.5+.3;
-  const frameWide=Math.max(sizeAcross/(1-(PAD+ROOM)*FLAT_LABEL),sizeUp/(H/W-(PAD+ROOM)*FLAT_LABEL)); // the picture's width in inches: whichever of the two directions needs more
+  const frameWide=Math.max(frameAcross/(1-(PAD+ROOM)*FLAT_LABEL),frameUp/(H/W-(PAD+ROOM)*FLAT_LABEL)); // the picture's width in inches: whichever of the two directions needs more
   const frameHigh=frameWide*H/W,unit=FLAT_LABEL*frameWide;
-  const spareAcross=frameWide-sizeAcross-(PAD+ROOM)*unit,spareUp=frameHigh-sizeUp-(PAD+ROOM)*unit; // shared out evenly on both sides
+  const spareAcross=frameWide-frameAcross-(PAD+ROOM)*unit,spareUp=frameHigh-frameUp-(PAD+ROOM)*unit; // shared out evenly on both sides
 
   // the camera looks at the middle of the design; its frame is measured from there
-  const middle=b.lo.map((v,i)=>(v+b.hi[i])/2),far=Math.hypot(b.hi[0]-b.lo[0],b.hi[1]-b.lo[1],b.hi[2]-b.lo[2])+50;
-  const left=-sizeAcross/2-PAD*unit-spareAcross/2,bottom=-sizeUp/2-ROOM*unit-spareUp/2;
+  const middle=frame.lo.map((v,i)=>(v+frame.hi[i])/2),far=Math.hypot(frame.hi[0]-frame.lo[0],frame.hi[1]-frame.lo[1],frame.hi[2]-frame.lo[2])+50;
+  const left=-frameAcross/2-PAD*unit-spareAcross/2,bottom=-frameUp/2-ROOM*unit-spareUp/2;
   const eye=new THREE.OrthographicCamera(left,left+frameWide,bottom+frameHigh,bottom,.1,far*4);
   eye.position.set(middle[0]+view.from[0]*far,middle[1]+view.from[1]*far,middle[2]+view.from[2]*far);
   eye.up.set(view.up[0],view.up[1],view.up[2]);
@@ -49,14 +52,14 @@ function flatViewPicture(view,b,W,H,snap){
 
   // the two size lines, placed in the scene so that they land below and to the right of the design in the picture
   const towardRight=view.flipAcross?-1:1,towardTop=view.flipUpward?-1:1;
-  const point=(across,upward)=>{const p=[0,0,0];p[A]=across;p[U]=upward;p[depth]=view.from[depth]>0?b.hi[depth]:b.lo[depth];return p;};
-  const below=(towardTop>0?b.lo[U]:b.hi[U])-towardTop*GAP*unit,beside=(towardRight>0?b.hi[A]:b.lo[A])+towardRight*GAP*unit;
+  const point=(across,upward)=>{const p=[0,0,0];p[A]=across;p[U]=upward;p[depth]=view.from[depth]>0?frame.hi[depth]:frame.lo[depth];return p;};
+  const below=(towardTop>0?frame.lo[U]:frame.hi[U])-towardTop*GAP*unit,beside=(towardRight>0?frame.hi[A]:frame.lo[A])+towardRight*GAP*unit;
   emptyGroup(dimGroup);
   dimGroup.visible=true;
   dimGroup.add(dimLine(point(b.lo[A],below),point(b.hi[A],below),U,unit*.35),dimLine(point(beside,b.lo[U]),point(beside,b.hi[U]),A,unit*.35));
   const put=(label,at)=>{label.scale.multiplyScalar(unit);label.position.set(at[0],at[1],at[2]);dimGroup.add(label);};
-  put(acrossLabel,point(middle[A],below));
-  put(upLabel,point(beside,middle[U]));
+  put(acrossLabel,point((b.lo[A]+b.hi[A])/2,below));
+  put(upLabel,point(beside,(b.lo[U]+b.hi[U])/2));
   return{name:view.name,src:snap(eye),caption:`${view.name}: ${fmtFt(sizeAcross)} ${view.sizes[0]} × ${fmtFt(sizeUp)} ${view.sizes[1]}`};
 }
 
@@ -86,9 +89,11 @@ function takePicturesNow(full,opts){
   fastGroup.visible=woodMode!=='solid';handleGroup.visible=gizmoGroup.visible=false;
   fit('fit');cam.r*=.85;updateCam();out.overview=snap();
   if(full){
-    const b=bbox(S.parts);
+    // sized without the pictures that only show where a bought thing goes (a monitor: `picture` on its MATS row), framed
+    // round everything drawn
+    const all=bbox(S.parts),sized=S.parts.filter(p=>!M[p.mat].picture),b=sized.length?bbox(sized):all;
     grid.visible=floor.visible=false;
-    for(const view of FLAT_VIEWS)out.views.push(flatViewPicture(view,b,W,H,snap)); // flat views, like a drawing
+    for(const view of FLAT_VIEWS)out.views.push(flatViewPicture(view,b,W,H,snap,all)); // flat views, like a drawing
     grid.visible=floor.visible=true;dimGroup.visible=false;
     // pulled apart: the eye is set so that every piece is in the picture where it now floats, and each piece
     // carries its cut-list letter (aimAtShown, drawPieceLetters: js/steppictures.js)
@@ -477,7 +482,7 @@ function renderCut(instr){
     // three drawings, two to a row; the fourth place says what the sizes measure
     const figures=pics.views.map(view=>`<figure><img src="${view.src}" alt="${view.name} view"><figcaption>${esc(view.caption)}</figcaption></figure>`).join('');
     h+=`<h2>Views with sizes</h2><div class="views">${figures}`+
-      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(isProp)?', counting a fish tank or a mattress that is drawn':''}. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
+      `<p class="hint">Overall sizes, measured to the outside of the outermost pieces${S.parts.some(p=>isProp(p)&&!M[p.mat].picture)?', counting a fish tank or a mattress that is drawn':''}${S.parts.some(p=>M[p.mat].picture)?' (not the pictures of a monitor or a computer, which only show where they go)':''}. Wide is left to right, deep is front to back, tall is from the floor up. The size of every single piece is in the cut list.</p></div>`+
       `<h2>How it goes together</h2><img class="wide" src="${pics.exploded}" alt="The pieces pulled apart"><p class="hint">The pieces pulled apart so you can see each one, each with its letter from the cut list. The steps below show the order.</p>`;
   }
   if(instr)h+=`<h2>Tools you need</h2><ul class="cols">${toolList(joints,buildPlan()).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;

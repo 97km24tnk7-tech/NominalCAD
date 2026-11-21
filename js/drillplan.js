@@ -482,7 +482,11 @@ function withoutDrillWords(words,step,drill){
 function drillColumn(row,drill){
   if(!drill||!drill.total)return'';
   const labels=drill.labels.filter(label=>label.letter===row.id);
-  if(!labels.length)return'nothing';
+  if(!labels.length){
+    // round holes of its shape are not pocket holes, and they are cut in their own step (Shapes to cut)
+    const entry=drill.nothing.find(e=>e.letter===row.id&&!e.label);
+    return entry&&entry.pieces.some(hasShapeHoles)?'no pocket holes; its round holes: see Shapes to cut':'nothing';
+  }
   const holes=n=>`${n} pocket hole${n===1?'':'s'}`;
   // the pieces of this letter that have nothing to drill ('A2 (1)' on the Nothing line), said in every form
   const bare=drill.nothing.filter(entry=>entry.letter===row.id&&entry.label);
@@ -696,16 +700,20 @@ function placesApart(groups){
 
 /* ---------- the lines at the end of step 2 ---------- */
 /* "D Leg (4) and E Top (1)" in cut-list order, and the sentence after it */
+/* a piece with round holes or cut-outs of its shape (js/shapes.js): those are cut in a step of their own, so the
+   piece is never said to have "nothing to drill" */
+const hasShapeHoles=p=>typeof shapeFeatures==='function'&&shapeFeatures(p).some(f=>f.kind==='hole');
 function nothingWords(drill){
-  if(!drill.nothing.length)return null;
-  const ids=new Set(drill.nothing.flatMap(entry=>entry.pieces.map(p=>p.id)));
+  const entries=drill.nothing.filter(entry=>!entry.pieces.some(hasShapeHoles));
+  if(!entries.length)return null;
+  const ids=new Set(entries.flatMap(entry=>entry.pieces.map(p=>p.id)));
   // what goes into those pieces: pocket screws only, or other fasteners too
   let other=false;
   for(const link of connGraph().links){
     if(!link.joint||!link.fastened||(!ids.has(link.a.id)&&!ids.has(link.b.id)))continue;
     if(link.type!=='pocket'&&link.type!=='glue'){other=true;break;}
   }
-  return{entries:drill.nothing,why:other?'Their screws and nails go in when you put it together, and the steps say where.':'The pocket screws cut their own way into them.'};
+  return{entries,why:other?'Their screws and nails go in when you put it together, and the steps say where.':'The pocket screws cut their own way into them.'};
 }
 /* how many pocket-hole screws of each size the shopping list buys, and the plugs */
 function pocketScrewsListed(){
