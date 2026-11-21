@@ -20,40 +20,145 @@ function styleType(t,j,style){const s=style||look().style; // the style nudges t
   if(s==='rustic'&&(t==='pocket'||t==='dowel'))return'screw';
   // Fine furniture hides a screw in a pocket hole, but a pocket-hole jig only takes stock up to 1 1/2" thick:
   // a hole cannot be drilled in a 4x4 that way, so there the screw stays
-  if(s==='fine'&&t==='screw'&&!(j.fa==='face'&&j.fb==='face')&&pocketPiece(j).t<=POCKET_JIG_MAX+1e-6)return'pocket';
+  // (and only where the hole has room in the piece: a 1x2 rim on a tray stays a screw, pocketHasRoom in js/fasteners.js)
+  if(s==='fine'&&t==='screw'&&!(j.fa==='face'&&j.fb==='face')&&pocketPiece(j).t<=POCKET_JIG_MAX+1e-6&&pocketHasRoom(j))return'pocket';
   return t;}
 /* ---------- pocket holes: the jig ----------
    A pocket-hole jig is set for the thickness of the stock, and each setting has its screw (the chart on every
    jig). Where the two pieces differ, the jig is set for the thinner one, so the screw cannot come out of it.
    The bit drills to a fixed stop, so the head of the screw always seats at the same place in the hole: SHOULDER
    is how far that is from where the screw leaves the piece, along the screw. What is left of the screw goes into
-   the second piece, at 15 degrees. These are rule-of-thumb numbers, close to the usual jigs, not a maker's chart.
+   the second piece, at 15 degrees.
      set       the thickness the jig is set for (inches)
-     screw     the screw for that setting: its length, and the shopping-list size
-     shoulder  from the head of the screw to where it leaves the piece, along the screw */
+     screw     the screw for that setting: its length, and the shopping-list size (the makers' charts agree on
+               these, reference sheet 27 section 1b)
+     shoulder  from the head of the screw to where it leaves the piece, along the screw: the screw less how far it
+               goes into the second piece in Kreg's penetration chart (sheet 27, 1c: 1" less 7/16", 1 1/4" less
+               5/8", 2 1/2" less 1 1/4"; the 1" setting is not in the chart and lies between its neighbours).
+               Until the pocket-edge round these were 0.65, 0.75, 1 and 1.5: the real screws go 1/16" to 1/4"
+               deeper into the second piece than the program thought, so the wood left over a point is that much
+               thinner (a 1 1/4" screw into a 3/4" top leaves about 9/64", Kreg's own 3/4" to 3/4" joint) */
 const POCKET_JIG=[
-  {set:.5,  screw:1,   size:'1"',     shoulder:.65},
-  {set:.75, screw:1.25,size:'1-1/4"', shoulder:.75},
-  {set:1,   screw:1.5, size:'1-1/2"', shoulder:1},
-  {set:1.5, screw:2.5, size:'2-1/2"', shoulder:1.5}
+  {set:.5,  screw:1,   size:'1"',     shoulder:.5625},
+  {set:.75, screw:1.25,size:'1-1/4"', shoulder:.625},
+  {set:1,   screw:1.5, size:'1-1/2"', shoulder:.83},
+  {set:1.5, screw:2.5, size:'2-1/2"', shoulder:1.25}
 ];
 const POCKET_JIG_MAX=1.5;     // the thickest stock a pocket-hole jig takes
-const POCKET_COVER=.25;       // wood wanted over the point of a pocket screw, where the stock allows
-const POCKET_COVER_MIN=.125;  // never less than this
+/* Wood wanted over the point of a screw driven up into a top: 1/4" in a top 3/4" thick or more (POCKET_COVER), never
+   less than 1/8" (POCKET_COVER_MIN). A POCKET screw is held to 1/8" only: the corrected shoulders show that no
+   maker's joint keeps 1/4" (Kreg's chart leaves about 9/64" over the point of a 1 1/4" screw in 3/4" stock, sheet
+   27, section 7, verdict 2). Every other screw, a bracket's screws and a wood screw driven up included, keeps the
+   1/4" (pointCoverWanted, read by the checks of js/showfaces.js and js/fishtop.js). */
+const POCKET_COVER=.25;
+const POCKET_COVER_MIN=.125;
+function pointCoverWanted(f,piece){
+  if(f&&f.kind==='pocket')return POCKET_COVER_MIN;
+  return piece.t>=.75-1e-6?POCKET_COVER:POCKET_COVER_MIN;
+}
+/* Holes drilled ACROSS a board (sheet 27, section 8): the screw goes up through a rail, an apron or a cross piece
+   standing on edge into a top, a seat or a deck lying on it, so the oval runs across the board's width, not along
+   its length. Set for the thickness of a 2x4 (1 1/2"), the oval runs from 2.07" to 3.52" below the top edge of a
+   3 1/2" rail: the bit breaks out of the bottom edge (the owner's "seem to close to the edge"). A careful builder
+   sets the jig for 3/4" for every top up to 1 1/2" thick ("think thin"): the oval ends 2 1/8" down and 1 3/8" of
+   wood stays under it. The screw is then picked for the top, from Kreg's chart for the 3/4" setting (sheet 27, 1c):
+   POCKET_ACROSS_SCREWS, the longest whose point leaves at least POCKET_COVER_MIN of the top over it. The holes at the
+   ENDS of a rail (into a leg) run along its length and keep the setting for their thickness. */
+const POCKET_ACROSS_SET=.75;
+const POCKET_ACROSS_SCREWS=[        // into: the least thickness of the piece the screw goes into
+  {into:.5, screw:1,   size:'1"'},    // a 1/2" deck: 3/8" into it, 1/8" over the point
+  {into:.75,screw:1.25,size:'1-1/4"'},// a 3/4" top: 5/8" into it (sheet 27, section 8; Kreg's 1x4 table plan)
+  {into:1.5,screw:1.5, size:'1-1/2"'} // a 1 1/2" top or seat: 7/8" into it, 5/8" over the point (section 8)
+];
+/* Pocket screws shorter than a setting's own, for a second piece too thin for it. Only lengths a store sells as
+   pocket-hole screws. The 3/4" one is sold only as a fine-thread pan-head screw "for 1/2" stock" (sheet 27, 1b and
+   section 10: Kreg's R3 chart and its FAQ give it for 1/2" plywood; the K4 chart's 1" screw ends 1/16" under the far
+   face of a 1/2" panel by Kreg's own penetration chart, nearer than the 1/8" every screw keeps from a face). So it
+   is taken only at the 1/2" setting, into a 1/2" sheet, where the joint is glued: the glue holds the corner and the
+   short screw clamps it while the glue sets (POCKET_SHORT_ONLY_INTO). Nowhere else is a pocket screw shorter than 1". */
+const POCKET_SHORT_SCREWS=[{screw:.75,size:'3/4"',onlyInto:'sheet'},{screw:1,size:'1"'},{screw:1.25,size:'1-1/4"'},{screw:1.5,size:'1-1/2"'}];
+const POCKET_SHORT_ONLY_INTO=.5;     // the 3/4" pocket screw: only into a sheet this thin or thinner, at the 1/2" setting
+/* how deep the point of a pocket screw of this setting ends in the second piece, square to the joint */
+const pocketReach=jig=>(jig.screw-jig.shoulder)*Math.cos(15*Math.PI/180);
 /* The jig setting for a pocket-hole joint: hp is the piece with the holes, mateDepth how thick the other piece is
-   where the screw goes in. The jig is set for the thinner of the two, to the nearest setting at or below it. */
-function pocketJig(hp,mateDepth){
+   where the screw goes in, across: the holes run across the width of a board (above). The jig is set for the
+   thinner of the two, to the nearest setting at or below it; across a board of 3/4" or more it is set for 3/4"
+   with the screw of POCKET_ACROSS_SCREWS. A screw whose point would leave less than POCKET_COVER_MIN of the second
+   piece over it is a shorter one of POCKET_SHORT_SCREWS (mateSheet: the second piece is a sheet of plywood).
+   Returns a row like those of POCKET_JIG. */
+function pocketJig(hp,mateDepth,across,mateSheet){
   const thinner=Math.min(hp.t,mateDepth);
   let row=POCKET_JIG[0];
   for(const candidate of POCKET_JIG)if(candidate.set<=thinner+.02)row=candidate;
+  if(across&&hp.t>=POCKET_ACROSS_SET-.02){
+    const base=POCKET_JIG.find(candidate=>candidate.set===POCKET_ACROSS_SET);
+    let pick=POCKET_ACROSS_SCREWS[0];
+    for(const candidate of POCKET_ACROSS_SCREWS)if(candidate.into<=mateDepth+.02)pick=candidate;
+    row={...base,screw:pick.screw,size:pick.size,across:true};
+  }
+  // the point stays POCKET_COVER_MIN inside the second piece
+  const cover=jig=>mateDepth-pocketReach(jig);
+  if(cover(row)<POCKET_COVER_MIN-1e-6){
+    const shorter=POCKET_SHORT_SCREWS.filter(candidate=>candidate.screw<row.screw&&candidate.screw-row.shoulder>.1)
+      .filter(candidate=>!candidate.onlyInto||(mateSheet&&M[hp.mat]&&M[hp.mat].kind==='sheet'&&row.set<=.5+1e-6&&mateDepth<=POCKET_SHORT_ONLY_INTO+.02))
+      .reverse().find(candidate=>cover({...row,...candidate})>=POCKET_COVER_MIN-1e-6);
+    if(shorter)row={...row,screw:shorter.screw,size:shorter.size};
+  }
   return row;
 }
-/* how deep the point of a pocket screw of this setting ends in the second piece, square to the joint */
-const pocketReach=jig=>(jig.screw-jig.shoulder)*Math.cos(15*Math.PI/180);
 /* Wood for outdoors: cedar or pressure-treated. Screws in it are bought as exterior screws (plain steel rusts away
    in treated lumber), and a finish for it is an exterior one. */
 const outdoorWood=()=>look().wood==='cedar'||look().wood==='pt';
-const screwKind=()=>outdoorWood()?'exterior screws':'wood screws';
+/* A design that will stand outside or holds treated lumber: its screws are the coated exterior kind whatever wood
+   was picked (the owner's addendum: "exterior" where the design is for outdoors or uses treated wood). True for
+   outdoor wood, for a placed preset of the Outdoors group (a Raised garden bed switched to pine still sits in wet
+   soil), and for any pressure-treated piece (the skids of a Shed). The parts are looked at once per change of the
+   design (the cache is keyed on the parts list, its length and the next id). */
+let outdoorDesignCache={parts:null,length:-1,next:-1,value:false};
+function outdoorDesign(){
+  if(outdoorWood())return true;
+  const outdoors=(PRESET_GROUPS.find(group=>group[0]==='Outdoors')||[,[]])[1];
+  if(S.sets&&Object.values(S.sets).some(set=>set&&outdoors.includes(set.name)))return true;
+  const c=outdoorDesignCache;
+  if(c.parts!==S.parts||c.length!==S.parts.length||c.next!==S.nextId){
+    c.parts=S.parts;c.length=S.parts.length;c.next=S.nextId;
+    c.value=S.parts.some(p=>M[p.mat]&&M[p.mat].treated);
+  }
+  return c.value;
+}
+const screwKind=()=>outdoorDesign()?'exterior screws':'wood screws';
+/* ---------- the pocket-hole screw ----------
+   The owner: "pocket holes use a special screw so they are hidden, make sure thats included". A pocket-hole screw is
+   not a wood screw (reference sheet 27, section 10): its head is flat underneath and seats on the flat bottom of the
+   pocket (the cone under a wood screw's head would split the pocket), its tip drills itself, the shank under the
+   head is smooth so the joint pulls tight, and it is driven with the long #2 square bit that comes with the jig.
+   Its thread follows the wood it goes into: coarse for pine, fir, cedar and plywood, fine for a hard wood (a board
+   of oak or maple; plywood takes coarse thread in any wood). In cedar or pressure-treated lumber it is the exterior
+   (coated) kind. The shopping list buys each length and thread on a line of its own:
+     pocketScrewLabel('1-1/4"', into)  ->  '1-1/4" pocket-hole screws, coarse thread'  (', exterior' outdoors)
+   POCKET_SCREW_LINE reads such a line back: [whole, length, thread, exterior]. */
+const POCKET_SCREW_LINE=/^(\S+) pocket-hole screws, (coarse|fine) thread(, exterior)?$/;
+const POCKET_SCREW_BIT='the long #2 square driver bit that comes with the pocket-hole jig';
+/* The lengths a store sells in fine thread (sheet 27, section 10): the short ones. A 2" or 2-1/2" pocket-hole screw
+   is sold in coarse thread (store listings: Kreg's 2-1/2" in boxes of 50, 125 and 250, all coarse; a fine-thread
+   2-1/2" turned up only as one maker's #7 star-drive screw), so a hard-wood design buys the coarse ones there, and
+   the 3/4" is sold in fine thread only (Kreg's pan-head screw for 1/2" stock). */
+/* the length of a pocket-hole screw as the list writes it: 1.25 gives '1-1/4"' */
+const POCKET_SIZES=[[.75,'3/4"'],[1,'1"'],[1.25,'1-1/4"'],[1.5,'1-1/2"'],[2,'2"'],[2.5,'2-1/2"'],[3,'3"']];
+const pocketScrewSize=len=>(POCKET_SIZES.find(([length])=>Math.abs(length-len)<.01)||[0,fmt(len)])[1];
+const POCKET_FINE_SOLD=['3/4"','1"','1-1/4"','1-1/2"'];
+const POCKET_COARSE_SOLD=['1"','1-1/4"','1-1/2"','2"','2-1/2"','3"'];
+/* into: the piece the thread holds in (through a thin deck that is the framing under it, not the deck); size: the
+   length as the list writes it */
+function pocketScrewThread(into,size){
+  if(size&&!POCKET_COARSE_SOLD.includes(size))return'fine';
+  const hard=WOODS[look().wood]&&WOODS[look().wood][3]===1;
+  if(!hard||(into&&M[into.mat]&&M[into.mat].kind==='sheet'))return'coarse';
+  return!size||POCKET_FINE_SOLD.includes(size)?'fine':'coarse';
+}
+function pocketScrewLabel(size,into){
+  return`${size} pocket-hole screws, ${pocketScrewThread(into,size)} thread${outdoorDesign()?', exterior':''}`;
+}
 /* Does this design get a finishing step? A design with general steps does. A preset's own steps do when one of
    them is the finishing step, or when the design has a finish to put on: stepsSection (js/plans.js) then adds
    the step, so a shed that the person chose to paint is told how. A bare garden bed or shed is not sanded,
@@ -321,17 +426,26 @@ function screwForJoint(dT,dO,endGrain,plug){
 const PLUG_LABEL='3/8" wood plugs';
 /* a head sunk deeper than a plug is long: the hole is filled with a length of dowel rod, cut a little long */
 const DOWEL_ROD_LABEL='3/8" dowel rod, cut into plugs';
-/* pocket holes that would be seen from below are filled with these (rule 13 in js/fasteners.js) */
+/* pocket holes that would be seen from below are filled with these (rule 13 in js/fasteners.js). The owner, 20 Nov:
+   "pocket hole plugs arent something people will just have so if its easily purchasable then include it in the
+   parts list too". They are sold in bags of 50 by the kind of wood (sheet 27, section 11: oak, pine, and a paint
+   grade one for a finish that is painted), so the line names the kind that suits the design:
+     'Pocket-hole plugs, oak'   'Pocket-hole plugs, maple'   'Pocket-hole plugs, pine'   'Pocket-hole plugs, paint grade'
+   POCKET_PLUG_LINE reads such a line back (an older line with no kind still reads). */
 const POCKET_PLUG_LABEL='Pocket-hole plugs';
+const POCKET_PLUG_LINE=/^Pocket-hole plugs(?:, (oak|maple|pine|paint grade))?$/;
 /* The kind of pocket-hole plug to buy for the design's wood and finish (sheet 01 §9.4: bags of 50 in pine, oak, maple
-   and paint grade): paint grade under paint, else the wood the plugs are sold in that is nearest the design's. The
-   shopping list names it (js/prices.js, the pocket-plugs rows; the case looks job, real-thing review 6). */
+   and paint grade): paint grade under paint (any plug will do there: the cheapest), else the wood the plugs are sold
+   in that is nearest the design's (oak for oak, maple for poplar, a light softwood plug for pine, cedar and the rest).
+   The shopping list names it (pocketPlugLabel; js/prices.js, the pocket-plugs rows; the case looks job, real-thing
+   review 6, and the pocket-edge round, sheet 27 section 11: both kept at their merge). */
 const POCKET_PLUG_KIND={oak:'oak',poplar:'maple'};
 function pocketPlugKind(){
   const L=look();
   if(FINISHES[L.finish]&&FINISHES[L.finish][2]===2)return'paint grade';
   return POCKET_PLUG_KIND[L.wood]||'pine';
 }
+const pocketPlugLabel=()=>`${POCKET_PLUG_LABEL}, ${pocketPlugKind()}`;
 function jSpec(j,type,opts){
   if(type==='frame'||type==='toenail'){   // nails for framing: js/framing.js
     // (framing looks at where the two pieces stand; inside a turned set that is read with the set standing square, js/neighbors.js)
@@ -379,11 +493,15 @@ function jSpec(j,type,opts){
     // the holes are drilled in the piece that is not lying flat against the joint (pocketPiece, js/fasteners.js),
     // and the jig is set for the thinner of the two pieces (pocketJig above)
     const hp=pocketPiece(j),jig=pocketJigFor(j,hp);   // (a board on a thin deck: set for the board, with the longer screw rule 12 asks for: pocketJigFor in js/fasteners.js)
-    text=`${n} × ${jig.size} pocket screws (holes in the ${hp.name.toLowerCase()}, jig set for ${fmt(jig.set)} stock)`;
-    hw.push([`${jig.size} pocket-hole screws`,n]);
+    // (the special screw, bought on a line of its own for each length and thread: pocketScrewLabel above; through a
+    //  thin deck the thread holds in the framing under it, so the thread follows that piece)
+    const deck=pocketThroughSheet(j,hp),into=deck&&deck.under&&deck.under[0]?deck.under[0]:hp===j.a?j.b:j.a;
+    const bought=pocketScrewLabel(jig.size,into);
+    text=`${n} × ${bought.replace(/^(\S+) pocket-hole screws/,'$1 pocket-hole screws')} (holes in the ${hp.name.toLowerCase()}, jig set for ${fmt(jig.set)} stock)`;
+    hw.push([bought,n]);
     // holes that would be seen from below are filled with glued plugs (rule 13 in js/fasteners.js)
     const plugs=opts&&opts.asPlanned?0:pocketPlugsAsLaidOut(j);
-    if(plugs){text+=`, ${plugs===n?'the holes':plugs+' of the holes'} filled with glued pocket-hole plugs`;hw.push([POCKET_PLUG_LABEL,plugs]);}}
+    if(plugs){text+=`, ${plugs===n?'the holes':plugs+' of the holes'} filled with glued pocket-hole plugs`;hw.push([pocketPlugLabel(),plugs]);glue=true;}}   // (the plugs are glued in: the list buys the glue)
   else if(type==='dowel'){n=Math.max(2,Math.ceil(long/6));const thin=Math.min(j.a.t,j.b.t)<.7;
     const d=thin?'1/4" × 1"':'3/8" × 1-1/2"';text=`${n} × ${d} dowels + glue`;hw.push([`${d} wood dowels`,n]);glue=true;}
   else if(type==='nail'){n=Math.max(2,Math.ceil(long/6));

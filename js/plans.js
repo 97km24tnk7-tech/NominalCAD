@@ -124,7 +124,8 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   L.push('Safety glasses and hearing protection');
   if((S.hw||[]).some(([item])=>/landscape fabric/i.test(item)))L.push('Staple gun and staples');
   L.push(...drillToolLines(t,plan));   // the bits of DRILL_BITS for the holes step 2 drills, the dowel jig (js/drillplan.js)
-  if(t.has('pocket'))L.push('Pocket-hole jig');
+  // (the pocket-hole screws are driven with the long square bit that comes with the jig: POCKET_SCREW_BIT, js/style.js)
+  if(t.has('pocket'))L.push('Pocket-hole jig, with '+POCKET_SCREW_BIT.replace(/ that comes with the pocket-hole jig$/,' that comes with it, for the pocket-hole screws'));
   if(t.has('nail'))L.push('Brad nailer, or a hammer and a nail set (a small steel punch that sinks the head of a nail just below the surface)');
   if(t.has('frame')||t.has('toenail'))L.push('Framing hammer (20 oz or so). A framing nailer is much faster if you can borrow or rent one');
   if(sheet)L.push('Straight-edge guide for cutting plywood (or have the store cut it)');

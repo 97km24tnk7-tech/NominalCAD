@@ -46,10 +46,19 @@
                    underneath, plugged (never on its top face; rule 13 of js/fasteners.js no longer moves the case's
                    holes) (branch caselooks, which took 9 on its own and became 10 at its merge with main, where the
                    shop packet had taken 9; so a design the site saved under 9 is fastened again when opened).
+                   11: pocket holes off the edge (reference sheet 27, branch alike): holes under a top drilled at the
+                   3/4" setting, the corrected screw reach, the corners of a fish rack plugged in Fine furniture, the
+                   foot of a single stand on a bracket, the top deck of Garage shelves resting on its posts in Fine,
+                   a pocket hole no jig can drill in a 4x4 replaced by an L-bracket, and pocket-hole screws bought by
+                   length and thread. Was 8 on its branch, then 10 (main had taken 8 and caselooks 9); at its second
+                   merge with main, where the shop packet held 9 and the case looks 10, it became 11, so a design
+                   saved under 7 to 10 still takes this rule. No saved step or note gives the jig setting or the
+                   screw of those holes (the step lines are worked out from the fasteners each time), so only the
+                   words of joints that changed are written again.
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=10;
+const FASTENING_NOW=11;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);
@@ -146,10 +155,11 @@ function upgradeFastening(){
       if(isStyleRule(today)){
         delete S.joints[key];delete S.named[key];
         S.styled[key]=today;
-        if(today==='pocketUnlessRustic')pocketRules.push(key);
+        if(today==='pocketUnlessRustic'||today==='pocketInFine')pocketRules.push(key);
       }else if(today){
         S.joints[key]=today;S.named[key]=today;
         delete S.styled[key];
+        if(today==='pocket')pocketRules.push(key);   // (a sliver too narrow for a pocket hole only touches, as Create decides)
       }else{
         // the preset names nothing for this joint today: the suggestion worked out from the shapes
         if(chosen!==undefined){delete S.joints[key];delete S.named[key];}
@@ -167,6 +177,8 @@ function upgradeFastening(){
   //  written again, quietly, as the fasteners did not change, js/drillplan.js)
   // (6: the same for the drill words of stage 2: dowel holes, clearance holes, counterbores, the marks pencilled on)
   // (9: the same for part-making words the shop packet cannot move, js/shoppacket.js)
+  // (11: no saved step or note gives the jig setting or the screw of a hole across a rail, so a design saved under 9
+  //  or 10 whose fastener types did not change keeps its words: the code reader's finding 16 of the pocket-edge round)
   if(!changedKeys.length){if(savedUnder<9)bringWordsUpToDate(placements,[],true);return;}
   const words=bringWordsUpToDate(placements,changedKeys,false,savedUnder<9);
   const names=[...new Set(placements.map(entry=>entry.entry||entry.preset.name))];   // (an entry's name, never a hidden builder's: "this Bookshelf")
@@ -409,6 +421,51 @@ SELFTESTS.push(function oldDesignsSwitchToTodaysFastening(problems){
   }finally{
     sayFasteningUpgrade=keepSay;
     load(JSON.stringify(blank()),true);
+  }
+});
+
+/* Self-check of rule 11 (the code reader's finding 16 of the pocket-edge round): a Fine furniture fish rack saved
+   under rule 7, and the same saved under rules 8, 9 and 10 (the audit fixes, the shop packet, the case looks), before
+   its frame corners were plugged and its filler blocks glued: as that program saved it, those joints carry no rule
+   (the corners were Fine furniture's pocket screws, worked out from the shapes). Opened now, each takes rule 11's
+   fastening and one line says so. Without the upgrade (the file marked as saved under rule 11) the corners stay as
+   saved, which this check reports. (This was rule 10 until the merge with main, where the case looks took 10.) */
+SELFTESTS.push(function oldRacksTakeThePocketEdgeRule(problems){
+  const wrong=text=>problems.push('old designs, rule 11: '+text);
+  const rack=PRESETS.find(preset=>preset.name==='Fish tank wall / rack');
+  if(!rack){wrong('the Fish tank wall / rack preset is missing');return;}
+  const said=[],keepSay=sayFasteningUpgrade;
+  sayFasteningUpgrade=text=>said.push(text);
+  const kept=JSON.stringify(S);
+  try{withoutDrawing(()=>{
+    load(JSON.stringify(blank()),true);
+    if(!placeInStyle(rack,presetDefaults(rack),'fine')){wrong('the rack cannot be placed in Fine furniture');return;}
+    const today=JSON.parse(JSON.stringify(S));
+    const newRules=Object.keys(today.styled||{}).filter(key=>/^(pluggedInFine|pocketInFine|restsInFine|pocketRestsInFine)$/.test(today.styled[key]));
+    const glued=Object.keys(today.joints||{}).filter(key=>today.joints[key]==='glue');
+    if(!newRules.length){wrong('a Fine furniture rack of today has no plugged corners, so this check proves nothing');return;}
+    const asSaved=under=>{
+      const old=JSON.parse(JSON.stringify(today));
+      old.fastening=under;
+      for(const key of newRules)delete old.styled[key];
+      for(const key of glued){delete old.joints[key];if(old.named)delete old.named[key];}
+      return old;
+    };
+    for(const under of[7,8,9,10]){
+      said.length=0;
+      load(JSON.stringify(asSaved(under)),true);
+      const back=newRules.filter(key=>S.styled&&S.styled[key]===today.styled[key]).length;
+      if(back!==newRules.length)wrong(`a Fine furniture rack saved under rule ${under} opens with ${back} of its ${newRules.length} joints fastened the current way`);
+      if(said.length!==1)wrong(`a Fine furniture rack saved under rule ${under} says ${said.length} lines when it is opened, not one`);
+      if(S.fastening!==FASTENING_NOW)wrong(`a rack saved under rule ${under} is not marked as fastened the current way`);
+    }
+    // seen failing: marked as already up to date, the corners stay as saved
+    said.length=0;
+    load(JSON.stringify(asSaved(FASTENING_NOW)),true);
+    if(newRules.some(key=>S.styled&&S.styled[key]===today.styled[key])||said.length)wrong('a rack marked as up to date was changed when it was opened, so the check above cannot tell');
+  });}finally{
+    sayFasteningUpgrade=keepSay;
+    load(kept,true);
   }
 });
 

@@ -223,10 +223,23 @@ function caseAntiTipWords(s){
    The plugs are bought (the shopping list counts them from the layout), the "Fasten with" lines say to glue them in,
    and the step lists the saw that trims them (js/buildsteps.js). Only where a preset has no pluggedPockets of its own. */
 const PLUG_WHAT_IS_SEEN=['Coffee table','Entryway shoe bench'];
+/* Like pieces stay alike (the owner, 20 Nov: "we want like pieces"; js/drilledkinds.js pins it). The two long
+   stretchers of these presets face each other and are drilled alike: when a person in front sees the inside face of
+   the back one, its holes are plugged, and the front one's are plugged too, so both stay one part drawing (a plug
+   is cheap; a coffee table is seen from the couch side as well, which the eyes in front do not cover). Found at the
+   merge of the pocket-edge round with the case looks: plugging only the seen one split the stretchers into two
+   drilled kinds. A twin is a piece of the same name and cut size in the same placement; its holes face the other
+   way along the axis the face looks. */
+function twinFaceInSight(piece,out){
+  const axis=[0,1,2].reduce((best,k)=>Math.abs(out[k])>Math.abs(out[best])?k:best,0);
+  const facing=out.map((value,k)=>k===axis?-value:value);
+  const sameCut=other=>other.name===piece.name&&other.mat===piece.mat&&Math.abs(other.l-piece.l)<.01&&Math.abs(other.w-piece.w)<.01;
+  return S.parts.some(other=>other!==piece&&other.set===piece.set&&sameCut(other)&&pocketFaceInSight(other,facing));
+}
 (function plugWhatIsSeen(){
   for(const name of PLUG_WHAT_IS_SEEN){
     const preset=PRESETS.find(row=>row.name===name);
-    if(preset&&!preset.pluggedPockets)preset.pluggedPockets=(piece,out,style)=>style!=='rustic'&&pocketFaceInSight(piece,out);
+    if(preset&&!preset.pluggedPockets)preset.pluggedPockets=(piece,out,style)=>style!=='rustic'&&(pocketFaceInSight(piece,out)||twinFaceInSight(piece,out));
   }
 })();
 
@@ -289,8 +302,9 @@ function plugsLaidOut(){
   return count;
 }
 function plugsOnTheList(){
-  const row=hardwareTotals(findJoints()).rows.find(([label])=>label===POCKET_PLUG_LABEL);
-  return row?row[1]:0;
+  // (the line names the kind of plug since the merge with the pocket-edge round, "Pocket-hole plugs, oak":
+  //  POCKET_PLUG_LINE reads it, with or without the kind)
+  return hardwareTotals(findJoints()).rows.filter(([label])=>POCKET_PLUG_LINE.test(label)).reduce((sum,row)=>sum+row[1],0);
 }
 
 /* the height of the top surface of the placed design (the highest top face of its wood) */
@@ -420,7 +434,7 @@ SELFTESTS.push(function pocketPlugsAreBought(problems){withoutDrawing(()=>{
         const laid=plugsLaidOut(),listed=plugsOnTheList();
         plugged+=laid;
         if(laid!==listed)wrong(`${name} (${STYLES[style][0]}): ${laid} pocket holes are plugged, the shopping list buys ${listed} plugs`);
-        if(listed&&typeof hardwareFamily==='function'&&!hardwareFamily(POCKET_PLUG_LABEL))wrong('the pocket-hole plugs have no price');
+        if(listed&&typeof hardwareFamily==='function'&&!hardwareFamily(pocketPlugLabel()))wrong('the pocket-hole plugs have no price');
       }
     }
     if(!plugged)wrong('no preset plugs a pocket hole in any style, so this check proves nothing');

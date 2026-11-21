@@ -85,8 +85,19 @@ const HARDWARE_PRICES=[
   // mat: it is a sheet of that material, so it is priced as that sheet (a price typed for 1/2" plywood counts for
   // it too) and the shopping list counts it with the lumber, not with the hardware (sheetsToCutOnSite below).
   {id:'plywood-to-fit',name:'1/2" plywood to cut to fit',match:/^1\/2" plywood/i,pack:1,sold:'4 ft × 8 ft sheet',price:40,search:'1/2 in. plywood sheathing 4 ft. x 8 ft.',mat:'ply12'},
+  // pocket-hole screws with an exterior coating (Blue-Kote and the like, for outdoor designs and treated lumber:
+  // reference sheet 27, section 10) cost more than the zinc ones, so they stand first:
+  // '1-1/4" pocket-hole screws, coarse thread, exterior'. The long ones (2-1/2" and 3") are sold in boxes of 50 (store
+  // listings: Kreg's 2-1/2" in boxes of 50, 125 and 250, Hillman's in boxes of 50), the short ones in boxes of 100.
+  ...[['1"',8,100],['1-1/4"',9,100],['1-1/2"',10,100],['2"',12,100],['2-1/2"',9,50],['3"',11,50]].map(([length,price,pack])=>({
+    id:`pocket-screws-exterior:${length}`,parent:'pocket-screws-exterior',name:`Pocket-hole screws, exterior, ${length}`,
+    match:new RegExp('(^|[^-/\\d])'+length.replace(/[\/"]/g,'\\$&')+' pocket-hole screws, \\w+ thread, exterior','i'),pack,sold:`box of ${pack}`,price})),
+  {id:'pocket-screws-exterior',name:'Pocket-hole screws, exterior, other lengths',match:/pocket-hole screws.*exterior/i,pack:100,sold:'box of 100',price:10},
+  // (the 3/4" one is the fine-thread pan-head screw made for 1/2" stock: pocketJig, js/style.js)
   ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,100,'box of 100',
-    [['1"',6],['1-1/4"',7],['1-1/2"',8],['2-1/2"',12],['3"',14]]),
+    [['3/4"',7],['1"',6],['1-1/4"',7],['1-1/2"',8],['2"',10]]),
+  ...priceByLength('pocket-screws','Pocket-hole screws',length=>`${length} pocket-hole screws`,50,'box of 50',
+    [['2-1/2"',7],['3"',9]]),
   {id:'pocket-screws',name:'Pocket-hole screws, other lengths',match:/pocket-hole screws/i,pack:100,sold:'box of 100',price:7},
   // screws made for outdoors (coated or stainless) cost more than plain ones, so they have rows of their own
   ...priceByLength('exterior-screws','Exterior screws',length=>`${length} exterior screws`,100,'box of 100',
@@ -107,12 +118,15 @@ const HARDWARE_PRICES=[
   // the plugs that hide the heads of plugged screws (type 'plug'): cut flush after the glue dries
   {id:'wood-plugs',name:'Wood plugs, 3/8"',match:/wood plugs/i,pack:25,sold:'bag of 25',price:4,search:'3/8 in. flat head wood plugs'},
   // pocket holes that would be seen from below are filled with these, glued in and sanded flush (rule 13, js/fasteners.js)
-  // (bought in the kind that suits the design's wood and finish, pocketPlugKind in js/style.js: a row for each kind,
-  // the plain row for pine; sheet 01 §9.4 for the prices)
-  ...['oak','maple','paint grade'].map(kind=>({id:'pocket-plugs-'+kind.replace(' ','-'),name:'Pocket-hole plugs, '+kind,
-    match:{test:label=>/pocket-hole plugs/i.test(label)&&pocketPlugKind()===kind},pack:50,sold:kind+', bag of 50',
-    price:{oak:11,maple:13,'paint grade':8}[kind],search:'pocket hole plugs '+kind})),
-  {id:'pocket-plugs',name:'Pocket-hole plugs, pine',match:/pocket-hole plugs/i,pack:50,sold:'pine, bag of 50',price:7,search:'pocket hole plugs pine'},
+  // sold in bags of 50 by the kind of wood (sheet 27 section 11 and sheet 01 §9.4: oak, maple, pine and paint grade);
+  // the line names the kind that suits the design (pocketPlugLabel, pocketPlugKind in js/style.js), and the plain
+  // row (pine) also takes an older line with no kind. (Both the pocket-edge round and the case looks job made these
+  // rows; at their merge the pocket-edge rows were kept, read by the kind in the line, with the case looks' maple row
+  // and its anti-tip kits.)
+  {id:'pocket-plugs:oak',parent:'pocket-plugs',name:'Pocket-hole plugs, oak',match:/pocket-hole plugs, oak/i,pack:50,sold:'bag of 50',price:11,search:'pocket hole plugs oak 50'},
+  {id:'pocket-plugs:maple',parent:'pocket-plugs',name:'Pocket-hole plugs, maple',match:/pocket-hole plugs, maple/i,pack:50,sold:'bag of 50',price:13,search:'pocket hole plugs maple 50'},
+  {id:'pocket-plugs:paint',parent:'pocket-plugs',name:'Pocket-hole plugs, paint grade',match:/pocket-hole plugs, paint grade/i,pack:50,sold:'bag of 50',price:8,search:'pocket hole plugs paint grade 50'},
+  {id:'pocket-plugs',name:'Pocket-hole plugs, pine',match:/pocket-hole plugs/i,pack:50,sold:'bag of 50',price:8,search:'pocket hole plugs pine 50'},
   // a case that must go on the wall is held by these, screwed to the back of its top (js/caselooks.js; sheet 01 §9.3)
   {id:'anti-tip-kits',name:'Furniture anti-tip kits',match:/anti-tip kits/i,pack:2,sold:'pack of 2',price:11,search:'furniture anti tip kit'},
   // a head sunk deeper than a plug is long gets a length of dowel rod instead: about 20 such plugs to a 36" rod

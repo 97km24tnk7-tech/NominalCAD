@@ -668,6 +668,8 @@ function rackNotes(p,fields){
   N.push(pl.wall?wallNote(pl,thing,rackWallGap(p,pl)):freeStandingNote(pl,thing));
   if(p.base==='shelf')N.push('The bottom level is an open storage shelf for filters, food and buckets. It is not counted as holding water.');
   if(p.base==='cabinet')N.push('The bottom level is a closed cabinet with doors for filters, food and buckets. It is not counted as holding water.');
+  // (the real-thing reviewer's finding 11 of the pocket-edge round: say where Fine furniture shows plugs)
+  else N.push('In the Fine furniture style the screws at the corners of each frame, through the rails and through the posts, have their heads sunk under glued wooden plugs cut flush, so round plugs show on the front, the back and the ends: pocket screws at those corners would run into the others that meet there.');
   // typedLen (js/core.js): under the presets form these repeat the sizes typed in its boxes the way the boxes show them
   if(pl.need>p.H+.01)N.push(`Your rows need ${typedLen(pl.need,fmtFt)} of height, which is more than the ${typedLen(p.H,fmtFt)} available. Remove a row or lower ${(fields||RACK_FIELDS).room||'the room above the tanks'}.`);
   // how it is built along its length: one frame, one wall with joined rails, or sections (js/rackjoints.js)
@@ -874,7 +876,25 @@ function rackJoints(p){
 const RACK_JOINTS=[...TOP_JOINTS,['Post','Shelf deck','none','face-edge'],['Post','Shelf deck','screw','end-face'],['Shelf deck','Upright','pocket','face-end'],['Shelf deck','Shelf deck','none'],
   ['Post','Foot','none'],['Rail','Rail','none','end-end'],['Foot','Foot','none'],['Post','Post','none'],
   ['Upright','Rail','bracketInFine'],['Foot','Rail','bracketInFine'],['Upright','Cross piece','pocket'],['Foot','Cross piece','pocket'],
-  ['Upright','Filler block','bracketInFine'],['Foot','Filler block','bracketInFine']];   // a filler block brings a set-in frame out to the full depth: it is met like a rail
+  ['Upright','Filler block','bracketInFine'],['Foot','Filler block','bracketInFine'],   // a filler block brings a set-in frame out to the full depth: it is met like a rail
+  // (the filler block is glued to the outside of its rail, not screwed: the screws that hold the cross piece come
+  //  through the rail right there, so screws through the block had to be angled past them and ran into the pocket
+  //  screws of the upright and of the deck; the block is held by the upright's pocket screws, the post's screws
+  //  and the deck over it, and only fills the space: the pocket-edge round. Glued face to face; a block whose END
+  //  meets the rail only touches it, since glue on end grain does not hold: the upright under it carries it)
+  ['Filler block','Rail','glue','face-face'],['Filler block','Rail','none'],
+  // (the corners of a frame: screwed straight through the rail into the end of the cross piece, and through the post
+  //  into the end of the rail, as in Everyday, the heads sunk under plugs in Fine furniture. Pocket screws there ran
+  //  into the pocket screws of the upright, the foot and the deck at the same corner: the pocket-edge round)
+  // (only the cross piece at the end of a rail, the corner: a cross piece along the rail keeps Fine furniture's
+  //  pocket screws, and a plugged head there would start between two rails laid face to face)
+  // (a back rail with the back panel of a cabinet lying on it: its corner screws need no plug,
+  //  the real-thing reviewer's finding 11 of the pocket-edge round: 8 plugs glued and sanded behind a back panel)
+  ['Cross piece','Rail','screw',{when:j=>atRailEnd(j)&&railAtBack(j)}],
+  ['Cross piece','Rail','pluggedInFine',{when:j=>atRailEnd(j)}],['Post','Rail','pluggedInFine'],
+  // (a shelf deck: screwed down in Rustic and Everyday, held from underneath in Fine furniture, and only resting on a
+  //  cross piece whose row has no room left there: roomForTopRows, js/joints.js)
+  ['Shelf deck','Cross piece','pocketInFine']];
 /* In the single stand every upright stands in a corner against a post and is screwed to it, so it needs no other
    fastener: the frame above rests on it, and is held by the screws through the posts. */
 const STAND_JOINTS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','none'],['Rail','Upright','none'],['Cross piece','Upright','none'],['Shelf deck','Shelf deck','none']];
@@ -907,6 +927,14 @@ const atRailEnd=j=>{
   const cross=j.a.name==='Cross piece'?j.a:j.b,rail=cross===j.a?j.b:j.a,c=plainBox(cross),r=plainBox(rail);
   return Math.abs(c.lo[0]-r.lo[0])<.02||Math.abs(c.hi[0]-r.hi[0])<.02;
 };
+/* is the rail of this cross piece's joint the back one (its middle behind the cross piece's middle), with a back panel
+   lying on its back face (a cabinet stand)? Its corner screws are then covered for good. An open rack keeps the plugs
+   on its back rails too: front and back rails stay drilled alike (like pieces drilled alike). */
+const railAtBack=j=>{
+  const cross=j.a.name==='Cross piece'?j.a:j.b,rail=cross===j.a?j.b:j.a,c=plainBox(cross),r=plainBox(rail);
+  if((r.lo[2]+r.hi[2])/2>=(c.lo[2]+c.hi[2])/2)return false;
+  return S.parts.some(p=>p.name==='Back panel'&&(()=>{const b=plainBox(p);return Math.abs(b.hi[2]-r.lo[2])<.05&&b.lo[0]<r.hi[0]-.1&&b.hi[0]>r.lo[0]+.1&&b.lo[1]<r.hi[1]-.1&&b.hi[1]>r.lo[1]+.1;})());
+};
 const HOUSE_DOORS_JOINTS=[['Cross piece','Rail','pocketUnlessRustic',{when:j=>!atRailEnd(j)}],...HOUSE_FRONT_JOINTS.slice(1)];
 const HOUSE_END_JOINTS=[['Post','Rail','pocketUnlessRustic']];
 /* Under the thin side panels of a closed cabinet the ends of the frames are out of sight: a rail is screwed through
@@ -919,8 +947,13 @@ function standJoints(p){
   const uprights=centers?HOUSE_UPRIGHT_JOINTS:[];   // (a short stand's uprights only carry the frame above)
   const ends=p.under==='cabinet'||p.under==='panels'?CLOSED_END_JOINTS:HOUSE_END_JOINTS;
   const front=p.under==='cabinet'?HOUSE_DOORS_JOINTS:HOUSE_FRONT_JOINTS;
-  return[...TOP_JOINTS,...front,...uprights,...ends,...own];
+  return[...TOP_JOINTS,...front,...uprights,...ends,...STAND_FOOT_JOINTS,...own];
 }
+/* The foot under a corner of the single stand's lower frame (a second tank) meets the rail right where the rail's
+   pocket screws go into the post and the cross piece's go into the rail: a pocket screw up from the foot ran into
+   them (the corrected shoulder of the 1 1/2" setting, reference sheet 27, puts its point 1/4" deeper than the
+   program thought). It is held with an L-bracket inside the corner, as the uprights of the house stands are. */
+const STAND_FOOT_JOINTS=[['Foot','Rail','bracketInHouse']];
 /* The face a cross piece takes its pocket holes in, on the two house stands (preset.hiddenFace, js/fasteners.js).
    Under a line of 4x4 uprights two cross pieces lie side by side, 1/2" apart; the usual face, the one toward the
    middle of the stand, would put the holes of one of them facing the other, with no room for a drill (the bigger
@@ -992,9 +1025,18 @@ function openRowJoints(p){
 }
 /* the Cabinet stand with a row of tanks: the rack's fastening, with the frames in sight held from inside; with rows
    above its countertop, the front and the ends of the frames there are in sight too (openRowJoints) */
+/* Built as separate sections, the end cross piece of each section is bolted to the next section's, and its pocket
+   screws into the rails move aside for the bolts, right where the pocket screw up from the end upright under it
+   went: the two met inside the cross piece (found by the pocket-hole sweep of the pocket-edge fixes). That upright is
+   screwed to its post already; it is held to the end cross piece with an L-bracket inside the corner instead. */
+const crossPieceAgainstPost=j=>{
+  const cross=j.a.name==='Cross piece'?j.a:j.b,c=plainBox(cross);
+  return S.parts.some(p=>p.name==='Post'&&(()=>{const b=plainBox(p);return[0,1,2].every(k=>b.lo[k]<=c.hi[k]+.02&&b.hi[k]>=c.lo[k]-.02);})());
+};
+const SECTION_END_UPRIGHT_JOINTS=[['Upright','Cross piece','bracket',{when:crossPieceAgainstPost}]];
 function cabinetStandJoints(p){
   const more=(+(p&&p.levels)||1)>1;
-  return[...(more?[...PASS_JOINTS,...openRowJoints(p)]:[]),...TOP_JOINTS,...(more?HOUSE_FRONT_JOINTS:HOUSE_DOORS_JOINTS),...HOUSE_UPRIGHT_JOINTS,...(more?HOUSE_END_JOINTS:CLOSED_END_JOINTS),...RACK_JOINTS.slice(TOP_JOINTS.length)];
+  return[...(p&&p.build==='sections'?SECTION_END_UPRIGHT_JOINTS:[]),...(more?[...PASS_JOINTS,...openRowJoints(p)]:[]),...TOP_JOINTS,...(more?HOUSE_FRONT_JOINTS:HOUSE_DOORS_JOINTS),...HOUSE_UPRIGHT_JOINTS,...(more?HOUSE_END_JOINTS:CLOSED_END_JOINTS),...RACK_JOINTS.slice(TOP_JOINTS.length)];
 }
 /* The thin plywood ends of a cabinet base or a closed stand are nailed on from the outside (there is no other way
    to hold a 1/4" panel), so the brad heads are on the ends: the owner's rule is to hide them or say how to cover
@@ -1108,7 +1150,10 @@ function rackSteps(p,unused,thing){
   // the open rows on the countertop of a house stand (openRowJoints): the rail rests on the upright, and the end
   // uprights are screwed to the posts with plugged heads, since a person looks straight into those rows
   const openRows=thing==='cabinet stand'&&pass;
-  const openTopWords=style=>openRows&&style!=='rustic'?'with a pocket screw up into the cross piece over it (the rail only rests on the upright, so nothing shows under the rail)':uprightTopWords(style);
+  // (4x4 uprights: where a cross piece meets only the back part of the 4x4, no jig can drill the pocket hole, and that
+  //  corner takes an L-bracket instead: thickPiecesTakeBrackets, js/joints.js; the pocket-edge round)
+  const squareUpWords=/4x4/.test(String(up))?' (where a piece meets only the back part of a 4x4 upright, no pocket hole can be drilled there, so that corner takes an L-bracket inside it instead, as the lines below say)':'';
+  const openTopWords=style=>openRows&&style!=='rustic'?'with a pocket screw up into the cross piece over it (the rail only rests on the upright, so nothing shows under the rail)'+squareUpWords:uprightTopWords(style);
   // (on a stand built as one wall, the two uprights side by side under each rail joint are screwed to each other
   //  with plugged heads too: openRowJoints)
   const pairedJoints=joinedWall&&pl.su<3;
@@ -1116,7 +1161,7 @@ function rackSteps(p,unused,thing){
     ?'Screw the end uprights to the posts from the inside too (through the upright into the post), with each head sunk under a glued wooden plug cut flush, as the lines below say: those faces are in sight inside the open rows.'+
       (pairedJoints?' Screw the two uprights side by side under each rail joint to each other the same way, heads sunk under glued plugs.':'')
     :'Screw the end uprights to the posts from the inside too (through the upright into the post).';
-  const uprightTopWords=style=>fineLike(style,house)?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece';
+  const uprightTopWords=style=>(fineLike(style,house)?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece')+squareUpWords;
   const topOnPosts=style=>style==='rustic'?`When the top frame is on, screw the ends of its ${topName} down into the tops of the posts.`
     :`When the top frame is on, the ends of its ${topName} rest on the tops of the posts: nothing is screwed down through it, so its top stays clean.`;
   const footWords=deck=>`Fasten the foot of every upright with pocket screws driven down through the ${deck} into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through it and on into the rail or the cross piece under it, because a short screw would end in the plywood, which is too thin for a screw to hold in).`;

@@ -194,7 +194,8 @@ const PRESETS=[
  {name:'Storage box / toy chest',spec:'Plywood box, hinged lid',desc:'Plywood box with a hinged lid.',
   params:[num('W','Width',30,...STORAGE_BOX_LIMITS.W),num('D','Depth',16,...STORAGE_BOX_LIMITS.D),num('H','Height (overall, with the lid)',16,...STORAGE_BOX_LIMITS.H),
    {k:'ply',label:'Plywood',opts:[['ply34','3/4"'],['ply12','1/2"']],v:'ply34'},{k:'lid',label:'Lid',check:1,v:true}],
-  build:buildStorageBox,steps:storageBoxSteps,info:storageBoxInfo,notes:storageBoxNotes,hw:storageBoxHardware,uses:STORAGE_BOX_USES,joints:STORAGE_BOX_JOINTS},
+  build:buildStorageBox,steps:storageBoxSteps,info:storageBoxInfo,notes:storageBoxNotes,hw:storageBoxHardware,uses:STORAGE_BOX_USES,joints:STORAGE_BOX_JOINTS,
+  glue:true},   // (its steps glue every corner: the pocket-edge round, where a 1/2" chest takes the short 3/4" pocket screw and the glue holds the corner)
  {name:'Planter box',spec:'1x6 sides, slatted bottom',desc:'1x6 sides on 2x2 corner posts that double as feet, with a slatted bottom that drains.',
   params:[num('L','Length',36,...BOX_KINDS.planter.limits.L),num('D','Width',16,...BOX_KINDS.planter.limits.D),
    {k:'rows',label:'Boards high',v:2,int:1,min:BOX_KINDS.planter.limits.rows[0],max:BOX_KINDS.planter.limits.rows[1]}],

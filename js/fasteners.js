@@ -40,8 +40,11 @@
         none comes through.)
      5. A pocket-hole screw leaves the hidden face at 15 degrees. The jig is set for the thinner of the two pieces
         (POCKET_JIG in js/style.js: 1-1/4" screws for 3/4", 2-1/2" screws for 1-1/2"), the screw comes out of
-        the end half that setting in from the drilled face, and its head seats at the jig's shoulder. So a 2x4
-        apron under a 3/4" top takes 1-1/4" screws, whose points stay more than 1/4" under the top surface.
+        the end half that setting in from the drilled face, and its head seats at the jig's shoulder (Kreg's
+        penetration chart, reference sheet 27). Holes ACROSS a board (a rail on edge screwed up into a top) are
+        drilled at the 3/4" setting whatever the board's thickness, so the oval stays well inside the rail
+        (pocketAcross, pocketJig): a 2x4 apron under a 3/4" top takes 1-1/4" screws, whose points stay about
+        9/64" under the top surface (at least POCKET_COVER_MIN, 1/8"), and under a 1 1/2" top 1-1/2" screws.
      6. Dowels sit in the middle of the joint, half in each piece, with at least 1/4" of wood left behind the hole.
      7. A screw or brad with no face to go straight through is driven at an angle through the end of one piece
         (about 30 degrees), starting about an inch back from the joint, on alternating sides.
@@ -198,8 +201,9 @@ function sizesInLabel(label){
   return(String(label).match(/\d[\d\/\-]*(?=")/g)||[]).map(parseLen);
 }
 /* one of them, for a tip: '1-1/4" brad nails (18 gauge)' gives '1-1/4" brad nail' */
+// ('1-1/4" pocket-hole screws, coarse thread' gives '1-1/4" pocket-hole screw, coarse thread')
 function oneOf(label){
-  return String(label).replace(/\s*\(.*\)$/,'').replace(/s$/,'');
+  return String(label).replace(/\s*\(.*\)$/,'').replace(/ screws(?=,)/,' screw').replace(/s$/,'');
 }
 /* Does a line from this point, going this way, run into one of these boxes ({lo, hi})? (the slab test) */
 function rayHitsBox(from,way,b){
@@ -583,18 +587,60 @@ function pocketThroughSheet(j,holes){
   return under.length?{depth:sheet.t+1.5,sheet:sheet.t,under}:null;
 }
 /* The pocket screw through a thin deck: rule 12 decides its length, not the jig's chart. The jig stays set for the
-   board (1 1/2"), so the head seats at the same shoulder, but the chart's 2-1/2" screw, after its slanted path
-   through the 1/2" plywood, goes only about 1/2" into the rail or cross piece under it, where rule 12 wants 3/4"
-   in side grain. So it is the shortest pocket screw the store has whose point goes SCREW_BITE.side into the
-   framing along its slant: 3" for a 1/2" deck. One rule for the joint: jSpec and pocketScrews both take the jig
-   from here (pocketJigFor), and the self-check pocketScrewsThroughADeckBite holds the bite. */
+   board (1 1/2"), so the head seats at the same shoulder, and the screw must cross the slanted path through the
+   plywood and still bite into the rail or cross piece under it as rule 12 wants in side grain. So it is the
+   shortest pocket screw the store has whose point goes POCKET_DECK_BITE into the framing along its slant: 2-1/2"
+   for a 1/2" deck (with the shoulders the program had before the pocket-edge round that was a 3" screw). One rule for the joint: jSpec and pocketScrews
+   both take the jig from here (pocketJigFor), and the self-check pocketScrewsThroughADeckBite holds the bite. */
+/* The bite a pocket screw through a thin deck takes in the framing, measured along the screw as rule 12 measures
+   every screw: SCREW_BITE.side less 1/50", the bite the self-check pocketScrewsThroughADeckBite holds it to. With
+   Kreg's shoulder for the 1 1/2" setting (1 1/4"), a 2-1/2" screw through a 1/2" deck goes 0.73" into the framing
+   along the screw, 0.71" square to the joint (the real-thing reviewer's finding 14 and the code reader's 18 of the
+   pocket-edge round). The 3" screw that would give the full 3/4" went on into the screws of the frame corner. */
+const POCKET_DECK_BITE=SCREW_BITE.side-.02;
 const POCKET_SCREW_LENGTHS=[[1,'1"'],[1.25,'1-1/4"'],[1.5,'1-1/2"'],[2,'2"'],[2.5,'2-1/2"'],[3,'3"']];
+/* Do the pocket holes of this joint run ACROSS the board they are drilled in (sheet 27, section 8: a rail on edge
+   screwed up into a top), rather than along its length into the piece at its end? A board whose length does not
+   run square to the joint. (A sheet of plywood has no "along": its holes keep the setting for its thickness.) */
+/* Sheet 27 section 8 makes the 3/4" setting the rule for a rail UNDER a top, a seat or a deck. Elsewhere (a board's
+   edge screwed to the side of a post or a panel) the board keeps the setting for its thickness, and its longer
+   screw, whenever its oval fits in the board with POCKET_BEYOND to spare; only where it would not, it takes the
+   3/4" setting (the code reader's findings 7 and 8 of the pocket-edge round). And under a top thinner than 3/4"
+   (a 1/2" deck), where the 3/4" oval would not fit in the board but the thinner piece's setting would, that one. */
+const pocketOvalFarEnd=set=>(set/2)/Math.tan(FASTEN.pocketDegrees*Math.PI/180)+POCKET_OVAL;
+function pocketAcross(j,holes){
+  if(M[holes.mat].kind!=='board'||holes.ax[0]===j.k)return false;
+  const depth=holes===j.a?j.da:j.db,mateDepth=holes===j.a?j.db:j.da;
+  const fits=set=>r16(depth-pocketOvalFarEnd(set))>=POCKET_BEYOND-1e-6;
+  const own=pocketJig(holes,mateDepth,false);   // the setting for the thinner of the two pieces
+  const hb=plainBox(holes),underTop=j.k===1&&(hb.lo[1]+hb.hi[1])/2<j.plane;
+  if(underTop)return!(own.set<POCKET_ACROSS_SET-1e-6&&!fits(POCKET_ACROSS_SET)&&fits(own.set));
+  return!fits(own.set)&&fits(POCKET_ACROSS_SET);
+}
+/* Wood a pocket hole leaves beyond the far end of its oval (sheet 27, sections 3 and 7, a builder's choice): the
+   self-check pocketHolesStayInTheirPiece (js/pocketedge.js) holds every hole to it. */
+const POCKET_BEYOND=.5;
+/* Is there room for a pocket hole in this joint? The oval of the jig's setting, from the joint to its far end,
+   plus POCKET_BEYOND, fits within the depth of the piece the holes would be drilled in (read to the 1/16", as the
+   program writes sizes). A 1x2 rim standing on a tray is 1 1/2" tall: the oval of the 3/4" setting runs to 2 1/8".
+   Fine furniture turns a screw into a pocket screw only where this is true (styleType, js/style.js). */
+function pocketHasRoom(j){
+  const holes=pocketPiece(j);
+  if(!holes||!j.a||!j.b)return true;
+  // (pocketJig straight, not pocketJigFor: this is asked while the connections are being worked out, and a deck's
+  //  framing is looked up through them)
+  const depth=holes===j.a?j.da:j.db,mateDepth=holes===j.a?j.db:j.da,mate=holes===j.a?j.b:j.a;
+  const jig=pocketJig(holes,mateDepth,pocketAcross(j,holes),M[mate.mat].kind==='sheet');
+  return r16(depth-pocketOvalFarEnd(jig.set))>=POCKET_BEYOND-1e-6;
+}
 function pocketJigFor(j,holes){
   const deck=pocketThroughSheet(j,holes);
-  const jig=pocketJig(holes,deck?deck.depth:holes===j.a?j.db:j.da);
+  // (one rule for the jig of a joint: jSpec, the layout and the drawings all read it here)
+  const mate=holes===j.a?j.b:j.a,mateSheet=!deck&&M[mate.mat].kind==='sheet';
+  const jig=pocketJig(holes,deck?deck.depth:holes===j.a?j.db:j.da,!deck&&pocketAcross(j,holes),mateSheet);
   if(!deck)return jig;
   const slant=1/Math.cos(FASTEN.pocketDegrees*Math.PI/180);
-  const need=jig.shoulder+deck.sheet*slant+SCREW_BITE.side;
+  const need=jig.shoulder+deck.sheet*slant+POCKET_DECK_BITE;
   const pick=POCKET_SCREW_LENGTHS.find(([length])=>length>=need-1e-6)||POCKET_SCREW_LENGTHS[POCKET_SCREW_LENGTHS.length-1];
   return pick[0]>jig.screw?{...jig,screw:pick[0],size:pick[1]}:jig;
 }
@@ -612,9 +658,14 @@ function pocketScrews(j,shape,n,len,label){
   const through=pocketPiece(j),into=shape.other(through);
   const way=shape.signInto(into),box=plainBox(through);
   // the hole is drilled into a wide face of the piece: across its thickness when that runs along the joint face
-  const s=through.ax[2]!==shape.k?through.ax[2]:shape.W,t=[0,1,2].find(i=>i!==shape.k&&i!==s);
+  let s=through.ax[2]!==shape.k?through.ax[2]:shape.W;
+  // (square stock, a 4x4 upright on the 1 1/2" edge of a rail: either face will do, so the row runs along the long
+  //  side of the contact; across its short side two holes came 1/2" apart, their ovals 1/8" from each other)
+  if(Math.abs(through.t-through.w)<.02&&through.ax[0]===shape.k&&s!==shape.W&&shape.long-shape.wide>.1)s=shape.W;
+  const t=[0,1,2].find(i=>i!==shape.k&&i!==s);
   // a board on a thin deck: through it into the framing, with the screw rule 12 asks for (pocketJigFor)
-  const deck=pocketThroughSheet(j,through),jig=deck?pocketJigFor(j,through):pocketJig(through,shape.depthOf(into));
+  // (holes across a rail on edge, into a top: the 3/4" setting, sheet 27 section 8; also pocketJigFor)
+  const deck=pocketThroughSheet(j,through),jig=pocketJigFor(j,through);
   // Through a thin deck the screws must end in the framing under it, so they are kept over that framing: a panel
   // stud of a cabinet stand stands 3 1/2" deep on the deck over a back rail only 1 1/2" deep, and a screw past the
   // rail would end in open air under the deck. Where the framing leaves too short a stretch for two screws, the
@@ -627,6 +678,10 @@ function pocketScrews(j,shape,n,len,label){
   const rangeT=overFraming(t===shape.L?shape.rangeL:shape.rangeW,t);
   const rangeS=overFraming(s===shape.L?shape.rangeL:shape.rangeW,s);
   if(deck&&n>1&&rangeT[1]-rangeT[0]<TWO_SCREWS_FROM)n=1;
+  // (rule 11b: the nearer end of a short piece whose farther end holds two joints of its own, each with its hole:
+  //  one hole in the middle here, so the holes of both joints there pass it: farEndCrowded)
+  const crowdedEnd=n>1&&farEndCrowded(through,j,jig);
+  if(crowdedEnd)n=1;
   const angle=FASTEN.pocketDegrees*Math.PI/180,sin=Math.sin(angle),cos=Math.cos(angle);
   const shoulder=Math.min(jig.shoulder,len-.25);   // a screw shorter than the jig's own (picked by hand) still bites 1/4"
   const bite=len-shoulder;                          // how much of the screw ends up in the second piece
@@ -672,6 +727,33 @@ function pocketScrews(j,shape,n,len,label){
     hidden=-hidden;
     crossS=crossFor(hidden);
   }
+  // A second piece that meets only the half of the thickness away from the hidden face (a deck whose edge lands on
+  // the middle of a cross piece, the next deck on its other half) pushes the screw's exit deep from that face, and
+  // the hole with it: from the far side of a 1 1/2" cross piece the oval of a 3/4" setting ran past the bottom edge
+  // of the 3 1/2" piece (sheet 27, the pocket-edge round). Drilled from the face the second piece is on, the screw
+  // leaves where the jig puts it. Taken when that face is open (no board against it) and, in house furniture, looks
+  // into the design.
+  const pushedIn=side=>toFaceOf(side,crossFor(side))-jig.set/2;
+  if(pushedIn(hidden)>1/16&&pushedIn(-hidden)<=1/16&&!(typeof faceCovered==='function'&&faceCovered(through,s,-hidden))&&
+    (!house||faceIsInside(through,s,-hidden))&&!plugged&&!hiddenFaceByPreset(through,s)){
+    hidden=-hidden;
+    crossS=crossFor(hidden);
+  }
+  // Rule 11b: a short piece held by pocket holes at BOTH its ends (a cross piece 4 1/2" long between two rails, the
+  // upright of a low cabinet): on one face the ovals of the two ends would run into each other, so the holes of the
+  // farther end go between those of the nearer end (holesBetween), or, where there is no room between them, on the
+  // other face of the piece when that face is open (endRowsMeet)
+  const nearerEnd=endRowsMeet(through,j,s,t,hidden,jig);
+  const betweenHoles=nearerEnd&&!nearerEnd.shared?holesBetween(nearerEnd,rangeT):null;
+  // (the same guards as the flip above: not onto a face the preset keeps hidden or one that is plugged, and the head
+  //  must still sit in the wood there: the code reader's finding 10)
+  if(nearerEnd&&!betweenHoles){
+    const open=!(typeof faceCovered==='function'&&faceCovered(through,s,-hidden))&&(!house||faceIsInside(through,s,-hidden))&&
+      !plugged&&!hiddenFaceByPreset(through,s)&&toFaceOf(-hidden,crossFor(-hidden))>=headOff;
+    if(open){hidden=-hidden;crossS=crossFor(hidden);}
+    // (else the holes stay: the "meet" test of endRowsMeet looks along the piece only, so ends it calls meeting may
+    //  well pass each other; pocketHolesStayInTheirPiece checks the holes as laid out on every preset)
+  }
   const dir=[0,0,0];
   dir[shape.k]=way*cos;
   dir[s]=-hidden*sin;
@@ -709,7 +791,23 @@ function pocketScrews(j,shape,n,len,label){
   // underside lies on the back seat rail over 1 1/2" of the 3 1/2" it meets each back leg with).
   const stillCovered=at=>blocked.spans.some(([a,b])=>at>a-.3&&at<b+.3);
   const clearPlaced=placed.filter(place=>!stillCovered(place.at));
-  const rows=clearPlaced.length?clearPlaced:placed.length?placed:alongs.map((place,index)=>({...place,index}));
+  let rows=clearPlaced.length?clearPlaced:placed.length?placed:alongs.map((place,index)=>({...place,index}));
+  // (rule 11b: the farther end of a short piece, its holes between those of the nearer end; at most as many as the
+  //  row asked for, the middle ones first)
+  if(betweenHoles){
+    const middle=(rangeT[0]+rangeT[1])/2;
+    const kept=betweenHoles.slice().sort((x,y)=>Math.abs(x-middle)-Math.abs(y-middle)).slice(0,n).sort((x,y)=>x-y);
+    rows=kept.map((at,index)=>({at,index,moved:false,between:true}));
+  }
+  // Sheet 27 section 5: the middle of a hole at least POCKET_SIDE from the edges of its piece across the oval, where
+  // the joint leaves room for the screw there (a cross piece that meets only the last inch of a 5 1/2" upright: its
+  // hole goes 3/4" in from the upright's edge, still 1/4" inside the cross piece, not 1/2" from the edge)
+  const sideRoom=Math.min(POCKET_SIDE,(box.hi[t]-box.lo[t])/2),sideLo=box.lo[t]+sideRoom,sideHi=box.hi[t]-sideRoom;
+  const toSide=at=>at<sideLo-1e-6&&sideLo<=rangeT[1]-.2?sideLo:at>sideHi+1e-6&&sideHi>=rangeT[0]+.2?sideHi:at;
+  // (a hole moved in from the edge is never put back under a third piece, into the end holes or onto a bolt that
+  //  rules 10 and 11 cleared it of: the code reader's finding 11)
+  const inSpans=at=>blocked.spans.concat(endHoles.spans).some(([a,b])=>at>a-.3&&at<b+.3);
+  for(const row of rows){const moved=toSide(row.at);if(moved!==row.at&&!inSpans(moved))row.at=moved;}
   const list=rows.map(({at,moved,index})=>{
     const why=!moved?{}:inEndHoles(evenly[index])?{passEnds:endHoles.names}:{clear:blocked.names,...(bolts.length?{pastBolt:true}:{})};
     const cross=[0,0,0];
@@ -726,7 +824,7 @@ function pocketScrews(j,shape,n,len,label){
     const path=beyond.length?`down through ${into.name} into ${beyond[0].name}`:`into ${into.name}`;
     return{kind:'pocket',pos,dir,len,...FASTENER_SIZE.pocket,through,into,label,jig:jig.set,
       pocket:{mouth,out,dia:.375,plugged:plug},
-      ...why,...(beyond.length?{also:beyond}:{}),
+      ...why,...(beyond.length?{also:beyond}:{}),...(crowdedEnd?{oneForRoom:true}:{}),
       tip:`${label}. Goes from a pocket hole in ${through.name} ${path}. `+
         (plug?'The hole would be seen from below, so it is filled with a glued pocket-hole plug, sanded flush.':'The holes are on the hidden side.')};
   });
@@ -734,8 +832,20 @@ function pocketScrews(j,shape,n,len,label){
   // (loose), and one that did not is worked out again when the piece gets more or fewer neighbours (near).
   // (rule 13 looks at what stands in front of and over the piece, and a deck at the framing under it: worked out
   // again at every change)
-  if(blocked.spans.length||endHoles.spans.length||heldAtEnds||house||deck)list.loose=true;
+  if(blocked.spans.length||endHoles.spans.length||heldAtEnds||house||deck||nearerEnd)list.loose=true;
   if(!placed.length&&endHoles.spans.length)list.noRoom=true;   // every hole of the row lands in the end holes
+  // the second piece meets only a sliver at the edge of this one (the last 1/2" of an upright's top under a cross
+  // piece, beside the rails it is screwed to): no hole there keeps POCKET_SIDE from the edge (sheet 27, section 5)
+  if(sideLo>rangeT[1]-.2||sideHi<rangeT[0]+.2)list.noRoom=true;
+  // the oval runs out of the piece: the second piece meets only the half of the thickness away from the one open
+  // face (a deck seam over the middle of a cross piece laid tight against its twin), so the screw has to leave the
+  // piece so deep that the hole reaches the far edge (sheet 27: POCKET_BEYOND of wood kept past the oval)
+  if(r16(shape.depthOf(through)-(mouthBack*cos+POCKET_OVAL))<POCKET_BEYOND-1e-6)list.noRoom=true;
+  // A jig always brings the screw out half its setting in from the face it is clamped to (sheet 27, section 2). When
+  // the second piece meets only the far part of a thick piece (a 4x4 upright over a 2x4 cross piece: they share the
+  // far 1 1/2" of the 3 1/2"), the screw would have to leave deeper than that, from a face no jig can be set for: the
+  // hole cannot be drilled (the real-thing reviewer's finding 3). The joint takes another fastener (roomForTopRows).
+  if(toFaceOf(hidden,crossS)-jig.set/2>1/32){list.noRoom=true;list.exitTooDeep=true;}
   list.near={id:through.id,count:blocked.count};
   return list;
 }
@@ -768,6 +878,79 @@ function endPocketsOn(piece,j){
   if(typeof connGraph!=='function'||!S.parts.includes(piece)||j.k===piece.ax[0])return false;
   return connectionsOf(piece.id).some(link=>link.type==='pocket'&&link.joint&&link.joint.key!==j.key&&
     link.joint.k===piece.ax[0]&&pocketPiece(link.joint)===piece);
+}
+/* Rule 11b. Should the pocket holes of joint j, at one END of the piece they are drilled in, go on the other face
+   of that piece? Only when the piece also has pocket holes at its other end on the face the holes of j would open
+   on (`hidden`, along axis s), and the ovals of the two ends would come nearer each other than END_HOLE_WEB on that
+   face (a 2x4 cross piece 4 1/2" long between two rails: each oval of the 1 1/2" setting runs from 2.07" to 3.52"
+   in from its end). Asked by the end farther along the piece only, so the two ends never wait on each other: the
+   nearer end is laid out first and keeps its face. jig: the setting of j; t: the axis across the piece the holes
+   of a row are spread along. Returns null when the two ends do not meet, else where the holes of the nearer end
+   open along t (sorted). */
+/* Rule 11b's "farther" end of a piece: the end farther from the middle of the design along the piece's length, so
+   that two pieces that are mirror images across the middle (the left and right end cross pieces of a frame) are
+   laid out as mirror images too (the code reader's finding 9 of the pocket-edge round; stage 2 did the same for
+   staggered screws). A piece standing upright, or one with its ends as far from the middle, keeps the high end. */
+function fartherEndIsHigh(piece,length){
+  if(length===1||typeof designMiddle!=='function')return true;
+  const b=plainBox(piece),middle=designMiddle()[length];
+  const high=Math.abs(b.hi[length]-middle),low=Math.abs(b.lo[length]-middle);
+  return Math.abs(high-low)<.05||high>low;
+}
+function endRowsMeet(piece,j,s,t,hidden,jig){
+  const length=piece.ax[0];
+  if(j.k!==length||typeof connGraph!=='function'||!S.parts.includes(piece))return null;
+  const b=plainBox(piece),highFar=fartherEndIsHigh(piece,length);
+  const farPlane=highFar?b.hi[length]:b.lo[length],nearPlane=highFar?b.lo[length]:b.hi[length];
+  if(Math.abs(j.plane-farPlane)>=.05)return null;
+  const ourFar=(jig.set/2)/Math.tan(FASTEN.pocketDegrees*Math.PI/180)+POCKET_OVAL;
+  for(const link of connectionsOf(piece.id)){
+    const end=link.joint;
+    if(link.type!=='pocket'||!link.fastened||!end||end.key===j.key||end.k!==length)continue;
+    if(Math.abs(end.plane-nearPlane)>.05||pocketPiece(end)!==piece)continue;
+    // (the layout of the nearer end, worked out straight from its joint: it never asks this of j)
+    const theirs=fastenerLayout(end,'pocket').filter(f=>f.pocket&&Math.round(f.pocket.out[s])===hidden);
+    const meet=theirs.some(f=>ourFar+Math.abs(f.pocket.mouth[length]-end.plane)+POCKET_OVAL*f.pocket.dia/.375+END_HOLE_WEB>b.hi[length]-b.lo[length]);
+    if(!meet)continue;
+    const places=theirs.map(f=>f.pocket.mouth[t]).sort((x,y)=>x-y);
+    // (another pocket joint at the same far end, the cross piece beside the rail over the top of an upright: the
+    //  places between are not for two joints to share, so those ends go on the other face instead)
+    places.shared=connectionsOf(piece.id).some(other=>other.type==='pocket'&&other.fastened&&other.joint&&other.joint.key!==j.key&&
+      other.joint.k===length&&Math.abs(other.joint.plane-j.plane)<.05&&pocketPiece(other.joint)===piece);
+    return places;
+  }
+  return null;
+}
+/* Rule 11b, the nearer end: is joint j at the nearer end of a piece too short for the holes of both its ends on
+   one face, whose farther end meets two pieces with pocket holes of its own (the top of a 7" upright of a low fish
+   cabinet, under a rail and the cross piece beside it)? Then the two holes there take the two sides of the face,
+   and j keeps one hole, in the middle. Read from the connections alone, never from the layouts of the far end. */
+function farEndCrowded(piece,j,jig){
+  const length=piece.ax[0];
+  if(j.k!==length||typeof connGraph!=='function'||!S.parts.includes(piece))return false;
+  const b=plainBox(piece),highFar=fartherEndIsHigh(piece,length);
+  const farPlane=highFar?b.hi[length]:b.lo[length],nearPlane=highFar?b.lo[length]:b.hi[length];
+  if(Math.abs(j.plane-nearPlane)>.05)return false;
+  const far=(jig.set/2)/Math.tan(FASTEN.pocketDegrees*Math.PI/180)+POCKET_OVAL;
+  if(b.hi[length]-b.lo[length]>=2*far+END_HOLE_WEB)return false;
+  const atFarEnd=connectionsOf(piece.id).filter(link=>link.type==='pocket'&&link.fastened&&link.joint&&link.joint.k===length&&
+    Math.abs(link.joint.plane-farPlane)<.05&&pocketPiece(link.joint)===piece);
+  return atFarEnd.length>=2;
+}
+/* Rule 11b, where the holes go. The holes of the farther end are set between those of the nearer end, on the same
+   face, one in the middle of each gap between two of them (a 2x4 end with two holes, 7/8" and 2 5/8" from its
+   edge: the other end's one hole at 1 3/4", 7/8" from each, so the ovals keep 1/2" of wood between them and the
+   screws pass each other). A gap takes a hole when it leaves END_HOLE_WEB of wood on both sides of it: middle to
+   middle at least a hole (3/8") and that web, so the gap is twice that, 1 1/4". Returns the places along t, or
+   null (then the farther end goes on the other face of the piece). */
+function holesBetween(theirs,range){
+  const least=2*(.375+END_HOLE_WEB);
+  const places=[];
+  for(let i=1;i<theirs.length;i++)if(theirs[i]-theirs[i-1]>=least-1e-6)places.push((theirs[i]+theirs[i-1])/2);
+  // (only where the second piece of this joint is: the far end of an upright meets a rail over 1 1/2" of its 3 1/2",
+  //  and a hole between the two of the near end would open beside the rail, its screw in the air)
+  if(range)for(let i=places.length-1;i>=0;i--)if(places[i]<range[0]-1e-6||places[i]>range[1]+1e-6)places.splice(i,1);
+  return places.length?places:null;
 }
 /* How many pocket holes the layout of this joint really has, when the joint is one of the design as it is now
    (0 when it is not, or while that is being worked out): a row may have left out holes that had no room past the
@@ -1085,8 +1268,10 @@ function fastenersOfLink(link){
 function layoutAsLaidOut(link){
   let list=layoutMemo.get(link);
   if(list)return list;
-  // (the middle to the nearest half foot: a design that grows or shifts a little keeps its layouts)
-  const j=link.joint,middle=designMiddle().map(v=>Math.round(v/6)).join();
+  // (the middle to the nearest half foot: a design that grows or shifts a little keeps its layouts; and the build
+  //  style: a layout from another style was laid out beside other fasteners, the pocket holes at the ends of a cross
+  //  piece in Fine furniture where Everyday has screws, and its row for a top ran into them: the pocket-edge fixes)
+  const j=link.joint,middle=designMiddle().map(v=>Math.round(v/6)).join()+'|'+look().style;
   if(middle!==carryMiddle||layoutCarry.size>60000){layoutCarry.clear();carryMiddle=middle;}
   const old=layoutCarry.get(link.key);
   // (a layout that looked at the neighbours of a piece is only kept while that piece has as many neighbours)
@@ -1235,28 +1420,53 @@ function settledLayouts(){
     }
     return false;
   };
+  // (the cells each joint was settled in, so that taking it out again looks only there: unsettle)
+  const cellsOfLink=new Map();
   const settle=(list,link)=>{
+    if(!cellsOfLink.has(link))cellsOfLink.set(link,new Set());
+    const own=cellsOfLink.get(link);
     for(const f of list){
       for(const key of cellsOf(f)){
         if(!cells.has(key))cells.set(key,[]);
         cells.get(key).push({f,link});
+        own.add(key);
       }
     }
   };
   // what can be moved: screws, pocket screws and brads, not one driven at an angle (a toe screw) or one of a set
   const movable=list=>list.length>0&&list.every(f=>(f.kind==='screw'||f.kind==='pocket'||f.kind==='brad')&&!f.toe&&!(f.also&&f.also.length));
-  const unsettle=link=>{for(const list of cells.values())for(let i=list.length-1;i>=0;i--)if(list[i].link===link)list.splice(i,1);};
+  const unsettle=link=>{
+    for(const key of cellsOfLink.get(link)||[]){
+      const list=cells.get(key);
+      if(list)for(let i=list.length-1;i>=0;i--)if(list[i].link===link)list.splice(i,1);
+    }
+    cellsOfLink.delete(link);
+  };
   // The holes of the bolts and of the screws into the wall studs that are in the design (hardwareHoles) are drilled
   // where they are drawn and never move: they are settled first, and the screws of the joints keep clear of them.
   // (holesCount: whether they count just now; see the loop below)
   let holesCount=true;
   for(const hole of hardwareHoles())settle([hole.f],hole.link);
   /* the way out of the way for one joint: the whole joint moved, else each screw by itself; null when neither clears */
+  // A screw moved out of the way is not moved to where its head would start under the piece beside it, when that
+  // piece's own screws start under the piece this one goes into (two boards screwed through one rail from its two
+  // faces, a cross piece over the head: fastenerFault, js/fastenerreach.js). Only moved places are asked.
+  // (asked only when a piece beside the one it goes through covers the spot of its head: quick)
+  const headCovered=f=>{
+    if(typeof headSpot!=='function')return false;
+    const spot=headSpot(f);
+    return connectionsOf(f.through.id).some(link=>{
+      const other=link.a===f.through?link.b:link.a;
+      return other!==f.into&&!isProp(other)&&reachBoxHolds(plainBox(other),spot,.01);
+    });
+  };
+  const headBlocked=f=>f.kind==='screw'&&!f.toe&&!f.lean&&typeof fastenerFault==='function'&&headCovered(f)&&/cannot be driven/.test(fastenerFault(f)||'');
+  const takenOrBlocked=(f,link)=>meets(f,link)||headBlocked(f);
   const wayOut=(link,list)=>{
     for(const candidate of movedLayouts(link.joint,list)){
-      if(!candidate.some(f=>meets(f,link)))return candidate;
+      if(!candidate.some(f=>takenOrBlocked(f,link)))return candidate;
     }
-    const nudged=nudgedLayout(link.joint,list,f=>meets(f,link));
+    const nudged=nudgedLayout(link.joint,list,f=>takenOrBlocked(f,link));
     return nudged&&!nudged.some(f=>meets(f,link))?nudged:null;
   };
   /* When a joint cannot get out of the way (the screws of a top driven down into the edge of a short apron, right
@@ -1298,6 +1508,7 @@ function settledLayouts(){
     if(best){moved.set(link,best);settle(best,link);return true;}
     // the others give way to this joint where it stands, or where one of its own moves leaves fewer in its way
     for(const where of[list,...movedLayouts(link.joint,list)]){
+      if(where!==list&&where.some(headBlocked))continue;
       if(!giveWay(link,where))continue;
       if(where!==list)moved.set(link,where);
       return true;
@@ -1318,7 +1529,7 @@ function settledLayouts(){
       // where that place is in a hole's way, each screw is still nudged out of it when that meets nothing else
       const now=moved.get(link)||list;
       if(now.some(f=>meets(f,link))){
-        const nudged=nudgedLayout(link.joint,now,f=>meets(f,link));
+        const nudged=nudgedLayout(link.joint,now,f=>takenOrBlocked(f,link));
         if(nudged&&!nudged.some(f=>meets(f,link))){unsettle(link);moved.set(link,nudged);settle(nudged,link);}
       }
       continue;
@@ -1326,12 +1537,166 @@ function settledLayouts(){
     // screws that cannot move themselves (driven at an angle: a toe screw up through a foot) stay where they are
     if(!movable(list)){settle(list,link);continue;}
     // nothing clears it: each screw that meets another still gets out of its way where it can
-    const nudged=nudgedLayout(link.joint,list,f=>meets(f,link));
+    const nudged=nudgedLayout(link.joint,list,f=>takenOrBlocked(f,link));
     if(nudged)moved.set(link,nudged);
     settle(nudged||list,link);
   }
+  for(const side of['through','into'])alikePieces(links,moved,{settle,unsettle,blocked:takenOrBlocked},side);
   for(const layout of moved.values())plugsOnTheirScrews(layout);   // (a moved screw takes its plug with it)
   return moved;
+}
+/* ---------- like pieces drilled alike ----------
+   The owner, 20 Nov: "we want to combine as many pieces as possible for all furniture", "we want like pieces but if a
+   special part is 100% necessary its fine". After the joints are settled, the pieces of one cut-list row that the
+   fasteners go THROUGH are looked at together: when two of them have the same joints (the same joint on each,
+   sameJointKey) but their fasteners sit differently (one was moved out of the way of a third piece's screws), each
+   piece is given the layouts of one of them (a template), all its joints at once, where that meets nothing on every
+   piece. Tried first: the way most of them are drilled; then each other way. It is kept only when the pieces it
+   touches (those of the row and the pieces their screws go into) come out as fewer drilled kinds (kindsAmong,
+   counted as the drill plan counts them, a turn or a mirror image of a piece being alike), so a post that takes
+   the holes of several joints is never parted from its twin for the sake of a rail. A piece whose joints differ
+   from the template's (it has a joint more, or another piece meets it) keeps its own: that is a special part.
+   Done twice: once for the pieces the fasteners go through (side 'through'), once for the pieces they go into
+   (side 'into': the rails of a rack, whose pilot holes come from the screws through the posts).
+   moved: the settled layouts (changed here); tools: settle, unsettle and blocked of settledLayouts. */
+const ALIKE_ROW_MAX=60;   // a row longer than this (a long run of rails in a big wall) is not looked at, for speed
+function alikePieces(links,moved,tools,side){
+  const now=link=>moved.get(link)||layoutAsLaidOut(link);
+  const fastened=new Set(links);
+  // the pieces of each cut-list row, and the joints each piece's fasteners go through
+  const rows=new Map(),throughRows=new Map(),jointsOf=new Map();
+  for(const p of S.parts){const key=likePieceKey(p);if(!rows.has(key))rows.set(key,[]);rows.get(key).push(p);}
+  for(const link of links){
+    const list=layoutAsLaidOut(link),key=sameJointKey(link,list,side);
+    if(!key)continue;
+    const piece=side==='into'?list[0].into:list[0].through;
+    if(!jointsOf.has(piece))jointsOf.set(piece,new Map());
+    const own=jointsOf.get(piece);
+    if(own.has(key)){own.set(key,null);continue;}   // (two joints of one key on a piece: not carried)
+    own.set(key,link);
+    const rowKey=likePieceKey(piece)+'|'+(piece.ax||[]).join('');
+    if(!throughRows.has(rowKey))throughRows.set(rowKey,new Set());
+    throughRows.get(rowKey).add(piece);
+  }
+  const kindsAmong=pieces=>{
+    let total=0;
+    for(const key of new Set(pieces.map(likePieceKey))){
+      const row=rows.get(key)||[];
+      if(row.length>ALIKE_ROW_MAX)continue;
+      total+=new Set(row.map(p=>pieceHolesSignature(p,now,fastened))).size;
+    }
+    return total;
+  };
+  // a piece's holes as one text, from its joints' layouts measured from its own corner (in joint-key order)
+  const layoutText=piece=>[...jointsOf.get(piece)].sort((a,b)=>a[0]<b[0]?-1:1).map(([key,link])=>key+'='+(link?relativeLayout(now(link),link,side).sig:'x')).join('#');
+  for(const pieceSet of throughRows.values()){
+    const pieces=[...pieceSet];
+    if(pieces.length<2||pieces.length>ALIKE_ROW_MAX)continue;
+    if([...jointsOf.get(pieces[0]).values()].includes(null))continue;
+    const byText=new Map();
+    for(const piece of pieces){const text=layoutText(piece);if(!byText.has(text))byText.set(text,[]);byText.get(text).push(piece);}
+    if(byText.size<2)continue;
+    const touched=[...new Set(pieces.flatMap(piece=>[piece,...[...jointsOf.get(piece).values()].filter(Boolean).map(link=>side==='into'?now(link)[0].through:now(link)[0].into)]))];
+    const kindsBefore=kindsAmong(touched);
+    const templates=[...byText.values()].sort((a,b)=>b.length-a.length).map(group=>group[0]);
+    for(const template of templates){
+      const keys=[...jointsOf.get(template).keys()].sort();
+      const wanted=layoutText(template);
+      const changes=[];   // [link, new list]
+      for(const piece of pieces){
+        if(layoutText(piece)===wanted)continue;
+        const own=jointsOf.get(piece);
+        if(own.size!==keys.length||!keys.every(key=>own.get(key)))continue;   // a special part: left as it is
+        for(const key of keys){
+          const source=jointsOf.get(template).get(key),link=own.get(key);
+          const list=layoutOnPiece(relativeLayout(now(source),source,side),link,now(link),side);
+          if(!list){changes.length=0;break;}
+          changes.push([link,list]);
+        }
+      }
+      if(!changes.length)continue;
+      // each change in turn, checked against everything settled so far; any that meets something stops the template
+      const before=new Map(changes.map(([link])=>[link,moved.get(link)]));
+      let ok=true;
+      for(const[link,list]of changes){
+        tools.unsettle(link);
+        if(list.some(f=>tools.blocked(f,link))){tools.settle(now(link),link);ok=false;break;}
+        moved.set(link,list);tools.settle(list,link);
+      }
+      if(ok&&kindsAmong(touched)<kindsBefore)break;
+      for(const[link]of changes){
+        tools.unsettle(link);
+        if(before.get(link))moved.set(link,before.get(link));else moved.delete(link);
+        tools.settle(now(link),link);
+      }
+    }
+  }
+}
+/* the joint a layout makes, in terms of the piece its fasteners go through, so that the same joint on two like pieces
+   gives the same text: the piece it goes into (its row), the kind and count of fasteners and the way they point, the
+   joint face and the part of it that touches, and the second piece within 2" of the joint. null for a layout that
+   cannot be carried (toe screws, screws through a deck into the framing, a turned set). */
+function sameJointKey(link,list,side){
+  const f=list[0];
+  if(!f||f.frame||!list.every(x=>(x.kind==='screw'||x.kind==='pocket'||x.kind==='brad')&&!x.toe&&!x.angledAt&&!(x.also&&x.also.length)))return null;
+  // (side 'into': the same, seen from the piece the fasteners go into)
+  const own=side==='into'?f.into:f.through,other=side==='into'?f.through:f.into;
+  const j=link.joint,a=plainBox(own),b=plainBox(other),rel=v=>Math.round(v*32);
+  return[side,likePieceKey(other),(other.ax||[]).join(''),link.type,f.kind,j.k,list.length,
+    f.dir.map(v=>Math.round(v*1000)).join(','),
+    [0,1,2].map(k=>{
+      const range=k===j.k?[j.plane,j.plane]:k===j.u?j.ru:j.rv,clamp=v=>Math.max(range[0]-2,Math.min(range[1]+2,v));
+      return rel(clamp(b.lo[k])-a.lo[k])+':'+rel(clamp(b.hi[k])-a.lo[k]);
+    }).join(','),
+    rel(j.plane-a.lo[j.k]),rel(j.ru[0]-a.lo[j.u]),rel(j.ru[1]-a.lo[j.u]),rel(j.rv[0]-a.lo[j.v]),rel(j.rv[1]-a.lo[j.v])].join('|');
+}
+/* a piece's cut-list row, as the like-pieces pass weighs them: name, material and size */
+const likePieceKey=p=>[p.name,p.mat,Math.round(p.l*32),Math.round(p.w*32),Math.round(p.t*32)].join(',');
+/* every hole of a piece as one text: the fasteners through it (their place) and into it (their point), measured from
+   the piece's own length, width and thickness. now(link): the layout of a joint as it stands; fastened: the joints
+   that are laid out. Two pieces with the same text are drilled alike: the text is the least of the piece's holes
+   seen under each turn and mirror of its box (boxSymmetries, js/drillplan.js), as the drill plan joins a piece
+   turned end for end or a mirror pair under one drawing. */
+function pieceHolesSignature(piece,now,fastened){
+  const marks=[];
+  for(const link of connectionsOf(piece.id)){
+    if(!fastened.has(link))continue;
+    for(const f of now(link)){
+      if(f.through===piece)marks.push({kind:'t',p:toLocalPoint(piece,f.pos)});
+      else if(f.into===piece)marks.push({kind:'i',p:toLocalPoint(piece,pointPlus(f.pos,f.dir,f.len))});
+    }
+  }
+  if(!marks.length)return'';
+  const dims=pieceDims(piece);
+  let least=null;
+  for(const sym of boxSymmetries(dims)){
+    const text=marks.map(mark=>mark.kind+mapPoint(sym,dims,mark.p).map(v=>Math.round(v*32)).join(',')).sort().join(';');
+    if(least===null||text<least)least=text;
+  }
+  return least;
+}
+/* a layout seen from the piece its fasteners go through: each fastener's place (and its hole's mouth) measured from
+   the low corner of that piece, and a short signature of it (to 1/64") */
+function relativeLayout(list,link,side){
+  const lo=plainBox(side==='into'?list[0].into:list[0].through).lo;   // (side: measured from the piece they go into instead)
+  const places=list.map(f=>({pos:f.pos.map((v,k)=>v-lo[k]),mouth:f.pocket?f.pocket.mouth.map((v,k)=>v-lo[k]):null}));
+  const sig=places.map(place=>place.pos.map(v=>Math.round(v*64)).join(',')).sort().join(';');
+  return{places,sig,list};
+}
+/* the layout `relative` (from relativeLayout) carried onto the joint of `link`, whose own layout is `own` (same
+   count and kind): each fastener keeps its own pieces, plug and words, and takes the place; null when the counts differ */
+function layoutOnPiece(relative,link,own,side){
+  if(own.length!==relative.places.length)return null;
+  const lo=plainBox(side==='into'?own[0].into:own[0].through).lo;
+  return relative.places.map((place,index)=>{
+    const f=own[index],source=relative.list[index];
+    const pos=place.pos.map((v,k)=>v+lo[k]);
+    // (why it sits there, as the layout it is carried from says: the step's words follow)
+    const out={...f,pos,dir:source.dir.slice()};
+    for(const field of['moved','clear','passEnds','pastBolt'])if(source[field]!==undefined)out[field]=source[field];else delete out[field];
+    if(f.pocket&&place.mouth)out.pocket={...f.pocket,mouth:place.mouth.map((v,k)=>v+lo[k]),out:source.pocket?source.pocket.out.slice():f.pocket.out};
+    return out;
+  });
 }
 /* The ways the screws of one joint can get out of the way, nearest first: each is the whole layout with every
    screw moved by the same amount toward the middle of the joint along one of its two directions, or along
@@ -1351,6 +1716,7 @@ function* movedLayouts(joint,list){
         if(amount===null)return null;
         pos[axis]+=amount;
         if(mouth)mouth[axis]+=amount;
+        if(mouth&&amount&&!pocketKeepsToTheSide(f,mouth,axis))return null;
       }
       out.push({...f,pos,...(mouth?{pocket:{...f.pocket,mouth}}:{}),moved:true});
     }
@@ -1383,6 +1749,17 @@ function* movedLayouts(joint,list){
   }
 }
 
+/* A pocket hole moved along its row (to pass another screw) keeps its middle POCKET_SIDE from the edges of the piece
+   it is drilled in, or stays where it was when it was nearer (sheet 27, section 5: "at least 3/4"" from the edge of
+   a board; nearer, the 3/8" bore leaves a thin wall that splits). mouth: where the moved hole opens; axis: the
+   direction it was moved along. */
+const POCKET_SIDE=.75;
+function pocketKeepsToTheSide(f,mouth,axis){
+  const b=plainBox(f.through),room=Math.min(POCKET_SIDE,(b.hi[axis]-b.lo[axis])/2);
+  const now=Math.min(mouth[axis]-b.lo[axis],b.hi[axis]-mouth[axis]);
+  const before=Math.min(f.pocket.mouth[axis]-b.lo[axis],b.hi[axis]-f.pocket.mouth[axis]);
+  return now>=room-1/32||now>=before-1e-6;
+}
 /* The last way out: each screw of the joint that meets another screw is moved by itself, along the joint first and
    then across it, toward the middle first, by the smallest step that clears it and keeps it SETTLE_KEEP away from
    the edges of the joint and from the other screws of its own joint. In a row of three or more the moved screw
@@ -1396,16 +1773,22 @@ function nudgedLayout(joint,list,meets){
   const range=axis=>axis===shape.L?shape.rangeL:shape.rangeW;
   const out=list.slice();
   let changed=false;
+  // (a screw on the middle line of its joint is tried first toward the middle of the design, so that the same joint
+  //  at the front and at the back, or at the left and the right, moves the mirror way and the two pieces stay a
+  //  mirror pair: like pieces drilled alike, the pocket-edge round. It was always the + way of the room)
+  const centre=designMiddle();
   list.forEach((f,index)=>{
     if(!meets(f))return;
     for(const step of NUDGE_STEPS){
       for(const axis of axes){
-        const[lo,hi]=range(axis),inward=f.pos[axis]<=(lo+hi)/2?1:-1;
+        const[lo,hi]=range(axis),middle=(lo+hi)/2;
+        const inward=Math.abs(f.pos[axis]-middle)<.02?(f.pos[axis]<=centre[axis]?1:-1):f.pos[axis]<=middle?1:-1;
         for(const sign of[inward,-inward]){
           const pos=f.pos.slice(),mouth=f.pocket?f.pocket.mouth.slice():null;
           pos[axis]+=sign*step;
           if(mouth)mouth[axis]+=sign*step;
           if(pos[axis]<lo+SETTLE_KEEP.edge||pos[axis]>hi-SETTLE_KEEP.edge)continue;
+          if(mouth&&!pocketKeepsToTheSide(f,mouth,axis))continue;
           if(out.some((other,at)=>at!==index&&Math.hypot(other.pos[0]-pos[0],other.pos[1]-pos[1],other.pos[2]-pos[2])<SETTLE_KEEP.apart))continue;
           const tried={...f,pos,...(mouth?{pocket:{...f.pocket,mouth}}:{})};
           if(meets(tried))continue;
@@ -1448,11 +1831,17 @@ const STRUCTURAL_CLEARANCE=1/2;
    that sit back to back in two boards that touch (the posts of two racks standing side by side) are not in each
    other's way. */
 const HEAD_DEPTH=.25;
+/* Two pocket holes that open on the same face of one piece keep END_HOLE_WEB (1/4") of wood between them, not only
+   a drill bit: the web between two ovals is end grain and short grain that breaks out when the second hole is
+   drilled (sheet 27, sections 5 and 8; the self-check pocketHolesStayInTheirPiece, js/pocketedge.js). */
+const sameFacePockets=(a,b)=>a.kind==='pocket'&&b.kind==='pocket'&&a.pocket&&b.pocket&&a.through===b.through&&
+  a.pocket.out.every((v,k)=>Math.abs(v-b.pocket.out[k])<1e-6);
 function screwsMeet(a,b){
   const clearance=a.structural&&b.structural?STRUCTURAL_CLEARANCE:SCREW_CLEARANCE;
+  const holeWeb=sameFacePockets(a,b)?END_HOLE_WEB:clearance;
   for(const x of drilledStretches(a)){
     for(const y of drilledStretches(b)){
-      if(stretchGap(x.from,x.dir,x.len,y.from,y.dir,y.len)<x.r+y.r+clearance)return true;
+      if(stretchGap(x.from,x.dir,x.len,y.from,y.dir,y.len)<x.r+y.r+(x.bore&&y.bore?holeWeb:clearance))return true;
     }
   }
   return false;
@@ -1471,7 +1860,7 @@ function drilledStretches(f){
   if(f.kind==='pocket'&&f.pocket){
     const r=f.pocket.dia/2,oval=r/Math.sin(FASTEN.pocketDegrees*Math.PI/180)-r;
     const deep=Math.hypot(...f.pos.map((v,k)=>v-f.pocket.mouth[k]));
-    out.push({from:pointPlus(f.pocket.mouth,f.dir,-oval),dir:f.dir,len:deep+oval,r});
+    out.push({from:pointPlus(f.pocket.mouth,f.dir,-oval),dir:f.dir,len:deep+oval,r,bore:true});
   }
   if(f.sunk>0){
     const r=Math.max(f.head||FASTENER_SIZE.screw.head,COUNTERBORE_DIA)/2;

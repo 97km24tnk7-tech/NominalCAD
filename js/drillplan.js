@@ -1267,8 +1267,8 @@ function pocketScrewsListed(){
   const totals=hardwareTotals(findJoints());
   const screws=[],plugs=[];
   for(const[label,count]of totals.rows){
-    if(/pocket-hole screws$/.test(label))screws.push([label,count]);
-    if(/^Pocket-hole plugs$/.test(label))plugs.push([label,count]);
+    if(/pocket-hole screws(,|$)/.test(label))screws.push([label,count]);   // (with its thread: POCKET_SCREW_LINE, js/style.js)
+    if(POCKET_PLUG_LINE.test(label))plugs.push([label,count]);
   }
   return{screws,plugs,totals};
 }

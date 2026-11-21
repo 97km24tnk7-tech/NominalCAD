@@ -1643,8 +1643,11 @@ const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg
    "fastening":9 put back to 8 the text hashes to main's '7qwd6n' at the same 477 characters. Branch caselooks had
    also taken 9 (the cases judged from a standing and a seated eye, js/caselooks.js); at its merge with main that
    became rule 10 (FASTENING_NOW 9 to 10), and the print was recorded again: with "fastening":10 put back to 9 the
-   text hashes to main's '8uxxgi' at 477; the new print is one character longer only because 10 has two digits. */
-const OLD_PROJECT_PRINT=['1f8jj58',478];
+   text hashes to main's '8uxxgi' at 477; the new print is one character longer only because 10 has two digits.
+   The pocket-edge round (branch alike) took 8 on its own branch, then 10; at its second merge with main, where the
+   shop packet held 9 and the case looks 10, it became rule 11 (FASTENING_NOW 10 to 11), and the print was recorded
+   again the same way: with "fastening":11 put back to 10 the text hashes to main's '1f8jj58' at the same 478. */
+const OLD_PROJECT_PRINT=['1gcesf5',478];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){

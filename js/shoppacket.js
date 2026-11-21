@@ -188,8 +188,9 @@ const SHOP_MOVES=[
   {test:/Mark it on the Roof board, ([^,]+?) in from its end \(over the middle of the post\) and ([^,]+?) down from its beveled edge/,on:['Roof board'],kind:'make',
     words:m=>`Drill a ${DRILL_BITS.clearance.name} clearance hole for the roof screw near each end, square through the board: ${m[1]} in from the end (over the middle of the post) and ${m[2]} down from the beveled edge.`,
     keep:m=>`Its clearance hole is made already, from the part drawing of the Roof board (${m[1]} in from its end, ${m[2]} down from its beveled edge)`},
-  // Planter box (js/builders-outdoor.js): its slats in Fine furniture are held by pocket screws drilled ahead, so the
-  // step's words fasten them as the lines say (in Everyday the pilot holes are drilled ahead: withoutDrillWords)
+  // Planter box (js/builders-outdoor.js): the step's words fasten the slats as the lines say, their holes drilled
+  // ahead (withoutDrillWords); since the pocket-edge round they are screwed down from above in every style, the slat
+  // cleats being too small for a pocket hole's oval
   {test:/Drill pilot holes and drive two screws down through each end of every slat into the cleat under it/,kind:'reword',
     keep:'Fasten each end of every slat to the cleat under it as the lines below say: the holes are made already'},
   // Fish stands (js/builders-fish.js): a panel stud's length is the cut list's

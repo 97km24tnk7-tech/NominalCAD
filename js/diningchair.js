@@ -225,7 +225,10 @@ function chairPlanFresh(raw,bare){
    jig's shoulder), times cos 15 deg (the screw leans that much off the rail). */
 function chairScrewHold(wood){
   const R=CHAIR_RULES,jig=POCKET_JIG.find(row=>row.set===1.5),G=chairWoodG(wood);
-  const thread=jig.screw-jig.shoulder;                       // 1" of thread in the leg, along the screw
+  // 1" of thread in the leg, along the screw, as counted before the pocket-edge round: Kreg's penetration chart
+  // (reference sheet 27, verdict 2) puts 1 1/4" in the leg (the screw less the corrected shoulder), so the count
+  // stays 1/4" on the safe side, and no chair the check refused before is passed now
+  const thread=Math.min(1,jig.screw-jig.shoulder);
   const perInch=R.withdraw*G*G*R.D;                         // 2850 x 0.42^2 x 0.164 = 82.4 lb per inch in pine [25 §6d]
   const along=Math.cos(FASTEN.pocketDegrees*Math.PI/180);   // 0.966
   return{perScrew:perInch*thread*along,thread,perInch,G,along};

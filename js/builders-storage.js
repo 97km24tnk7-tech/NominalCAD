@@ -506,7 +506,13 @@ function garageNotes(p){
     'It is left as bare wood, sanded so it does not give splinters. To paint or seal it, pick a finish under Style & finish and the lists and the steps follow.'];
 }
 /* Fasteners the garage shelves name themselves: a lower deck is cut to fit between the posts and only touches them. */
-const GARAGE_JOINTS=[['Post','Shelf deck','none']];
+const GARAGE_JOINTS=[['Post','Shelf deck','none'],
+  // The top deck rests on the four post tops. In Rustic and Everyday it is screwed down into them; in Fine furniture
+  // a pocket screw up from the end of a 2x4 post would be a 1" screw at the 1/2" setting, whose point Kreg's chart
+  // puts 1/16" under the top of the 1/2" deck (or a 3/4" one with 3/16" of thread in it). So there the deck only
+  // rests on the posts: it is held by the pocket screws up from the rails and end rails of the top frame (the
+  // real-thing reviewer's finding 2 of the pocket-edge round).
+  ['Post','Top deck','restsInFine']];
 function garageHardware(p){
   const s=garagePlan(p);
   // Only what the joints do not already count. The screws that hold the frames, posts and decks together are

@@ -17,8 +17,9 @@
 'use strict';
 
 const WORD_LINKS=[
-  // (before the pocket-hole row, which would otherwise take the first words of it: the case looks job)
-  {re:/\bpocket-hole plugs?\b/i,word:'Pocket-hole plug'},
+  // (before the pocket-hole row, which would otherwise take the first words of it: the pocket-edge round and the
+  //  case looks job both added it)
+  {re:/\bpocket[- ]hole plugs?\b/i,word:'Pocket-hole plug'},
   {re:/\banti-tip kits?\b/i,word:'Anti-tip kit'},
   {re:/\bpocket[- ]hole screws?\b|\bpocket[- ]holes?\b|\bpocket screws?\b/i,joint:'pocket'},
   {re:/\bwooden plugs?\b|\bwood plugs?\b|\bplugged heads?\b/i,joint:'plug'},
@@ -30,7 +31,7 @@ const WORD_LINKS=[
   {re:/\bL-brackets?\b/i,joint:'bracket'},
   {re:/\bwood glue and clamps\b|\bwood glue\b|\bglue only\b/i,joint:'glue'},
   {re:/\bdriven at an angle\b/i,word:'Driven at an angle'},
-  {re:/#\d+\b/,word:'Screw size'},
+  {re:/#\d+\b(?! square)/,word:'Screw size'},   // (not "the #2 square driver bit": that number is the bit's size)
   {re:/\bpilot holes?\b/i,word:'Pilot hole'},
   {re:/\bclearance holes?\b/i,word:'Clearance hole'},   // (before "clearance", the room between two things)
   {re:/\bcounterbores?\b/i,word:'Counterbore'},

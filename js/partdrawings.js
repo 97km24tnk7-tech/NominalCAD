@@ -694,19 +694,22 @@ function layView(out,view,index,label,ctx){
   if(view.kind==='face1'||view.kind==='mirror')placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom});
   return{bottom:out.bottomOfView};
 }
+const LABEL_HOLE_GAP=5;   // paper units between the label box and a hole mark (the check holds it: partLayoutProblems)
 function placeLabelBox(out,view,label,holeMarks,{x0,x1,yTop,yBottom}){
   const V=PART_VIEW;
   const tag=`${(view.kind==='mirror'?label.mirrorLabel:label).name} ↑`;
   const tagW=partTextWidth(tag,V.label,true)+12,tagH=18;
   // in the corner when it is clear of the holes; else lower down the same end; else slid along the top edge
   // (clear of the holes, and of the small circles and corner marks of the places: the owner's addendum, point 9)
+  // (LABEL_HOLE_GAP clear of every hole and its arrow: the real-thing reviewer's finding 12 of the pocket-edge round
+  //  saw the box of the Dining table's long apron 3 px from an oval, touching it on a narrow page)
   // (and, where it can, off the dashed pieces: the leader of a dashed piece's name may end inside it)
   const marks=paperMarks(out),dashed=out.items.filter(item=>item.type==='rect'&&item.cls==='hid'&&item.view===out.views.length-1);
   let offDashed=true;
   // (the names are laid first: the box keeps off their words and every leader, tick and extension line)
   const lines=out.items.filter(item=>item.type==='line'||item.type==='leader');
   const crossed=box=>out.texts.some(text=>boxesOverlap(box,text.box,4))||lines.some(item=>segmentHitsRect([item.x1,item.y1],[item.x2,item.y2],box,1));
-  const blocked=box=>holeMarks.some(mark=>boxesOverlap(box,mark.box,2)||boxesOverlap(box,arrowBox(mark),1))||marks.some(mark=>boxesOverlap(box,mark,3))||
+  const blocked=box=>holeMarks.some(mark=>boxesOverlap(box,mark.box,LABEL_HOLE_GAP)||boxesOverlap(box,arrowBox(mark),LABEL_HOLE_GAP-1))||marks.some(mark=>boxesOverlap(box,mark,3))||
     (offDashed&&dashed.some(rect=>boxesOverlap(box,rect,2)))||crossed(box);
   const cornerX=view.datumLeft?x0+4:x1-4-tagW;
   // just under the piece, near the end with the label, where nothing is (the leader of "end with the label" runs
@@ -1172,7 +1175,7 @@ function partDrawingSvg(layout){
 // (round: the tag of a bit, a circle; else of a setting of the pocket-hole jig, a hexagon)
 const tagSvg=(no,round)=>`<svg class="tag" viewBox="0 0 22 20" role="img" aria-label="${round?'bit':'setting'} ${no}">${round?'<circle cx="11" cy="10" r="9"/>':'<polygon points="21,10 16,19 6,19 1,10 6,1 16,1"/>'}<text x="11" y="14">${no}</text></svg>`;
 /* '1-1/4"' from '1-1/4" pocket-hole screw' */
-const screwSize=label=>String(label).replace(/ pocket-hole screws?$/,'');
+const screwSize=label=>String(label).replace(/ pocket-hole screws?(,.*)?$/,'');   // (the thread after a comma: js/style.js)
 /* the step and the piece the screws of these holes go into: 'Step 4: 2-1/2" pocket-hole screws into the Leg (D)' */
 /* holes: every piece's holes of one row of the table (holesOfEveryPiece): the pieces of one label can go in at
    different steps and into different pieces, and each is said ('Steps 4, 6 and 7: ... into the Side (B)'). */
@@ -1597,19 +1600,8 @@ function jigSettingsHtml(drill){
     });
     h+=docTable([['Setting',''],['Holes','num'],['On',''],['Screws for them, later','']],rows,'drill-setups');
   }
-  // a setting thinner than a piece it drills: its screws go into a thinner piece
-  for(const setup of setups){
-    const thick=setup.holes.filter(hole=>hole.piece.t>setup.jig+.02);
-    if(!thick.length)continue;
-    const names=[...new Set(thick.map(hole=>hole.piece.name))].map(name=>{
-      const many=new Set(thick.filter(hole=>hole.piece.name===name).map(hole=>hole.piece.id)).size>1;
-      return(many?pluralName(name):name).toLowerCase();
-    });
-    const sizes=[...new Set(thick.map(hole=>fmt(hole.piece.t)))];
-    const into=[...new Set(thick.map(hole=>hole.f.into.name))];
-    const plural=names.length>1||new Set(thick.map(hole=>hole.piece.id)).size>1;
-    h+=`<p class="hint drill-why">${esc(`${setups.length>1?`Setting ${setup.no}`:'The setting'} is for ${fmt(setup.jig)} stock although the ${listWords(names)} ${plural?'are':'is'} ${sizes.length===1?sizes[0]:'thicker'} thick: these screws go into the ${fmt(setup.jig)} ${listWords(into)}, and the thicker setting would push them out through ${into.length>1?'them':'it'}.`)}</p>`;
-  }
+  // a setting thinner than a piece it drills: why, in words with the real thicknesses (drillWhyTexts, js/pocketedge.js)
+  for(const text of drillWhyTexts(setups))h+=`<p class="hint drill-why">${esc(text)}</p>`;
   return h;
 }
 function drillTailHtml(drill,letterOf){
@@ -1648,7 +1640,8 @@ function drilledFastenerCounts(drill){
   }
   const rows=hardwareTotals(findJoints()).rows;
   return[...byLabel].map(([label,set])=>{
-    const row=rows.find(([name])=>name===label||name===label+'s'||name.startsWith(label+' ')||name.startsWith(label+'s'));
+    // (a pocket-hole screw's line has its thread after the plural: oneOf, js/fasteners.js)
+    const row=rows.find(([name])=>name===label||name===label+'s'||oneOf(name)===label||name.startsWith(label+' ')||name.startsWith(label+'s'));
     return{label,drilled:set.size,listed:row?row[1]:0,row:row?row[0]:''};
   });
 }
@@ -2254,6 +2247,7 @@ function partLayoutProblems(figure,label,drill){
     if(a.x<0||a.y<0||a.x+a.w>layout.width+.5||a.y+a.h>layout.height+.5)found.push(`"${texts[i].text}" is outside the picture`);
     for(let j=i+1;j<texts.length;j++)if(boxesOverlap(a,texts[j].box,0))found.push(`"${texts[i].text}" is written over "${texts[j].text}"`);
     if(texts[i].role!=='title'&&layout.holes.some(mark=>boxesOverlap(a,mark.box,0)))found.push(`"${texts[i].text}" is written over a hole`);
+    else if(texts[i].role==='labelbox'&&layout.holes.some(mark=>boxesOverlap(a,mark.box,LABEL_HOLE_GAP-1)))found.push(`the label box "${texts[i].text}" touches a hole`);
   }
   // a leader runs through no text but its own (segmentHitsRect, js/markingview.js)
   for(const item of layout.items){
@@ -2293,36 +2287,43 @@ for(const name of DRILL_CHECKS){
    deck and the screws through it into the post tops are gone; the two cabinet stands' top is the 3/4" Countertop
    (Rustic screws it down, so its holes are on the Countertop, and the rack's top deck is named Top deck); the frames
    in sight are held from inside. Every other preset reads back as main recorded it.
+   Recorded again by the pocket-edge round (branch alike, reference sheet 27), twice the same, only the lines marked
+   so: holes across a rail into a top drilled at the 3/4" setting, the corrected screw reach (the Platform bed's slat
+   screws over its center beam settle again: put back to the old shoulders, the old line comes back), pocket holes
+   with no room in their piece in Fine (Bird feeder rims, Planter box slat cleats), and the fish presets' corners.
+   Recorded again by the fixes of that round, twice the same, only the lines marked so: like pieces drilled alike and
+   the mirror-way nudge (Fish tank wall / rack, Cabinet stand, Platform bed, Planter box), the Garage shelves' top deck
+   resting on its posts in Fine, the cabinet stand's back rail corners plain behind its back panel.
    Recorded again when branch auditfix was merged with main, the Storage box / toy chest only, in all three styles,
    twice the same: its lid has a 3/4" lip over the front (the preset audit of 20 Nov, finding 3), so its walls and
    bottom stand 3/4" less deep. The same 28 holes (40 in Rustic), each moved only across the depth of the bottom and
-   the ends (14 1/2" deep on main, 13 3/4" now). Every other preset reads back as main recorded it. */
+   the ends (14 1/2" deep on main, 13 3/4" now). Every other preset reads back as main recorded it.
+   At the merge of branch alike with main both sides' lines were kept: the pocket-edge lines above, main's toy chest. */
 const DRILL_PRINTS_RECORDED={
-  "Fish tank wall / rack":{"std":[570,"1si7anw"],"fine":[404,"s8o11m"],"rustic":[632,"f39hn3"]},          // recorded again at the fishtop merge
-  "Single aquarium stand":{"std":[160,"1h0o42o"],"fine":[144,"1y2nfu0"],"rustic":[208,"b1o0ge"]},         // recorded again at the fishtop merge
-  "Cabinet stand with a row of tanks":{"std":[218,"1lfya"],"fine":[202,"wmnv36"],"rustic":[304,"hivzkd"]},  // recorded again at the fishtop merge
-  "Platform bed":{"std":[272,"1cemwt2"],"fine":[246,"1fihgop"],"rustic":[284,"172jgbs"]},
+  "Fish tank wall / rack":{"std":[570,"f3olve"],"fine":[452,"576t5e"],"rustic":[632,"17df87p"]},   // fixes of the pocket-edge round: like pieces (alikePieces), the mirror-way nudge, rule 11b ends from the middle
+  "Single aquarium stand":{"std":[160,"1is76fy"],"fine":[144,"d6tx0e"],"rustic":[208,"b1o0ge"]},         // pocket-edge round: holes across the cross pieces at 3/4", corrected reach
+  "Cabinet stand with a row of tanks":{"std":[218,"y94ble"],"fine":[218,"1ip1tf2"],"rustic":[304,"2p86vd"]},   // fixes of the pocket-edge round: like pieces, the mirror-way nudge, back rail corners behind the back panel plain (Fine)
+  "Platform bed":{"std":[272,"5e0wls"],"fine":[246,"1wzflbl"],"rustic":[284,"8tclsw"]},   // fixes of the pocket-edge round: the middle slats and corner legs drilled alike (alikePieces)
   "Shed":{"std":[0,"ztntfp"],"fine":[0,"ztntfp"],"rustic":[0,"ztntfp"]},
-  "Bird feeder":{"std":[32,"15p3vv0"],"fine":[20,"150qkn8"],"rustic":[32,"15p3vv0"]},
+  "Bird feeder":{"std":[32,"15p3vv0"],"fine":[28,"5o2n9k"],"rustic":[32,"15p3vv0"]},   // pocket-edge round: the 1x2 rims have no room for a pocket hole in Fine, screwed
   "Bookshelf":{"std":[50,"sd54cb"],"fine":[50,"sd54cb"],"rustic":[88,"1chbdza"]},
-  "Dining table":{"std":[60,"17rhid5"],"fine":[60,"17rhid5"],"rustic":[104,"ub9joa"]},
+  "Dining table":{"std":[60,"1c4ucbt"],"fine":[60,"1c4ucbt"],"rustic":[104,"ub9joa"]},   // pocket-edge round: holes up into the top at the 3/4" setting
   "Coffee table":{"std":[94,"1j5fax8"],"fine":[94,"1j5fax8"],"rustic":[212,"1nav7ow"]},
   "Side table / nightstand":{"std":[26,"f21k6n"],"fine":[26,"f21k6n"],"rustic":[72,"1lzhhcy"]},
   "Desk":{"std":[44,"13uisfz"],"fine":[44,"13uisfz"],"rustic":[58,"1r6xfhr"]},
-  "Sturdy bench":{"std":[34,"polw3n"],"fine":[50,"1l34yvf"],"rustic":[60,"do00qc"]},
+  "Sturdy bench":{"std":[34,"1bvyvd1"],"fine":[50,"1iugfil"],"rustic":[60,"do00qc"]},   // pocket-edge round: holes up into the seat at the 3/4" setting
   "Five-board bench":{"std":[20,"3qi8d8"],"fine":[20,"3qi8d8"],"rustic":[44,"krwp0d"]},
   "Workbench":{"std":[198,"1tzl7wr"],"fine":[130,"1o7s03l"],"rustic":[166,"lgq7fn"]},
-  "Garage shelves":{"std":[388,"iavqmk"],"fine":[244,"10asvl8"],"rustic":[388,"iavqmk"]},
+  "Garage shelves":{"std":[388,"iavqmk"],"fine":[240,"1g7m7jc"],"rustic":[388,"iavqmk"]},   // fixes of the pocket-edge round: in Fine the top deck rests on its posts (no 3/4" pocket screws)
   "Storage box / toy chest":{"std":[28,"67yfsl"],"fine":[28,"67yfsl"],"rustic":[40,"ib8an0"]},   // recorded again at the auditfix merge: walls 3/4" less deep for the lid's lip
-
-  "Planter box":{"std":[156,"10rcc5o"],"fine":[118,"4elxkx"],"rustic":[156,"10rcc5o"]},
+  "Planter box":{"std":[156,"1ui18tw"],"fine":[140,"1djdayk"],"rustic":[156,"1ui18tw"]},   // fixes of the pocket-edge round: the bottom slats drilled alike (alikePieces)
   "Raised garden bed":{"std":[96,"6jc24k"],"fine":[80,"f1z4eg"],"rustic":[96,"6jc24k"]},
   "Entryway shoe bench":{"std":[94,"d0vlq1"],"fine":[94,"d0vlq1"],"rustic":[212,"1q9nm0w"]},
   "Base cabinet with doors":{"std":[76,"1ksg96i"],"fine":[67,"1gg7b1s"],"rustic":[104,"8b0z50"]},
   "Wall shelf":{"std":[18,"19l6c3g"],"fine":[14,"1qmxroo"],"rustic":[26,"yhhtnb"]},
   "Nightstand with drawers":{"std":[47,"vzyj6o"],"fine":[47,"vzyj6o"],"rustic":[66,"3h6xy9"]},
   "Computer desk":{"std":[105,"9r21s5"],"fine":[105,"9r21s5"],"rustic":[152,"vpdk9n"]},
-  "Dining chair":{"std":[62,"179c6o7"],"fine":[62,"179c6o7"],"rustic":[64,"1uox7wm"]},
+  "Dining chair":{"std":[62,"art8t9"],"fine":[62,"art8t9"],"rustic":[64,"1x1qszi"]},   // pocket-edge round: the seat rails drilled at the 3/4" setting for the seat
   "Cabinet / case":{"std":[58,"1addffs"],"fine":[58,"1addffs"],"rustic":[88,"1kqy00"]},
 };
 /* (C3 of the stage 2 review: in all three styles, since the holes a bit makes live mostly in Rustic (wood screws)

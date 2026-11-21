@@ -78,7 +78,9 @@ const FASTENER_LABELS=[
   [/^(1\/4" × \S+) structural screws$/,(m,n)=>`${n} structural screw${n===1?'':'s'}, ${m[1]}`],
   [/^(\S+) wood plugs$/,(m,n)=>`${n} wood plug${n===1?'':'s'}, ${m[1]}`],
   [/^(\S+) dowel rod, cut into plugs$/,(m,n)=>`${n} plug${n===1?'':'s'} cut from ${m[1]} dowel rod`],
-  [/^Pocket-hole plugs$/,(m,n)=>`${n} pocket-hole plug${n===1?'':'s'}`],
+  [POCKET_PLUG_LINE,(m,n)=>`${n} pocket-hole plug${n===1?'':'s'}${m[1]?', '+m[1]:''}`],   // ('Pocket-hole plugs, oak': js/style.js)
+  // (the special screw for pocket holes, with its thread: '4 pocket-hole screws, 1-1/4", coarse thread', js/style.js)
+  [POCKET_SCREW_LINE,(m,n)=>`${n} pocket-hole screw${n===1?'':'s'}, ${m[1]}, ${m[2]} thread${m[3]||''}`],
   [/^(\S+) pocket-hole screws$/,(m,n)=>`${n} pocket-hole screw${n===1?'':'s'}, ${m[1]}`],
   [/^(.+) wood dowels$/,(m,n)=>`${n} wood dowel${n===1?'':'s'}, ${m[1]}`],
   [/^(\S+) brad nails \(18 gauge\)$/,(m,n)=>`${n} brad nail${n===1?'':'s'}, ${m[1]}`],
@@ -365,7 +367,7 @@ function fastenerPlaces(joint,layout){
          it goes in, so the places are measured on it.
        The end they are measured from is the one on the left of the marking view (or at its bottom), named as the
        view sees it, like every other row. */
-    const cleared=layout.find(f=>f.clear||f.passEnds||f.pastBolt);
+    const cleared=layout.find(f=>f.clear||f.passEnds||f.pastBolt||f.oneForRoom);   // (oneForRoom: rule 11b, js/fasteners.js)
     const alongPiece=pocket&&(!!cleared||!wholeEnd);
     const pieceStart=startHigh?throughBox.hi[axis]:throughBox.lo[axis];
     const fromPieceEnd=spots.map(v=>Math.abs(v-pieceStart)).sort((a,b)=>a-b);
@@ -412,7 +414,7 @@ function fastenerPlaces(joint,layout){
     const row={axis,range,frame,faceAxis,startHigh,refWord:refSide,refName:wholeEnd?through.name:'',first:r16(first),gap:gap===null?null:r16(gap),even:evenRow,
       back:f0.toe?r16(Math.abs(f0.pos[shape.k]-shape.plane)):null,kind:what,
       alongPiece,through,startEnd:startName,bothEnds,side:pieceSide,at:pocket?fromPieceEnd.map(r16):null,
-      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null,pastBolt:layout.some(f=>f.pastBolt)};
+      clear:cleared?[...new Set(layout.flatMap(f=>f.clear||[]))]:null,passEnds:cleared?[...new Set(layout.flatMap(f=>f.passEnds||[]))]:null,pastBolt:layout.some(f=>f.pastBolt),oneForRoom:layout.some(f=>f.oneForRoom)};
     return{text,mirrored:text,general:text,dims,across:null,side:0,first:r16(first),gap:gap===null?null:r16(gap),rule:{row:true},row};
   }
 
@@ -842,7 +844,7 @@ function fastenLine(links,letterOf){
     // (pocketPluggedByPreset: the cabinet builder's shelves in Fine furniture), whatever their height
     (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged))?
       (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged&&f.pocket.mouth[1]>SEEN.underAbove&&f.pocket.out[1]<.5))?` These holes are more than ${SEEN.underAbove}" up, where they are seen from below, so once`:' So that no hole shows, once')+
-      ` the screws are in, glue a pocket-hole plug into each one (sold in bags; ${pocketPlugKind()} ones suit this design), with its flat side lined up with the face, and sand it flush when the glue is dry.`:'');
+      ' the screws are in, glue a pocket-hole plug into each one (the list buys a bag of '+pocketPlugKind()+' plugs, the kind that suits this design), with its flat side lined up with the face, and cut it flush with a flush-cut saw or sand it flush with a sanding block when the glue is dry.':'');
   /* the two pieces of a pair in words: with "the" for a sentence, without for a list */
   const pieceWords=(pair,inSentence)=>{
     const through=namedLabel(pair.throughs,letterOf),into=namedLabel(pair.intos,letterOf);
@@ -1121,8 +1123,8 @@ function pocketRowsWords(places){
   const name=first.row.through.name,each=lists.length>1?`each ${name}`:`the ${name}`;
   const clear=[...new Set(places.flatMap(place=>place.row.clear||[]))];
   const passEnds=[...new Set(places.flatMap(place=>place.row.passEnds||[]))];
-  const pastBolt=places.some(place=>place.row.pastBolt);
-  const why=clear.length||passEnds.length||pastBolt?' '+notEvenlyWords([{clear,passEnds,pastBolt}],name):'';
+  const pastBolt=places.some(place=>place.row.pastBolt),oneForRoom=places.some(place=>place.row.oneForRoom);
+  const why=clear.length||passEnds.length||pastBolt||oneForRoom?' '+notEvenlyWords([{clear,passEnds,pastBolt,oneForRoom}],name):'';
   const seen=first.row.frame.mirrored&&!eitherEnd?` Left and right are as you look at it ${first.row.frame.from}.`:'';
   return`Put the pocket holes in ${each} at ${listWords(first.at.map(inchWords))} from ${eitherEnd?'either':'its '+first.row.startEnd} ${first.row.side}.`+why+seen;
 }
@@ -1174,6 +1176,9 @@ function notEvenlyWords(layout,name){
   if(clear.length)reasons.push(`no hole may open where the ${listWords(clear)} lies against the ${name}`);
   if(passEnds.length)reasons.push(`the holes stay clear of the pocket holes in the ends of the ${name} that hold it to the ${listWords(passEnds)}`);
   if(layout.some(f=>f.pastBolt))reasons.push(`the holes stay clear of the bolt that goes through the ${name} to join the sections`);
+  // rule 11b (farEndCrowded, js/fasteners.js): one hole at this end of a short piece, said with why one is enough
+  // (the real-thing reviewer's finding 7 of the pocket-edge round)
+  if(layout.some(f=>f.oneForRoom))reasons.push(`this end of the short ${name} has room for one hole only, in its middle, because the holes of the two joints at its other end take the rest of the face; one is enough here, since the deck fastened on top of it keeps the ${name} from turning`);
   // only the start moved (past the holes at the ends) and the gaps are even: say that, not "not evenly spaced"
   const mouths=layout.filter(f=>f.pocket).map(f=>f.pocket.mouth);
   if(passEnds.length&&!clear.length&&mouths.length>2){
@@ -1623,8 +1628,9 @@ const STEP_TOOLS={
   plugFilled:'3/8" drill bit for the counterbores',
   plugTapped:'a small hammer, for the plugs',   // the counterbores drilled in step 2 (js/drillplan.js)
   dowelDriven:'mallet',                          // the dowel holes drilled in step 2
-  pocket:'pocket-hole jig and drill/driver',
-  pocketDriven:'drill/driver with the square-drive bit for the pocket screws',   // (the bit's trade name; js/wordlinks.js links it as a driver bit, not as a square)
+  pocket:'pocket-hole jig, drill/driver and '+POCKET_SCREW_BIT.replace(/ that comes with the pocket-hole jig$/,' that comes with the jig'),
+  pocketDriven:'drill/driver with '+POCKET_SCREW_BIT,   // (js/wordlinks.js links "square driver bit" as a driver bit, not as a square)
+  pocketPlugs:'flush-cut saw or a sanding block, for the pocket-hole plugs',
   dowel:'dowel jig, drill and mallet',
   nail:'brad nailer (or hammer and nail set)',
   bracket:'drill/driver',
@@ -1633,7 +1639,7 @@ const STEP_TOOLS={
   clamps:'clamps',
   glue:'wood glue',
   banding:'household iron, and an edge banding trimmer or a sharp chisel',   // iron-on edge banding (the Computer desk)
-  pocketBit:'the square-drive bit for the pocket screws',   // pocketDriven, in a step that names the drill already (its screws)
+  pocketBit:POCKET_SCREW_BIT,   // pocketDriven, in a step that names the drill already (its screws)
   plugTrim:'flush-cut saw and a sanding block, to trim the pocket-hole plugs flush',   // a step that plugs pocket holes (the case looks job)
 };
 /* the tools a preset step's own words name that the fasteners do not tell (step.tools, a list, or a list for each
@@ -1735,9 +1741,13 @@ function stepTools(step){
   for(const type of['pocket','dowel','nail','frame','toenail'])if(types.has(type))
     add(type==='pocket'&&drilledAll('pocket')?pocketTool:type==='dowel'&&drilledAll('dowel')?STEP_TOOLS.dowelDriven:STEP_TOOLS[type]);
   if(step.tight&&step.tight.length)add('right-angle drill attachment and a 3" driver bit, for the pocket screws with little room');
+  // pocket holes filled with plugs in this step (rule 13, js/fasteners.js): glued in, then cut or sanded flush (the
+  // owner's addendum of 20 Nov: the step lists the plugs with glue and a flush-cut saw or a sanding block)
+  const pluggedPockets=step.groups.some(group=>group.type==='pocket'&&group.links.some(link=>fastenersOfLink(link).some(f=>f.pocket&&f.pocket.plugged)));
+  if(pluggedPockets)add(STEP_TOOLS.pocketPlugs);
   if(['screw','plug','pocket','dowel','nail','glue'].some(type=>types.has(type)))add(STEP_TOOLS.clamps);
   // wood glue is a supply: stepNeeds lists it with the fasteners
-  step.glued=step.groups.some(group=>GLUED_TYPES[group.type])||(step.groups.length>0&&/\bglue\b/i.test(words+' '+step.groups.map(group=>group.line).join(' ')));
+  step.glued=pluggedPockets||step.groups.some(group=>GLUED_TYPES[group.type])||(step.groups.length>0&&/\bglue\b/i.test(words+' '+step.groups.map(group=>group.line).join(' ')));
   // (cup holes and pull holes made from the part drawings take their bits on the Cut list page: js/shoppacket.js)
   const madeAhead=kind=>(step.hardware||[]).some(row=>row.kind===kind&&row.make);
   if(hardwareKinds.has('cup')&&!madeAhead('cup'))add('1 3/8" Forstner bit for the cup holes');
@@ -1754,9 +1764,12 @@ function stepTools(step){
   if(/\b(saw|cut|notch|trim)\b/i.test(words)&&!tools.includes('saw')&&!ownTools.some(tool=>/\bsaw\b/.test(tool)))add('saw');
   if(/\bladder\b/i.test(words))add('stepladder');
   for(const tool of ownTools)add(tool);
+  // (a preset that names its own flush-cut saw for the plugs, the Dining chair's: that line says it once)
+  if(tools.includes(STEP_TOOLS.pocketPlugs)&&ownTools.some(tool=>/flush-cut saw/i.test(tool)))tools.splice(tools.indexOf(STEP_TOOLS.pocketPlugs),1);
   // pocket holes this step fills with glued plugs: what trims them flush, unless the step names a flush-cut saw of
   // its own (the case looks job, code review 9: the Wall shelf's supports had none)
   const plugsPockets=step.groups.some(group=>group.type==='pocket'&&group.links.some(link=>fastenersOfLink(link).some(f=>f.pocket&&f.pocket.plugged)));
+  // (a backstop kept from the case looks job: STEP_TOOLS.pocketPlugs above, from the pocket-edge round, names it already)
   if(plugsPockets&&!tools.some(tool=>/flush-cut saw/i.test(tool)))add(STEP_TOOLS.plugTrim);
   return tools;
 }

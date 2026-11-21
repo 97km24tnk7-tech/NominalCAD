@@ -52,6 +52,15 @@ const STYLE_RULES={
   pocketUnlessRustic:{rustic:'screw',std:'pocket',fine:'pocket'},
   // a top that only rests on the end of a leg (the aprons carry it); Rustic screws down into the leg too
   restsUnlessRustic:{rustic:'screw',std:'none',fine:'none'},
+  // a top held from underneath in Everyday whose row has no room left in Fine furniture, where the piece under it is
+  // held at both ends by pocket holes on the same face (the end cross piece of a fish rack frame, against its post):
+  // there it only rests, held by the rest of its frame (roomForTopRows)
+  pocketRestsInFine:{rustic:'screw',std:'pocket',fine:'none'},
+  // screwed down in Rustic and Everyday, held from underneath by pocket screws in Fine furniture (what styleType
+  // does for any screw), named so that roomForTopRows can look at the row: where it has no room in Fine (a fish
+  // rack's shelf deck on a cross piece whose ends are pocket-screwed to the rails on the same face), the deck only
+  // rests on that piece there ('restsInFine')
+  pocketInFine:{rustic:'screw',std:'screw',fine:'pocket'},
   // a metal corner bracket on the inside of a frame, where no pocket hole can be drilled (a 4x4 leg);
   // Rustic screws straight through from outside
   bracketUnlessRustic:{rustic:'screw',std:'bracket',fine:'bracket'},
@@ -75,7 +84,11 @@ const STYLE_RULES={
   restsInHouse:{rustic:'pocket',std:'none',fine:'none'},
   // a joint that takes a screw through a show face and has no hidden way that is as strong (a bed rail to its
   // leg): the head is sunk and covered by a glued wooden plug (filler under paint); Rustic leaves it showing
-  pluggedUnlessRustic:{rustic:'screw',std:'plug',fine:'plug'}
+  pluggedUnlessRustic:{rustic:'screw',std:'plug',fine:'plug'},
+  // a frame corner of a fish rack screwed straight through in Rustic and Everyday: in Fine furniture the head is sunk
+  // under a plug, where a pocket screw of its own (styleType) would run into the pocket screws of the upright, the
+  // foot and the deck that meet the same corner (RACK_JOINTS, js/builders-fish.js; the pocket-edge round)
+  pluggedInFine:{rustic:'screw',std:'screw',fine:'plug'}
 };
 const isStyleRule=type=>typeof type==='string'&&Object.prototype.hasOwnProperty.call(STYLE_RULES,type);
 /* the fastener a type or a rule stands for in this style ('std' when none is given and there is no design yet) */
@@ -166,10 +179,11 @@ function storeNamedJoints(preset,parts,vals){
       // a fastener that follows the style: kept as the rule, read through suggestedType, never frozen
       if(!S.styled||typeof S.styled!=='object')S.styled={};
       S.styled[j.key]=type;
-      if(type==='pocketUnlessRustic')pocketRules.push(j.key);
+      if(type==='pocketUnlessRustic'||type==='pocketInFine')pocketRules.push(j.key);
       continue;
     }
     S.joints[j.key]=type;
+    if(type==='pocket')pocketRules.push(j.key);   // (looked at for room too: roomForTopRows)
     // What the preset named is also kept apart from what the person chooses later (S.named). Unfasten stores
     // "Not joined", and that is forgotten when the two pieces part (rule 2 in js/connections.js); the preset's
     // own word for the joint comes back then, so a countertop that was lifted off and set down again is
@@ -194,7 +208,30 @@ function roomForTopRows(keys){
     for(const key of keys){
       const link=connCache.byKey.get(key);
       if(!link||link.type!=='pocket'||!link.joint)continue;
-      if(fastenerLayout(link.joint,'pocket').noRoom)S.styled[key]='restsUnlessRustic';
+      const layout=fastenerLayout(link.joint,'pocket');
+      // (a hole no jig can drill in a piece thicker than a jig takes: thickPiecesTakeBrackets below)
+      if(!layout.noRoom||(layout.exitTooDeep&&pocketPiece(link.joint).t>POCKET_JIG_MAX+1e-6))continue;
+      if(S.styled&&S.styled[key]==='pocketUnlessRustic')S.styled[key]='restsUnlessRustic';
+      // a pocket joint the preset named in every style, whose second piece meets only a sliver at the edge of the
+      // piece with the holes (sheet 27, section 5: no hole there keeps 3/4" from the edge): it only touches; the
+      // piece is held by its other joints (the structural check says whether it is)
+      else if(S.joints[key]==='pocket'){S.joints[key]='none';if(S.named)S.named[key]='none';}
+    }
+    thickPiecesTakeBrackets(keys);
+    // Fine furniture turns the screws at the ends of the piece under a top into pocket screws of their own
+    // (styleType, js/style.js), on the same face as the row for the top: a row that had room in Everyday may have
+    // none left there (a fish rack's end cross piece, 8" long, against its post). Such a top only rests on that
+    // piece in Fine ('pocketRestsInFine'); the rest of its frame holds it.
+    const stillPocket=keys.filter(key=>S.styled&&(S.styled[key]==='pocketUnlessRustic'||S.styled[key]==='pocketInFine'));
+    if(stillPocket.length){
+      look().style='fine';
+      connCache=buildConnGraph(findJoints(),[],[]);
+      if(typeof layoutCarry!=='undefined')layoutCarry.clear();
+      for(const key of stillPocket){
+        const link=connCache.byKey.get(key);
+        if(!link||link.type!=='pocket'||!link.joint||!fastenerLayout(link.joint,'pocket').noRoom)continue;
+        S.styled[key]=S.styled[key]==='pocketInFine'?'restsInFine':'pocketRestsInFine';
+      }
     }
   }finally{
     connCache=saved;
@@ -202,12 +239,53 @@ function roomForTopRows(keys){
     if(typeof layoutCarry!=='undefined')layoutCarry.clear();   // nothing laid out on that graph is kept
   }
 }
+/* A pocket hole in a piece thicker than a jig takes (a 4x4 upright, drilled with a jig clamped to it) only works
+   where the second piece meets the face the jig is clamped to: the screw leaves half the setting in from that face.
+   Where the second piece meets only the far part of the 4x4 (a 2x4 cross piece under the far 1 1/2" of it) and the
+   near face is covered, no jig can drill the hole (the layout says so: exitTooDeep, js/fasteners.js). Such a joint
+   takes an L-bracket inside the corner in every style, as the uprights of the house stands do (the real-thing
+   reviewer's finding 3 of the pocket-edge round). Looked at in each of the three styles, since a joint that is a
+   pocket screw only in one style (bracketInFine is one in Rustic) is laid out there. keys: the joints of the preset
+   just placed; only the ones whose holed piece is thicker than POCKET_JIG_MAX are laid out, so a design without
+   such a piece costs nothing. Called by roomForTopRows with its graph saved and restored around it. */
+function thickPiecesTakeBrackets(keys){
+  const thick=key=>{
+    const link=connCache.byKey.get(key);
+    return link&&link.joint&&pocketPiece(link.joint)&&pocketPiece(link.joint).t>POCKET_JIG_MAX+1e-6;
+  };
+  const all=[...connCache.byKey.keys()].filter(key=>thick(key)&&(S.joints[key]==='pocket'||(S.styled&&isStyleRule(S.styled[key]))||keys.includes(key)));
+  if(!all.length)return;
+  const style=look().style;
+  try{
+    for(const each of Object.keys(STYLES)){
+      look().style=each;
+      connCache=buildConnGraph(findJoints(),[],[]);
+      if(typeof layoutCarry!=='undefined')layoutCarry.clear();
+      for(const key of all){
+        const link=connCache.byKey.get(key);
+        if(!link||link.type!=='pocket'||!link.joint||!fastenerLayout(link.joint,'pocket').exitTooDeep)continue;
+        if(S.styled)delete S.styled[key];
+        S.joints[key]='bracket';
+        if(!S.named||typeof S.named!=='object')S.named={};
+        S.named[key]='bracket';
+      }
+    }
+  }finally{look().style=style;}
+}
 function thruPart(j){ // the piece a fastener passes through first
   // two faces together: the piece the preset named ({through}, forcedThrough above), else the thinner one
   if(j.fa==='face'&&j.fb==='face')return forcedThrough(j)||(j.da<=j.db?'a':'b');
   return j.fa==='face'?'a':j.fb==='face'?'b':null;
 }
+/* the suggestion for a joint nobody named: by its shape (defaultTypeByShape), but a pocket screw only where the hole
+   has room in its piece (pocketHasRoom, js/fasteners.js): a 1x3 apron under a top or a short block gets a screw instead,
+   so a hand-drawn design is never given holes that run out of the wood (the code reader's finding 12) */
 function defaultType(j){
+  const type=defaultTypeByShape(j);
+  if(type==='pocket'&&typeof pocketHasRoom==='function'&&j.a&&j.b&&pocketPiece(j)&&!pocketHasRoom(j))return pocketPiece(j).t>POCKET_JIG_MAX+1e-6?'bracket':'screw';
+  return type;
+}
+function defaultTypeByShape(j){
   const th=thruPart(j);
   if(/^(Lid|Door)$/.test(j.a.name)||/^(Lid|Door)$/.test(j.b.name))return'none'; // lids lift off, doors hang on hinges
   if(!th)return(j.fa==='edge'&&j.fb==='edge')?(j.k===1?'none':'glue'):'pocket'; // boards stacked on edge just rest on each other

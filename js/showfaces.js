@@ -185,7 +185,8 @@ function topSurface(){
   return{y,pieces:wood.filter(p=>Math.abs(plainBox(p).hi[1]-y)<.02)};
 }
 /* The fasteners whose point comes nearer than it should to the top surface: at least 1/4" of wood over the point
-   in a top 3/4" thick or more (POCKET_COVER), never less than 1/8" (POCKET_COVER_MIN). [{f, cover}] */
+   in a top 3/4" thick or more (POCKET_COVER), never less than 1/8" (POCKET_COVER_MIN); a pocket screw 1/8", what the
+   makers' own joints leave (pointCoverWanted, js/style.js). [{f, cover}] */
 function pointsNearTheTop(){
   const top=topSurface(),inTop=new Set(top.pieces),near=[];
   for(const link of connGraph().links){
@@ -205,7 +206,7 @@ function pointsNearTheTop(){
     }
   }
   function checkCover(f,point,piece){
-    const cover=plainBox(piece).hi[1]-point[1],wanted=piece.t>=.75-1e-6?POCKET_COVER:POCKET_COVER_MIN;
+    const cover=plainBox(piece).hi[1]-point[1],wanted=pointCoverWanted(f,piece);   // (a pocket screw 1/8", every other kind 1/4" in a 3/4" top: js/style.js)
     if(cover<wanted-.005)near.push({f,cover});
   }
   return near;

@@ -531,7 +531,7 @@ SELFTESTS.push(function fishTopsShowNoScrews(problems){withoutDrawing(()=>{
             }
             const top=[f.into,f.through].find(p=>TOPS.test(p.name));
             if(!top||f.kind==='bracket'||!(f.dir[1]>.5))continue;
-            const point=pointPlus(f.pos,f.dir,f.len),cover=plainBox(top).hi[1]-point[1],wanted=top.t>=.75-1e-6?POCKET_COVER:POCKET_COVER_MIN;
+            const point=pointPlus(f.pos,f.dir,f.len),cover=plainBox(top).hi[1]-point[1],wanted=pointCoverWanted(f,top);   // (a pocket screw 1/8", any other 1/4" in a 3/4" top: js/style.js)
             if(cover<wanted-.005)wrong(`${at}: a ${f.label} into the ${top.name} ends ${fmt(Math.max(0,r16(cover)))} under its top face`);
             // the rails of the top's frame (topOnFrameWords): the holes on the inside face of the front rail, and of
             // the back rail on its back face where a thin back panel covers that, else on its inside face. A screw

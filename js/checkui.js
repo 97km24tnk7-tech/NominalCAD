@@ -46,7 +46,8 @@ const countWords=(n,one,many)=>`${n} ${n===1?one:many}`;
 /* ---------- the check itself, for the design on screen ---------- */
 function runCheck(){
   const result=verifyDesign(S.parts,designCheckOptions());   // with the hardware that really holds: js/holds.js
-  const problems=result.problems.concat(keptWarnings());
+  // (pocket holes that run out of their piece or into each other in the design as it is: js/pocketedge.js)
+  const problems=result.problems.concat(keptWarnings(),typeof pocketRoomWarnings==='function'?pocketRoomWarnings():[]);
   lastCheck={problems,notes:result.notes||[],facts:result.facts,skipped:result.skipped,snap:lastSnap};
   return result;
 }
