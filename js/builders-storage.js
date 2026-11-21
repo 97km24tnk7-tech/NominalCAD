@@ -919,7 +919,8 @@ SELFTESTS.push(function noPostBesideTheTopDeck(problems){
       let parts=[];
       try{parts=preset.build(vals)||[];}
       catch(e){continue;}               // choices the preset refuses are judged by its check(p), not here
-      const decks=parts.filter(piece=>/deck$/i.test(piece.name)&&!tilted(piece)).map(box),posts=parts.filter(piece=>piece.name==='Post').map(box);
+      // (the countertop of a closed fish cabinet is a deck too: js/fishtop.js)
+      const decks=parts.filter(piece=>/deck$|^countertop$/i.test(piece.name)&&!tilted(piece)).map(box),posts=parts.filter(piece=>piece.name==='Post').map(box);
       if(!decks.length||!posts.length)continue;
       const topOfDecks=Math.max(...decks.map(deck=>deck.hi[1]));
       const topDecks=decks.filter(deck=>deck.hi[1]>topOfDecks-.01);

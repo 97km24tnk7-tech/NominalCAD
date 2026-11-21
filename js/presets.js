@@ -33,7 +33,7 @@ const PRESETS=[
    ...[1,2,3,4,5,6].map(i=>({k:'r'+i,label:'Row '+i+(i===1?' (bottom)':''),opts:[['','Main tank'],...TANK_OPTS,['store','Storage / sump shelf, no tanks']],v:''})),
    num('storeH','Storage or cabinet height',16,6,48)],
   info:p=>rackNotes(p).slice(0,5).join(' '),notes:p=>rackNotes(p),build:buildRack,hw:p=>rackHw(p),
-  uses:RACK_USES,wall:rackWallIfNeeded,check:p=>rackCheck(p),joints:RACK_JOINTS,
+  uses:RACK_USES,wall:rackWallIfNeeded,check:p=>rackCheck(p),joints:rackJoints,hiddenFace:fishStandHiddenFace,
   stand:p=>isStandPlan(p),   // on a cabinet base it is built as a stand: center posts in a long bay (STAND_RULES, js/verify.js)
   ...rackPresetHooks(p=>p,(p,args,pl)=>rackWallGap(args,pl))},   // wallScrews and place: the screws into the wall studs and the section bolts (js/rackwall.js)
  {name:'Single aquarium stand',spec:'One tank, cabinet below',desc:'Stand for one tank, sized for its filled weight, with a cabinet, an open shelf or a second tank underneath.',
@@ -47,34 +47,38 @@ const PRESETS=[
    {head:'Do it by hand (leave on Auto to let the program decide)'},
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
-  info:p=>standNotes(p).slice(0,3).join(' '),notes:p=>standNotes(p),uses:RACK_USES,wall:standWall,check:standCheck,joints:standJoints,stand:true,
+  info:p=>standNotes(p).slice(0,3).join(' '),notes:p=>standNotes(p),uses:RACK_USES,wall:standWall,check:standCheck,joints:standJoints,stand:true,hiddenFace:fishStandHiddenFace,
   ...rackPresetHooks(standArgs,p=>standWallGap(p)),
   hw(p){
     const a=standArgs(p),list=[];
     if(!a)return list;
     const pl=rackPlan(a);
-    if(p.under==='cabinet')list.push(...doorHardware(doorTotal(pl),p.standH-1));
+    if(p.under==='cabinet')list.push(...doorHardware(doorTotal(pl),fishDoorHeight(pl)));
+    if(pl.countertop)list.push(countertopBandingLine(pl,true));   // the countertop's edges (js/fishtop.js)
     list.push(...wallScrewLines(pl,standWallGap(p)),...braceScrewLines(a));   // none for a stand that may stand free
     return list;
   },
-  build(p){const a=standArgs(p);if(!a)return[];const pl=rackPlan(a),P=buildRack(a);
-    if(p.under==='cabinet'||p.under==='panels')cabinetSkin(P,0,pl.mods[0],pl,p.standH,{doors:p.under==='cabinet',left:true,right:true,back:true});
-    return P;}},
+  build(p){const a=standArgs(p);return a?buildRack(a):[];}},   // a closed stand gets its panels, doors and countertop there (js/fishtop.js)
  {name:'Cabinet stand with a row of tanks',tile:'Cabinet stand',spec:'Doors below, tanks on top',desc:'A long cabinet with doors and one or more rows of tanks on top. Looks like furniture, works like a rack.',
   params:[{head:'Tanks'},
-   {k:'size',label:'Tank size',opts:[...TANK_OPTS,['custom','Custom (type below)']],v:'g20h',
+   // (the tanks the stand can take: a tank shallower than CABINET_STAND_LEAST.td is not on its list, js/fishtop.js)
+   {k:'size',label:'Tank size',opts:[...cabinetStandTankOpts(TANK_OPTS),['custom','Custom (type below)']],v:'g20h',
      fill:Object.fromEntries(Object.entries(TANKS).map(([k,v])=>[k,{tl:v[0],td:v[1],th:v[2],gal:v[3],clr:Math.max(8,Math.ceil(v[2]/2))}]))},
-   num('tl','Tank length',24,8,96),num('td','Tank front-to-back',12,6,36),num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS},
+   // (a cabinet stand is furniture for the house, held from inside: a frame less than 10" deep, under tanks less than
+   // 9" front to back, leaves no room to keep the pocket screws of its cross pieces clear of those that hold the feet
+   // of its uprights; a cabinet less than 7" tall inside, no room for a drill at those feet: CABINET_STAND_LEAST; the
+   // box says why when a smaller one is typed, CABINET_STAND_TD_WHY)
+   num('tl','Tank length',24,8,96),{...num('td','Tank front-to-back',12,CABINET_STAND_LEAST.td,36),why:CABINET_STAND_TD_WHY},num('th','Tank height',16,6,36),{k:'gal',label:'Gallons',v:20,dec:1,min:1,max:RACK_RULES.MAX_GALLONS},
    {k:'levels',label:'Rows of tanks on top',opts:[['1','1 row'],['2','2 rows'],['3','3 rows']],v:'1'},
    num('clr','Hand room above each tank',8,0,24),
    {head:'Cabinet'},
-   num('W','Length available',72,24,600),num('storeH','Cabinet height inside',24,6,48),RACK_BUILD_FIELD,
+   num('W','Length available',72,24,600),num('storeH','Cabinet height inside',24,CABINET_STAND_LEAST.storeH,48),RACK_BUILD_FIELD,
    {head:'Do it by hand (leave on Auto to let the program decide)'},
    {k:'perRow',label:'Tanks per row (0 = auto)',v:0,int:1,min:0,max:500},
    {k:'rail',label:'Rail size',opts:[['auto','Auto'],['2x4','2x4'],['2x6','2x6'],['2x8','2x8'],['2x10','2x10']],v:'auto'},
    {k:'up',label:'Upright size',opts:[['auto','Auto'],['2x4','2x4'],['4x4','4x4']],v:'auto'}],
   info:p=>rackNotes(cabArgs(p),CABINET_FIELDS).slice(0,4).join(' '),notes:p=>rackNotes(cabArgs(p),CABINET_FIELDS),build:p=>buildRack(cabArgs(p)),hw:p=>rackHw(cabArgs(p)),steps:p=>rackSteps(cabArgs(p),false,'cabinet stand'),
-  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:RACK_JOINTS,stand:true,
+  uses:RACK_USES,wall:p=>rackWallIfNeeded(cabArgs(p)),check:p=>rackCheck(cabArgs(p),CABINET_FIELDS),joints:cabinetStandJoints,stand:true,hiddenFace:fishStandHiddenFace,
   ...rackPresetHooks(cabArgs,(p,args,pl)=>rackWallGap(args,pl))},
  {name:'Platform bed',spec:'2x6 frame, 1x4 slats',desc:'2x6 frame on 4x4 legs with 1x4 slats. No box spring needed.',
   params:[{k:'size',label:'Mattress',opts:[['twin','Twin'],['twinxl','Twin XL'],['full','Full'],['queen','Queen'],['king','King'],['calking','California king'],['custom','Custom (type below)']],v:'queen',

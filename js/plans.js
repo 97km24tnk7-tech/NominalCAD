@@ -538,16 +538,17 @@ SELFTESTS.push(function stepsAgreeWithLists(problems){
       if(fastened.length)problems.push(`${label}a fastener is listed between the ${a} and the ${b}, which only touch`);
     }
   }
-  // the fish stand keeps the one joint between a post and a deck that is real: the top deck lies on the post tops
+  // The fish stand: the bottom deck only touches the posts; the countertop lies on the post tops and, in Everyday,
+  // only rests there (it is held from underneath, js/fishtop.js), so no screw is listed down through it.
   const stand=PRESETS.find(candidate=>candidate.name==='Single aquarium stand');
   if(stand){
     const vals=presetDefaults(stand);
     placePreset(stand,vals,stand.build(vals),false);
     const between=(a,b)=>findJoints().filter(j=>(j.a.name===a&&j.b.name===b)||(j.a.name===b&&j.b.name===a));
-    const postDeck=between('Post','Shelf deck');
-    if(!postDeck.some(j=>jType(j)==='none')||!postDeck.some(j=>jType(j)==='screw'))problems.push('Single aquarium stand: the bottom deck only touches the posts and the top deck is screwed down onto them; the fastener list must say both');
+    const postDeck=between('Post','Shelf deck'),postTop=between('Post','Countertop');
+    if(postDeck.some(j=>jType(j)!=='none')||!postTop.length||postTop.some(j=>jType(j)!=='none'))problems.push('Single aquarium stand: the bottom deck only touches the posts and the countertop only rests on their tops; the fastener list must say both');
     if(between('Shelf deck','Upright').some(j=>jType(j)!=='none'))problems.push('Single aquarium stand: an upright cannot be screwed from under the deck it stands on');
-    if(/pocket/.test(hardwareTotals(findJoints()).rows.map(row=>row[0]).join(' ')))problems.push('Single aquarium stand: pocket-hole screws are on its list, and its steps use none');
+    if(/pocket/.test(hardwareTotals(findJoints()).rows.map(row=>row[0]).join(' '))&&!/pocket screws/.test(S.steps.map(stepText).join(' ')))problems.push('Single aquarium stand: pocket-hole screws are on its list, and its steps use none');
     const steps=S.steps,finish=steps.findIndex(isFinishStep),doors=steps.findIndex(step=>step.add.includes('Door'));
     if(finish<0||doors<finish)problems.push('Single aquarium stand: the finish goes on before the doors are hung');
     if(/Stack upward|above the feet/.test(steps.map(step=>step.t).join(' ')))problems.push('Single aquarium stand: its steps are still the ones written for a rack of many rows');

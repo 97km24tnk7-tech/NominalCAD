@@ -65,6 +65,14 @@ const STYLE_RULES={
   // where the cross pieces are held to the rails by pocket screws of their own that pass the same spot inside the
   // rail, an L-bracket on the inside of the corner (js/builders-fish.js, RACK_JOINTS)
   bracketInFine:{rustic:'pocket',std:'pocket',fine:'bracket'},
+  // the same joint in the two fish stands that are furniture for the house: their cross pieces are held by pocket
+  // screws in Everyday too, as in Fine (so no head shows on the front rail), so the L-bracket is used in both
+  // (HOUSE_UPRIGHT_JOINTS, js/builders-fish.js)
+  bracketInHouse:{rustic:'pocket',std:'bracket',fine:'bracket'},
+  // the top of an upright in the open rows of tanks of a house fish stand, above the eye: the rail only rests on it
+  // (the upright is held by its pocket screw into the cross piece over it), so no bracket shows under the rail;
+  // Rustic keeps its pocket screws (openRowJoints, js/builders-fish.js)
+  restsInHouse:{rustic:'pocket',std:'none',fine:'none'},
   // a joint that takes a screw through a show face and has no hidden way that is as strong (a bed rail to its
   // leg): the head is sunk and covered by a glued wooden plug (filler under paint); Rustic leaves it showing
   pluggedUnlessRustic:{rustic:'screw',std:'plug',fine:'plug'}

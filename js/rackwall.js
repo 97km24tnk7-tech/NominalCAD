@@ -135,7 +135,7 @@ function rackWallScrewPlan(pl,gap){
   const len=full;
   // how far its thread reaches into the stud, and what one screw is counted for (WALL_SCREW_RULES, wallScrewHold)
   const into=r16(len-through-behind-DRYWALL),hold=wallScrewHold(into);
-  const topOfRack=top.y+pl.rb;              // the top of the top deck, where a pull is taken
+  const topOfRack=deckTopOf(pl,top);            // the top of the top deck, where a pull is taken
   // the height of a screw: the middle of the rail, or a third and two thirds up it when two share a stud
   const screwY=place=>place.stack===2?rail.y+pl.rh*(place.second?1:2)/3:rail.y+pl.rh/2;
   const sections=[];
@@ -153,8 +153,9 @@ function rackWallScrewPlan(pl,gap){
   const picks=[];
   for(const s of sections){
     // the screw worst off under a pull anywhere along this section's top (its thin side panels, 1/4" outside its
-    // posts on a cabinet base, are taken as part of it), as the structural check works it out
-    const weakest=places=>wallScrewWorst(places.map(place=>({x:place.x,y:screwY(place),hold})),s.ox-.25,s.ox+s.m.W+.25,topOfRack);
+    // posts on a cabinet base, and the countertop over them, 3/4" outside: rackPastEnds, are taken as part of it),
+    // as the structural check works it out
+    const weakest=places=>wallScrewWorst(places.map(place=>({x:place.x,y:screwY(place),hold})),s.ox-rackPastEnds(pl),s.ox+s.m.W+rackPastEnds(pl),topOfRack);
     let best=null;
     for(const keep of[s.keep,s.tight]){
       for(let offset=0;offset<WALL_SCREW_RULES.studs-1e-9;offset+=.25){
@@ -224,7 +225,7 @@ function rackBoltPlan(pl){
         }
         // in the hand room above the tanks of this row, through the end uprights (there is a frame above)
         if(i===pl.n-1)return;
-        const above=pl.rows[i+1],floorOfRoom=row.y+rb+(row.store?0:row.th),room=above.y-floorOfRoom;
+        const above=pl.rows[i+1],floorOfRoom=deckTopOf(pl,row)+(row.store?0:row.th),room=above.y-floorOfRoom;
         if(room<1.5-1e-6)return;
         const gripUp=3+2*su,lenUp=boltLengthFor(gripUp);
         if(!lenUp)return;
@@ -245,7 +246,7 @@ function boltUnderFrame(pl,bolt){
   const i=bolt.row;
   if(!(i>0))return null;
   const below=pl.rows[i-1],row=pl.rows[i],{D,ud,su,rb}=pl;
-  const floorOfRoom=below.y+rb+(below.store?0:below.th),top=row.y;
+  const floorOfRoom=deckTopOf(pl,below)+(below.store?0:below.th),top=row.y;
   if(top-floorOfRoom<1.5-1e-6)return null;
   const postZ=bolt.back?[0,ud]:[D-ud,D];
   const grip=3+2*su,len=boltLengthFor(grip);
@@ -299,11 +300,11 @@ function placeRackHardware(args,gap,parts){
   const added=[];
   connCache=null;   // the joints as the preset names them (storeNamedJoints ran just before)
   const railStretches=new Map();   // the fasteners of every style in each rail a wall screw goes through
-  const plan=rackWallScrewPlan(pl,gap),screws=wallScrewsInParts(plan.screws,parts),topOfRack=pl.rows[pl.n-1].y+pl.rb;
+  const plan=rackWallScrewPlan(pl,gap),screws=wallScrewsInParts(plan.screws,parts),topOfRack=deckTopOf(pl,pl.rows[pl.n-1]);
   // a section's screws still hold a pull anywhere along its top (wallScrewWorst), as they are now
   const sectionStart=i=>x0+pl.mods.slice(0,i).reduce((sum,m)=>sum+m.W,0);
   const sectionHolds=i=>wallScrewWorst(screws.filter(s=>s.section===i).map(s=>({x:s.at[0],y:s.at[1],hold:s.hold})),
-    sectionStart(i)-.25,sectionStart(i)+pl.mods[i].W+.25,topOfRack).ratio<=1+1e-6;
+    sectionStart(i)-rackPastEnds(pl),sectionStart(i)+pl.mods[i].W+rackPastEnds(pl),topOfRack).ratio<=1+1e-6;
   for(const s of screws){
     const host=s.on,mid=pieceMiddle(host);
     // Moved, if it must, up to 3/8" along the rail (it stays in the middle 3/4" of a stud 1 1/2" wide) and 1/8"

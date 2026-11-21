@@ -848,7 +848,7 @@ SELFTESTS.push(function stepPicturesShowTheWork(problems){
   }
   const stand=place('Single aquarium stand');
   const posts=stand.steps.findIndex(step=>step.pieces.some(p=>p.name==='Post'));
-  const topDeck=S.parts.filter(p=>p.name==='Shelf deck').sort((a,b)=>b.pos[1]-a.pos[1])[0];
+  const topDeck=S.parts.filter(p=>/^(Shelf deck|Top deck|Countertop)$/.test(p.name)).sort((a,b)=>b.pos[1]-a.pos[1])[0];   // (the countertop of a closed stand: js/fishtop.js)
   if(stepScene(stand,posts).visible(topDeck.id))wrong('aquarium stand: the picture of the post step shows the top frame, which is set on a step later');
   if(!stepScene(stand,posts+1).fresh.has(topDeck.id))wrong('aquarium stand: the step that lowers the top frame does not draw it as new');
   // a line of hinges, pulls, slides, runners or kickers has a close-up whose every number is in its line

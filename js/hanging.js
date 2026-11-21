@@ -224,7 +224,11 @@ function hangPlan(door,opts){
       // Of two that fit as well, the one right at the edge of the door (an end post, not the upright behind it
       // that stands further in): offEdge, how far in from the edge it starts, tips the balance.
       const offEdge=s.rB?Math.max(0,edgeSign>0?found.edge-s.rB[1]:s.rB[0]-found.edge):0;
-      const miss=Math.abs(at-want)+(s.rA[1]-s.rA[0]<1.25?100:0)+(crosses?3:0)+offEdge*.01;
+      // The edge of a thin panel behind the door (a 1/4" side panel whose front edge an overlay door covers, as on
+      // the fish cabinets, js/fishtop.js) takes no hinge screws: the post beside it does, so it is used only when
+      // there is nothing else.
+      const thinEdge=s.rB&&s.rB[1]-s.rB[0]<.5?50:0;
+      const miss=Math.abs(at-want)+(s.rA[1]-s.rA[0]<1.25?100:0)+(crosses?3:0)+offEdge*.01+thinEdge;
       if(!best||miss<best.miss)best={at,s,miss};
     }
     if(best&&!places.some(p=>Math.abs(p.at-best.at)<2))places.push(best);

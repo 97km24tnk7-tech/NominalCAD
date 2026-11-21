@@ -2085,11 +2085,17 @@ for(const name of DRILL_CHECKS){
    below, from an empty design, twice the same) and say why in the commit. Recorded on branch drill2 (stage 2), and
    again in all three styles after its review (twice the same): in Everyday only the Platform bed moved on purpose (a
    plugged rail screw's holes now on the screw, R1) and the Fish tank wall / rack, Garage shelves, Raised garden bed
-   and Computer desk (a staggered pair no longer flipped up and down by the middle of the design, R9). */
+   and Computer desk (a staggered pair no longer flipped up and down by the middle of the design, R9).
+   Recorded again when branch fishtop was merged with main (the fish countertop, the owner's "no need to see [the
+   screws]"), the three fish presets only, in all three styles, twice the same: in Everyday and Fine their tops are
+   held from underneath by pocket screws in the rails and cross pieces, so the clearance holes down through the top
+   deck and the screws through it into the post tops are gone; the two cabinet stands' top is the 3/4" Countertop
+   (Rustic screws it down, so its holes are on the Countertop, and the rack's top deck is named Top deck); the frames
+   in sight are held from inside. Every other preset reads back as main recorded it. */
 const DRILL_PRINTS_RECORDED={
-  "Fish tank wall / rack":{"std":[632,"qk3js"],"fine":[420,"1g750au"],"rustic":[632,"qk3js"]},
-  "Single aquarium stand":{"std":[208,"1xyda1u"],"fine":[136,"ok95hy"],"rustic":[208,"1xyda1u"]},
-  "Cabinet stand with a row of tanks":{"std":[304,"plp9ye"],"fine":[202,"1os3pp0"],"rustic":[304,"plp9ye"]},
+  "Fish tank wall / rack":{"std":[570,"1si7anw"],"fine":[404,"s8o11m"],"rustic":[632,"f39hn3"]},          // recorded again at the fishtop merge
+  "Single aquarium stand":{"std":[160,"1h0o42o"],"fine":[144,"1y2nfu0"],"rustic":[208,"b1o0ge"]},         // recorded again at the fishtop merge
+  "Cabinet stand with a row of tanks":{"std":[218,"1lfya"],"fine":[202,"wmnv36"],"rustic":[304,"hivzkd"]},  // recorded again at the fishtop merge
   "Platform bed":{"std":[272,"1cemwt2"],"fine":[246,"1fihgop"],"rustic":[284,"172jgbs"]},
   "Shed":{"std":[0,"ztntfp"],"fine":[0,"ztntfp"],"rustic":[0,"ztntfp"]},
   "Bird feeder":{"std":[32,"15p3vv0"],"fine":[20,"150qkn8"],"rustic":[32,"15p3vv0"]},

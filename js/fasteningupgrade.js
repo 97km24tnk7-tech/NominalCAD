@@ -25,10 +25,14 @@
                    is drilled in "Drill your pieces" (js/drillplan.js), and the steps no longer tell to drill them.
                    6: the dowel holes, clearance holes and counterbores are drilled there too (stage 2), and a mark
                    step 2 pencils on is not asked for again, so saved steps that still say so are written again.
+                   7: the tops of the fish stands and racks are held from underneath and only rest on the post tops,
+                   and the frames of the two cabinet stands are held from inside (js/fishtop.js, TOP_JOINTS).
+                   (Both were 6 on their own branches; at the merge the fish tops became 7, so a fish design saved
+                   by the published program under rule 6 still switches to its countertop's fastening.)
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=6;
+const FASTENING_NOW=7;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);

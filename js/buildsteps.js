@@ -632,10 +632,11 @@ function faceWords(piece,out,withDirection){
     return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face (either one)`;
   }
   // Nor has a piece with others against both of its faces this way (a divider between two bays, not in the middle):
-  // its face is named by the way it looks
+  // its face is named by the way it looks, always: "back or front face" told a beginner nothing about which face of
+  // a back rail with a back panel behind it takes the holes (the fish countertop review, S6)
   if(touchedOnBothFaces(piece,b,axis)){
     const end=DIRECTION_ENDS[axis][high?1:0];
-    return withDirection?`${end} face (the one that looks to the ${end})`:`${DIRECTION_ENDS[axis].join(' or ')} face`;
+    return`${end} face (the one that looks to the ${end})`;
   }
   const inward=high===(middle[axis]>(b.lo[axis]+b.hi[axis])/2);
   // "faces out" means nothing on a piece inside the design (two cross rails under a desk top, each off the middle):
@@ -2528,7 +2529,14 @@ function whatABeginnerReads(wrong,place){
   const posts=plan.steps.find(step=>step.pieces.some(p=>p.name==='Post'));
   if(!posts||posts.groups.some(group=>/Shelf deck/.test(group.line))||posts.groups.reduce((sum,group)=>sum+group.total,0)!==16)wrong('the post step of the aquarium stand lists screws of the top frame, which goes on a step later');
   const frameOn=plan.steps.find(step=>step.brought.length);
-  if(!frameOn||!frameOn.groups.some(group=>/through the Shelf deck \([A-Z]+\) into the end of the Post/.test(group.line)))wrong('the step that lowers the top frame of the aquarium stand does not list the screws down into the posts');
+  // (the screws between the top frame and the posts, by name: its rails and its end cross pieces, not any screw into
+  // a post, which the uprights' would also be; its countertop only rests on the post tops in Everyday and Fine,
+  // held from underneath, and is screwed down into them in Rustic: js/fishtop.js)
+  const frameLines=frameOn?frameOn.groups.map(group=>group.line):[];
+  const railsToPosts=frameLines.some(line=>/through the Post \([A-Z]+\) into the end of the Rail|through the Rail \([A-Z]+\) into the Post/.test(line));
+  const crossToPosts=frameLines.some(line=>/through the Cross piece \([A-Z]+\) into the Post/.test(line));
+  const downThrough=frameLines.some(line=>/through the Countertop/.test(line));
+  if(!frameOn||!railsToPosts||!crossToPosts||downThrough!==(look().style==='rustic'))wrong('the step that lowers the top frame of the aquarium stand does not list the screws between its rails and cross pieces and the posts, or screws down through the countertop in a style that holds it from underneath');
   if(/also counts the screws of the next step/.test(plan.steps.map(step=>step.words).join(' ')))wrong('a step of the aquarium stand still says its list counts the screws of another step');
   place('Garage shelves');
   plan=buildPlan(true);

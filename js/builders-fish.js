@@ -28,7 +28,7 @@ const RAILS=Object.entries(TANK_RAIL_MAX_SPAN).map(([name,maxSpan])=>{const s=se
 const UPS=[['2x4',1.5,3.5],['4x4',3.5,3.5],['2x6',1.5,5.5],['2x8',1.5,7.25]].map(([name,across,deep])=>[name,across,postSafeLoad(name,0),deep]);
 const TANK_LB=WOOD_RULES.TANK_LB_PER_GAL; // weight of a filled tank for each gallon
 /* what the structural check should take each piece of a rack or stand for (keys of USES in js/verify.js) */
-const RACK_USES={'Rail':'tankRail','Shelf deck':'tankDeck','Cross piece':'tankDeck','Post':'none','Back brace':'none','Side panel':'none','Back panel':'none','Door':'door','Filler block':'none','Panel stud':'none'};
+const RACK_USES={'Rail':'tankRail','Shelf deck':'tankDeck','Top deck':'tankDeck','Countertop':'tankDeck','Cross piece':'tankDeck','Post':'none','Back brace':'none','Side panel':'none','Back panel':'none','Door':'door','Filler block':'none','Panel stud':'none'};
 const railOf=n=>RAILS.find(r=>r[0]===n),upOf=n=>UPS.find(u=>u[0]===n);
 /* The rules of thumb that are the rack's own (the wood limits are in js/verify.js). */
 const RACK_RULES={
@@ -59,9 +59,14 @@ const RACK_RULES={
   FOOT_MIN:4                   // the shortest foot under a bottom frame: a shorter block cannot take a pocket hole
 };
 const up16=v=>Math.ceil(v*16-1e-6)/16,down16=v=>Math.floor(v*16+1e-6)/16; // to the next / the last 1/16"
-/* what the thin plywood side panels of a cabinet base add to the width, outside the end posts (1/4" each end), so
-   that the whole rack, panels and all, is no wider than the width typed */
-const sidePanelsWidth=p=>p.base==='cabinet'?.5:0;
+/* what the thin plywood side panels of a cabinet base and the countertop over them add to the width, outside the
+   end posts (the countertop reaches 1/2" past each 1/4" panel: 3/4" each end, js/fishtop.js), so that the whole
+   rack, countertop and all, is no wider than the width typed */
+const sidePanelsWidth=p=>p.base==='cabinet'?2*fishTopSidePast():0;
+/* the 1/2" plywood deck of every frame of a rack (the countertop of a closed cabinet is thicker: FISH_TOP) */
+const RACK_DECK=.5;
+/* the top of the deck (or countertop) of a row of a plan */
+const deckTopOf=(pl,row)=>row.y+pl.rh+row.dk;
 /* What sits under the bottom row of tanks: nothing, an open storage shelf, or a closed cabinet with doors.
    A base is simply an extra storage row added at the bottom; every row the user set moves up one. */
 function rackBase(p){
@@ -81,6 +86,7 @@ const DOOR_SINGLE_MAX=20,DOOR_PAIR_MAX=54,DOOR_GAP=.125;
 const cabinetDoors=(pl,m)=>rackLayout(pl,m).front;
 function doorsAlong(pl,m,lines,bays){
   const doors=[],stiles=[];
+  const tall=pl.countertop?fishDoorHeight(pl):Infinity;   // how tall the doors are (under the countertop, js/fishtop.js)
   // (the lines that bound the bays; a stand's center posts stand inside a bay, and its doors meet on them: see below)
   const ends=lines.filter(L=>!L.center);
   bays.forEach((b0,j)=>{
@@ -89,8 +95,11 @@ function doorsAlong(pl,m,lines,bays){
     const from=j===0?0:left.x+left.w/2,to=j===bays.length-1?m.W:right.x+right.w/2;
     // A bay with center posts (a long stand): the doors meet in front of every center post (doorsAroundCenters)
     const centers=lines.filter(L=>L.center&&L.x>b0-1e-6&&L.x<b0+pl.B+1e-6);
-    if(centers.length){doorsAroundCenters(from,to,centers,doors);return;}
-    const pairs=pl.B<=DOOR_SINGLE_MAX?0:Math.ceil(pl.B/DOOR_PAIR_MAX-1e-6),count=pairs?2*pairs:1,wide=(to-from-DOOR_GAP*count)/count;
+    if(centers.length){doorsAroundCenters(from,to,centers,doors,tall);return;}
+    // (a single door is never wider than it is tall: a low cabinet gets a pair that meet in the middle, which reads
+    // better and sags less on its hinges; the real-thing review, N4)
+    const single=pl.B<=DOOR_SINGLE_MAX&&to-from<=tall+1e-6;
+    const pairs=single?0:Math.max(1,Math.ceil(pl.B/DOOR_PAIR_MAX-1e-6)),count=pairs?2*pairs:1,wide=(to-from-DOOR_GAP*count)/count;
     for(let i=0;i<count;i++)doors.push({x:from+DOOR_GAP/2+i*(wide+DOOR_GAP),w:wide});
     // a door stile where two pairs meet
     for(let q=1;q<pairs;q++)stiles.push(r16(from+q*(to-from)/pairs-.75));
@@ -105,11 +114,12 @@ function doorsAlong(pl,m,lines,bays){
    is as wide), else a pair that meets in the middle. The posts are never more than STAND_RULES.most apart, so no
    stretch needs a door stile. Adds {x, w} to doors. */
 const DOOR_ONE_SIDE_MAX=29;
-function doorsAroundCenters(from,to,centers,doors){
+function doorsAroundCenters(from,to,centers,doors,tall){
   const cuts=[from,...centers.map(L=>L.x+L.w/2),to];
   for(let s=0;s<cuts.length-1;s++){
     const start=cuts[s],stretch=cuts[s+1]-start;
-    const count=stretch<=DOOR_ONE_SIDE_MAX+1e-6?1:2*Math.ceil(stretch/(2*DOOR_ONE_SIDE_MAX)-1e-6);
+    // (one door, never wider than it is tall: tall, the height of the doors)
+    const count=stretch<=DOOR_ONE_SIDE_MAX+1e-6&&stretch<=(tall||Infinity)+1e-6?1:2*Math.max(1,Math.ceil(stretch/(2*DOOR_ONE_SIDE_MAX)-1e-6));
     const wide=(stretch-DOOR_GAP*count)/count;
     for(let i=0;i<count;i++)doors.push({x:start+DOOR_GAP/2+i*(wide+DOOR_GAP),w:wide});
   }
@@ -118,31 +128,44 @@ const doorTotal=pl=>pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).doors.length,
 /* a plywood door taller than 40" wants a third hinge in the middle or it bows away from the frame */
 const hingesFor=doorHeight=>doorHeight>40?3:2;
 const doorHardware=(n,doorHeight)=>[['Cabinet hinges, overlay type for face frames',hingesFor(doorHeight)*n],['Door pulls',n],['Magnetic door catches',n]];
-/* Thin plywood sides and back, and overlay doors across the front, up to height H, for the section m that starts
-   at x = ox. o says which of them: {left, right, back, doors}. The storage space is the bottom row of the plan. */
+/* Thin plywood sides and back, and overlay doors across the front, up to height H (the underside of the
+   countertop, countertopUnderside in js/fishtop.js), for the section m that starts at x = ox. o says which of them:
+   {left, right, back, doors}. The storage space is the bottom row of the plan. */
 function cabinetSkin(P,ox,m,pl,H,o){
-  const W=m.W,D=pl.D;
-  // A side panel too big for one sheet (deeper and taller than 4 ft) is made in two halves that meet on a stud
-  // stood between the two posts, so the seam has wood behind it.
-  const sideHalves=fitsSheet(H,D)?1:2;
+  const W=m.W,D=pl.D,t=FISH_TOP.panel;   // (the thin panels: 1/4" plywood, js/fishtop.js)
+  // The side panels run to the back of the back panel, so its edge does not show at the back corners from the side
+  // (the real-thing review, N6); the back panel fits between them. A side panel too big for one sheet (deeper and
+  // taller than 4 ft) is made in two halves that meet on a stud stood between the two posts, so the seam has wood
+  // behind it.
+  const back=o.back?t:0,deep=D+back;
+  const sideHalves=fitsSheet(H,deep)?1:2;
   const side=(panelX,studX)=>{
-    for(let i=0;i<sideHalves;i++)P.push(mk('Side panel','ply14',[.25,H,D/sideHalves],[panelX,0,i*D/sideHalves]));
-    if(sideHalves>1)P.push(mk('Panel stud','2x4',[1.5,H-.5,3.5],[studX,0,r16(D/2-1.75)])); // up to the underside of the deck above
+    for(let i=0;i<sideHalves;i++)P.push(mk('Side panel','ply14',[t,H,r16(deep/sideHalves)],[panelX,0,r16(i*deep/sideHalves-back)]));
+    if(sideHalves>1)P.push(mk('Panel stud','2x4',[1.5,H,3.5],[studX,0,r16(deep/2-back-1.75)])); // up to the underside of the countertop
   };
-  if(o.left)side(ox-.25,ox);
+  if(o.left)side(ox-t,ox);
   if(o.right)side(ox+W,ox+W-1.5);
   // the back: as few pieces as one sheet allows (a back taller than 4 ft uses its sheets standing up)
   if(o.back){
     const storage=pl.rows[0],{seams,nailers}=backSeams(pl,m,H);
     const cuts=[0,...seams,W];
-    for(let i=0;i<cuts.length-1;i++)P.push(mk('Back panel','ply14',[cuts[i+1]-cuts[i],H,.25],[ox+cuts[i],0,-.25]));
+    for(let i=0;i<cuts.length-1;i++)P.push(mk('Back panel','ply14',[cuts[i+1]-cuts[i],H,t],[ox+cuts[i],0,-t]));
     // Where no upright stands at a seam, a panel stud stands behind it on the bottom deck. It stops 1/8" under the
     // frame above: it is there to nail the panels to and must not pick up tank weight from the rail over a bay.
     for(const x of nailers)P.push(mk('Panel stud','2x4',[1.5,storage.th+storage.ab-BACK_STUD_GAP,3.5],[ox+x-.75,storage.y+pl.rb,0]));
   }
   if(!o.doors)return;
   const front=cabinetDoors(pl,m),storage=pl.rows[0];
-  for(const door of front.doors)P.push(mk('Door','ply34',[door.w,H-1,.75],[ox+door.x,.5,D]));
+  // Even gaps (js/fishtop.js, FISH_TOP): 1/8" between doors and under the countertop, 1/2" over the floor, and the
+  // two outer doors reach over the front edge of the side panels to within 1/16" of their outside, so the front
+  // shows doors only, not the layers of a plywood edge.
+  // (an end door starts DOOR_GAP/2 in from the end of the frame: moved out by the panel's thickness, it stops that
+  // same 1/16" short of the panel's outside face)
+  const last=front.doors.length-1,over=FISH_TOP.panel;
+  front.doors.forEach((door,i)=>{
+    const left=i===0&&o.left?over:0,right=i===last&&o.right?over:0;
+    P.push(mk('Door','ply34',[door.w+left+right,fishDoorHeight(pl),.75],[ox+door.x-left,FISH_TOP.floor,D]));
+  });
   // a stile stands on the bottom deck over the front rail and reaches the underside of the frame above, like an upright
   const st=stileStock(pl);
   for(const x of front.stiles)P.push(mk('Door stile',st.mat,[1.5,storage.th+storage.ab,st.deep],[ox+x,storage.y+pl.rb,D-st.deep]));
@@ -169,13 +192,33 @@ function backSeams(pl,m,H){
     seams.push(seam);
     start=seam;
   }
+  // A 1/4" panel wider than a sheet is wide (4 ft), laid the long way, bows while it is held and nailed, and its
+  // brads along the frame under the countertop (7/8" from its top edge, rule 3 of js/fasteners.js) cannot be drawn
+  // large enough to read on its marking view: where a line of uprights stands inside such a piece, the piece is
+  // cut there too, so both edges land on wood (no panel stud is added for it).
+  // (Kept after the code review of 20 Nov, 11, which asked whether it should stay: without it the marking-view
+  // self-check fails on the Cabinet stand ("7/8" is drawn 7.9 px long, too short to see"), and that drawing belongs
+  // to "Drill your pieces" (js/markingview.js). The question is in the team's report.)
+  for(let guard=0;guard<100;guard++){
+    const cuts=[0,...seams.sort((a,b)=>a-b),W];
+    let added=false;
+    for(let i=0;i<cuts.length-1&&!added;i++){
+      if(cuts[i+1]-cuts[i]<=SHEET_W+1e-6)continue;
+      const middle=(cuts[i]+cuts[i+1])/2,inside=lines.filter(x=>x>cuts[i]+1&&x<cuts[i+1]-1);
+      if(!inside.length)continue;
+      seams.push(inside.reduce((best,x)=>Math.abs(x-middle)<Math.abs(best-middle)?x:best));
+      added=true;
+    }
+    if(!added)break;
+  }
+  seams.sort((a,b)=>a-b);
   return{seams,nailers};
 }
 /* The back panels in words, for the steps: where their seams go, and the panel studs behind seams with no upright. */
 function backSeamWords(pl,H){
   const seams=pl.mods.reduce((sum,m)=>sum+backSeams(pl,m,H).seams.length,0),studs=pl.mods.reduce((sum,m)=>sum+backSeams(pl,m,H).nailers.length,0);
   if(!seams)return'';
-  return` The back is wider than one sheet, so it is ${seams+pl.mods.length} pieces, and every seam between two of them lands on the middle of an upright${studs?' or a panel stud':''}, so both edges have wood to nail into.`+
+  return` The back is ${seams+pl.mods.length} pieces (one wider than 4 ft is cut where an upright stands behind it, so each stays flat while you nail it), and every seam between two of them lands on the middle of an upright${studs?' or a panel stud':''}, so both edges have wood to nail into.`+
     (studs?` Where no upright stands at a seam, first stand a 2x4 panel stud on the bottom deck behind it, narrow edge to the back, cut 1/8" short of the frame above, and screw it to the deck (${studs===1?'one':studs} in all). It is only there to nail the panels to, so it must not carry any of the weight of the tanks.`:'');
 }
 /* the lumber of a door stile: as the uprights, but never wider than 1 1/2" across (a 2x4 beside 4x4 uprights) */
@@ -188,7 +231,9 @@ const stileStock=pl=>pl.su>1.5?{mat:'2x4',deep:3.5}:{mat:pl.up,deep:pl.ud};
 function rackHw(p,gap){
   const pl=rackPlan(p),list=[];
   if(!pl)return list;
-  if(p.base==='cabinet')list.push(...doorHardware(doorTotal(pl),pl.rows[1].y+pl.rb-1));
+  if(p.base==='cabinet')list.push(...doorHardware(doorTotal(pl),fishDoorHeight(pl)));
+  // the iron-on banding of the countertop's front and ends (js/fishtop.js)
+  if(pl.countertop)list.push(countertopBandingLine(pl,!(p.brace&&rackBraces(pl,pl.mods[0]).length)));
   list.push(...wallScrewLines(pl,gap===undefined?rackWallGap(p,pl):gap),...sectionBoltLines(pl),...braceScrewLines(p));
   return list;
 }
@@ -298,7 +343,12 @@ function standCenterLines(B,su,rows){
 const isStandPlan=p=>!!p.stand||p.base==='cabinet';
 function rackPlanFresh(p){
   const stand=isStandPlan(p);
+  // A closed cabinet under the tanks gets one flat countertop (js/fishtop.js): the deck of the row right above the
+  // cabinet is a 3/4" plywood top instead of the 1/2" deck, so that row's frame is 1/4" taller with it.
+  const countertop=hasCountertop(p);
   p=rackBase(p);
+  // how thick the deck of row i is (deckOf), and the height of a frame with its deck
+  const deckOf=i=>countertop&&i===COUNTERTOP_ROW?FISH_TOP.t:RACK_DECK;
   // every size is taken to the 1/16" the pieces are cut to, so that parts meet exactly
   const above=r16(p.light+p.clr),board=+p.board||96,fixedRows=+p.levels||0,capTanks=+p.perRow||0;
   const main={tl:r16(p.tl),td:r16(p.td),th:up16(p.th),gal:p.gal,name:TANKS[p.size]?TANKS[p.size][4]:`${p.gal} gallon tank`};
@@ -323,24 +373,27 @@ function rackPlanFresh(p){
 
   const tryOrientation=(end,words)=>{
     for(const[rail,Sx,I,capSpan]of railList)for(const[up,su,bear,ud]of upList){
-      const rh=M[rail].w,rb=rh+.5,rows=[];
+      const rh=M[rail].w,rb=rh+RACK_DECK,rows=[];
+      // A stand typed by its overall height: the storage space is what the two frames (the top one with its
+      // countertop, when it has one) leave of it.
+      const standStorage=p.standH?down16(p.standH-rb-(rh+deckOf(1))):0;
       // "Lowest tank off floor" is about the lowest TANK: storage rows under it (a base, or a bottom row set to
       // storage) already lift it, so the feet only make up what is still missing.
-      let underTanks=0;
-      for(let i=0;i<12&&rowSpec(i).store;i++)underTanks+=rb+(p.standH?down16(p.standH-2*rb):rowSpec(i).th);
+      let underTanks=0,storeRows=0;
+      for(;storeRows<12&&rowSpec(storeRows).store;storeRows++)underTanks+=rh+deckOf(storeRows)+(p.standH?standStorage:rowSpec(storeRows).th);
       // A foot is held by pocket screws from its top into the frame (RACK_JOINTS). A block shorter than
       // RACK_RULES.FOOT_MIN cannot take a pocket hole (it cannot be held in the jig, and the hole would come out
       // at its bottom), so a shorter gap under the bottom frame is made that tall: the tanks sit a little higher
       // than asked, and the notes say so (raised).
-      const wanted=r16(Math.max(0,p.low-rb-underTanks)),y0=wanted>0&&wanted<RACK_RULES.FOOT_MIN-1e-6?RACK_RULES.FOOT_MIN:wanted;
+      const wanted=r16(Math.max(0,p.low-(rh+deckOf(storeRows))-underTanks)),y0=wanted>0&&wanted<RACK_RULES.FOOT_MIN-1e-6?RACK_RULES.FOOT_MIN:wanted;
       // stack the rows from the floor up
       let y=y0,bad=false;
       for(let i=0;i<(fixedRows||12);i++){
         const s=rowSpec(i),tx=s.store?0:(end?s.td:s.tl),tz=s.store?0:(end?s.tl:s.td);
-        const th=s.store&&p.standH?down16(p.standH-2*rb):s.th,ab=s.store?0:above,pitch=rb+th+ab;
+        const dk=deckOf(i),th=s.store&&p.standH?standStorage:s.th,ab=s.store?0:above,pitch=rh+dk+th+ab;
         if(th<(s.store?RACK_RULES.MIN_STORAGE:.5)||(!s.store&&(tx<=0||tz<=0))){bad=true;break;}
         if(!fixedRows&&y+pitch>p.H+1e-6)break;
-        rows.push({...s,th,tx,tz,sl:tx+1,wt:s.gal*TANK_LB,w:s.store?0:s.gal*TANK_LB/(tx+1)/2,y,ab,pitch});
+        rows.push({...s,th,tx,tz,sl:tx+1,wt:s.gal*TANK_LB,w:s.store?0:s.gal*TANK_LB/(tx+1)/2,y,ab,pitch,dk});
         y+=pitch;
       }
       if(bad)continue;
@@ -350,8 +403,10 @@ function rackPlanFresh(p){
         const tanks=rows.filter(r=>!r.store);
         if(!tanks.length)break;
         const D=Math.max(7.5,Math.ceil((Math.max(...tanks.map(r=>r.tz))+1)*4)/4);
-        if(D>p.maxD+1e-6||2*ud>D+1e-6)break;           // too deep for the room, or the uprights would run into each other
-        const last=rows[rows.length-1],top=last.y+rb+last.th,postH=last.y+rh,tall=Math.max(top,postH),ratio=tall/D;
+        // too deep for the room (a cabinet base: with the back panel, the doors and the countertop's overhang at the
+        // front, fishTopDepthMost), or the uprights would run into each other
+        if(D+(p.base==='cabinet'?fishTopDepthMost(p.brace):0)>p.maxD+1e-6||2*ud>D+1e-6)break;
+        const last=rows[rows.length-1],top=last.y+rh+last.dk+last.th,postH=last.y+rh,tall=Math.max(top,postH),ratio=tall/D;
         // Auto never builds taller than a rack that deep may be, nor taller than the longest board (an end post
         // is one piece): it leaves the top row off instead. Rows forced by hand are built and flagged.
         if(!fixedRows&&rows.length>1&&(ratio>RACK_RULES.MAX_RATIO+1e-6||postH>board+1e-6)){rows.pop();trim();continue;}
@@ -415,6 +470,7 @@ function rackPlanFresh(p){
             raised:y0-wanted,   // how much higher than "Lowest tank off floor" the feet put the tanks (0 almost always)
             build:rackBuildOf(p),doors:p.base==='cabinet'||!!p.doors,   // how it is built along its length; whether it has cabinet doors (they need door stiles in wide bays)
             stand,centers:centers.left,   // built as a stand; the left edges of its center posts in each bay, from the bay's left edge (none in a short bay)
+            countertop,   // the deck of row COUNTERTOP_ROW is the countertop of a closed cabinet (js/fishtop.js)
             brace:!!p.brace,    // it gets diagonal back braces (rackBraces; the screws into the wall keep clear of them, js/rackwall.js)
             upLoad:upWorst.load*span,upSafe:upWorst.safe,upLength:upWorst.length, // the hardest-working upright: what it carries, what it may, how long it is
             gallons:rr.reduce((a,r)=>a+r.cnt*r.gal,0),total:rr.reduce((a,r)=>a+r.cnt*r.wt,0),
@@ -478,6 +534,7 @@ function rackLayout(pl,m){
     if(!under.some(c=>Math.abs(c-x)<1.5-1e-6))lay.stileCross.push(x);
   }
   lay.seams=deckSeams(pl,m,lay);
+  addCountertopCrossPieces(pl,m,lay);   // a countertop longer than a sheet meets over a cross piece too (js/fishtop.js)
   lay.cross=[...new Set([...lay.inBay,...under])].sort((a,b)=>a-b);
   rackLayoutMemo.set(m,lay);
   return lay;
@@ -617,12 +674,17 @@ function rackNotes(p,fields){
   const joined=railJointWords(pl,thing),remark=rackBuildRemark(pl),aBoard=`${pl.board===96?'an':'a'} ${pl.board/12} ft board`;
   const along=M0>1?`, built as ${M0} separate sections side by side (${pl.mods.map(m=>m.nb).join(' + ')} bays), each with its own posts, so no rail is longer than ${aBoard}`
     :joined?`, built as one wall with posts at its two ends only. ${joined} No piece is longer than ${aBoard}`:'';
-  N.push(`The ${thing} is ${fmtFt(pl.W+sidePanelsWidth(p))} wide${sidePanelsWidth(p)?' with its side panels':''} × ${fmtFt(pl.D)} deep`+along+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`+(remark?' '+remark:''),
+  // (a cabinet base: the countertop over it is the widest and deepest part, js/fishtop.js)
+  // (and the braces across the back, 3/4" behind the frame)
+  const cabinet=p.base==='cabinet',braced=p.brace&&rackBraces(pl,pl.mods[0]).length>0;
+  const outsideDeep=r16(pl.D+(braced?.75:cabinet?countertopBackPast(pl,true):0)+(cabinet?fishTopFront(pl):0));
+  N.push(`The ${thing} is ${fmtFt(r16(pl.W+sidePanelsWidth(p)))} wide × ${fmtFt(outsideDeep)} deep${cabinet?' overall, the countertop over its cabinet included':braced?' overall, the braces on its back included':''}`+along+`. Top of the highest tank is ${fmtFt(pl.top)} off the floor.`+(remark?' '+remark:''),
    `Filled weight: about ${Math.round(pl.total).toLocaleString()} lb of tanks plus lumber, roughly ${psf} lb per square foot of floor.`,
    `Above every tank there is ${typedLen(p.light)} for the light plus ${typedLen(p.clr)} of open hand room for feeding, netting and cleaning.`+(pl.top>66?' The top row is above eye level, so plan on a step stool to service it.':''));
   const lights=lightsNote(p,pl);
   if(lights)N.push(lights);
   if(pl.raised>0)N.push(footRaisedWords(pl));
+  if(pl.countertop)N.push(countertopNote(pl,thing==='rack'?'cabinet':thing,!braced));
   if(!pl.over)N.push(`Load check: ${pl.rail} rails at ${pct(pl.util.rail)} and ${pl.up} uprights at ${pct(pl.util.up)} of the rule-of-thumb limit, with uprights ${pl.centers.length?'no more than ':''}${fmt(r16(pl.span))} apart. The weight goes straight down through wood, not through screws.`);
   const centers=centerPostsNote(pl,thing);
   if(centers)N.push(centers);
@@ -651,43 +713,64 @@ function buildRack(p){
       if(inset>0&&rows.length>1)for(const cx of lay.under)for(const z of[0,D-inset])P.push(mk('Filler block',rail,[1.5,rh,inset],[ox+cx,y,z]));
       // One deck along the whole frame, cut where a sheet runs out, always inside a bay (lay.seams): every upright
       // stands on one piece of plywood, and the plywood runs across the rail joints. The lower decks fit between
-      // the posts; the top deck runs over the post tops so the top is one clean surface.
+      // the posts; the top deck runs over the post tops so the top is one clean surface. It is named apart ('Top
+      // deck'), because it is held on from underneath (RACK_JOINTS) so that no screw head shows on top. Over a
+      // closed cabinet the deck is the countertop instead (fishCountertop, js/fishtop.js).
       const top=i===rows.length-1,from=top?0:1.5,to=top?W:W-1.5;
-      const cuts=[from,...lay.seams.filter(x=>x>from+1e-6&&x<to-1e-6),to];
-      for(let q=0;q<cuts.length-1;q++)P.push(mk('Shelf deck','ply12',[cuts[q+1]-cuts[q],.5,D],[ox+cuts[q],y+rh,0]));
+      if(pl.countertop&&i===COUNTERTOP_ROW)P.push(...fishCountertop(pl,m,ox,row,skinOf(m)));
+      else{
+        const cuts=[from,...lay.seams.filter(x=>x>from+1e-6&&x<to-1e-6),to];
+        for(let q=0;q<cuts.length-1;q++)P.push(mk(top?'Top deck':'Shelf deck','ply12',[cuts[q+1]-cuts[q],RACK_DECK,D],[ox+cuts[q],y+rh,0]));
+      }
       for(const sx of lay.sup)for(const z of frontBack){
-        if(i>0){const lo=rows[i-1];P.push(mk('Upright',up,[su,lo.th+lo.ab,ud],[ox+sx,lo.y+rb,z]));}
+        if(i>0){const lo=rows[i-1];P.push(mk('Upright',up,[su,lo.th+lo.ab,ud],[ox+sx,deckTopOf(pl,lo),z]));}
         else if(y0>0)P.push(mk('Foot',up,[su,y0,ud],[ox+sx,0,z]));}
       // a door stile carries the front rail above it down to the bottom frame: on feet, a foot goes under it too
       if(i===0&&y0>0){const st=stileStock(pl);for(const x of lay.front.stiles)P.push(mk('Foot',st.mat,[1.5,y0,st.deep],[ox+x,0,D-st.deep]));}
       if(!row.store)for(const b0 of lay.bay)for(let q=0;q<row.c&&placed[i]<row.cnt;q++,placed[i]++){
-        const x=b0+q*B/row.c+(B/row.c-row.tx)/2,t=mk('Tank','tank',[row.tx,row.th,row.tz],[ox+x,y+rb,(D-row.tz)/2]);t.gal=row.gal;P.push(t);
-        if(p.light>=1){const lz=Math.min(3,row.tz);P.push(mk('Light','light',[Math.max(4,row.tx-4),1,lz],[ox+x+Math.min(2,(row.tx-4)/2),y+rb+row.th+p.clr,(D-lz)/2]));}}
+        const deckTop=deckTopOf(pl,row);
+        const x=b0+q*B/row.c+(B/row.c-row.tx)/2,t=mk('Tank','tank',[row.tx,row.th,row.tz],[ox+x,deckTop,(D-row.tz)/2]);t.gal=row.gal;P.push(t);
+        if(p.light>=1){const lz=Math.min(3,row.tz);P.push(mk('Light','light',[Math.max(4,row.tx-4),1,lz],[ox+x+Math.min(2,(row.tx-4)/2),deckTop+row.th+p.clr,(D-lz)/2]));}}
     });
     // The posts come after the frames: of two pieces that meet face to face, a screw goes through the one that comes
     // first in the design, so the screws between a post and the end cross piece or end upright beside it go in from
     // the inside of the rack and the outside of its ends shows no heads (RACK_JOINTS).
-    for(const x of[0,W-1.5])for(const z of frontBack)P.push(mk('Post',pl.postMat,[1.5,pl.postH,ud],[ox+x,0,z]));
+    // (with rows of tanks above a countertop each post is two: the cabinet's under the countertop, and the upper
+    // rack's standing on it straight above, so nothing passes through the countertop: fishPostRuns, js/fishtop.js)
+    for(const x of[0,W-1.5])for(const z of frontBack)for(const run of fishPostRuns(pl))P.push(mk('Post',pl.postMat,[1.5,run.h,ud],[ox+x,run.y,z]));
     if(p.brace)for(const b of rackBraces(pl,m)){ // diagonal 1x4 across the back of the section so it cannot lean sideways
       const bw=b.x1-b.x0-3.5,bh=b.y1-b.y0-3.5,len=r16(Math.hypot(bw,bh)),angle=Math.round(Math.atan2(bh,bw)*1800/Math.PI)/10;
       const br=mk('Back brace','1x4',[len,3.5,.75],[ox+(b.x0+b.x1)/2-len/2,(b.y0+b.y1)/2-1.75,-.75]);
       br.rot={k:2,deg:b.rising?angle:-angle};P.push(br);}
-    if(p.base==='cabinet')cabinetSkin(P,ox,m,pl,rows[1].y+rb,{doors:true,left:m===mods[0],right:m===mods[mods.length-1],back:!(p.brace&&rackBraces(pl,m).length)});
+    // the thin panels and the doors of a closed cabinet (a cabinet base, or a stand closed in under its tank), up to
+    // the underside of the countertop
+    if(pl.countertop){const skin=skinOf(m);if(skin.left||skin.right||skin.back||skin.doors)cabinetSkin(P,ox,m,pl,countertopUnderside(pl),skin);}
     ox+=W;}
   return P;
+  // which sides of section m are closed in: a cabinet base has its side panels at the two ends of the whole rack and
+  // its back panel unless braces are across the back; a closed stand (p.closed: 'doors' or 'panels') all round
+  function skinOf(m){
+    if(p.base==='cabinet')return{doors:true,left:m===mods[0],right:m===mods[mods.length-1],back:!(p.brace&&rackBraces(pl,m).length)};
+    return{doors:p.closed==='doors',left:true,right:true,back:true};
+  }
 }
 /* The step that fastens a rack or stand to the wall studs. `behind` is how far a brace or back panel holds
    the back posts off the wall (0 when they touch it). */
 function wallStepText(gap,pl,thing){
   const plan=rackWallScrewPlan(pl,gap),behind=plan.behind||0;
   if(!plan.screws.length)return'';
+  // the top the rail carries: the countertop when the top frame is the countertop's, else the top deck (the code
+  // review, 10); and what holds a top frame off the wall: its own back panel, or, on the rack that stands on a
+  // cabinet, the back panel of the cabinet below and the countertop over it (the code review, 1)
+  const topWord=pl.countertop&&pl.n===COUNTERTOP_ROW+1?'countertop':'top deck';
+  const heldOff=pl.countertop&&postsPassTop(pl)?'the thin back panel of the cabinet below, and the countertop over it, are behind the frame':'the thin back panel is behind the frame';
   // the length is the one on the shopping list (wallScrewLines): through the wood, the gap and the drywall, and 1 1/2" into the stud
   return`Screw the ${thing||'rack'} to the wall studs: ${wallScrewWords(pl,gap)}. Find the studs behind that rail with a stud finder and mark them; drive a ${fmt(plan.len)} structural screw through the rail into the stud nearest each place the line below gives, so that no screw is more than ${ruleLength(WALL_SCREW_RULES.every)} from the next and none more than ${ruleLength(WALL_SCREW_RULES.reach)} from an end${pl.mods.length>1?' of its section (each section is held by its own)':''}. The screws nearest the ends matter most (a pull near an end is taken mostly by them): if the studs are not where the picture puts them, use for each end screw a stud no further from its end than the picture shows, never one further in, and keep the screws between them no more than ${ruleLength(WALL_SCREW_RULES.every)} apart. Keep each one at least ${fmt(WALL_SCREW_FROM_CROSS)} from a cross piece; where one meets a brace behind the rail, drive it through the brace too, 1" from the brace's own screws. `+
     (plan.access
-      ?`The head goes on the inside face of the rail, under the top deck, and a screw that long will not fit between the two rails of the top frame: first drill a 3/4" access hole straight through the front rail of the top frame, in the middle of its height and in line with each screw, then put the screw in through that hole and drive it with a 12" long driver bit (fill the holes with 3/4" wood plugs afterward if you like; at the middle of the rail's height they take almost nothing from its strength). `
-      :`The head goes on the inside face of the rail, under the top deck: there is not room between the two rails for a drill and a screw that long in line, so use a right-angle drill attachment (a screw this long and the attachment fit between the rails). `)+
+      ?`The head goes on the inside face of the rail, under the ${topWord}, and a screw that long will not fit between the two rails of the top frame: first drill a 3/4" access hole straight through the front rail of the top frame, in the middle of its height and in line with each screw, then put the screw in through that hole and drive it with a 12" long driver bit (fill the holes with 3/4" wood plugs afterward if you like; at the middle of the rail's height they take almost nothing from its strength). `
+      :`The head goes on the inside face of the rail, under the ${topWord}: there is not room between the two rails for a drill and a screw that long in line, so use a right-angle drill attachment (a screw this long and the attachment fit between the rails). `)+
     `${wallScrewWhy(pl,gap)} Each screw goes through ${fmt(plan.through)} of wood${behind>0?', the gap behind it':''} and about ${fmt(DRYWALL)} of drywall, and ${fmt(plan.into)} into the stud: buy 1/4" structural screws with at least ${fmt(Math.min(plan.into,WALL_SCREW_INTO))} of thread (the box gives the thread length). With a wall covering thicker than 1/2" drywall, buy them that much longer${plan.access?'':' if they still fit between the rails (if they do not, drill a 3/4" access hole through the front rail of the top frame in line with each screw, and drive them through it with a 12" long driver bit)'}.`+
-    (behind>0?` The back rail stands ${fmt(behind)} off the wall (${gap>=.5?'the braces are behind the frame':gap>0?'the thin back panel is behind the frame':'the top frame is set in from the back'}${gap>0&&behind>gap?', and the top frame is set in from the back':''}), so slip a scrap of wood that thick behind the rail at every screw where nothing fills that space, so the screw does not pull the rail back against the wall.`:'');
+    (behind>0?` The back rail stands ${fmt(behind)} off the wall (${gap>=.5?'the braces are behind the frame':gap>0?heldOff:'the top frame is set in from the back'}${gap>0&&behind>gap?', and the top frame is set in from the back':''}), so slip a scrap of wood that thick behind the rail at every screw where nothing fills that space, so the screw does not pull the rail back against the wall.`:'');
 }
 /* Separate sections ("Build it as", js/rackjoints.js) are each built as a rack of their own and joined where the
    rack stands, before it is fastened to the wall. The screws through one end post into the next are the ones
@@ -716,17 +799,24 @@ function sectionsJoinStep(pl,thing){
     add:[],bring:spans.map((span,index)=>sectionOf(index)),hardware:['bolt']};
 }
 /* how the doors of a cabinet base are hung: on the posts and uprights, and on door stiles where a bay has more than one pair */
-function doorStepText(pl,doorHeight){
-  const stiles=pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).stiles.length,0),paired=pl.B>DOOR_SINGLE_MAX;
+/* the door stiles of a cabinet base in words ('' when there are none): they carry the front rail, so they go in
+   with the frame, before the finish (rackSteps), and the doors are hung on them after it */
+function doorStileWords(pl){
+  const stiles=pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).stiles.length,0);
+  return stiles?`A bay this wide has more than one pair of doors, so stand ${stiles===1?'a door stile':'the door stiles'} on the bottom deck under the front rail where two pairs meet, and screw ${stiles===1?'it':'each one'} top and bottom. `:'';
+}
+function doorStepText(pl,doorHeight,stilesInAlready){
+  // (doors in pairs: more doors than bays; a low cabinet has a pair in a short bay too, doorsAlong)
+  const stiles=pl.mods.reduce((sum,m)=>sum+cabinetDoors(pl,m).stiles.length,0),paired=doorTotal(pl)>pl.mods.reduce((sum,m)=>sum+rackLayout(pl,m).bay.length,0);
   const three=hingesFor(doorHeight)===3;
-  return(stiles?`A bay this wide has more than one pair of doors, so first stand ${stiles===1?'a door stile':'the door stiles'} on the bottom deck under the front rail where two pairs meet, and screw ${stiles===1?'it':'each one'} top and bottom. `:'')+
+  return(stiles&&!stilesInAlready?`A bay this wide has more than one pair of doors, so first stand ${stiles===1?'a door stile':'the door stiles'} on the bottom deck under the front rail where two pairs meet, and screw ${stiles===1?'it':'each one'} top and bottom. `:'')+
     // The hinges are the concealed cup hinges the program places and lists (hangDoor, js/hanging.js); the sentence
     // names that kind, so the words agree with the lines under them.
     `Hang the doors across the front. Each door swings on ${three?'three concealed cup hinges (top, middle and bottom)':'two concealed cup hinges'}, the full overlay kind, fixed to the post or upright${stiles?' or door stile':''} at its outer side. `+
     CUP_HINGE_HOLE+
     // (how far each hinge is from the ends of its door is read from the model: the hardware line under the step, js/buildsteps.js)
     `Lay a door face down, drill the cup holes along that side, ${three?'one near the top, one near the bottom and the third halfway between':'one near the top and one near the bottom'}, at the distances from the ends of the door that the hardware line under this step gives, and screw a hinge into each. `+
-    `Stand the door in place on a scrap 1/2" thick, so it clears the floor, with its hinged side even with the outside of the post, and screw the plates of the hinges to the post. Turn the adjusting screws until the gaps are even. `+
+    `Stand the door in place on a scrap 1/2" thick, so it clears the floor, with its hinged side over the wood it hangs on (at an end of the cabinet, 1/16" short of the outside of the side panel: the door covers the front edge of the panel, so no plywood edge shows at the front), and screw the plates of the hinges to it. Turn the adjusting screws until the gaps are even: 1/8" between doors and 1/8" under the countertop. `+
     // (with center posts the doors follow them, doorsAroundCenters: two doors meet in front of each center post)
     (pl.centers&&pl.centers.length?`Hang the next door the same way (a door that hangs on a center post has its hinged side over the middle of that post instead). Where two doors meet in front of a center post, they close against it: leave a gap of about 1/8" between them, over the middle of the post. `
       :paired?'Hang the second door of each pair the same way: the two meet in the middle of the opening with a gap of about 1/8". ':'Leave a gap of about 1/8" between doors. ')+
@@ -749,13 +839,39 @@ function doorStepText(pl,doorHeight){
        and toe screws cannot be moved aside of the screws of the post and the cross piece at the same corner);
        where they meet a rail or the filler block outside a set-in rail, Fine furniture holds them with an L-bracket instead (bracketInFine, js/joints.js),
        because there the cross pieces' own pocket screws pass the same spot inside the rail;
-     - the top deck is screwed down through its ends into the post tops in every style: Fine would put pocket
-       holes in the outside face of the end posts, which shows;
      - the end posts of two separate sections only touch: they are joined by carriage bolts (js/rackwall.js).
    The posts are made after the frames (buildRack), so the screws between a post and the end cross piece or end
    upright beside it go in from the inside of the rack, through the cross piece or the upright into the post, and
-   the outside of the rack's ends shows no screw heads. */
-const RACK_JOINTS=[['Post','Shelf deck','none','face-edge'],['Post','Shelf deck','screw','end-face'],['Shelf deck','Upright','pocket','face-end'],['Shelf deck','Shelf deck','none'],
+   the outside of the rack's ends shows no screw heads.
+   The top (the Top deck of a rack or an open stand, the Countertop of a closed cabinet: TOP_JOINTS) shows no screw
+   head in Everyday and Fine furniture (the owner: "no need to see them if we don't have too"). It is held from
+   underneath by pocket screws in the rails and cross pieces of its frame, drilled before the frame is put together
+   and driven up into the top while the frame lies upside down on it on the bench, where nothing is in the way of
+   the drill. It only rests on the post tops there. Rustic / rough screws it down from above, heads showing. */
+const TOP_JOINTS=[['Post','Countertop','none','face-edge'],['Post','Countertop','restsUnlessRustic','end-face'],['Countertop','Upright','pocket','face-end'],
+  ['Countertop','Rail','pocketUnlessRustic'],['Countertop','Cross piece','pocketUnlessRustic'],['Countertop','Filler block','pocketUnlessRustic'],
+  ['Countertop','Panel stud','none'],['Countertop','Countertop','none'],['Back panel','Back panel','none'],   // (two thin back panels only meet, on an upright)
+  ['Post','Top deck','none','face-edge'],['Post','Top deck','restsUnlessRustic','end-face'],
+  ['Top deck','Rail','pocketUnlessRustic'],['Top deck','Cross piece','pocketUnlessRustic'],['Top deck','Filler block','pocketUnlessRustic'],['Top deck','Top deck','none'],
+  // the side panels run to the back of the back panel and only touch its edge (cabinetSkin): the brads go into the
+  // posts and the frames, never into a 1/4" edge
+  ['Side panel','Back panel','none'],
+  // A design saved before the countertop (fastening 5 and older, js/fasteningupgrade.js) has a Shelf deck on the post
+  // tops as its top: opened today it switches to the top's fastening, so it rests there too in Everyday and Fine (no
+  // screw head down through it). A new design has no deck on the post tops but its Top deck or Countertop.
+  ['Post','Shelf deck','restsUnlessRustic','end-face']];
+/* With rows of tanks above the countertop (fishPostRuns, js/fishtop.js), the posts of the cabinet stop under it and
+   the posts of the rack above stand on it, straight over them: both only rest against it, in every style (a screw
+   down through the countertop into a cabinet post would be under the foot of the post above, and no drill reaches
+   up from under the countertop into the foot of an upper post: the cabinet post is in the way). The countertop is
+   held by its frame; the upper posts by the rails and the end uprights they are screwed to. */
+const PASS_JOINTS=[['Post','Countertop','none','end-face']];
+/* the rack's fastening for its form values: with rows of tanks above a countertop, PASS_JOINTS first */
+function rackJoints(p){
+  const pl=p&&p.base==='cabinet'?rackPlan(p):null;
+  return pl&&pl.countertop&&postsPassTop(pl)?[...PASS_JOINTS,...RACK_JOINTS]:RACK_JOINTS;
+}
+const RACK_JOINTS=[...TOP_JOINTS,['Post','Shelf deck','none','face-edge'],['Post','Shelf deck','screw','end-face'],['Shelf deck','Upright','pocket','face-end'],['Shelf deck','Shelf deck','none'],
   ['Post','Foot','none'],['Rail','Rail','none','end-end'],['Foot','Foot','none'],['Post','Post','none'],
   ['Upright','Rail','bracketInFine'],['Foot','Rail','bracketInFine'],['Upright','Cross piece','pocket'],['Foot','Cross piece','pocket'],
   ['Upright','Filler block','bracketInFine'],['Foot','Filler block','bracketInFine']];   // a filler block brings a set-in frame out to the full depth: it is met like a rail
@@ -767,17 +883,137 @@ const STAND_JOINTS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upri
    frame, and at their top into the frame above. The corner ones get the same, besides their screws into the posts. */
 const STAND_JOINTS_CENTERS=[['Post','Shelf deck','none','face-edge'],['Shelf deck','Upright','pocket','face-end'],['Upright','Rail','bracketInFine'],
   ['Upright','Cross piece','pocket'],['Upright','Filler block','bracketInFine'],['Shelf deck','Shelf deck','none']];
+/* The two cabinet stands are furniture for the house (HOUSE_FURNITURE, js/showfaces.js): their front and ends show
+   no screw head in Everyday and Fine furniture, so their frames are fastened in Everyday as Fine furniture always
+   fastened them where they are in sight. A cross piece is held to the rails by pocket screws from its own inside
+   faces (HOUSE_FRONT_JOINTS): nothing shows on the front rail, of an open stand, of the frames above the
+   countertop of a cabinet stand with more rows, or between two doors of a closed one (a head through the front rail
+   into the middle cross piece lined up with the 1/8" gap where two doors meet). So the top of an upright meets a
+   rail with an L-bracket, where the cross piece's pocket screws pass inside the rail (bracketInHouse, js/joints.js:
+   pocket screws there would run into them). Where the ends are in sight (an open stand, the rows above a cabinet),
+   a rail is held to the post at its end by pocket screws from the inside face of the rail (HOUSE_END_JOINTS);
+   under thin side panels the screws through the posts stay, hidden, and need no right-angle drill attachment.
+   Rustic screws through the faces. */
+// (the lower decks too are held from underneath: their screw heads lie on the floor of the storage space, seen
+// through the gap between two doors or straight in from an open front: headsOnAnOpenFloor, js/showfaces.js)
+const HOUSE_FRONT_JOINTS=[['Cross piece','Rail','pocketUnlessRustic'],
+  ['Shelf deck','Rail','pocketUnlessRustic'],['Shelf deck','Cross piece','pocketUnlessRustic'],['Shelf deck','Filler block','pocketUnlessRustic']];
+const HOUSE_UPRIGHT_JOINTS=[['Upright','Rail','bracketInHouse'],['Upright','Filler block','bracketInHouse']];
+/* Behind doors, a cross piece at the end of a rail (against a post, or at a rail joint) keeps its screws through the
+   rail in Everyday: they are behind a door, never in line with a gap between two doors (the doors meet over the
+   middle of a line of uprights or a joint, 3/4" from them), and at a joint between separate sections the carriage
+   bolt through those end cross pieces then finds its place clear of every screw (rackwall.js) as it always did. */
+const atRailEnd=j=>{
+  const cross=j.a.name==='Cross piece'?j.a:j.b,rail=cross===j.a?j.b:j.a,c=plainBox(cross),r=plainBox(rail);
+  return Math.abs(c.lo[0]-r.lo[0])<.02||Math.abs(c.hi[0]-r.hi[0])<.02;
+};
+const HOUSE_DOORS_JOINTS=[['Cross piece','Rail','pocketUnlessRustic',{when:j=>!atRailEnd(j)}],...HOUSE_FRONT_JOINTS.slice(1)];
+const HOUSE_END_JOINTS=[['Post','Rail','pocketUnlessRustic']];
+/* Under the thin side panels of a closed cabinet the ends of the frames are out of sight: a rail is screwed through
+   the post in every style there (the panel covers the heads), as Fine furniture's pocket screws from the inside face
+   of the rail end leave no room for the drill beside the uprights of the big stands (2x10 rails, 4x4 uprights). */
+const CLOSED_END_JOINTS=[['Post','Rail','screw']];
 const standHasCenters=p=>{const a=standArgs(p);return!!a&&rackPlan(a).centers.length>0;};
-const standJoints=p=>standHasCenters(p)?STAND_JOINTS_CENTERS:STAND_JOINTS;
+function standJoints(p){
+  const centers=standHasCenters(p),own=centers?STAND_JOINTS_CENTERS:STAND_JOINTS;
+  const uprights=centers?HOUSE_UPRIGHT_JOINTS:[];   // (a short stand's uprights only carry the frame above)
+  const ends=p.under==='cabinet'||p.under==='panels'?CLOSED_END_JOINTS:HOUSE_END_JOINTS;
+  const front=p.under==='cabinet'?HOUSE_DOORS_JOINTS:HOUSE_FRONT_JOINTS;
+  return[...TOP_JOINTS,...front,...uprights,...ends,...own];
+}
+/* The face a cross piece takes its pocket holes in, on the two house stands (preset.hiddenFace, js/fasteners.js).
+   Under a line of 4x4 uprights two cross pieces lie side by side, 1/2" apart; the usual face, the one toward the
+   middle of the stand, would put the holes of one of them facing the other, with no room for a drill (the bigger
+   tanks, which take 4x4 uprights, have that). Its holes go in the face away from its twin instead. 0 for every
+   other piece and direction (the usual rule). */
+/* The same holds for two cross pieces laid tight side by side: under a seam of the countertop (doubleUnderSeams,
+   js/fishtop.js) and at a rail joint of a long wall. All three fish presets ask it (js/presets.js). Only the pieces of
+   the same placement are looked at (piece.set), so a second stand placed beside this one is never taken for a twin. */
+/* (It is asked for every pocket hole a design gets, so it never reads the whole design: a twin laid tight is one of
+   the pieces the cross piece touches, connectionsOf; a twin 1/2" away is looked for only on the two stands, which
+   are small, never on a fish wall of thousands of pieces.) */
+function fishStandHiddenFace(piece,axis){
+  if(piece.name==='Rail')return backRailCoveredFace(piece,axis);
+  if(piece.name!=='Cross piece'||axis!==piece.ax[2])return 0;
+  const b=plainBox(piece),k=axis;
+  const isTwin=other=>other!==piece&&other.name==='Cross piece'&&other.set===piece.set&&Math.abs(other.pos[1]-piece.pos[1])<.01&&(()=>{
+    const o=plainBox(other),gap=Math.max(o.lo[k]-b.hi[k],b.lo[k]-o.hi[k]);
+    return gap>-.01&&gap<1.5&&[0,1,2].every(i=>i===k||(o.lo[i]<b.hi[i]-.01&&o.hi[i]>b.lo[i]+.01));
+  })();
+  const touching=S.parts.includes(piece)?connectionsOf(piece.id).map(link=>link.a===piece?link.b:link.a):[];
+  let twin=touching.find(isTwin);
+  const preset=presetOfPiece(piece);
+  if(!twin&&preset&&preset.name!=='Fish tank wall / rack')twin=S.parts.find(isTwin);
+  if(!twin)return 0;
+  return plainBox(twin).lo[k]>b.hi[k]-.01?-1:1;
+}
+/* A back rail with thin back panels nailed over its back face later takes its pocket holes in that face, where the
+   panels cover them for good (-1, the low face along z, the back), wherever one or more panels lie behind it: the
+   words of the steps say so (topOnFrameWords, js/fishtop.js; the real-thing review, S6). js/fasteners.js finds a
+   covered face on its own only where one panel covers the whole rail (coveredForGood), not where a back is in pieces
+   behind a long rail. A front rail with the cabinet doors in front of it takes them in its inside face (-1 too: its
+   back face), as the words say, never in the face behind the doors, which is seen whenever a door is open (in Fine
+   furniture, where the rail's ends hold pocket screws of their own, js/fasteners.js would move the row there). 0 for
+   every other rail and direction. */
+function backRailCoveredFace(rail,axis){
+  if(axis!==2||rail.ax[2]!==2)return 0;
+  const b=plainBox(rail);
+  // (a panel or a door against the rail touches it: one of its neighbors, connectionsOf)
+  const near=S.parts.includes(rail)?connectionsOf(rail.id).map(link=>link.a===rail?link.b:link.a):[];
+  const against=(name,face)=>near.some(p=>p.name===name&&p.set===rail.set&&(()=>{
+    const o=plainBox(p);
+    return Math.abs(face(o))<.03&&o.lo[1]<b.hi[1]-.1&&o.hi[1]>b.lo[1]+.1&&o.lo[0]<b.hi[0]-.1&&o.hi[0]>b.lo[0]+.1;
+  })());
+  if(against('Back panel',o=>o.hi[2]-b.lo[2]))return-1;
+  if(against('Door',o=>o.lo[2]-b.hi[2]))return-1;
+  return 0;
+}
+/* The open rows of tanks on the countertop of a Cabinet stand (furniture for the house, HOUSE_FURNITURE): a person
+   looks straight into them, and above the eye (SEEN.underAbove) every head on a face that looks down or sideways is
+   in sight from the front (the real-thing review, S4: the L-brackets under the rails and the screws through the end
+   uprights into the posts showed there). So in Everyday and Fine furniture, for the uprights that stand on the
+   countertop and above it:
+     - the top of an upright only carries the rail, which rests on it, and is held by its pocket screw up into the
+       cross piece over it (no L-bracket under the rail);
+     - an end upright is screwed to the post beside it with its heads sunk and covered by glued wooden plugs, cut
+       flush (pluggedUnlessRustic: the screws carry the post, and no hidden fastener joins two wide faces).
+   Rustic keeps its pocket screws and plain screws. */
+function openRowJoints(p){
+  const pl=p?rackPlan(cabArgs(p)):null;
+  if(!pl||!pl.countertop||!postsPassTop(pl))return[];
+  const from=deckTopOf(pl,pl.rows[COUNTERTOP_ROW])-.01;   // the countertop's top face: the open rows stand on it
+  const open=j=>{const up=j.a.name==='Upright'?j.a:j.b;return up.pos[1]>=from;};
+  return[['Upright','Rail','restsInHouse',{when:open}],['Upright','Post','pluggedUnlessRustic',{when:open}]];
+}
+/* the Cabinet stand with a row of tanks: the rack's fastening, with the frames in sight held from inside; with rows
+   above its countertop, the front and the ends of the frames there are in sight too (openRowJoints) */
+function cabinetStandJoints(p){
+  const more=(+(p&&p.levels)||1)>1;
+  return[...(more?[...PASS_JOINTS,...openRowJoints(p)]:[]),...TOP_JOINTS,...(more?HOUSE_FRONT_JOINTS:HOUSE_DOORS_JOINTS),...HOUSE_UPRIGHT_JOINTS,...(more?HOUSE_END_JOINTS:CLOSED_END_JOINTS),...RACK_JOINTS.slice(TOP_JOINTS.length)];
+}
 /* The thin plywood ends of a cabinet base or a closed stand are nailed on from the outside (there is no other way
    to hold a 1/4" panel), so the brad heads are on the ends: the owner's rule is to hide them or say how to cover
    them. This sentence says how, in the steps that nail those panels on. */
 const PANEL_NAIL_HEADS=' The brad heads are on the outside of the ends: unless you want the rough look, set each one a little below the surface with a nail set and fill the holes with wood filler before the finish, so they do not show.';
 /* words of a step in each build style, from a function of the style (for styledStep, js/style.js) */
 const byStyleWords=say=>({std:say('std'),rustic:say('rustic'),fine:say('fine')});
-/* the frame step: the rails are screwed into the ends of the cross pieces, except in Fine furniture, where the
-   cross pieces are held by pocket screws from their inside faces and nothing shows on the rails */
-const frameWords=(head,tail)=>byStyleWords(style=>head+(style==='fine'
+/* Is a frame fastened as in Fine furniture in this style? Always in Fine; in Everyday too where a frame of one of
+   the two stands that are furniture for the house is in sight (inSight: HOUSE_FRONT_JOINTS, HOUSE_END_JOINTS). */
+const fineLike=(style,inSight)=>style==='fine'||(!!inSight&&style==='std');
+/* Which frames of a rack or stand are in sight in a house stand (standJoints, cabinetStandJoints): {front, ends}.
+   p: the plan's arguments; thing: what the steps call it ('rack', 'stand', 'cabinet stand'). */
+function framesInSight(p,thing){
+  // (front 'doors': the front rails are behind doors, HOUSE_DOORS_JOINTS)
+  if(thing==='stand')return{front:p.closed==='doors'?'doors':true,ends:!p.closed};
+  if(thing==='cabinet stand'){const more=(+p.levels||1)>1;return{front:more?true:'doors',ends:more};}
+  return{front:false,ends:false};
+}
+/* the frame step: the rails are screwed into the ends of the cross pieces, except in Fine furniture (and the house
+   stands in Everyday), where the cross pieces are held by pocket screws from their inside faces and nothing shows
+   on the rails */
+const frameWords=(head,tail,house)=>byStyleWords(style=>head+(house==='doors'&&style==='std'
+  ?'Glue each joint. Drive two pocket screws through each end of the cross pieces in the middle of the frame into the rail (the pocket holes on the inside face of the cross piece, so no head shows on the rails), and two 3" screws through the rail into each end of the cross pieces at the ends of the rails (the doors cover those heads).'
+  :fineLike(style,house)
   ?'Glue each joint and drive two pocket screws through each cross-piece end into the rail (the pocket holes on the inside face of the cross piece, so no head shows on the rails).'
   :'Glue each joint and drive two 3" screws through the rail into each cross-piece end.')+tail);
 /* where the lines of uprights go along a section, for the steps: the left edge of each, from the left end of the rail */
@@ -838,28 +1074,84 @@ function rackSteps(p,unused,thing){
   const braceStep=joinedWall
     ?`Screw diagonal 1x4 braces across the back. Each length of the wall between its ends and the rail joints is braced on its own, so no brace crosses a joint: ${lengths.length} brace${lengths.length>1?'s':''}, ${lengths.map(lengthWords).join('; ')} (where an upright is named by a number, that is its left edge from the left end of the frame, as in the step that stands the uprights).`
     :'Screw a diagonal 1x4 brace across the back of each section, '+braceWords+'.';
-  const tallSides=p.base==='cabinet'&&n>1&&!fitsSheet(rows[1].y+pl.rb,pl.D); // side panels too big for one sheet
+  const tallSides=p.base==='cabinet'&&n>1&&!fitsSheet(countertopUnderside(pl),pl.D); // side panels too big for one sheet
+  // The two cabinet stands are furniture for the house: where their frames are in sight, they are fastened in
+  // Everyday as in Fine furniture (HOUSE_FRONT_JOINTS, HOUSE_END_JOINTS), so nothing shows on their front and ends
+  const seen=framesInSight(p,thing),house=seen.front;
+  // The top: a countertop over a closed cabinet (js/fishtop.js), else the top deck. Both are held from underneath
+  // in Everyday and Fine furniture (TOP_JOINTS). With rows of tanks above the countertop (pass), the cabinet is built
+  // first with short posts under the countertop, and the rows above stand on the countertop as a rack of their own,
+  // with posts of their own straight over the cabinet's (fishPostRuns): nothing passes through the countertop.
+  const countertop=pl.countertop,pass=countertop&&postsPassTop(pl),backPanel=p.base==='cabinet'?!braced:true;
+  const topName=countertop&&!pass?'countertop':'top deck';
+  const [lowPost,highPost]=fishPostRuns(pl);
+  const lowerDecks=style=>n>1?(pass?'A plywood deck goes on the top of the bottom frame and of every frame above the countertop':'A plywood deck goes on the top of each frame but the top one')+(pl.D>SHEET_W?', with every seam between two pieces centered on a cross piece':', with the grain of its face running the length of the rack')+'. '+lowerDeckFastenWords(style,house)+'The deck spreads the weight of the tanks and keeps the frame square.'+seamWords+(mixed?` Every deck is the full ${fmt(pl.D)} deep: center the narrower frames under their decks.`:'')+' ':'';
+  const topDeckPlace=`flush with the frame at the front and the back and ${fmt(1.5)} past each end of it, so its ends will rest on the tops of the posts`+(seamWords?', with its seams over the middle of a cross piece as on the other decks':'');
+  // (what the countertop covers: the side panels, the back panel when there is one (not with braces across the
+  // back), and the doors)
+  const covered=listWords(['thin side panels',...(backPanel?['the back panel']:[]),'the doors']);
+  const countertopWords=style=>`The frame of the first row of tanks gets the countertop, one flat piece of 3/4" plywood over the whole cabinet that covers the tops of the ${covered}. `+
+    COUNTERTOP_BANDING_WORDS+topOnFrameWords(style,'countertop',countertopPlaceWords(pl,backPanel),backPanel)+countertopSeamWords(pl);
+  const deckStep=styledStep(byStyleWords(style=>lowerDecks(style)+
+    (countertop?countertopWords(style)+(pass?' '+(`The top frame gets the top deck. `+topOnFrameWords(style,'top deck',topDeckPlace)):'')
+      :`${n>1?'The top frame gets the top deck. ':''}`+topOnFrameWords(style,'top deck',topDeckPlace)+(n>1?'':seamWords))),['Shelf deck','Top deck','Countertop']);
+  if(countertop)deckStep.tools=[STEP_TOOLS.banding];   // the iron-on banding of the countertop (js/fishtop.js)
+  // how the ends of a frame's rails are held to the posts, and the top of an upright to the frame above
+  const endWords=style=>house&&!seen.ends?'through the end cross piece into the post from the inside, and through the post into the rail ends from the outside (the thin side panels cover those heads).'
+    :fineLike(style,seen.ends)?`they all go in from the inside, through the end cross piece into the post and with pocket screws from the inside face of each rail end into the post${backPanel&&p.base==='cabinet'?' (a back rail with the thin back panel going on over it takes them in its back face, which the panel covers)':''}, so no screw head shows on the outside of the ends.`
+    :'through the end cross piece into the post from the inside, and through the post into the rail ends from the outside (those heads show on the outside of the ends; in the Fine furniture style they are pocket screws driven from the inside).';
+  // the open rows on the countertop of a house stand (openRowJoints): the rail rests on the upright, and the end
+  // uprights are screwed to the posts with plugged heads, since a person looks straight into those rows
+  const openRows=thing==='cabinet stand'&&pass;
+  const openTopWords=style=>openRows&&style!=='rustic'?'with a pocket screw up into the cross piece over it (the rail only rests on the upright, so nothing shows under the rail)':uprightTopWords(style);
+  const openEndUprightWords=style=>openRows&&style!=='rustic'
+    ?'Screw the end uprights to the posts from the inside too (through the upright into the post), with each head sunk under a glued wooden plug cut flush, as the lines below say: those faces are in sight inside the open rows.'
+    :'Screw the end uprights to the posts from the inside too (through the upright into the post).';
+  const uprightTopWords=style=>fineLike(style,house)?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece';
+  const topOnPosts=style=>style==='rustic'?`When the top frame is on, screw the ends of its ${topName} down into the tops of the posts.`
+    :`When the top frame is on, the ends of its ${topName} rest on the tops of the posts: nothing is screwed down through it, so its top stays clean.`;
+  const footWords=deck=>`Fasten the foot of every upright with pocket screws driven down through the ${deck} into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through it and on into the rail or the cross piece under it, because a short screw would end in the plywood, which is too thin for a screw to hold in).`;
+  // The uprights that stand on the 3/4" countertop: a pocket screw long enough to cross it and still bite 3/4" into
+  // the frame would be longer than any pocket screw sold (3"), so they hold in the countertop itself, as pocket
+  // screws hold in 3/4" plywood anywhere (jig set for 3/4"), and the countertop is glued and screwed to its frame
+  // (the real-thing review, M3: the step said they went on into the frame, and they did not).
+  const countertopFootWords='Fasten the foot of every upright that stands on the countertop with pocket screws driven down into it (the pocket holes are drilled in the upright, with the jig set for 3/4" stock: the screws listed below stop inside the 3/4" plywood, which holds them, and the countertop is glued and screwed to the frame under it). Glue each foot too.';
+  const feetWords=style=>y0>0?`Glue a ${up} foot (${fmt(y0)} long) under the bottom frame wherever an upright will stand above it, front and back${stileFeet?', and one under each door stile of the cabinet':''}, with a rail sitting on each foot, and fasten each one ${style==='fine'?'with the L-bracket and the pocket screw listed below (an L-bracket inside the corner where the foot meets the rail, and a pocket screw from the foot up into the cross piece)':'with the pocket screws listed below (the pocket holes are drilled in the foot)'}. `:'';
+  // the uprights and posts of the cabinet: those under the countertop (taken by the post step when rows stand on it)
+  const cabinetUpright=piece=>!['Upright','Post'].includes(piece.name)||piece.pos[1]<rows[COUNTERTOP_ROW].y-.01;
+  const postStep=pass
+    ?Object.assign(styledStep(byStyleWords(style=>(M0>1?'Build each section as its own rack. ':'')+feetWords(style)+
+      `Build the cabinet first, as a stand of its own. Set the bottom frame ${y0>0?'on its feet':'on the floor'}, deck up. Clamp the four short posts of the cabinet (${fmt(lowPost.h)} long) to the outside of its ends, standing on the floor, and screw them on with the screws listed below: ${endWords(style)} `+
+      `Stand the cabinet's ${up} uprights (${fmt(rows[0].th+rows[0].ab)} long) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}, at the places the next step gives for the uprights. ${footWords('deck')} `+
+      `Lower the countertop frame onto them, between the posts, countertop up: its rails rest on the tops of the uprights, and the ends of the countertop rest on the tops of the posts. Fasten the top of each upright to it ${uprightTopWords(style)}, and the ends of its rails to the posts as you did on the bottom frame. Nothing is screwed down through the countertop, and nothing passes through it. Check with a level that each post is plumb (straight up and down).`),['Foot','Post','Upright']),{pick:cabinetUpright,bring:[upperFrame(rows[COUNTERTOP_ROW],pl)]})
+    :styledStep(byStyleWords(style=>(M0>1?'Build each section as its own rack. ':'')+feetWords(style)+(n>1?`Set the bottom frame ${y0>0?'on its feet':'on the floor'}, deck up. Clamp the four tall posts to the outside of its ends, standing on the floor, and screw them on with the screws listed below: `+
+      endWords(style)+' Check with a level that each post is plumb (straight up and down).'
+      :`Screw the four short end posts (${fmt(pl.postH)} long) to the outside of the frame's ends, flush with the top of the rails, so the ends of the top deck rest on them.`+(style==='rustic'?' Screw the ends of the top deck down into the tops of the posts.':' Nothing is screwed down through the top deck.'))),['Foot','Post']);
+  // the rows the stacking step builds: all above the bottom frame, or above the countertop when the posts pass it
+  const firstStacked=pass?COUNTERTOP_ROW+1:1,stackedUps=rows.slice(firstStacked-1,-1).map(r=>fmt(r.th+r.ab));
   // the center posts of a stand (standCenterLines): which of the pairs they are, and why
   const centerAt=kinds.map(m=>rackLayout(pl,m).lines.filter(L=>L.center).map(L=>fmt(r16(L.x-1.5)))).filter(list=>list.length);
   const centerWords=centerAt.length?` The ${centerAt.flat().length>1?`pairs at ${listWords([...new Set(centerAt.flat())])} are center posts`:`pair at ${centerAt[0][0]} is a pair of center posts`}: they stand under the middle of a long bay${pl.rows.some(r=>!r.store&&r.c>1)?', under the seam between two tanks,':''} and hold the rails up there, so no rail runs more than ${fmt(STAND_RULES.most)} between uprights and sags under the water over the years.`:'';
   return[CUT,
-   styledStep(frameWords(`Build ${n*M0} shelf frames (${n} for ${M0>1?'each of the '+M0+' sections':'the '+thing}). Each one is two ${rail} rails on edge with cross pieces between them. Left edge of each cross piece, measured from the left end of the frame: ${pos}. `,jointWords+stileWords+depthWords),['Rail','Cross piece','Filler block']),
-   {t:'Glue and screw a plywood deck onto the top of each frame'+(pl.D>SHEET_W?', with every seam between two pieces centered on a cross piece':', with the grain of its face running the length of the rack')+'. The deck spreads the weight of the tanks and keeps the frame square.'+seamWords+(mixed?` Every deck is the full ${fmt(pl.D)} deep: center the narrower frames under their decks.`:''),add:['Shelf deck']},
-   styledStep(byStyleWords(style=>(M0>1?'Build each section as its own rack. ':'')+(y0>0?`Glue a ${up} foot (${fmt(y0)} long) under the bottom frame wherever an upright will stand above it, front and back${stileFeet?', and one under each door stile of the cabinet':''}, with a rail sitting on each foot, and fasten each one ${style==='fine'?'with the L-bracket and the pocket screw listed below (an L-bracket inside the corner where the foot meets the rail, and a pocket screw from the foot up into the cross piece)':'with the pocket screws listed below (the pocket holes are drilled in the foot)'}. `:'')+(n>1?`Set the bottom frame ${y0>0?'on its feet':'on the floor'}, deck up. Clamp the four tall posts to the outside of its ends, standing on the floor, and screw them on with the screws listed below: `+
-     (style==='fine'?'they all go in from the inside, through the end cross piece into the post and with pocket screws from the inside face of each rail end into the post, so no screw head shows on the outside of the ends.'
-       :'through the end cross piece into the post from the inside, and through the post into the rail ends from the outside (those heads show on the outside of the ends; in the Fine furniture style they are pocket screws driven from the inside).')+
-     ' Check with a level that each post is plumb (straight up and down).'
-     :`Screw the four short end posts (${fmt(pl.postH)} long) to the outside of the frame's ends, flush with the top of the rails, so the ends of the deck rest on them. Screw the ends of the top deck down into the tops of the posts.`)),['Foot','Post']),
+   styledStep(frameWords(`${n*M0===1?'Build one shelf frame. It is':`Build ${n*M0} shelf frames (${n} for ${M0>1?'each of the '+M0+' sections':'the '+thing}). Each one is`} two ${rail} rails on edge with cross pieces between them. Left edge of each cross piece, measured from the left end of the frame: ${pos}. `,jointWords+stileWords+depthWords,house),['Rail','Cross piece','Filler block']),
+   deckStep,
+   postStep,
    // (the upper frames were built with the bottom one and are set on the uprights here: the step brings them, so the
    // screws between them and the posts are listed here, where they are driven, and the post step's picture leaves
    // them out)
-   ...(n>1?[Object.assign(styledStep(byStyleWords(style=>`Stack upward one row at a time. Stand the ${up} uprights (${ups.length>1?'lengths, bottom row first: '+rows.slice(0,-1).map(r=>fmt(r.th+r.ab)).join(', '):ups[0]+' long'}) on the deck in pairs, one at the front and one at the back${y0>0?', directly above the feet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}.${centerWords} Screw the end ones to the posts from the inside (through the upright into the post).${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
-     `Fasten the foot of every upright with pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through the 1/2" deck and on into the rail or the cross piece under it, because a short screw would end in the deck, and 1/2" of plywood is too little for a screw to hold in).`+
-     `Set the next frame on top of the uprights, fasten the top of each upright to it ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}, and fasten the ends of its rails to the posts as you did on the bottom frame${style==='fine'?' (pocket screws from the inside)':' (through the posts)'}. When the top frame is on, screw the ends of its deck down into the tops of the posts. Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright']),{bring:rows.slice(1).map(row=>upperFrame(row,pl))})]:[]),
+   ...(pass?[Object.assign(styledStep(byStyleWords(style=>`Build the rows above the countertop as a rack that stands on it. Stand the ${up} uprights (${stackedUps.length>1&&new Set(stackedUps).size>1?'lengths, bottom row first: '+stackedUps.join(', '):stackedUps[0]+' long'}) on the ${n>COUNTERTOP_ROW+2?'countertop and on each deck above it':'countertop'} in pairs, one at the front and one at the back, directly above the uprights of the cabinet. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}.${centerWords}${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
+     countertopFootWords+(n>COUNTERTOP_ROW+2?' '+footWords('deck').replace('the foot of every upright','the foot of every upright on a deck above'):'')+' '+
+     `Set the next frame on top of the uprights and fasten the top of each upright to it ${openTopWords(style)}. When the frames are on, stand the four upper posts (${fmt(highPost.h)} long) on the countertop, each straight above a post of the cabinet with its outside face in line with that post's, tight against the ends of the frames, and screw them on with the screws listed below: ${endWords(style)} ${openEndUprightWords(style)} The upper posts only stand on the countertop: nothing is screwed down through it. Check with a level that each post is plumb. ${topOnPosts(style)} Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright','Post']),{bring:rows.slice(firstStacked).map(row=>upperFrame(row,pl))})]
+   :n>firstStacked?[Object.assign(styledStep(byStyleWords(style=>`Stack upward one row at a time. Stand the ${up} uprights (${stackedUps.length>1&&new Set(stackedUps).size>1?'lengths, bottom row first: '+stackedUps.join(', '):stackedUps[0]+' long'}) on the ${pass?(n>COUNTERTOP_ROW+2?'countertop and on each deck above it':'countertop'):'deck'} in pairs, one at the front and one at the back${y0>0&&!pass?', directly above the feet':pass?', directly above the uprights of the cabinet':''}. Left edge of each pair, measured from the left end of the frame: ${uprightPlaces(pl,kinds)}.${centerWords} Screw the end ones to the posts from the inside (through the upright into the post).${joinedWall?(pl.su<3?' Under each rail joint two pairs stand side by side, one under the end of each rail piece: screw the two uprights of each such pair to each other.':` The ${up} upright under a rail joint carries both rail ends, ${fmt(pl.su/2)} each.`):''} `+
+     footWords(pass?'countertop or deck':'deck')+' '+
+     `Set the next frame on top of the uprights, fasten the top of each upright to it ${uprightTopWords(style)}, and fasten the ends of its rails to the posts as you did on the bottom frame${fineLike(style,seen.ends)&&!(house&&!seen.ends)?' (pocket screws from the inside)':' (through the posts)'}. ${topOnPosts(style)} Every upright must sit directly above the one below it, and every rail must sit on its uprights, so the weight goes straight to the floor.`),['Upright']),{bring:rows.slice(firstStacked).map(row=>upperFrame(row,pl))})]:[]),
    ...(braced?[{t:braceStep+' Hold each board in place, mark where it crosses the posts, trim the ends flush, then drive two screws into every post, upright and rail it crosses. This is what stops the '+thing+' from leaning sideways.',add:['Back brace'],
      fasten:braceScrewCount(p)?[{line:`${fastenerPhrase(braceScrewCount(p),BRACE_SCREW)}: two through the Back brace into every Post, Upright, Rail and Foot it crosses (the brace is set at an angle, so these are counted here).`,uses:[[BRACE_SCREW,braceScrewCount(p)]]}]:[]}]:[]),
-   ...(p.base==='cabinet'?[{t:'Close in the cabinet base. '+(tallSides?'Each end is too big for one sheet of plywood, so first stand a 2x4 panel stud flat against the ends of the frames, midway between the two end posts, and screw it to the end cross piece of every frame it passes. The two halves of each side panel meet on it. ':'')+'Glue and nail the thin plywood panels onto the outer ends'+(braced?'':' and the back')+'.'+(braced?'':backSeamWords(pl,rows[1].y+pl.rb))+PANEL_NAIL_HEADS+' '+doorStepText(pl,rows[1].y+pl.rb-1)+' Paint or seal every plywood edge so splashed water cannot soak in.',add:['Panel stud','Side panel','Back panel','Door stile','Door']}]:[]),
+   // (the panels and the door stiles before the finish; the doors after it, as on the Single aquarium stand: the
+   // real-thing review, S8)
+   ...(p.base==='cabinet'?[{t:'Close in the cabinet base. '+(tallSides?'Each end is too big for one sheet of plywood, so first stand a 2x4 panel stud flat against the ends of the frames, midway between the two end posts, and screw it to the end cross piece of every frame it passes. The two halves of each side panel meet on it. ':'')+'Glue and nail the thin plywood panels onto the outer ends'+(braced?'':' and the back')+', up to the underside of the countertop: slide each one up under its overhang until it touches it.'+(braced?'':' Nail the back panel on first, flush with the outside of the end posts, then the side panels: they reach to the back of the back panel and cover its edge, so no plywood edge shows at the back corners.'+backSeamWords(pl,countertopUnderside(pl)))+PANEL_NAIL_HEADS+' '+doorStileWords(pl)+DOOR_BANDING_WORDS+'Paint or seal every plywood edge so splashed water cannot soak in.',add:['Panel stud','Side panel','Back panel','Door stile'],tools:[STEP_TOOLS.banding]}]:[]),
    FIN,   // sanding and the finish, before any water comes near it (finText in js/style.js writes the words)
+   ...(p.base==='cabinet'?[{t:doorStepText(pl,fishDoorHeight(pl),true)+' The doors get the same finish as the cabinet before they are hung, their edges too: a sealed edge keeps splashed water from soaking into the plywood.',add:['Door']}]:[]),
    ...(M0>1?[sectionsJoinStep(pl,thing)]:[]),
    {t:[`Level the ${thing} with shims.`,
        pl.wall?wallStepText(gap,pl,thing):'',
@@ -881,7 +1173,7 @@ const DRIP_LOOP_WORDS='with a drip loop on every cord (let the cord hang down be
    frame and lowered onto the uprights later, so its step "brings" it (stampSteps, js/buildsteps.js): the screws
    through the posts into it are then listed in the step that drives them. */
 function standTopFrame(piece,parts){
-  if(!['Rail','Cross piece','Shelf deck','Filler block'].includes(piece.name))return false;
+  if(!FRAME_PIECES.includes(piece.name))return false;
   const railHeights=parts.filter(p=>p.name==='Rail').map(p=>p.pos[1]);
   const lowest=Math.min(...railHeights),highest=Math.max(...railHeights);
   return highest>lowest+6&&piece.pos[1]>=highest-.01;   // the top rails and everything level with or above them
@@ -890,7 +1182,7 @@ function standTopFrame(piece,parts){
    blocks and deck, in every section. The frames are all built in one step and each is set on the uprights in the
    stacking step, which "brings" them (stampSteps, js/buildsteps.js), so the screws between a frame and the posts
    are listed in the step that drives them, not in the step that stands the posts. */
-const FRAME_PIECES=['Rail','Cross piece','Shelf deck','Filler block'];
+const FRAME_PIECES=['Rail','Cross piece','Shelf deck','Top deck','Countertop','Filler block'];
 const upperFrame=(row,pl)=>piece=>FRAME_PIECES.includes(piece.name)&&piece.pos[1]>=row.y-.01&&piece.pos[1]<=row.y+pl.rh+.01;
 /* the rack's frame step in the stand's own words, in every build style */
 function standFrameStep(frames){
@@ -902,47 +1194,70 @@ function standFrameStep(frames){
 /* The step of the single stand that stands the uprights and lowers the top frame onto them. A stand long enough for
    center posts (standCenterLines) gets them here too, with the pocket screws that hold every upright at its foot
    and its top (STAND_JOINTS_CENTERS), in the words of each build style. */
-function standUprightStep(pl,uprightLength){
+function standUprightStep(pl,uprightLength,top,endsInSight){
   const centerLines=rackLayout(pl,pl.mods[0]).lines.filter(L=>L.center);
   const corners=`Stand the four ${pl.up} uprights (${uprightLength} long) on the bottom deck, one in each corner, each tight against a post, and screw each one to its post with the screws listed below, about one every 8". `;
-  const lower=`Lower the top frame onto the uprights, between the posts, deck up: its rails rest on the tops of the uprights, and the ends of its deck rest on the tops of the posts. Fasten it like the bottom frame, with two 3" screws through each post into the end of each rail and two 2 1/2" screws through the end cross piece into the post, then drive two 1 1/4" screws down through the deck into the top of each post. `;
+  // (the rails are held to the posts from inside in Everyday and Fine furniture, HOUSE_END_JOINTS; the top only
+  // rests on the post tops there, TOP_JOINTS)
+  const lower=style=>`Lower the top frame onto the uprights, between the posts, ${top} up: its rails rest on the tops of the uprights, and the ends of its ${top} rest on the tops of the posts. Fasten it like the bottom frame, ${standEndWords(style,'each rail',endsInSight)} and two 2 1/2" screws through the end cross piece into the post, `+
+    (style==='rustic'?`then drive two screws down through the ${top} into the top of each post. `:`and leave the ${top} resting on the post tops: nothing is screwed down through it, so its top stays clean. `);
   const weight='The weight of the tank goes straight down through the uprights to the floor, wood on wood, and not through the screws.';
-  if(!centerLines.length)return{t:corners+lower+weight,add:['Upright'],bring:[standTopFrame]};
+  if(!centerLines.length)return{...styledStep(byStyleWords(style=>corners+lower(style)+weight),['Upright']),bring:[standTopFrame]};
   const places=listWords(centerLines.map(L=>fmt(r16(L.x-1.5))));
   const pairs=centerLines.length===1?'one pair of center posts':`${centerLines.length} pairs of center posts`;
   const say=style=>corners+
     `The stand is ${fmt(pl.W)} long, so it gets ${pairs}: ${pl.up} uprights of the same length, one at the front and one at the back, flush with the front and the back of the frame, with ${centerLines.length===1?'the left edge of the pair':'the left edge of each pair'} at ${places} from the left end of the frame (inside the left posts). They hold the rails up in the middle, so the long span cannot sag over the years and crack the glass of the tank. `+
     `Fasten the foot of every upright with pocket screws driven down through the deck into the frame under it (the pocket holes are drilled in the upright, on its inside face, with the jig set for 1 1/2" stock; the screws listed below are long enough to go through the deck and on into the frame). `+
-    lower+
+    lower(style)+
     `Fasten the top of every upright to the top frame ${style==='fine'?'with an L-bracket inside the corner where it meets the rail and a pocket screw up into the cross piece':'with pocket screws up into the rail and the cross piece'}. `+weight;
   return{...styledStep(byStyleWords(say),['Upright']),bring:[standTopFrame]};
 }
+/* How a lower deck (the 1/2" plywood on a frame that is not the top) is fastened in a build style: held from
+   underneath by pocket screws in the rails and cross pieces in Fine furniture, and in Everyday too on the two house
+   stands (house: HOUSE_FRONT_JOINTS); screwed down from above otherwise. */
+const lowerDeckFastenWords=(style,house)=>fineLike(style,house)
+  ?'Glue it and hold it from underneath like the top: lay it face down, set the frame upside down on it, and drive the pocket screws listed below up through the pocket holes on the inside faces of the rails and cross pieces into it, so no screw head shows on it. '
+  :'Glue it and drive a 1 1/4" screw down through it about every 8" into the rails and two into each cross piece. ';
+/* how the end of a rail is held to the post beside it, in a build style: from the inside with pocket screws in
+   Everyday and Fine furniture, so no head shows on the ends of a stand (HOUSE_END_JOINTS); through the post in
+   Rustic. rail: which rail, in words ("each rail", "the rail behind it"). */
+const standEndWords=(style,rail,inSight)=>!inSight||style==='rustic'?`with two 3" screws through each post into the end of ${rail}${!inSight?' (the thin side panels cover their heads later)':''}`
+  :`with pocket screws from the inside face of the end of ${rail} into the post (the pocket holes are on the inside, so no screw head shows on the ends)`;
 function standSteps(p){
   const a=standArgs(p);
   if(!a)return[];
   const pl=rackPlan(a),rack=rackSteps(a,false,'stand'),skinned=p.under==='cabinet'||p.under==='panels';
   const plain=pl.mods.length===1&&pl.n===2&&!pl.rows.some(row=>row.doubled||row.inset>0);
   const W=pl.mods[0].W,feet=pl.y0>0,lowerTank=p.under==='tank';
+  // the top: the countertop of a closed stand (js/fishtop.js), the top deck of an open one
+  const top=skinned?'countertop':'top deck';
   const steps=[CUT];
   if(plain){
     const uprightLength=fmt(pl.rows[0].th+pl.rows[0].ab);
     const onePiece=W<=SHEET_L;       // each deck is one piece of plywood (a longer one is cut in two over a cross piece)
+    // (the bottom deck is held from underneath too, HOUSE_FRONT_JOINTS: its heads would lie on the floor of the
+    // storage space, in sight; Rustic screws it down)
+    const bottom=style=>`The plywood deck${onePiece?` (${fmt(W-3)} long)`:''} goes on one frame, flush with it all round: this is the bottom frame.${onePiece?'':' Where its two pieces meet, the seam goes over the middle of a cross piece.'} `+lowerDeckFastenWords(style,true);
+    // where the top goes on the other frame, the top frame
+    const place=skinned?countertopPlaceWords(pl,true)
+      :`flush with the frame at the front and the back and ${fmt(1.5)} past each end of it (that overhang will rest on the top ends of the posts)${onePiece?'':', with the seam between its two pieces over the middle of a cross piece'}`;
+    const topWords=style=>`Then the other frame, the top frame, gets the ${top}${skinned?` (${fmt(W+2*fishTopSidePast())} long)`:onePiece?` (${fmt(W)} long)`:''}. `+(skinned?COUNTERTOP_BANDING_WORDS:'')+topOnFrameWords(style,top,place,skinned)+(skinned?countertopSeamWords(pl):'');
     steps.push(
       standFrameStep(rack[1]),
-      {t:(onePiece?`Glue and screw the shorter plywood deck (${fmt(W-3)} long) onto one frame, flush with it all round: this is the bottom frame. Glue and screw the longer deck (${fmt(W)} long) onto the other, the top frame, so that it hangs over 1 1/2" at each end. That overhang will rest on the top ends of the posts.`
-          :'Glue and screw the plywood decks onto the two frames. The shorter set is flush with its frame all round: that is the bottom frame. The longer set hangs over 1 1/2" at each end of the other frame, the top frame, and will rest on the top ends of the posts. Where two pieces of a deck meet, the seam goes over the middle of a cross piece.')+
-          ' Drive a 1 1/4" screw about every 8" into the rails and two into each cross piece. The grain of the plywood face runs the long way. The deck spreads the weight of the tank and keeps the frame square.',add:['Shelf deck']},
-      {t:(feet?`Glue a ${pl.up} foot (${fmt(pl.y0)} long) under each corner of the bottom frame, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). Stand the frame on its feet, deck up. `:'Set the bottom frame on the floor, deck up. ')+
-          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Drive two 3" screws through each post into the end of the rail behind it, and two 2 1/2" screws from the inside through the cross piece at that end of the frame into the post. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`,add:['Foot','Post']},
-      standUprightStep(pl,uprightLength));
+      {...styledStep(byStyleWords(style=>bottom(style)+topWords(style)+' The grain of the plywood face runs the long way. The deck spreads the weight of the tank and keeps the frame square.'),['Shelf deck','Top deck','Countertop']),
+        ...(skinned?{tools:[STEP_TOOLS.banding]}:{})},   // the iron-on banding of the countertop (js/fishtop.js)
+      styledStep(byStyleWords(style=>(feet?`Glue a ${pl.up} foot (${fmt(pl.y0)} long) under each corner of the bottom frame, with a rail sitting on each foot, and fasten each one with the pocket screws listed below (the pocket holes are drilled in the foot). Stand the frame on its feet, deck up. `:'Set the bottom frame on the floor, deck up. ')+
+          `Stand the four posts (${fmt(pl.postH)} long) on the floor at its corners, each with a wide face flat against the end of the frame and its outer edge flush with the front or the back. Fasten each one ${standEndWords(style,'the rail behind it',!skinned)}, and with two 2 1/2" screws from the inside through the cross piece at that end of the frame into the post. Check with a level that each post is plumb (straight up and down). The top frame stays aside until the next step.`),['Foot','Post']),
+      standUprightStep(pl,uprightLength,top,!skinned));
   }else{
-    steps.push(...rack.slice(1).filter(step=>['Rail','Shelf deck','Post','Upright'].some(name=>step.add.includes(name))));
+    steps.push(...rack.slice(1).filter(step=>['Rail','Shelf deck','Top deck','Countertop','Post','Upright'].some(name=>step.add.includes(name))));
   }
   const brace=rack.find(step=>step.add.includes('Back brace'));
   if(brace)steps.push(brace);
-  if(skinned)steps.push({t:'Glue and nail the thin plywood panels onto the back and onto both ends, flush with the top of the stand, with a nail about every 6" into every post, rail, upright and deck edge they cover.'+backSeamWords(pl,p.standH)+' Cut a notch or drill holes in the back panel for hoses and cords before you fasten it.'+PANEL_NAIL_HEADS,add:['Panel stud','Back panel','Side panel']});
+  // (the doors are banded here, before the finish, and hung after it: DOOR_BANDING_WORDS, js/fishtop.js)
+  if(skinned)steps.push({t:'Glue and nail the thin plywood panels onto the back and onto both ends, up to the underside of the countertop, with a nail about every 6" into every post, rail, upright and deck edge they cover. Slide each one up under the overhang of the countertop until it touches it. Nail the back panel on first, flush with the outside of the posts, then the side panels: they reach to the back of the back panel and cover its edge, so no plywood edge shows at the back corners.'+backSeamWords(pl,countertopUnderside(pl))+' Cut a notch or drill holes in the back panel for hoses and cords before you fasten it.'+PANEL_NAIL_HEADS+(p.under==='cabinet'?' '+DOOR_BANDING_WORDS:''),add:['Panel stud','Back panel','Side panel'],...(p.under==='cabinet'?{tools:[STEP_TOOLS.banding]}:{})});
   steps.push(FIN);                   // before the doors go on and before any water comes near it
-  if(p.under==='cabinet')steps.push({t:doorStepText(pl,p.standH-1)+' The doors get the same finish as the stand before they are hung, their edges too: a sealed edge keeps splashed water from soaking into the plywood.',add:['Door stile','Door']});
+  if(p.under==='cabinet')steps.push({t:doorStepText(pl,fishDoorHeight(pl))+' The doors get the same finish as the stand before they are hung, their edges too: a sealed edge keeps splashed water from soaking into the plywood.',add:['Door stile','Door']});
   // a stand more than 4 times as tall as it is deep must be screwed to the wall (rackPlan's wall)
   const wallWords=pl.wall?wallStepText(standWallGap(p),pl,'stand')+' This stand is too tall for its depth to stand free, so do not fill a tank until it is fastened. ':'';
   const lowerWords=lowerTank?'Set the lower tank on the bottom frame first and mount its light under the top frame; the light of the top tank hangs from the ceiling or sits on the tank. ':'';
@@ -978,27 +1293,31 @@ function rackWhyNothingFits(p,fields){
   for(let i=1;i<=7;i++)if(TANKS[q['r'+i]])tanks.push({tl:TANKS[q['r'+i]][0],td:TANKS[q['r'+i]][1]});
   const several=tanks.length>1,biggest=pick=>Math.max(...tanks.map(pick));
   const ways=[{end:false},{end:true}].filter(w=>p.orient==='auto'||!p.orient||(p.orient==='end')===w.end);
-  const deepOf=w=>Math.max(7.5,Math.ceil((biggest(t=>w.end?t.tl:t.td)+1)*4)/4),wideOf=w=>biggest(t=>w.end?t.td:t.tl)+7+sidePanelsWidth(p);
+  // (a cabinet base also needs room for its back panel, its doors and the countertop over them: fishTopDepthMost)
+  const past=p.base==='cabinet'?fishTopDepthMost(p.brace):0;
+  const frameDeepOf=w=>Math.max(7.5,Math.ceil((biggest(t=>w.end?t.tl:t.td)+1)*4)/4),deepOf=w=>frameDeepOf(w)+past,wideOf=w=>biggest(t=>w.end?t.td:t.tl)+7+sidePanelsWidth(p);
   const depthOk=ways.filter(w=>deepOf(w)<=p.maxD+1e-6);
   if(!depthOk.length){
     const need=Math.min(...ways.map(deepOf));
     // typedLen (js/core.js): a size typed in the form, the size it is held against and the size to type instead
     // are quoted the way the form's boxes show them
-    return stop(`No tank fits. The rack must be ${typedLen(need)} deep for ${several?'the deepest of these tanks':'this tank'} (the tank plus 1"), and ${fields.maxD||'the depth allowed'} is ${typedLen(p.maxD)}.`,
+    return stop(`No tank fits. The rack must be ${typedLen(need)} deep for ${several?'the deepest of these tanks':'this tank'} (the tank plus 1"${past?`, and ${fmt(past)} for the ${p.brace?'braces across the back':'back panel'} and for the countertop over the doors of the cabinet`:''}), and ${fields.maxD||'the depth allowed'} is ${typedLen(p.maxD)}.`,
       `Allow at least ${typedLen(need)} of depth, or pick a tank that is smaller front to back.`);
   }
   const widthOk=depthOk.filter(w=>wideOf(w)<=p.W+1e-6);
   if(!widthOk.length){
     const need=Math.min(...depthOk.map(wideOf));
-    return stop(`No tank fits. ${several?'The longest of these tanks':'One tank'} needs ${typedLen(need)} of width (the tank, 1" of slack and the posts and uprights at both ends${sidePanelsWidth(p)?', and the thin side panels of the cabinet':''}), and ${fields.W} is ${typedLen(p.W)}.`,
+    return stop(`No tank fits. ${several?'The longest of these tanks':'One tank'} needs ${typedLen(need)} of width (the tank, 1" of slack and the posts and uprights at both ends${sidePanelsWidth(p)?', and the thin side panels of the cabinet with the countertop over them':''}), and ${fields.W} is ${typedLen(p.W)}.`,
       `Make ${fields.W} at least ${typedLen(need)}, or pick a shorter tank.`);
   }
-  const needH=Math.max(base+rb,p.low||0)+p.th+(p.light||0)+(p.clr||0); // the storage space counts toward "Lowest tank off floor"
+  // (the frame of the first row of tanks over a cabinet carries the 3/4" countertop, 1/4" more than a deck: js/fishtop.js)
+  const firstRb=rb+(hasCountertop(p)&&base?FISH_TOP.t-RACK_DECK:0);
+  const needH=Math.max(base+firstRb,p.low||0)+p.th+(p.light||0)+(p.clr||0); // the storage space counts toward "Lowest tank off floor"
   if(fields.H&&needH>p.H+1e-6){
     return stop(`No tank fits. One row needs ${typedLen(needH)} of height (the frame, the tank, the light and the hand room${base?', on top of the storage space':''}), and ${fields.H} is ${typedLen(p.H)}.`,
       `Make ${fields.H} at least ${typedLen(up16(needH))}, or reduce the room above the tank.`);
   }
-  const forcedUp=upOf(p.up),deepest=Math.max(...widthOk.map(deepOf));
+  const forcedUp=upOf(p.up),deepest=Math.max(...widthOk.map(frameDeepOf));
   if(forcedUp&&2*forcedUp[3]>deepest+1e-6){
     return stop(`The ${p.up} uprights you chose are ${fmt(forcedUp[3])} deep. One at the front and one at the back do not fit in a rack ${fmt(deepest)} deep.`,'Set Upright size back to Auto, or pick 2x4.');
   }
@@ -1042,6 +1361,15 @@ function planProblems(p,pl,fields){
     found.push(stop(`The tanks on ${rowNames} are much shallower than the ${fmt(pl.D)} deep rack. Their front and back edges would sit on bare plywood with no rail under them, and a full tank must be carried along its edges by wood.`,
       fixedUp?'Set Upright size back to Auto so the uprights can be made deep enough to carry rails under those tanks.'
         :'Use tanks closer in depth on one rack (within 11" of the deepest), or build that row as its own rack.'));
+  }
+  // The countertop over a closed cabinet is the full depth of the rack. When the first row of tanks on it holds
+  // shallower tanks than a row above, its frame is set in under them (row.inset), and the countertop would hang more
+  // than 1 1/2" past the rails under it, front and back, with nothing under it there: a person leans on that edge
+  // (reference sheet 26 rule 7; the code review, 12).
+  if(pl.countertop){
+    const row=pl.rows[COUNTERTOP_ROW],hang=row?row.inset+fishTopFront(pl):0;
+    if(row&&hang>1.5+1e-6)found.push(stop(`The tanks on the first row over the cabinet (${row.name}, ${fmt(row.tz)} front to back) are shallower than a row above them, so the frame under the countertop is set in ${fmt(row.inset)} from the front and the back. The countertop is the full ${fmt(pl.D)} deep of the rack, and it would hang ${fmt(r16(hang))} past the rail under it at the front: more than the ${fmt(1.5)} a 3/4" plywood top may hang with nothing under it, right where a person leans on it.`,
+      'Put the deepest tanks on the first row over the cabinet, or tanks of the same depth front to back on every row.'));
   }
   if(pl.tooTall){
     found.push(stop(`Too tall for its depth. The ${fields.thing} would stand ${fmtFt(pl.tall)} tall on a base only ${fmt(pl.D)} deep: more than ${RACK_RULES.MAX_RATIO} times as tall as it is deep. Even screwed to the wall, something that slender full of water is not safe.`,
@@ -1121,11 +1449,14 @@ function standArgs(p){
     :{...p,W:p.tl+12,H:999,maxD:p.td+2,light:0,clr:0,low:0,board:192,orient:'long',levels:2,r1:'store',r2:'',perRow:1,brace:open};
   a.doors=p.under==='cabinet';
   a.stand=true;   // center posts on a long one (standCenterLines)
+  // closed in with thin panels (and doors): it gets the countertop and the panels from buildRack (js/fishtop.js)
+  if(p.under==='cabinet'||p.under==='panels')a.closed=p.under==='cabinet'?'doors':'panels';
   return rackPlan(a)?a:null;
 }
 const STAND_FIELDS={W:'',H:'',maxD:'',rows:'',thing:'stand',lower:'make the stand lower or pick a shorter tank'};
-/* the lowest stand that leaves MIN_STORAGE of storage between two frames of the smallest rail (2x4, 4" with its deck) */
-const STAND_MIN_HEIGHT=2*4+RACK_RULES.MIN_STORAGE,STAND_MAX_HEIGHT=48; // the limits of the form's Stand height
+/* the lowest stand that leaves MIN_STORAGE of storage between two frames of the smallest rail (2x4, 4" with its deck),
+   the top one carrying the 3/4" countertop of a closed stand (1/4" more than a deck: js/fishtop.js, loaded first) */
+const STAND_MIN_HEIGHT=2*4+RACK_RULES.MIN_STORAGE+(FISH_TOP.t-RACK_DECK),STAND_MAX_HEIGHT=48; // the limits of the form's Stand height
 function standCheck(p){
   const tank=tankProblems(p);
   if(tank.length)return tank;
@@ -1150,8 +1481,11 @@ function standCheck(p){
 }
 const standWall=p=>{const a=standArgs(p);return a?rackWallIfNeeded(a):[];};
 function standNotes(p){const a=standArgs(p);if(!a)return[standCheck(p).map(f=>f.text+' '+f.fix).join(' ')||'That combination does not work.'];
-  const skin=p.under==='cabinet'?' The thin panels and the doors add 1/2" to the width and 1" to the depth.':p.under==='panels'?' The thin panels add 1/2" to the width and 1/4" to the depth.':'';
-  const pl=rackPlan(a),N=[`The frame of the stand is ${typedLen(pl.W,fmtFt)} wide × ${typedLen(pl.D,fmtFt)} deep × ${typedLen(p.under==='tank'?pl.top:p.standH,fmtFt)} tall, with ${pl.rail} rails and ${pl.up} uprights.`+skin,
+  const pl=rackPlan(a),closed=p.under==='cabinet'||p.under==='panels';
+  // a closed stand: the true outside size is the countertop's (js/fishtop.js), which covers the panels and the doors
+  const size=closed?`The stand is ${fmtFt(r16(pl.W+2*fishTopSidePast()))} wide × ${fmtFt(r16(pl.D+fishTopDepthPast(pl)))} deep × ${typedLen(p.standH,fmtFt)} tall overall, countertop included. Its frame, with the posts at its ends, is ${fmtFt(pl.W)} wide × ${fmtFt(pl.D)} deep, with ${pl.rail} rails and ${pl.up} uprights.`
+    :`The frame of the stand is ${typedLen(pl.W,fmtFt)} wide × ${typedLen(pl.D,fmtFt)} deep × ${typedLen(p.under==='tank'?pl.top:p.standH,fmtFt)} tall, with ${pl.rail} rails and ${pl.up} uprights.`;
+  const N=[size,
    `${p.under==='tank'?'The two filled tanks are':'The filled tank is'} about ${Math.round(pl.total).toLocaleString()} lb (water, glass, gravel). The weight goes straight down through the uprights, not through screws.`];
   if(pl.wall)N.push(wallNote(pl,'stand',standWallGap(p)));
   N.push(pl.over?`OVERLOADED. The rails are at ${pct(pl.util.rail)} and the uprights at ${pct(pl.util.up)} of the rule-of-thumb limit. Pick a bigger size, set them back to Auto, or make the stand taller so deeper rails fit.`
@@ -1160,6 +1494,7 @@ function standNotes(p){const a=standArgs(p);if(!a)return[standCheck(p).map(f=>f.
   if(centers)N.push(centers);
   const lights=lightsNote(a,pl);
   if(lights)N.push(lights);
+  if(closed)N.push(countertopNote(pl,'stand',true));
   N.push(p.under==='tank'?'Both tanks are counted in the weight above. Leave room to reach into the lower one. With a second tank underneath, the height of the stand comes from the two tanks, not from Stand height.':'The lower shelf is for storage (filter, food, buckets), not a second tank.',
    'Safety: this is a rule-of-thumb estimate, not an engineer\'s certification. Use straight, dry lumber, glue and screw every joint, level the stand with shims, and keep power strips above the floor, '+DRIP_LOOP_WORDS+'.');
   return N;}
@@ -1195,14 +1530,17 @@ function fishShopProblems(parts,longestBoard){
     if([0,1,2].every(k=>shared(a,b,k)>.01))found.push(`a ${a.part.name} and a ${b.part.name} of one frame overlap by ${fmt(r16(shared(a,b,0)))}`);
   }
   // (a door stile stands on the bottom deck like an upright, and must have wood under it the same way)
+  const DECKS=['Shelf deck','Top deck','Countertop'];
   for(const upright of boxes.filter(b=>b.part.name==='Upright'||b.part.name==='Door stile')){
-    // the frame under the deck it stands on (the deck is 1/2" thick); pieces of a frame never overlap each other
-    const under=frameWood.filter(wood=>Math.abs(wood.hi[1]-(upright.lo[1]-.5))<.01);
+    // the decks it stands on (a 1/2" deck, or the 3/4" countertop of a cabinet base)
+    const decks=boxes.filter(b=>DECKS.includes(b.part.name)&&Math.abs(b.hi[1]-upright.lo[1])<.01&&shared(upright,b,0)>.01&&shared(upright,b,2)>.01);
+    // the frame under the deck it stands on; pieces of a frame never overlap each other
+    const deckUnder=decks.length?decks[0].lo[1]:upright.lo[1]-RACK_DECK;
+    const under=frameWood.filter(wood=>Math.abs(wood.hi[1]-deckUnder)<.01);
     const carried=under.reduce((sum,wood)=>sum+shared(upright,wood,0)*shared(upright,wood,2),0);
     const foot=(upright.hi[0]-upright.lo[0])*(upright.hi[2]-upright.lo[2]);
     if(carried<.9*foot)found.push(`a ${upright.part.name} stands on a deck with wood under only ${Math.round(100*carried/foot)}% of its foot`);
     // and on one piece of plywood: on a seam it would stand half on each piece and take two sets of pocket screws
-    const decks=boxes.filter(b=>b.part.name==='Shelf deck'&&Math.abs(b.hi[1]-upright.lo[1])<.01&&shared(upright,b,0)>.01&&shared(upright,b,2)>.01);
     if(decks.length>1)found.push(`a ${upright.part.name} stands on a seam between ${decks.length} pieces of deck`);
   }
   // Where two thin back panels meet, both edges are nailed to wood standing right behind them (an upright, a post
@@ -1489,7 +1827,7 @@ SELFTESTS.push(function standsHaveCenterPosts(problems){
       // a center post in a bay of two tanks or more stands under the seam between two of them
       const busiest=pl.rows.filter(row=>!row.store&&row.c>1)[0];
       if(busiest){
-        const tanks=parts.filter(p=>p.name==='Tank'&&Math.abs(p.pos[1]-(busiest.y+pl.rb))<.01).sort((a,b)=>a.pos[0]-b.pos[0]);
+        const tanks=parts.filter(p=>p.name==='Tank'&&Math.abs(p.pos[1]-deckTopOf(pl,busiest))<.01).sort((a,b)=>a.pos[0]-b.pos[0]);
         const seams=tanks.slice(1).map((t,i)=>(tanks[i].pos[0]+size(tanks[i])[0]+t.pos[0])/2);
         for(const line of lines){
           const near=seams.filter(x=>x>line.x-6&&x<line.x+line.w+6);
@@ -1626,7 +1964,10 @@ SELFTESTS.push(function stepsFastenOnlyWhatIsThere(problems){
       const away=piecesNotYetThere(plan,postStep),apart=partBuiltApart(plan,postStep);
       const shown=p=>apart?apart.ids.has(p.id):!away.has(p.id);
       const lowest=Math.min(...S.parts.filter(p=>p.name==='Rail').map(p=>p.pos[1]));
-      const upper=S.parts.filter(p=>FRAME_PIECES.includes(p.name)&&p.pos[1]>lowest+6&&plan.stepOfPiece.get(p.id)<postStep);
+      // (a frame that step itself sets in place is meant to show: with rows above a countertop, the posts are slid
+      // down through it once its frame stands on the uprights of the cabinet, rackSteps)
+      const setHere=p=>((plan.placedIn&&plan.placedIn.get(p.id))||[]).some(placed=>placed.at===postStep);
+      const upper=S.parts.filter(p=>FRAME_PIECES.includes(p.name)&&p.pos[1]>lowest+6&&plan.stepOfPiece.get(p.id)<postStep&&!setHere(p));
       if(upper.some(shown))say(`${what}: the picture of step ${postStep+1}, where the posts go on, shows ${upper.filter(shown).length} pieces of the upper frames already in place`);
     }
   }finally{

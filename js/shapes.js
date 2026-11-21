@@ -1574,11 +1574,21 @@ SELFTESTS.push(function shapeWordsExplained(problems){
    short so four come from one sheet (garageDeckLength, js/builders-storage.js). Only that fingerprint was recorded
    again, from an empty design, twice, with the same result, after a full selfTest showed the others reading back
    unchanged. The Shed's floor pieces are their full size again, as on main (the two 24" x 48" end pieces
-   share a sheet because they are cut with the grain across the joists, shedFloorPieces), so its line is main's.) */
+   share a sheet because they are cut with the grain across the joists, shedFloorPieces), so its line is main's.)
+   (Branch fishtop, the owner's "one flat countertop" with no screw heads on the top (js/fishtop.js): the three fish
+   presets were changed on purpose and only their lines were recorded again, from an empty design, twice, with the
+   same result, after a full selfTest showed the other 21 reading back unchanged. The Single aquarium stand and the
+   Cabinet stand have a 3/4" countertop over their panels and doors, held from underneath, the doors over the panel
+   edges, the frames held from inside where they show, and the Cabinet stand's 56" back panel in two pieces on its
+   center posts; the Fish tank wall's top deck is named "Top deck" and is held from underneath.)
+   (Branch fishtop, 20 Nov, the fixes after the two reviews: only the two cabinet stands were recorded again, from an
+   empty design, twice, with the same result. Their side panels now run to the back of the back panel (the review's
+   N6), 1/4" deeper on the cut list, with the back panel and the side panels only touching (two joints more); the
+   Fish tank wall at its usual sizes, with no cabinet, reads back as it was.) */
 const PRESET_PRINTS={
-  "Fish tank wall / rack":[94,178,352,"131vjz0","1ej6odg"],
-  "Single aquarium stand":[26,86,169,"v10vc9","1636v6l"],
-  "Cabinet stand with a row of tanks":[35,107,255,"nreo4t","wwhyft"],
+  "Fish tank wall / rack":[94,178,363,"131vjz0","13s9bgw"],             // recorded again on branch fishtop
+  "Single aquarium stand":[26,90,153,"1qapbf0","v1kz58"],               // recorded again on branch fishtop, 20 Nov
+  "Cabinet stand with a row of tanks":[36,117,246,"18fh8cy","1uauem2"],  // recorded again on branch fishtop, 20 Nov
   "Platform bed":[28,95,142,"1hachhz","1agns1k"],
   "Shed":[124,356,1407,"1fct8b8","t4pvx6"],
   "Bird feeder":[9,12,16,"1mh07bv","3ds3br"],
@@ -1618,8 +1628,10 @@ const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg
    loading (FASTENING_NOW, js/fasteningupgrade.js) from 4 to 5, and that one digit is the only change: the text read
    back, with "fastening":5 put back to 4, hashes to the earlier '7qjr6r' at the same 477 characters. Recorded again
    by stage 2 of "Drill your pieces" (FASTENING_NOW 5 to 6), the same way: with "fastening":6 put back to 5 the text
-   hashes to the earlier '8ulbgm' at the same 477 characters. */
-const OLD_PROJECT_PRINT=['8uogyl',477];
+   hashes to the earlier '8ulbgm' at the same 477 characters. Branch fishtop had also raised it from 5 to 6 for the
+   fish tops held from underneath; at its merge with main the fish tops became rule 7 (FASTENING_NOW 7), and the print
+   was recorded again the same way: with "fastening":7 put back to 6 the text hashes to main's '8uogyl' at 477. */
+const OLD_PROJECT_PRINT=['7qt7oo',477];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){
