@@ -95,7 +95,10 @@ const CATALOG=[
     builder:'Dining table',tags:['beginner','table','kitchen','farmhouse','chairs']},
   // the Dining table with Chairs to match ticked (js/chairsets.js): the table and as many Dining chairs as fit
   {id:'dining-set',name:'Dining table and chairs',group:'tables',spec:'Table with chairs to match',icon:'i-presets',
-    builder:'Dining table',start:{chairs:true},titled:true,
+    // (it opens with Chairs to match ticked, which shows its own rows: with the Chair seats row of branch seats that
+    //  made eight, so the chairs' Straight back legs, which follows the build style by itself, waits under More
+    //  options and the form opens with seven, js/shortforms.js)
+    builder:'Dining table',start:{chairs:true},titled:true,short:['L','W','H','chairs','perSide','ends','chairSeat'],
     desc:'The Dining table with Dining chairs to match: as many as fit along each side, tucked in under the top, and one at each end if you want.',tags:['table','chairs','chair','dining','kitchen','farmhouse','set']},
   {id:'coffee-table',name:'Coffee table',group:'tables',spec:'Slatted lower shelf',icon:'i-presets',
     builder:'Coffee table',tags:['beginner','table','living room']},

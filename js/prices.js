@@ -164,6 +164,21 @@ const HARDWARE_PRICES=[
   // self-adhesive felt pads, 16-pack, Home Depot $4.52 (model 49952, as reference sheet 25 source S79 gives it;
   // search snapshot, Nov 2026)
   {id:'felt-pads',name:'Felt pads, 1" round',match:/felt pads?/i,pack:16,sold:'pack of 16',price:4.52,search:'1 in. round heavy duty self-adhesive felt pads'},
+  // the Dining chair's padded slip seat (js/diningchair.js, branch seats), from store listings (search snapshots, Nov
+  // 2026; reference sheet 25 section 14): high-density upholstery foam 2" x 24" x 72", $35.97 and $39.59 (two
+  // listings, priced at their average, $37.78; three 20" x 20" seats come out of one sheet); bonded polyester
+  // upholstery batting 48" x 5 yd, $29.95 (a piece over the foam and base of an 18" x 20" seat is about 24 1/2" x
+  // 26 1/2", one across the roll: about 6 seats); upholstery fabric 54" wide, about $20 to $50 a yard (a yard covers
+  // one seat with its wrap); Arrow T50 3/8" staples, box of 1,250, $5.45 to $5.99; an Arrow T50 heavy-duty staple
+  // gun, $20.84 to $27.99 (priced at the dearer listing, $27.99);
+  // 3M Super 77 spray adhesive, 14 oz, $17.98 (about 8 seats, PRACTICE). Before 'wood screws' and the like: none of
+  // their words match these.
+  {id:'upholstery-foam',name:'Upholstery foam, 2" high density',match:/upholstery foam/i,pack:3,sold:'2" × 24" × 72" sheet (3 seats)',price:37.78,search:'2 in. x 24 in. x 72 in. high density upholstery foam'},
+  {id:'upholstery-batting',name:'Upholstery batting, polyester',match:/upholstery batting/i,pack:6,sold:'48" × 5 yd roll (about 6 seats)',price:29.95,search:'bonded polyester upholstery batting 48 in.'},
+  {id:'upholstery-fabric',name:'Upholstery fabric, 54" wide',match:/upholstery fabric/i,pack:1,sold:'yard',price:25,search:'upholstery fabric 54 in. wide by the yard'},
+  {id:'upholstery-staples',name:'Staples, 3/8" (T50)',match:/^staples, 3\/8"/i,pack:1250,sold:'box of 1,250',price:5.99,search:'T50 3/8 in. staples 1250'},
+  {id:'staple-gun',name:'Staple gun, heavy duty (T50)',match:/^staple gun/i,pack:1,sold:'each',price:27.99,search:'T50 heavy duty staple gun'},
+  {id:'spray-adhesive',name:'Spray adhesive',match:/spray adhesive/i,pack:8,sold:'14 oz can (about 8 seats)',price:17.98,search:'multipurpose spray adhesive 14 oz'},
   {id:'pulls',name:'Door and drawer pulls',match:/pulls?\b|knobs?\b/i,pack:1,sold:'each',price:3.5},
   {id:'catches',name:'Magnetic door catches',match:/catch/i,pack:1,sold:'each',price:2.5},
   {id:'latch',name:'Gate latch or hasp',match:/latch|hasp/i,pack:1,sold:'each',price:9},

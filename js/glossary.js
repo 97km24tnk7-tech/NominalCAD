@@ -31,7 +31,22 @@ const TERMS=[
   // the Dining chair (js/diningchair.js): above "Back rail" (a cabinet's), "Rail", "Leg" and "Seat", which would
   // catch these names; "Back seat rail" is a Seat rail, "Back stretcher" a Stretcher and "Seat board" a Seat
   {word:'Corner block',group:'parts',match:/\bcorner blocks?\b/i,
-    what:'A short block of 2x4 glued under the end of a chair\'s side seat rail, against the leg, and screwed into the leg. It makes the joint twice as deep, so the rail and the leg hold together much better when someone leans back.'},
+    what:'A short block of 2x4 glued under the end of a chair\'s side seat rail, against the leg, and screwed into the leg. It makes the joint twice as deep. (Only Dining chairs saved before the seat choice have them; a chair made now has plain side seat rails.)'},
+  // the Dining chair since branch seats: the pieces of the plywood and the padded seat
+  {word:'Seat brace',group:'parts',match:/\bseat braces?\b/i,
+    what:'One of the two 2x3s on edge under a plywood or padded chair seat, running from one side seat rail to the other. They hold up the middle of the seat, so it does not bend when someone stands on it.'},
+  {word:'Seat cleat',group:'parts',match:/\bseat cleats?\b/i,
+    what:'A short 2x2 glued to the inside of the front or the back seat rail of a chair (glue only, clamped while it sets), its top flush with the rail. The plywood seat is screwed on from underneath through it, so no screw shows on top.'},
+  {word:'Plywood seat',group:'parts',match:/\bplywood seats?\b/i,
+    what:'A chair seat cut from one piece of 3/4" plywood, notched round the back legs, its front corners rounded, its edges that show covered with edge banding (or rounded over in the rough style). It is glued down on the seat rails and screwed on from underneath.'},
+  {word:'Seat base',group:'parts',match:/\bseat base\b/i,
+    what:'The piece of plywood at the bottom of a padded chair seat. The foam is stuck to it, and the fabric is pulled round it and stapled underneath; it is screwed to the chair from underneath, so the whole seat comes off to be covered again.'},
+  {word:'Seat cushion',group:'bought',match:/\bseat cushion\b/i,
+    what:'The padding of a padded chair seat: high-density foam, a layer of batting and upholstery fabric, bought by the sheet, the roll and the yard and wrapped round the seat base.'},
+  {word:'Slip seat',group:'parts',match:/\bslip seats?\b/i,
+    what:'A padded chair seat made as a separate piece: a board with foam and fabric stapled round it, that sits on the chair and is screwed on from underneath, so it lifts off to be covered again.'},
+  {word:'Batting',group:'bought',match:/\bbatting\b/i,
+    what:'A thin, fluffy sheet of polyester laid over the foam of a padded seat, under the fabric. It softens the edges and keeps the fabric from rubbing on the foam.'},
   {word:'Back seat board',group:'parts',match:/\bback seat board\b/i,
     what:'The short board at the back of a chair seat, between the two back legs. It rests on the back seat rail and is screwed to it and to the legs.'},
   {word:'Seat rail',group:'parts',match:/\bseat rail\b/i,
@@ -562,6 +577,8 @@ SELFTESTS.push(function woodworkingWords(problems){
     // the Dining chair's (js/diningchair.js): each keeps its own entry, or the general one it is meant to fall to
     ['Back seat board','Back seat board'],['Side seat rail','Seat rail'],['Front seat rail','Seat rail'],['Back seat rail','Seat rail'],
     ['Crest rail','Crest rail'],['Lower back rail','Lower back rail'],['Back leg','Back leg'],['Corner block','Corner block'],
+    ['Seat brace','Seat brace'],['Seat cleat','Seat cleat'],['Plywood seat','Plywood seat'],
+    ['Seat base','Seat base'],['Seat cushion','Seat cushion'],
     ['Back stretcher','Stretcher'],['Seat board','Seat']]){
     const found=termFor(name);
     if(!found||found.word!==word)problems.push(`words: "${name}" is explained as "${found?found.word:'nothing'}", not as "${word}"`);

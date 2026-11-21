@@ -2323,7 +2323,17 @@ const DRILL_PRINTS_RECORDED={
   "Wall shelf":{"std":[18,"19l6c3g"],"fine":[14,"1qmxroo"],"rustic":[26,"yhhtnb"]},
   "Nightstand with drawers":{"std":[47,"vzyj6o"],"fine":[47,"vzyj6o"],"rustic":[66,"3h6xy9"]},
   "Computer desk":{"std":[105,"9r21s5"],"fine":[105,"9r21s5"],"rustic":[152,"vpdk9n"]},
-  "Dining chair":{"std":[62,"art8t9"],"fine":[62,"art8t9"],"rustic":[64,"1x1qszi"]},   // pocket-edge round: the seat rails drilled at the 3/4" setting for the seat
+  // recorded again on branch seats, on purpose: the four corner blocks under the side seat rails are gone, and with
+  // them their eight pocket holes (the owner's "these blocks seem unsightly and unnecessary"); the stretchers are 2x4s,
+  // so their holes sit at 7/8" and 2 5/8" like the seat rails'. Recorded again by the fixes after its two reviews,
+  // twice the same in each style: the front and back stretchers are 2x3s, so their holes sit at 3/4" and 1 3/4"
+  // (the same 54 and 56 holes); in Everyday and Fine the stretchers' holes are plugged
+  // (main, pocket-edge round: the seat rails drilled at the 3/4" setting for the seat, was 62 / 64 holes with blocks.)
+  // Recorded again at the merge of branch seats with main, on purpose, twice the same in each style: the same 54 and
+  // 56 holes of the plain frame, but the 12 holes up into the board seat (three in each of the four seat rails) now
+  // drilled at main's 3/4" setting with the 1 1/2" screw, so their places on the rails moved (main's own chair
+  // print changed for the same reason); no piece and no hole was added or taken away
+  "Dining chair":{"std":[54,"1om6ku9"],"fine":[54,"1om6ku9"],"rustic":[56,"nolsa"]},
   "Cabinet / case":{"std":[58,"1addffs"],"fine":[58,"1addffs"],"rustic":[88,"1kqy00"]},
 };
 /* (C3 of the stage 2 review: in all three styles, since the holes a bit makes live mostly in Rustic (wood screws)

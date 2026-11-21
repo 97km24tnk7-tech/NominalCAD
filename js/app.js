@@ -484,7 +484,9 @@ function placePreset(preset,vals,parts,add,entryName){
   // and the lists then leave wood glue out for its screwed joints (hardwareTotals in js/style.js). Beside a
   // design that is glued, the glue stays on the list.
   if(preset.glue===false&&(!add||S.glue===false))S.glue=false;
-  else if(preset.glue===true||(add&&S.glue===true))S.glue=true;   // its steps glue joints that are pocket-screwed (the Dining chair)
+  // its steps glue joints that are pocket-screwed (the Dining chair; the Dining table only with Chairs to match: a
+  // glue that is a function of the form values, js/chairsets.js)
+  else if(preset.glue===true||(typeof preset.glue==='function'&&preset.glue(vals))||(add&&S.glue===true))S.glue=true;
   else delete S.glue;
   const setNumber=S.nextSet=(S.nextSet||0)+1;
   S.sets=S.sets||{};

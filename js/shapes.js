@@ -1616,14 +1616,24 @@ const PRESET_PRINTS={
   "Computer desk":[36,79,175,"1mw3u3l","v2v1rt"],
   // Branch chairs (spec 12 stage 1, with Amendment A, the solid wood seat): recorded from an empty design, twice the
   // same, in Everyday with the leaning back, after a full selfTest read every other row back unchanged; recorded
-  // again after review, when the chair got its four corner blocks and its Front seat board (the same way)
-  "Dining chair":[22,45,62,"10kh4bx","bgg5lk"],
+  // again after review, when the chair got its four corner blocks and its Front seat board (the same way); and again
+  // on branch seats, on purpose: the four corner blocks under the side seat rails are gone (the owner: "these blocks
+  // seem unsightly and unnecessary", "these other chairs dont have that ugly block"), 22 pieces to 18, 45 joints to
+  // 37, 62 fasteners to 54 (each block's two pocket screws), and the four stretchers 2x4 in place of 2x3 (the EN
+  // repeated lean); recorded from an empty design twice the same, after a full selfTest in which every other row read
+  // back unchanged. (The Dining table's row is made with Chairs to match off, so the set has no row of its own.)
+  // Recorded again on purpose by the fixes after the two reviews of branch seats: the front and back stretchers are
+  // 2x3s (2 1/2" deep) in place of 2x4s, so the cut list and the 3D scene changed; the same 18 pieces, 37 joints and
+  // 54 fasteners. From an empty design twice the same; the Dining table's row reads back unchanged.
+  "Dining chair":[18,37,54,"dpjjqu","otchce"],
 };
 /* The presets that build shaped pieces on purpose, and the only pieces of each that may have a shape. Every other
    preset still builds none. The Storage box / toy chest: the air holes in its front and its two ends (the
    woodworker's-eye review, E3; buildStorageBox in js/builders-storage.js). */
 const PRESETS_SHAPED_ON_PURPOSE={'Storage box / toy chest':['Front','Side'],
-  'Dining chair':['Back leg'],    // js/diningchair.js: the one cut on each back leg that leans the back
+  // js/diningchair.js: the one cut on each back leg that leans the back; the plywood seat, the padded seat's base and
+  // its cushion, notched round the back legs (branch seats)
+  'Dining chair':['Back leg','Plywood seat','Seat base','Seat cushion'],
   'Computer desk':['Top'],        // js/computerdesk.js: cable holes, cup holder, rounded front corners (options, off as first opened)
   'Bird feeder':['Roof post']};   // js/builders-outdoor.js: the top of each post pointed at the roof slope (preset audit of 20 Nov, finding 6)
 /* a project saved before shaped pieces existed, and the hash of how it reads back (recorded on main 60c552b and cb67847 the same

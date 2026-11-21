@@ -56,8 +56,12 @@ function chairSeatForTable(table){
 
 /* the chair's form values for the chairs of this table */
 function chairSetChairVals(p,table){
-  return{...presetDefaults(chairPreset()),S:chairSeatForTable(table||chairSetTable(p)),SW:CHAIR_RULES.seatWide.usual,BH:CHAIR_RULES.backHigh.usual,
-    upright:!!p.chairUpright,table:false,wood:'pine'};
+  const vals={...presetDefaults(chairPreset()),S:chairSeatForTable(table||chairSetTable(p)),SW:CHAIR_RULES.seatWide.usual,BH:CHAIR_RULES.backHigh.usual,
+    upright:!!p.chairUpright,table:false,wood:'pine',seat:p.chairSeat};
+  // (a table saved before the chairs' seat choice has no chairSeat: its chairs are built as they were saved, with
+  // their corner blocks and board seats, js/diningchair.js chairValues)
+  if(p.chairSeat===undefined)delete vals.seat;
+  return vals;
 }
 
 /* (how many fit along a side is the chair's own T3 rule, chairsAlongSide in js/diningchair.js, so the chair's form
@@ -204,6 +208,10 @@ function chairSetInfo(p){
     `Their seats are ${fmt(plan.seat)} high: ${fmt(r16(under-plan.seat))} under the aprons and ${fmt(r16(t.H-plan.seat))} below the top.`,
     `Tucked in, their back legs stand ${fmt(CHAIR_SET_RULES.outside)} outside the edge of the top, at its height, and their seats go ${fmt(r16(plan.under))} under it${plan.ends?`; the end chairs go in only ${fmt(r16(plan.endUnder))}, so their seats stop ${fmt(CHAIR_SET_RULES.endClear)} short of the side chairs' seats`:''}.`,
     `Backs ${chair.taper>0?'leaning back about 5°':'standing upright'}, their tops ${fmt(chair.crest.top)} from the floor; about ${Math.round(chair.weight.pounds)} lb each.`,
+    // the seat chosen (stage 3)
+    chair.seat==='plywood'?'Each chair has a 3/4" plywood seat, screwed on from underneath.'
+      :chair.seat==='padded'?`Each chair has a padded slip seat; the seat height is the top of the cushion as you sit on it (the foam is counted to squash ${fmt(chair.cushion.squash)}).`
+      :'Each chair has a solid wood seat of three 2x6 boards, like the table top.',
     // the table and its chairs are built in one style: the one of the design that is open (chairSetLook)
     `Create builds the table and the chairs in the ${STYLES[style][0]} style of the design that is open${style==='std'?'':`, so the top is ${style==='rustic'?'screwed down from above':'held on from underneath'}`}; change it afterwards in Style and finish.`,
     'Each chair is a part of its own: drag any piece of a chair to move that chair (the table and the other chairs stay).'];
@@ -230,11 +238,15 @@ function chairSetSteps(p,tableStepList){
   const lower=words=>words.charAt(0).toLowerCase()+words.slice(1);
   const cut=reword(chairCut,words=>`${tableCut.t} For each chair: ${lower(words.slice(CUT.t.length).trim())}`);
   const tableBuild=tableStepList.slice(1).filter(step=>!isFin(step));
-  const chairBuild=chairSteps.slice(1).filter(step=>!isFin(step)&&!/^Finish the undersides/.test(step.t));
+  // the chair's steps before its finish, and those after it (the undersides of the seat, or the padded seat's
+  // upholstery, which comes after the finish has dried), each said for each chair
+  const finAt=chairSteps.findIndex(isFin);
+  const chairBuild=chairSteps.slice(1,finAt<0?undefined:finAt);
+  const chairAfter=finAt<0?[]:chairSteps.slice(finAt+1);
   // each chair step holds the first chair's pieces (pick) and is marked as a step of the unit
   const ofOneChair=step=>({...step,unitOf:'Dining chair',...(step.add.length?{pick:(piece,parts)=>piece.unit===firstChairUnit(parts)}:{})});
-  const undersides=chairSteps.find(step=>/^Finish the undersides/.test(step.t));
-  return[cut,...tableBuild,...chairBuild.map(ofOneChair),FIN,...(undersides?[reword(undersides,words=>words.replace('the chair on its back','each chair on its back'))]:[])];
+  const after=chairAfter.map(step=>step.add.length?ofOneChair(step):reword(step,words=>words.replace(/the chair on its back/g,'each chair on its back')));
+  return[cut,...tableBuild,...chairBuild.map(ofOneChair),FIN,...after];
 }
 
 /* ---------- the Dining table, widened ---------- */
@@ -245,7 +257,9 @@ const DINING_TABLE_PRESET=PRESETS.find(preset=>preset.name==='Dining table');
   const rows=under('chairs',[
     {k:'perSide',label:'Chairs along each side',opts:[['fit','As many as fit'],['1','1'],['2','2']],v:'fit'},
     {k:'ends',label:'A chair at each end',check:1,v:false},
-    {k:'chairUpright',label:'Straight back legs on the chairs (no taper cut; the backs stand upright)',check:1,followsDesign:true,v:false}]);
+    {k:'chairUpright',label:'Straight back legs on the chairs (no taper cut; the backs stand upright)',check:1,followsDesign:true,v:false},
+    // the chairs' seat, as on the chair's own form (spec 12 stage 3): solid wood boards to start
+    {k:'chairSeat',label:'Chair seats',opts:CHAIR_SEAT_KINDS.map(([key,words])=>[key,words]),v:DINING_CHAIR_DEFAULTS.seat}]);
   // (under() copies each row, so the chair back's start is made a getter again here: ticked in Rustic / rough,
   // unticked in Everyday and Fine furniture, as on the chair's own form; the owner, 17 Nov)
   Object.defineProperty(rows[2],'v',{get(){return chairUprightByStyle();},enumerable:true,configurable:true});
@@ -258,6 +272,9 @@ const DINING_TABLE_PRESET=PRESETS.find(preset=>preset.name==='Dining table');
   // values (presetLook, js/app.js); the remark says which style Create will use (chairSetInfo).
   table.look=vals=>on(vals)&&typeof S!=='undefined'&&S&&S.look&&STYLES[S.look.style]?{style:S.look.style}:{};
   table.uses=p=>on(p)?{...own.uses,...DINING_CHAIR_USES}:own.uses;
+  // with chairs, the steps glue the chairs' pocket-screwed frames, so wood glue goes on the lists (js/app.js
+  // placePreset; branch seats: the chairs no longer have glued corner blocks, which brought it there before)
+  table.glue=vals=>on(vals);
   table.joints=p=>on(p)?own.joints.concat(DINING_CHAIR_JOINTS):own.joints;
   table.check=p=>own.check(p).concat(on(p)?chairSetPlan(p).problems:[]);
   table.info=p=>[own.info(p),on(p)?chairSetInfo(p):''].filter(Boolean).join(' ');
@@ -272,14 +289,25 @@ const DINING_TABLE_PRESET=PRESETS.find(preset=>preset.name==='Dining table');
   // (headsNote, js/showfaces.js: the preset audit of 20 Nov, note 12; kept at the merge of branch auditfix)
   table.headsNotes=(p,parts)=>{
     const whose=(notes,who)=>notes.map(note=>note.replace(/^Screw heads:/,`${who} screw heads:`));
-    return on(p)&&!chairSetPlan(p).problems.length?whose(headsNote('Dining table',parts),"The table's").concat(whose(headsNote('Dining chair',parts),"The chairs'")):headsNote('Dining table',parts);
+    return on(p)&&!chairSetPlan(p).problems.length?whose(headsNote('Dining table',parts),"The table's").concat(whose(diningChairHeadsNotes(chairSetPlan(p).chairVals),"The chairs'")):headsNote('Dining table',parts);
   };
   table.steps=p=>on(p)?chairSetSteps(p,own.steps(p)):own.steps(p);
-  table.hw=p=>on(p)&&!chairSetPlan(p).problems.length?DINING_CHAIR_PRESET.hw(chairSetPlan(p).chairVals).map(([label,qty])=>[label,qty*chairSetPlan(p).count]):[];
+  // the chairs' bought lines (felt pads, a plywood seat's banding, a padded seat's upholstery), once for the set; they
+  // are counted from the chairs in the design at every change (chairLinesFollowTheChairs, js/diningchair.js)
+  // (the banding in rolls for all the plywood seats together, not one chair's roll times the count: about 36 ft for
+  // six seats is two rolls, not six; the code review's note 24)
+  const setLine=(p,label,qty)=>{
+    const plan=chairSetPlan(p),count=plan.count;
+    if(CHAIR_UPHOLSTERY.some(row=>row.once&&row.label===label))return qty;
+    if(label===CHAIR_BANDING_LABEL)return Math.ceil(chairBandingFeet(diningChairPlan(plan.chairVals))*count/CHAIR_BANDING_ROLL-1e-9);
+    return qty*count;
+  };
+  table.hw=p=>on(p)&&!chairSetPlan(p).problems.length?DINING_CHAIR_PRESET.hw(chairSetPlan(p).chairVals).map(([label,qty])=>[label,setLine(p,label,qty)]):[];
   // Check my design: the chairs checked again in the wood chosen since (a soft wood holds a screw less well)
   table.recheck=vals=>on(vals)&&!chairSetPlan(vals).problems.length?diningChairRecheck(chairSetPlan(vals).chairVals):[];
   // the structural check and the fastener checks also try the table with its chairs, every way (presetVariants)
-  table.variants=(table.variants||[]).concat([{chairs:true},{chairs:true,ends:true},{chairs:true,chairUpright:true},{chairs:true,chairUpright:false,ends:true},{chairs:true,perSide:'1'}]);
+  table.variants=(table.variants||[]).concat([{chairs:true},{chairs:true,ends:true},{chairs:true,chairUpright:true},{chairs:true,chairUpright:false,ends:true},{chairs:true,perSide:'1'},
+    {chairs:true,chairSeat:'plywood',ends:true},{chairs:true,chairSeat:'padded',ends:true}]);
 })(DINING_TABLE_PRESET);
 
 /* ---------- self-checks (spec 11.1) ----------
@@ -362,7 +390,9 @@ SELFTESTS.push(function chairsToMatchCount(problems){
    under the apron and between the legs; seats facing each other 1" or more apart; end chairs' seats 1" or more
    short of the side chairs' seats; every chair square-set, on the floor, facing the table, a component of its own. */
 SELFTESTS.push(chairSetChecked(function chairsTuckedClear(wrong){
-  const tries=[{},{ends:true},{L:36,W:27},{L:74,ends:true},{L:48,W:44,ends:true},{H:29},{H:32,ends:true},{chairUpright:true,ends:true},{perSide:'1',ends:true}];
+  const tries=[{},{ends:true},{L:36,W:27},{L:74,ends:true},{L:48,W:44,ends:true},{H:29},{H:32,ends:true},{chairUpright:true,ends:true},{perSide:'1',ends:true},
+    // the seats of stage 3: the plywood seat, and the padded seat at the lowest table (its cushion highest under the apron)
+    {chairSeat:'plywood',ends:true},{chairSeat:'padded',ends:true},{chairSeat:'padded',H:29}];
   for(const change of tries){
     const vals=chairSetVals(change),label=JSON.stringify(change);
     if(!placeTableSet(vals,'std')){wrong(`${label} builds nothing`);continue;}
@@ -375,8 +405,11 @@ SELFTESTS.push(chairSetChecked(function chairsTuckedClear(wrong){
     for(const[unit,parts]of units){
       if(parts.some(p=>p.q||p.rot))wrong(`${label}: ${unit} is not square-set`);
       if(Math.min(...parts.map(p=>box(p).lo[1]))!==0)wrong(`${label}: ${unit} does not stand on the floor`);
-      const seat=bbox(parts.filter(p=>/seat board/i.test(p.name)));
-      if(t.legH-t.apronDepth-seat.hi[1]<CHAIR_RULES.thighLeast-1e-6)wrong(`${label}: ${unit}'s seat is only ${fmt(t.legH-t.apronDepth-seat.hi[1])} under the apron`);
+      // (the seat as a person sits on it: a padded seat's cushion less what it squashes, chairSitHeight)
+      const seat=bbox(parts.filter(p=>/seat board|^plywood seat$|^seat base$|^seat cushion$/i.test(p.name))),sitAt=chairSitHeight(parts);
+      if(t.legH-t.apronDepth-sitAt<CHAIR_RULES.thighLeast-1e-6)wrong(`${label}: ${unit}'s seat is only ${fmt(t.legH-t.apronDepth-sitAt)} under the apron`);
+      // and the cushion as cut, before anyone sits on it, still slides under the apron
+      if(seat.hi[1]>t.legH-t.apronDepth-1e-6)wrong(`${label}: ${unit}'s seat does not slide under the apron`);
       const centre=b=>[(b.lo[0]+b.hi[0])/2,(b.lo[2]+b.hi[2])/2];
       const backs=centre(bbox(parts.filter(p=>p.name==='Back leg'))),fronts=centre(bbox(parts.filter(p=>p.name==='Front leg')));
       if(Math.hypot(backs[0]-middle[0],backs[1]-middle[1])<=Math.hypot(fronts[0]-middle[0],fronts[1]-middle[1]))wrong(`${label}: ${unit} does not face the table`);
@@ -414,7 +447,7 @@ SELFTESTS.push(chairSetChecked(function chairsTuckedClear(wrong){
    no two fasteners too close, none outside the wood or undrivable, every pocket hole of a chair's rail or stretcher
    on the inside of its own chair; and the structural check passes for the whole set. */
 SELFTESTS.push(chairSetChecked(function chairsShowAndHold(wrong){
-  for(const style of Object.keys(STYLES))for(const change of[{ends:true},{ends:true,chairUpright:true}]){
+  for(const style of Object.keys(STYLES))for(const change of[{ends:true},{ends:true,chairUpright:true},{ends:true,chairSeat:'plywood'},{ends:true,chairSeat:'padded'}]){
     const vals=chairSetVals(change),label=`${STYLES[style][0]} ${JSON.stringify(change)}`;
     placeTableSet(vals,style);
     const allowed=head=>style==='rustic'&&((!head.f.through.unit&&!head.f.into.unit)||(head.f.kind!=='pocket'&&/seat board|top board/i.test(head.f.through.name))||(head.f.kind==='pocket'&&chairBackRail(head.f.through)));
@@ -429,11 +462,14 @@ SELFTESTS.push(chairSetChecked(function chairsShowAndHold(wrong){
       const k=[0,2].find(axis=>Math.abs(f.pocket.out[axis])>.5);
       if(k===undefined)continue;
       const own=bbox(S.parts.filter(p=>p.unit===f.through.unit)),face=plainBox(f.through);
-      if(Math.sign((own.lo[k]+own.hi[k])/2-(face.lo[k]+face.hi[k])/2)!==Math.sign(f.pocket.out[k])){outside=true;wrong(`${label}: a pocket hole of a ${f.through.name.toLowerCase()} of ${f.through.unit} is on its outside face`);}
+      // (a seat brace's holes face the nearer legs, under the seat: diningChairHiddenFace)
+      const way=f.through.name==='Seat brace'?-1:1;
+      if(Math.sign((own.lo[k]+own.hi[k])/2-(face.lo[k]+face.hi[k])/2)!==way*Math.sign(f.pocket.out[k])){outside=true;wrong(`${label}: a pocket hole of a ${f.through.name.toLowerCase()} of ${f.through.unit} is on its outside face`);}
     }
     if(boardsNotHeldAtBothEnds().length)wrong(`${label}: a ${boardsNotHeldAtBothEnds()[0].name} is not held near both ends`);
     // each chair's seat frame braced seen from above (chairSeatBraces, js/diningchair.js)
-    for(const[unit,parts]of chairUnits())if(!chairSeatBraces(parts).length){wrong(`${label}: nothing keeps the seat frame of ${unit} square seen from above`);break;}
+    for(const[unit,parts]of chairUnits())if(!chairSeatHeldSquare(parts).length){wrong(`${label}: nothing keeps the seat frame of ${unit} square seen from above`);break;}
+    if(S.parts.some(p=>p.unit)&&piecesHungUnderSeatRails(S.parts.filter(p=>p.unit)).length)wrong(`${label}: a piece hangs under a chair's seat rail in sight`);
     if(style==='std'){
       const check=checkPreset(DINING_TABLE_PRESET,vals);
       if(check.problems.length)wrong(`${label}: the structural check finds ${check.problems[0].text}`);
@@ -558,6 +594,11 @@ function chairPocketsInside(label,wrong){
     const k=[0,2].find(axis=>Math.abs(f.pocket.out[axis])>.5);
     if(k===undefined)continue;
     const own=bbox(S.parts.filter(p=>p.set===f.through.set&&p.unit===f.through.unit)),face=plainBox(f.through);
+    // (a seat brace has its holes on the face toward the nearer legs, under the seat: diningChairHiddenFace)
+    if(f.through.name==='Seat brace'){
+      if(Math.sign((own.lo[k]+own.hi[k])/2-(face.lo[k]+face.hi[k])/2)!==-Math.sign(f.pocket.out[k])){wrong(`${label}: a pocket hole of a seat brace of ${f.through.unit} faces the other brace`);return;}
+      continue;
+    }
     if(Math.sign((own.lo[k]+own.hi[k])/2-(face.lo[k]+face.hi[k])/2)!==Math.sign(f.pocket.out[k])){wrong(`${label}: a pocket hole of a ${f.through.name.toLowerCase()} of ${f.through.unit} is on its outside face`);return;}
   }
 }
@@ -599,11 +640,18 @@ SELFTESTS.push(chairSetChecked(function chairsPulledOutKeepTheTableHidden(wrong)
    the cut list with every chair's pieces in it (2 back legs a chair, 1 crest rail a chair ...), and the drill
    drawings give each kind of chair piece one drawing, or a mirror pair, for all the chairs. */
 SELFTESTS.push(chairSetChecked(function chairsOnTheLists(wrong){
-  const vals=chairSetVals({ends:true});
+  // with each of the three seats (the code review's finding 14: a plywood seat or a seat base turned a quarter turn,
+  // and the cushion kept off the cut list, were never looked at in a set)
+  for(const chairSeat of['boards','plywood','padded'])chairSetOnTheLists(chairSeat,wrong);
+}));
+function chairSetOnTheLists(chairSeat,wrong){
+  const vals=chairSetVals({ends:true,chairSeat});
   placeTableSet(vals,'std');
+  if(S.parts.some(p=>isProp(p)&&cutRows().rows.some(row=>row.id===cutRows().letterOf(p))))wrong(`${chairSeat}: a cushion of the set is on the cut list`);
+  wrong=(w=>text=>w(`${chairSeat}: ${text}`))(wrong);
   const n=chairSetPlan(vals).count,one=[...chairUnits().values()][0];
   const perChair=new Map();
-  for(const p of one)perChair.set(p.name,(perChair.get(p.name)||0)+1);
+  for(const p of one)if(!isProp(p))perChair.set(p.name,(perChair.get(p.name)||0)+1);   // (a cushion is bought, not cut)
   const rows=cutRows().rows,letterOf=cutRows().letterOf;
   for(const[name,each]of perChair){
     const pieces=S.parts.filter(p=>p.unit&&p.name===name);
@@ -620,16 +668,21 @@ SELFTESTS.push(chairSetChecked(function chairsOnTheLists(wrong){
     const drawings=new Set(labels.filter(label=>!label.mirror).map(label=>label.name));
     if(drawings.size>1)wrong(`the ${pluralName(name).toLowerCase()} of the chairs are drilled from ${drawings.size} drawings (${[...drawings].join(', ')}), not one (or a mirror pair)`);
   }
-}));
+}
 
 /* The set's lists agree with its steps, as stepsAgreeWithLists (js/plans.js) holds every preset at its defaults,
    where Chairs to match is off: pocket-hole screws on the list when a step fastens with pocket holes, glue only
    when a step glues, sandpaper when a step sands, the finish when there is a finishing step, and no fastener
    between pieces that only touch (the table's top boards, the chairs' seat boards). In every style. */
 SELFTESTS.push(chairSetChecked(function tableAndChairsAgreeWithLists(wrong){
-  const onlyTouch=[['Top board','Top board'],['Seat board','Seat board'],['Seat board','Back seat board'],['Front seat board','Seat board'],['Front seat board','Front leg'],['Seat board','Back leg']];
-  for(const style of Object.keys(STYLES)){
-    placeTableSet(chairSetVals({ends:true}),style);
+  // (the bare plywood seat is glued down on the rails and braces since the fixes of branch seats: only the legs touch
+  // it; the padded seat's base only rests on, or stands beside, every piece but its cleats: the code review's
+  // finding 14)
+  const onlyTouch=[['Top board','Top board'],['Seat board','Seat board'],['Seat board','Back seat board'],['Front seat board','Seat board'],['Front seat board','Front leg'],['Seat board','Back leg'],
+    ['Plywood seat','Front leg'],['Plywood seat','Back leg'],
+    ...['Seat brace','Side seat rail','Front seat rail','Back seat rail','Front leg','Back leg'].map(name=>['Seat base',name])];
+  for(const style of Object.keys(STYLES))for(const chairSeat of['boards','plywood','padded']){
+    placeTableSet(chairSetVals({ends:true,chairSeat}),style);
     const label=STYLES[style][0]+': ',joints=findJoints(),hardware=hardwareTotals(joints);
     const items=hardware.rows.map(row=>row[0]).join(' | '),plan=buildPlan(true),words=plan.steps.map(step=>step.words).join(' ');
     if(/pocket/i.test(words)&&!/pocket-hole screws/.test(items))wrong(label+'a step fastens with pocket holes, and no pocket-hole screws are on the hardware list');
@@ -662,7 +715,9 @@ SELFTESTS.push(function chairSetFormIsShort(problems){
       if(style!=='std')continue;
       if(shown().length!==4||box('chairs').checked)wrong(`the Dining table opens with ${shown().length} rows${box('chairs').checked?' and Chairs to match ticked':''}, not 4 and unticked`);
       box('chairs').checked=true;readVals(false);
-      if(shown().length!==7||['perSide','ends','chairUpright'].some(key=>!box(key).closest('.frow').classList.contains('sub')))wrong('ticking Chairs to match does not show its three rows, indented');
+      // (four rows since stage 3: the chairs' seat, solid wood boards to start)
+      if(shown().length!==8||['perSide','ends','chairUpright','chairSeat'].some(key=>!box(key).closest('.frow').classList.contains('sub')))wrong('ticking Chairs to match does not show its four rows, indented');
+      if(box('chairSeat').value!=='boards')wrong('the chairs\' seat does not start at Solid wood boards');
       box('chairs').checked=false;readVals(false);
       if(shown().length!==4)wrong('unticking Chairs to match leaves its rows showing');
     }
@@ -677,7 +732,8 @@ SELFTESTS.push(function chairSetFormIsShort(problems){
         look().style='rustic';
         const vals={...presetDefaults(table),chairs};
         withoutDrawing(()=>placePreset(table,vals,table.build(vals),false));
-        if(chairs&&(look().style!=='rustic'||S.parts.some(p=>p.unit&&p.shape)))wrong(`Create with a Rustic design open builds the set in ${STYLES[look().style][0]}${S.parts.some(p=>p.unit&&p.shape)?' with leaning backs':''}`);
+        const leaning=S.parts.some(p=>p.unit&&p.shape&&p.name==='Back leg');   // (a plywood or padded seat is shaped too: its notches)
+        if(chairs&&(look().style!=='rustic'||leaning))wrong(`Create with a Rustic design open builds the set in ${STYLES[look().style][0]}${leaning?' with leaning backs':''}`);
         if(!chairs&&look().style!=='std')wrong('a plain Dining table no longer starts a new design in Everyday');
       }
     }finally{load(keptDesign,true);}

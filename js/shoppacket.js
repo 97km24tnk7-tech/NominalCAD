@@ -123,6 +123,11 @@ const AT_ASSEMBLY_WORK=[
     why:'on a lean-to roof the first rafter is held on the walls as they stand and its notches marked from them'},
   {match:/\buntil it sits still\b/i,whole:true,
     why:'the feet are trimmed with the chair standing on the floor'},
+  // (the Dining chair's padded seat, chairUpholsteryStep in js/diningchair.js: the foam, batting and fabric are bought,
+  //  not parts, and are fitted to the finished seat base)
+  {match:/\b(?:foam|batting|fabric)\b/i,whole:true,
+    when:(clause,step)=>!!(step&&/[Cc]over the seat, once the finish on the chair is dry/.test(step.words||'')),
+    why:'the seat is covered once the finish on the chair is dry: the foam is traced from the seat base itself, and the batting and the fabric are trimmed as they are stapled on'},
 ];
 /* the row of AT_ASSEMBLY_WORK that allows an order (its clause, the step it is in, its sentence), or null */
 function atAssemblyRowOf(clause,step,sentence){
@@ -207,11 +212,33 @@ const SHOP_MOVES=[
   // Dining chair (js/diningchair.js): in its cutting step, and the rail places on the back legs
   // (in a Dining table and chairs set the chair's cutting words follow the table's, "For each chair: the four
   //  corner blocks are ...", so the first word may be in lower case: js/chairsets.js)
-  {test:/[Tt]he four corner blocks are [^:]*: cut their ends square, since each one is glued under a rail and screwed to a leg by one end\./,on:['Corner block'],kind:'make',
+  // (a chair saved before branch seats only: today's chair has no corner blocks, so no check run of today's presets
+  //  meets this sentence; old, as diningChairOpensAsSaved opens such a chair and the row moves its words)
+  {test:/[Tt]he four corner blocks are [^:]*: cut their ends square, since each one is glued under a rail and screwed to a leg by one end\./,on:['Corner block'],kind:'make',old:true,
     words:m=>capital(m[0])},
   {test:/Then the front edge of the seat: [\s\S]*?it goes at the front\./,on:['Front seat board'],kind:'make',words:m=>capital(m[0].replace(/^Then /,''))},
   {test:/Each back leg gets one straight cut along its front edge[\s\S]*?as long as the cut is on the edge that will face the front\./,on:['Back leg'],kind:'make',shapeSays:true},
   {test:/On the inside face of each back leg mark where the two back rails go: [^.]*\./,on:['Back leg'],kind:'mark'},
+  // Dining chair, its plywood seat and padded seat (branch seats): the sheet cut, notched and rounded (the padded
+  // seat's base 3/16" short of the legs for the fabric, with its vent holes), in its cutting step ("cut" in lower case
+  // in a Dining table and chairs set: "For each chair: cut the plywood seat ...")
+  {test:/[Cc]ut the (plywood seat|seat base) from the 3\/4" plywood with its good face down \(the saw splinters the face that is up\), then mark and cut its two notches and round its two front corners as Shapes to cut shows\.((?: Its notches are cut [^.]*\.)?(?: Drill its [^(]*\(without them the seat puffs like a cushion of air\)\.)?)((?: Leave the foam, the batting and the fabric for the end, after the finish\.)?)/,
+    on:['Plywood seat','Seat base'],kind:'make',
+    words:m=>`Cut the ${m[1]} from the 3/4" plywood with its good face down (the saw splinters the face that is up), then mark and cut its two notches and round its two front corners as the shape on this drawing shows.${m[2].replace('where its drawing shows them','where this drawing shows them')}${m[3]}`},
+  // the bare plywood seat's edges, while it is loose: banded in Everyday and Fine (its own step, dropped once this
+  // moves; " Do this for each of the 6 dining chairs." when a set has several)
+  {test:/Band the edges of the plywood seat that show, while it is loose: ([^.]*?\(the edges of the notches go against the legs\))\. (Set a household iron[\s\S]*?or you will sand through it\.)(?: Do this for each of the \d+ [a-z ]+s\.)?/,
+    on:['Plywood seat'],kind:'band',words:m=>`Iron edge banding onto the edges that show: ${m[1]}. ${m[2]}`,
+    tools:['household iron, and an edge banding trimmer or a sharp chisel','120 grit sandpaper on a block']},
+  // and rounded over in Rustic / rough (no check run builds a Rustic plywood chair, so it is proved on the chair's
+  // own words, CHAIR_PLYWOOD_ROUND_WORDS)
+  {test:/Round over the edges of the plywood seat that show, while it is loose: ([\s\S]*?which suits the rough style\.)(?: Do this for each of the \d+ [a-z ]+s\.)?/,
+    on:['Plywood seat'],kind:'make',words:m=>`Round over the edges that show: ${m[1]}`,seldom:true,get sample(){return CHAIR_PLYWOOD_ROUND_WORDS;},
+    tools:['80 and 120 grit sandpaper on a block']},
+  // the padded seat's base: which way it goes back on after it is covered, pencilled on while it is loose
+  {test:/ ?Pencil FRONT on its underside\./,on:['Seat base'],kind:'make',
+    words:()=>'Pencil FRONT on its underside, at the front edge (the edge with the two rounded corners), so it goes back on the chair the same way once it is covered.',
+    keep:' Its underside says FRONT, pencilled on from its part drawing.'},
   // Nightstand with drawers (js/nightstand.js), Computer desk (js/computerdesk.js): the two blocks that hold the shelf
   // at its height while it is fastened: a small part of their own (SMALL_PARTS, below)
   {test:/Cut two scrap blocks (\d+(?: \d+\/\d+)?"|\d+\/\d+") long, stand them on the bottom panel/,kind:'also',
@@ -1225,8 +1252,8 @@ SELFTESTS.push(function shopMovesAllUsed(problems){
     const kept=JSON.stringify(S);
     try{shopCheckPass();shopMovesSeen=shopMovesUsed;shopMovesUsed=null;}finally{load(kept,true);}
   }
-  // (a seldom row is proved on its own sentence instead)
-  for(const row of SHOP_MOVES)if(row.seldom&&!row.test.test(`stand a 2x4 panel stud on the bottom deck behind it, narrow edge to the back, cut 1/8" short of the frame above, and screw it to the deck (one in all).`))problems.push(`shop packet: the seldom row ${String(row.test).slice(1,60)} does not match its own sentence`);
+  // (a seldom row is proved on its own sentence instead: its `sample`, else the fish stands' panel stud sentence)
+  for(const row of SHOP_MOVES)if(row.seldom&&!row.test.test(row.sample||`stand a 2x4 panel stud on the bottom deck behind it, narrow edge to the back, cut 1/8" short of the frame above, and screw it to the deck (one in all).`))problems.push(`shop packet: the seldom row ${String(row.test).slice(1,60)} does not match its own sentence`);
   for(const row of SHOP_MOVES)if(!row.old&&!row.seldom&&!shopMovesSeen.has(row))problems.push(`shop packet: the row of SHOP_MOVES ${String(row.test).slice(1,70)} matched no step of any design: its preset words changed, or the row is dead`);
 });
 /* The words of making are found however a sentence puts them (the code reviewer's finding 7), each proved on a

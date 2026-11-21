@@ -111,6 +111,7 @@ const WORD_LINKS=[
   {re:/\bcable trays?\b(?! bottom| lip)/i,word:'Cable tray'},
   {re:/\btower shel(?:f|ves)\b(?! side)/i,word:'Tower shelf'},
   {re:/\bedge banding\b/i,word:'Edge banding'},
+  {re:/\bslip seats?\b/i,word:'Slip seat'},{re:/\bbatting\b/i,word:'Batting'},   // the Dining chair's padded seat (js/diningchair.js)
   {re:/\bdrawer cases?\b/i,word:'Drawer case'},
   {re:/\bwall studs?\b|\bstud finder\b/i,word:'Wall stud and stud finder'},
   {re:/\bcarriage bolts?\b/i,word:'Carriage bolt'},

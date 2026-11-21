@@ -454,12 +454,10 @@ SELFTESTS.push(function pocketPlugsAreBought(problems){withoutDrawing(()=>{
 /* (The fixing round of this job made the eyes bands, 60" to 69" standing and 40" to 44" seated, and the counts were
    measured again with them: the chair's went from 10 to 14 at its start and smallest, the set's from 24 to 28. The
    Coffee table and the shoe bench now plug what is seen, PLUG_WHAT_IS_SEEN above, and show none.) */
+/* (Merged with the chair's frame and seats round, branch seats: the Dining chair plugs its stretchers' pocket holes
+   in Everyday and Fine and has no corner blocks, so it and "Dining table and chairs" show none now; their rows, 14
+   and 28, were taken out as the check asked. Nothing is handed on today: every entry shows none.) */
 const LINE_OF_SIGHT_HANDED_ON={
-  // the stretchers' pocket holes into the legs, on their top and inside faces, and the corner blocks', seen looking
-  // down and in (the chair team's files, js/diningchair.js)
-  'Dining chair':{start:14,smallest:14,largest:14},
-  // the four chairs of "Chairs to match" around the table, set closer together, so fewer holes are in view
-  'Dining table and chairs':{start:28},
 };
 /* an entry's start values, and with every number its form shows at its smallest or at its largest (the entry's own
    limits first) */

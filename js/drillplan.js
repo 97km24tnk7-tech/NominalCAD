@@ -1194,6 +1194,41 @@ function placementWords(step,plan){
       }
     });
   }
+  // (branch seats) the other copies of a step told for one of them (the chairs of a set) go in as that one is told,
+  // when the words told, read in the copy's own place, are the very words the step prints. A copy for which they
+  // would differ (a chair turned a quarter turn to sit at the end of the table: "its arrow to the right", not "to the
+  // front") gets a sentence of its own, naming its copies, and is held to those words; it is never given words
+  // made for it that nobody reads (the code review of the seats round, its finding 7)
+  if(step.oneOf&&drill.putSaid){
+    const apart=new Map();   // the words of the copies that go in another way -> {name, key, units, pieces}
+    for(const piece of step.pieces){
+      const member=drill.memberOf.get(piece.id),label=drill.labelOfPiece.get(piece.id);
+      if(step.oneOf.has(piece.id)||drill.putSaid.has(piece.id)||!member||!label)continue;
+      const twin=step.pieces.find(p=>step.oneOf.has(p.id)&&p.name===piece.name&&drill.labelOfPiece.get(p.id)===label&&drill.putSaid.has(p.id));
+      if(!twin)continue;
+      const told=drill.putSaid.get(twin.id);
+      if(told.say(member.frame)===told.said){drill.putSaid.set(piece.id,{say:told.say,said:told.said});continue;}
+      const own=memberWords(label,member,plan.letterOf,placedFor(piece)),text=own.text+'|'+own.tail;
+      if(!apart.has(text)){
+        const key=label.mirror?`(${label.name}, the mirror image on drawing ${label.twin.name})`:`(${label.name})`;
+        apart.set(text,{name:piece.name,key,own,units:new Set(),pieces:[]});
+      }
+      const group=apart.get(text);
+      group.pieces.push(piece);
+      if(piece.unit)group.units.add(piece.unit);
+    }
+    for(const group of apart.values()){
+      // (by the names the parts list gives them, "Dining chair 5")
+      const units=[...group.units];
+      const whose=units.length?`On ${listWords(units)}, which ${units.length>1?'face':'faces'} another way`:'On the others, which face another way';
+      const each=group.pieces.length>group.units.size?'each':'the';
+      sentences.push(`${whose}, ${each} ${group.name} ${group.key} ${group.own.text}.`+(group.own.tail?' '+group.own.tail:''));
+      for(const piece of group.pieces){
+        const label=drill.labelOfPiece.get(piece.id);
+        said(piece,frame=>{const words=memberWords(label,{piece,frame},plan.letterOf,placedFor(piece));return words.text+'|'+words.tail;});
+      }
+    }
+  }
   return'Put in: '+sentences.map((sentence,index)=>index?capital(sentence):sentence).join(' ');
 }
 /* the end with the label by its direction in the room: 'at the bottom', 'on the left' ... */

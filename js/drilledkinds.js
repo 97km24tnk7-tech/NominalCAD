@@ -77,7 +77,13 @@ const DRILLED_KINDS_RECORDED={"Fish tank wall / rack":{"std":[23,16],"fine":[16,
   "Wall shelf":{"std":[2,0],"fine":[2,0],"rustic":[3,0]},
   "Nightstand with drawers":{"std":[7,2],"fine":[7,2],"rustic":[8,2]},
   "Computer desk":{"std":[10,3],"fine":[10,3],"rustic":[13,3]},
-  "Dining chair":{"std":[8,1],"fine":[8,1],"rustic":[9,1]},
+  // Dining chair recorded again at the merge of branch seats with main, on purpose, twice the same: the plain frame
+  // has no corner blocks (8 to 7 kinds; 9 to 8 in Rustic), and its side stretchers are 2x4s cut to the side seat
+  // rail's length, so the two share one cut-list row (G). They stay two kinds: the side seat rail carries the three
+  // pocket holes up into the seat that the stretcher does not need (no holes forced only to make parts match,
+  // LESSONS A7). The other split is main's own: the back seat board and the front and back seat rails of one cut
+  // size (row F). Extra kinds 1 to 2, from that one new row; nothing that was one kind before is split
+  "Dining chair":{"std":[7,2],"fine":[7,2],"rustic":[8,2]},
   "Cabinet / case":{"std":[5,2],"fine":[5,2],"rustic":[6,2]}};
 /* what the pin says of one preset in one style: '' when the count is as recorded (got and want: [kinds, extra]) */
 function drilledKindsPinFault(name,style,got,want){

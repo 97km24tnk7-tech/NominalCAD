@@ -2370,6 +2370,9 @@ const SUPPLY_WORDS=[[/wall studs?/i,/wall studs?|\bstuds\b/i],[/landscape fabric
   [/concrete blocks?/i,/\bblocks\b/i],[/ground anchors?/i,/\banchor/i],[/corner braces?/i,/corner braces?/i],[/barrel bolts?/i,/barrel bolt/i],
   [/for the hinge leaves/i,/hinges?/i],[/for the hinge straps/i,/hinges?/i],[/lid support/i,/lid support|lid stay/i],
   [/for the gable ends|sloped tops of the side walls/i,/triangle above|sloped strip above/i],[/felt pads?/i,/felt pads?/i],
+  // the Dining chair's seats (js/diningchair.js, branch seats): the upholstery in the step that covers the seat, the
+  // plywood seats' banding in the step that bands them
+  [/^upholstery |^staples, 3\/8" \(T50\)|^spray adhesive, for the foam/i,/Cover the seat, once the finish/],[/for the plywood chair seats/i,/Band the edges of the plywood seat/],
   // (the case looks job: the bought kits that fasten a case to the wall, named in the last step)
   [/anti-tip kits?/i,/anti-tip kits?/i]];
 function suppliesNamed(step,claimed){

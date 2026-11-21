@@ -31,7 +31,9 @@ MATS.push({id:'ply34',name:'3/4" plywood',short:'3/4" plywood',kind:'sheet',t:.7
           // the pictures on a Computer desk (js/computerdesk.js): drawn solid and dark, never weighed, cut or bought,
           // and (picture) never counted in an overall size: they only show where a bought thing goes
           {id:'monitor',name:'Monitor (not wood)',short:'Monitor',kind:'prop',t:0,color:0x26292d,opaque:true,picture:true},
-          {id:'pctower',name:'Computer tower (not wood)',short:'PC tower',kind:'prop',t:0,color:0x3a3f45,opaque:true,picture:true});
+          {id:'pctower',name:'Computer tower (not wood)',short:'PC tower',kind:'prop',t:0,color:0x3a3f45,opaque:true,picture:true},
+          // the padded seat of a Dining chair (js/diningchair.js): foam, batting and fabric, bought, never cut from lumber
+          {id:'cushion',name:'Seat cushion (not wood)',short:'Seat cushion',kind:'prop',t:0,color:0x5f6b78,opaque:true});
 const isProp=p=>M[p.mat].kind==='prop';
 /* a thing that is not wood but is drawn solid, not see-through (a tank light: a dark fixture) */
 const propIsSolid=p=>isProp(p)&&!!M[p.mat].opaque;
