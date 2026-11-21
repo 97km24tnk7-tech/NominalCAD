@@ -1640,8 +1640,11 @@ const OLD_PROJECT_TEXT='{"name":"Old saved project","parts":[{"id":1,"name":"Leg
    became rule 8, and the print was recorded again the same way: with "fastening":8 put back to 7 the text hashes
    to main's '7qt7oo' at 477. The shop packet had also taken 8 on its own branch; at its merge with main it became
    rule 9 (FASTENING_NOW 8 to 9, js/shoppacket.js), and the print was recorded again the same way: with
-   "fastening":9 put back to 8 the text hashes to main's '7qwd6n' at the same 477 characters. */
-const OLD_PROJECT_PRINT=['8uxxgi',477];
+   "fastening":9 put back to 8 the text hashes to main's '7qwd6n' at the same 477 characters. Branch caselooks had
+   also taken 9 (the cases judged from a standing and a seated eye, js/caselooks.js); at its merge with main that
+   became rule 10 (FASTENING_NOW 9 to 10), and the print was recorded again: with "fastening":10 put back to 9 the
+   text hashes to main's '8uxxgi' at 477; the new print is one character longer only because 10 has two digits. */
+const OLD_PROJECT_PRINT=['1f8jj58',478];
 
 /* a short hash of a text (FNV-1a), written in base 36 */
 function printHash(text){

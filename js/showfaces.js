@@ -59,6 +59,9 @@ const HEADS_NOTE_LOW='Screw heads: in the Everyday and Fine furniture styles non
 const HEADS_NOTE_USUAL=HEADS_NOTE_LOW.replace(' In Rustic',HEADS_NOTE_HIGH+' In Rustic');
 /* the two fish stands (js/fishtop.js): the brads of the thin end panels are the only heads on the outside */
 const FISH_STAND_HEADS='Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front or the ends. The countertop (or the top deck of an open stand) is held from underneath by pocket screws in the rails and cross pieces of its frame, and the frames are held from inside, or by screws the thin side panels cover. The thin plywood ends are glued and nailed on with small brads, because nothing else holds a panel that thin: set each brad a little below the surface with a nail set and fill the holes with wood filler before the finish, as the step says, and they do not show. In Rustic / rough the top is screwed down from above and the heads show, on the ends too.';
+/* the cabinet builder's line (js/caselooks.js judges its holes from the eyes in the room) */
+const CASE_HEADS_LOW='Screw heads: in the Everyday and Fine furniture styles none shows on the top, the front or the sides, and no open hole or head is left where a person standing or sitting in front sees it, looking up into a bay or down onto a shelf. The boards are held from a face nobody sees (under a low board, on the back of a rail), and where a face is seen either way its holes are filled with glued plugs, sanded flush: the notes above and the steps say which. In Rustic / rough the screws go in from outside and their heads show, on the top and the sides too.';
+const CASE_HEADS_HIGH=' A shelf above the eye of a tall grown-up takes its holes in its top face; the top of the case never does.';
 const HEADS_NOTES={
   'Platform bed':'Screw heads: in the Everyday and Fine furniture styles none shows on the head and foot ends, and the side rails show none but the screws that hold each side rail to its two legs. That joint carries the bed and keeps the frame square, and no hidden joint does it as well, so those screws go in from outside with their heads sunk 3/8" deep and covered: a wooden plug glued in and cut flush, or wood filler under paint. The build step and the finishing step say how, and the shopping list has the plugs (or the filler). In Rustic / rough all the screws go in from outside and their heads show.',
   'Sturdy bench':'Screw heads: in the Everyday style the two short aprons at the ends of the bench are held by structural screws through the legs, and their washer heads show on the front and back faces of the four legs, two on each leg (the aprons are too short for pocket holes). To hide them, choose Fine furniture in Style & finish, which joins those aprons to the legs with glued dowels instead, or do this at each of the four joints between a leg and a short apron: click one of its screws in the 3D view and pick "Screws, heads plugged" in Properties (a choice there changes that one joint). That sinks each head 1 1/4" deep in the leg under a glued length of 3/8" dowel rod cut flush; the steps and the shopping list then say so. Nothing else shows on the top, the front or the sides in Everyday and Fine furniture. In Rustic / rough the screws go in from outside and their heads show, on the seat too.',
@@ -67,14 +70,19 @@ const HEADS_NOTES={
   'Single aquarium stand':FISH_STAND_HEADS,
   // (with more rows of tanks, the end uprights of the open rows are screwed to the posts under plugs: openRowJoints)
   'Cabinet stand with a row of tanks':FISH_STAND_HEADS.replace(' In Rustic',' With more than one row of tanks, the end uprights of the open rows on the countertop are screwed to the posts with their heads sunk under glued wooden plugs, cut flush. In Rustic'),
-  'Wall shelf':'Screw heads: in the Everyday and Fine furniture styles none shows on the shelf or the supports: the pocket holes are on the back of the cleat, against the wall, and on the inside faces of the supports. A shelf hung so high that those faces are seen from below (more than 54" up) gets its support holes filled with glued pocket-hole plugs, sanded flush; the step and the shopping list say so. In Rustic / rough the shelf is screwed down from above and the heads show.'
+  // (the case looks job: the usual line promised pocket-hole plugs to a narrow case that has none, and holes in the
+  // top face of a top above eye level, which the case no longer drills; the notes above it and the steps name the
+  // holes that are plugged, from caseLooks in js/caselooks.js. Its sentence on high boards only where it has one.)
+  [CASE_BUILDER]:parts=>!parts||parts.some(piece=>!isProp(piece)&&plainBox(piece).lo[1]>SEEN.underAbove)?CASE_HEADS_LOW.replace(' In Rustic',CASE_HEADS_HIGH+' In Rustic'):CASE_HEADS_LOW,
+  'Wall shelf':'Screw heads: in the Everyday and Fine furniture styles none shows on the shelf or the supports: the pocket holes are on the back of the cleat, against the wall, and on the inside faces of the supports. Where a person standing or sitting in front can see those faces (looking in under a shelf hung low, or up at one hung high), the support holes are filled with glued pocket-hole plugs, sanded flush; the step and the shopping list say so. In Rustic / rough the shelf is screwed down from above and the heads show.'
 };
 /* The usual line speaks of boards more than 54" up only for a design that has one (the preset audit of 20 Nov, note
    12: shelves and books in the notes of a dining table, a bench or a toy chest). parts (optional): the pieces the
    preset builds; without them the line is the whole usual one. */
 function headsNote(presetName,parts){
   if(!HOUSE_FURNITURE.includes(presetName))return[];
-  if(HEADS_NOTES[presetName])return[HEADS_NOTES[presetName]];
+  // (a row may be a function of the pieces: the cabinet builder's)
+  if(HEADS_NOTES[presetName])return[typeof HEADS_NOTES[presetName]==='function'?HEADS_NOTES[presetName](parts):HEADS_NOTES[presetName]];
   const high=!parts||parts.some(piece=>!isProp(piece)&&plainBox(piece).lo[1]>SEEN.underAbove);
   return[high?HEADS_NOTE_USUAL:HEADS_NOTE_LOW];
 }

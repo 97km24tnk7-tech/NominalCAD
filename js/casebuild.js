@@ -114,6 +114,9 @@ PRESETS.push({name:CASE_BUILDER,hidden:true,spec:'Shelves, a back, bays side by 
   build:buildCase,check:p=>caseCheck(p),info:p=>caseInfo(p),notes:p=>caseNotes(p),hw:p=>caseHardware(p),steps:p=>caseSteps(p),
   uses:p=>caseUses(p),wall:p=>casePlan(p).anchored,joints:p=>caseJoints(p),variants:CASE_VARIANTS,
   pluggedPockets:casePocketsPlugged,hiddenFace:caseHiddenFace,
+  // its hiddenFace judges the faces of its boards from the eyes in the room (js/caselooks.js): rule 13 of
+  // js/fasteners.js does not move its holes afterwards, so the layout drills the face the steps name
+  lineOfSight:true,
   // a shelf more than 54" up takes the angled screws at a divider in its top face (rule 13, js/fastenerreach.js)
   angledScrewsFollowRule13:true});
 

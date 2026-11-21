@@ -111,6 +111,9 @@ const AT_ASSEMBLY_WORK=[
     why:'a hook or a bracket bought ready is screwed on where it is wanted once the piece stands, with it in hand'},
   {match:/\bstud finder and mark them\b/i,whole:true,
     why:'the screws into the wall go where the wall studs are, found once the piece stands against the wall'},
+  // (the anti-tip kits of a case, caseAntiTipWords in js/caselooks.js: the marks go on the WALL, not on a part)
+  {match:/\bmark the wall where the case will stand: find the wall studs with a stud finder and mark the stud nearest each place a kit goes\b/i,whole:true,
+    why:'the wall brackets of an anti-tip kit go into the wall studs, which are found and marked on the wall where the case will stand'},
   // (the spacer block itself is a small part with its drawing: smallPartsOf; only its shortening is fitting)
   {match:/\bCut the block shorter for the next pair\b/i,
     why:'the spacer block is cut shorter for each lower pair of slides, measured with the case standing'},

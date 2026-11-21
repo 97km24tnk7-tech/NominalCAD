@@ -323,6 +323,15 @@ const PLUG_LABEL='3/8" wood plugs';
 const DOWEL_ROD_LABEL='3/8" dowel rod, cut into plugs';
 /* pocket holes that would be seen from below are filled with these (rule 13 in js/fasteners.js) */
 const POCKET_PLUG_LABEL='Pocket-hole plugs';
+/* The kind of pocket-hole plug to buy for the design's wood and finish (sheet 01 §9.4: bags of 50 in pine, oak, maple
+   and paint grade): paint grade under paint, else the wood the plugs are sold in that is nearest the design's. The
+   shopping list names it (js/prices.js, the pocket-plugs rows; the case looks job, real-thing review 6). */
+const POCKET_PLUG_KIND={oak:'oak',poplar:'maple'};
+function pocketPlugKind(){
+  const L=look();
+  if(FINISHES[L.finish]&&FINISHES[L.finish][2]===2)return'paint grade';
+  return POCKET_PLUG_KIND[L.wood]||'pine';
+}
 function jSpec(j,type,opts){
   if(type==='frame'||type==='toenail'){   // nails for framing: js/framing.js
     // (framing looks at where the two pieces stand; inside a turned set that is read with the set standing square, js/neighbors.js)

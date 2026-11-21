@@ -1452,7 +1452,12 @@ function drawingNotes(label,plan){
     const steps=[...new Set(plugged.map(hole=>hole.step).filter(Boolean))];
     // (from below on a high underside; the back rails of a Dining chair are seen from behind)
     const below=plugged.every(hole=>{const out=(hole.hole||hole).out;return!out||out[1]<-.5;});
-    notes.push(`${plugged.length===label.way.holes.length?'These holes are':`${plugged.length} of these holes are`} ${below?'seen from below':'on a face that is seen'}: once the screws are in${steps.length?` (step ${listWords(steps.map(String))})`:''}, glue a pocket-hole plug into each and sand it flush.`);
+    // (when other holes share the drawing, the plugged ones are named as pocket holes, so nobody plugs a pilot hole:
+    // the case looks job, real-thing review 8)
+    const pockets=label.way.holes.filter(hole=>(hole.hole||hole).kind==='pocket');
+    const which=plugged.length===label.way.holes.length?'These holes are'
+      :plugged.length===pockets.length&&plugged.every(hole=>pockets.includes(hole))?`The ${plugged.length} pocket holes are`:`${plugged.length} of these holes are`;
+    notes.push(`${which} ${below?'seen from below':'on a face that is seen'}: once the screws are in${steps.length?` (step ${listWords(steps.map(String))})`:''}, glue a pocket-hole plug into each and sand it flush.`);
   }
   const wall=drill.wallScrews.filter(item=>label.members.some(member=>member.piece.id===item.on));
   if(wall.length)notes.push(`At install, screws go through this ${piece.name.toLowerCase()} into the wall studs (last step). Do not drill them now: the studs decide where.`);

@@ -26,7 +26,8 @@
      caseJointsReachable             in step order, a drill reaches every fastener when its step comes
      caseShelfSpacingFits            "At a spacing I choose": every opening the spacing, the leftover where asked and
                                      never under 7", no shelf more would fit, and the words say what was built
-     caseAnchoring                   the wall rules: a back rail, the screws, the last step and the declaration
+     caseAnchoring                   the wall rules: the anti-tip kits and their price, the last step and the
+                                     declaration; a rail under the top only with an open back
      caseSecondBoardOnTheRight       at a divider the board on its left is screwed through it, the one on its right
                                      gets the angled screws, as the steps say
      casePlanSpeed                   the plan and the pieces of the largest case in a few milliseconds
@@ -288,7 +289,9 @@ function casePieceLines(parts){
 }
 /* The Bookshelf's default cut list as the retired preset made it (name, length, width, thickness): it stays the
    net once the old preset is deleted. */
-const CASE_BOOKSHELF_DEFAULT_CUT=['Back panel 44.5 32 0.25','Back rail 30.5 3.5 0.75','Base rail 30.5 3.5 0.75','Bottom 30.5 9.25 0.75',
+/* (the case looks job, 21 Nov: the 'Back rail 30.5 3.5 0.75' under the top is gone on purpose: a case with a plywood
+   back is fastened to the wall by anti-tip kits screwed to the back of its top, js/caselooks.js) */
+const CASE_BOOKSHELF_DEFAULT_CUT=['Back panel 44.5 32 0.25','Base rail 30.5 3.5 0.75','Bottom 30.5 9.25 0.75',
   'Shelf 30.5 9.25 0.75','Shelf 30.5 9.25 0.75','Shelf 30.5 9.25 0.75','Side 48 9.25 0.75','Side 48 9.25 0.75','Toe kick 30.5 3.5 0.75','Top 30.5 9.25 0.75'];
 
 /* 6.1 of the spec. The improvements the builder makes on purpose (5.5): no opening under 6" in any case (the old
@@ -318,13 +321,19 @@ SELFTESTS.push(function caseMatchesOldPresets(problems){
       return;
     }
     if(oldStop){wrong(`${label}: the builder builds what the old Bookshelf refused`);return;}
-    const a=casePieceLines(old.build(before)),b=casePieceLines(buildCase(after));
+    // The case looks job (21 Nov) made one more improvement on purpose: with a plywood back there is no rail under the
+    // top (the old Bookshelf put one in to screw the case to the wall through), and the wall is held by anti-tip kits.
+    // That rail is left out of the old pieces here, and the wall hardware is compared as "on the wall or not".
+    const railGone=casePlan(after).back==='panel';
+    const a=casePieceLines(old.build(before).filter(piece=>!(railGone&&piece.name==='Back rail'))),b=casePieceLines(buildCase(after));
     if(a.join('|')!==b.join('|')){
       const bays=plan.bays.length!==casePlan(after).bays.length;
       if(!(bays&&inRanges(sizeWithin(more.W===undefined?32:more.W,[12,72]))))wrong(`${label}: pieces differ (${a.filter(line=>!b.includes(line))[0]||'more pieces'} / ${b.filter(line=>!a.includes(line))[0]||'fewer pieces'})`);
       return;
     }
-    if(JSON.stringify(old.hw(before))!==JSON.stringify(builder.hw(after)))wrong(`${label}: the hardware lines differ`);
+    const onWall=list=>list.some(([what])=>/wall studs|anti-tip kits/.test(what));
+    if(onWall(old.hw(before))!==onWall(builder.hw(after)))wrong(`${label}: one of the two goes on the wall and the other does not`);
+    if(onWall(builder.hw(after))&&!builder.hw(after).some(([what,count])=>what===CASE_ANTI_TIP.label&&count===CASE_ANTI_TIP.count(casePlan(after))))wrong(`${label}: the anti-tip kits are not on the list`);
     if(full){
       const x=findings(checkPreset(old,before)),y=findings(checkPreset(builder,after));
       if(x!==y)wrong(`${label}: the findings differ (${x||'none'} / ${y||'none'})`);
@@ -423,7 +432,8 @@ SELFTESTS.push(function caseEntriesStartClean(problems){withoutDrawing(()=>{
 
 /* 6.5: Everyday and Fine furniture show no fastener head on a top, a front or the outside of a side, for every
    recipe and every kind of top, in one bay and in three; Rustic / rough shows the screws through the sides; Fine
-   furniture plugs the pocket holes under the shelves (the owner has not said yet for Everyday: they stay open). */
+   furniture plugs the pocket holes under the shelves; Everyday plugs only the ones a person in front sees (the case
+   looks job: the owner's "i would prefer them hidden"; caseNothingInSight in js/caselooks.js holds the rest). */
 SELFTESTS.push(function caseNoHeadsShowing(problems){withoutDrawing(()=>{
   const wrong=text=>{if(problems.length<80)problems.push('cabinet show faces: '+text);};
   const builder=caseBuilder();
@@ -457,7 +467,13 @@ SELFTESTS.push(function caseNoHeadsShowing(problems){withoutDrawing(()=>{
         // Fine furniture plugs every pocket hole of the shelves and the top: under them, and the top faces of the high ones
         const open=fastenerHeads().filter(head=>head.f.kind==='pocket'&&['Shelf','Top','Top rail'].includes(head.f.through.name)&&!head.covered&&Math.abs(head.out[1])>.5);
         if(style==='fine'&&open.length)wrong(`${label} in Fine furniture: ${open.length} pocket holes of the ${open[0].f.through.name} at ${fmt(open[0].at[1])} are not plugged`);
-        if(style==='std'&&fastenerHeads().some(head=>head.f.kind==='pocket'&&head.f.through.name==='Shelf'&&head.covered&&head.at[1]<SEEN.underAbove))wrong(`${label} in Everyday: low pocket holes under the shelves are plugged (the owner has not asked for that yet)`);
+        // Everyday plugs exactly the pocket holes a person in front sees (the owner, 20 Nov: "i would prefer them
+        // hidden"; js/caselooks.js), and those in the top face of a shelf above the eyes, which a person on a step
+        // stool sees: never one on a face nobody sees, which would only cost plugs and work. (It is judged with the
+        // same casePocketInSight the builder plugs with, so it can only catch a plug some other rule adds: rule 13,
+        // or a style rule; caseNothingInSight in js/caselooks.js judges what shows with the eyes on their own.)
+        const wasted=fastenerHeads().filter(head=>head.f.kind==='pocket'&&head.covered&&!(head.f.through.name==='Shelf'&&head.out[1]>.5)&&!casePocketInSight(head.f.through,head.out));
+        if(style==='std'&&wasted.length)wrong(`${label} in Everyday: ${wasted.length} pocket holes of the ${wasted[0].f.through.name} at ${fmt(wasted[0].at[1])} are plugged on a face nobody sees`);
       }
       placeInStyle(builder,vals,'rustic');
       if(!showingHeads().some(head=>head.face==='side'))wrong(`${label} in Rustic / rough: no screw goes in through the sides`);
@@ -486,7 +502,9 @@ SELFTESTS.push(function caseHoleWordsMatchTheLayout(problems){withoutDrawing(()=
     return'mixed';
   };
   try{
-    for(const W of[32,40,48,72,96])for(const H of[48,60,66,84,96]){
+    // (72": three shelves put the top one at 54 5/16", where the steps and the layout once disagreed: the code review
+    // of the case looks job, finding 1)
+    for(const W of[32,40,48,72,96])for(const H of[48,60,66,72,84,96]){
       const vals=caseEntryVals('bookshelf',{W,H});
       if(caseCheck(vals).some(f=>f.level==='stop'))continue;
       placeInStyle(builder,vals,'std');
@@ -602,27 +620,32 @@ SELFTESTS.push(function caseShelfSpacingFits(problems){
   }
 });
 
-/* 6.11: each rule that fastens a case to the wall gives it a back rail (or the on-edge rail at the back of its
-   top), the screws into the studs, the last step's words and the declaration for Check my design. */
+/* 6.11: each rule that fastens a case to the wall gives it the anti-tip kits on the shopping list, the last step's
+   words and the declaration for Check my design. Since the case looks job (21 Nov) the kits are screwed to the back of
+   the top, and a case with a plywood back has no rail under its top (js/caselooks.js); an open back keeps its rail,
+   which keeps it square. */
 SELFTESTS.push(function caseAnchoring(problems){
   const wrong=text=>problems.push('cabinet on the wall: '+text);
   const builder=caseBuilder();
   if(!builder)return;
   const low={...presetDefaults(builder),H:30,D:16,wall:'auto'};
-  const cases=[['tall',{...low,H:72,D:12}],['kind',{...low,kind:'pantry'}],['asked',{...low,wall:'yes'}],['asked',{...low,wall:'yes',top:'rails'}],['none',low]];
+  const cases=[['tall',{...low,H:72,D:12}],['kind',{...low,kind:'pantry'}],['asked',{...low,wall:'yes'}],['asked',{...low,wall:'yes',top:'rails'}],
+    ['asked',{...low,wall:'yes',top:'inside',W:60}],['asked',{...low,wall:'yes',back:'rails',H:40}],['none',low]];
   for(const[rule,vals]of cases){
     const plan=casePlan(vals),parts=buildCase(vals),steps=caseSteps(vals),last=steps[steps.length-1].t;
-    const fastened=rule!=='none';
-    if(plan.anchored!==fastened||builder.wall(vals)!==fastened){wrong(`rule "${rule}" ${fastened?'does not fasten':'fastens'} the case`);continue;}
+    const fastened=rule!=='none',label=`rule "${rule}" (${JSON.stringify({top:vals.top,back:vals.back,W:vals.W})})`;
+    if(plan.anchored!==fastened||builder.wall(vals)!==fastened){wrong(`${label} ${fastened?'does not fasten':'fastens'} the case`);continue;}
+    const rail=parts.some(piece=>piece.name==='Back rail');
+    if(rail!==(plan.back!=='panel'&&plan.top!=='rails'))wrong(`${label}: ${rail?'a rail under the top of a case with a plywood back':'no rail under the top of an open back'}`);
     if(!fastened){
-      if(caseHardware(vals).length||/drive two 3" screws/.test(last))wrong('a case that stands on its own is told to go on the wall');
+      if(caseHardware(vals).length||/anti-tip/.test(last))wrong('a case that stands on its own is told to go on the wall');
       continue;
     }
-    const rail=parts.some(piece=>piece.name==='Back rail')||(vals.top==='rails'&&parts.some(piece=>piece.name==='Top rail'&&piece.pos[2]<=CASE.back+1e-6));
-    if(!rail)wrong(`rule "${rule}": no rail at the back for the wall screws`);
-    const screws=caseHardware(vals);
-    if(!screws.length||screws[0][1]!==2*Math.max(1,Math.ceil(vals.W/16)))wrong(`rule "${rule}": the screws into the studs are not listed (${JSON.stringify(screws)})`);
-    if(!/drive two 3" screws through/.test(last))wrong(`rule "${rule}": the last step does not fasten it to the wall: ${last}`);
+    const kits=caseHardware(vals),count=CASE_ANTI_TIP.count(plan);
+    if(kits.length!==1||kits[0][0]!==CASE_ANTI_TIP.label||kits[0][1]!==count)wrong(`${label}: the anti-tip kits are not listed (${JSON.stringify(kits)})`);
+    if(typeof hardwareFamily==='function'&&!hardwareFamily(CASE_ANTI_TIP.label))wrong('the anti-tip kits have no price');
+    if(!new RegExp(`Fasten it to the wall with the ${count} anti-tip kits`).test(last)||!last.includes(caseAntiTipInto(plan)))wrong(`${label}: the last step does not fasten it to the wall with the kits: ${last}`);
+    if(/screws? through the (back|top) rail into/.test(steps.map(step=>step.t).join(' ')))wrong(`${label}: a step still screws the case to the wall through a rail`);
   }
 });
 
@@ -762,12 +785,13 @@ SELFTESTS.push(function caseHighShelvesHideTheirScrews(problems){withoutDrawing(
           const second=fastenersOfLink(link).every(f=>f.through===shelf);   // the board whose fasteners start in it
           if(!second||shelf.pos[0]<divider.pos[0])continue;
           const kinds=new Set(fastenersOfLink(link).map(f=>f.kind+(f.toe||f.angledAt?' angled':'')));
-          const isHigh=shelf.pos[1]>SEEN.underAbove;
+          // (since the case looks job: a shelf whose underside a person standing or seated in front sees, caseLooks)
+          const isHigh=caseLooks(vals).shelfUnderSeen(shelf.pos[1]);
           if(isHigh)high++;else low++;
           if(!isHigh&&!kinds.has('screw angled'))wrong(`${label}${STYLES[style][0]}: the shelf at ${fmt(shelf.pos[1])} on the right of a divider lost its angled screws (${[...kinds].join(', ')})`);
           if(style!=='rustic'&&isHigh&&!(kinds.size===1&&kinds.has('pocket')))wrong(`${label}${STYLES[style][0]}: the shelf at ${fmt(shelf.pos[1])} on the right of a divider is held by ${[...kinds].join(', ')}, not pocket screws`);
         }
-        if(!high||!low)wrong(`${label}${STYLES[style][0]}: found ${high} second shelves more than ${SEEN.underAbove}" up and ${low} lower: the check needs both to look at`);
+        if(!high||!low)wrong(`${label}${STYLES[style][0]}: found ${high} second shelves whose undersides are seen and ${low} others: the check needs both to look at`);
         if(style==='rustic')continue;
         const onFloor=headsOnAnOpenFloor(),showing=headsOnShowFaces();
         if(onFloor.length)wrong(`${label}${STYLES[style][0]}: ${onFloor.length} heads on the floor of an open shelf (${onFloor[0].f.through.name} into ${onFloor[0].f.into.name})`);
@@ -782,7 +806,12 @@ SELFTESTS.push(function caseHighShelvesHideTheirScrews(problems){withoutDrawing(
         // right-angle drill attachment, which the Tools list then has.
         const shelfStep=caseSteps(vals).find(step=>(step.add||[]).includes('Shelf'));
         const shelfWords=shelfStep?(shelfStep.byStyle?shelfStep.byStyle[style]:shelfStep.t):'';
-        if(style==='std'&&!/stay open in this style[^.]*\. To hide them, glue in pocket-hole plugs/.test(shelfWords))wrong(`${label}Everyday: the shelves step does not say the pocket holes on top of the high shelf stay open, or how to hide them`);
+        // (the case looks job: the owner answered "hidden". Holes in the top face of a shelf above eye level are out of
+        // sight; the ones a person sees are plugged, and the step says so for exactly those shelves)
+        if(/stay open in this style/.test(shelfWords))wrong(`${label}${STYLES[style][0]}: the shelves step still leaves pocket holes open`);
+        // (the words against the fastener layout as placed, not against caseLooks, which the words are written from:
+        // the code review of the case looks job, finding 1; the narrow marking face is compared there too)
+        casePlugWordsAgree(vals,style,plugsOnTheList()).forEach(text=>wrong(`${label}${STYLES[style][0]}: ${text}`));
         if(style==='fine'){
           const plugAt=shelfWords.lastIndexOf('pocket-hole plugs'),lastScrew=shelfWords.lastIndexOf('pocket screws');
           if(plugAt<0||plugAt<lastScrew)wrong(`${label}Fine furniture: the shelves step says to plug the pocket holes before the last pocket screws are driven`);
@@ -791,7 +820,8 @@ SELFTESTS.push(function caseHighShelvesHideTheirScrews(problems){withoutDrawing(
           if(!casePlan(vals).narrow)wrong(`${label}the case is no longer narrow: pick another size for this check`);
           const marking=caseSteps(vals)[1];
           const markWords=marking.byStyle?marking.byStyle[style]:marking.t;
-          if(!/near the left end of the shelf at [^;.]* on the right of each divider, in its top face, for the divider/.test(markWords)||!/The one exception/.test(markWords))wrong(`${label}${STYLES[style][0]}: the marking step of a narrow case does not name the pocket holes of the high shelf beside a divider`);
+          // (which face is compared with the layout by casePlugWordsAgree above)
+          if(!/near the left end of the shel(?:f|ves) at [^;.]* on the right of each divider, in its [^;.]*, for the divider/.test(markWords)||!/The one exception/.test(markWords))wrong(`${label}${STYLES[style][0]}: the marking step of a narrow case does not name the pocket holes of the high shelf beside a divider`);
           const plan=buildPlan();
           if(!plan.steps.some(step=>(step.tight||[]).length))wrong(`${label}${STYLES[style][0]}: no step asks for the right-angle drill attachment in a bay this narrow`);
           if(!toolList(findJoints(),plan).some(tool=>/right-angle/i.test(tool)))wrong(`${label}${STYLES[style][0]}: the Tools list has no right-angle drill attachment`);
@@ -863,7 +893,8 @@ SELFTESTS.push(function savedBookshelvesHideHighShelfScrews(problems){withoutDra
     for(const[label,preset,vals,fixedScrew]of designs){
       const{old,keys}=asSaved(preset,vals,fixedScrew);
       if(!keys.length){wrong(`${label}: no shelf more than ${SEEN.underAbove}" up on the right of a divider, so this check proves nothing`);continue;}
-      for(const savedUnder of[5,6,7])for(const style of['std','fine','rustic']){
+      // (9: the rule of the shop packet on main, saved by the published program before the case looks took 10)
+      for(const savedUnder of[5,6,7,8,9])for(const style of['std','fine','rustic']){
         const at=`${label} saved under ${savedUnder} (${STYLES[style][0]})`;
         said.length=0;
         load(JSON.stringify({...old,fastening:savedUnder,look:{...old.look,style}}),true);

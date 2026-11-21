@@ -658,9 +658,11 @@ function pocketScrews(j,shape,n,len,label){
   if(hiddenFaceByPreset(through,s))hidden=hiddenFaceByPreset(through,s);
   // Rule 13: an underside high enough to be seen from below. The holes go on the top face when nobody sees that,
   // or stay and are plugged.
-  const house=isHouseFurniturePiece(through);
+  // (a preset that judges its faces from the eyes in the room, lineOfSight, has the last word: the cabinet builder,
+  // js/caselooks.js; else this rule would move holes the steps name underneath to the top face)
+  const house=isHouseFurniturePiece(through),ownSight=!!(presetOfPiece(through)||{}).lineOfSight;
   let plugged=false;
-  if(house&&s===1&&hidden<0){
+  if(house&&s===1&&hidden<0&&!ownSight){
     const face=undersideHoleFace(through);
     if(face==='top')hidden=1;
     else if(face==='plugged')plugged=true;

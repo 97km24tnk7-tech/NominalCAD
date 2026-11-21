@@ -87,6 +87,7 @@ const FASTENER_LABELS=[
   [/^(\S+) framing nails \((\d+d)\)$/,(m,n)=>`${n} framing nail${n===1?'':'s'}, ${m[1]} (${m[2]})`],
   [/^(\S+) nails \((\d+d)\) for plywood$/,(m,n)=>`${n} nail${n===1?'':'s'} for plywood, ${m[1]} (${m[2]})`],
   // plain lines of a preset's hardware list
+  [/^Furniture anti-tip kits\b/,(m,n)=>`${n} furniture anti-tip kit${n===1?'':'s'}`],
   [/^Metal hurricane ties\b/,(m,n)=>`${n} metal hurricane tie${n===1?'':'s'}`],
   [/^Joist hanger nails, (\S+),/,(m,n)=>`${n} joist hanger nails, ${m[1]}`],
   [/^Wood screws, ([^ ,]+),? (.+)$/,(m,n)=>`${n} wood screw${n===1?'':'s'}, ${m[1]} (${m[2]})`],
@@ -841,7 +842,7 @@ function fastenLine(links,letterOf){
     // (pocketPluggedByPreset: the cabinet builder's shelves in Fine furniture), whatever their height
     (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged))?
       (all.some(facts=>facts.layout.some(f=>f.pocket&&f.pocket.plugged&&f.pocket.mouth[1]>SEEN.underAbove&&f.pocket.out[1]<.5))?` These holes are more than ${SEEN.underAbove}" up, where they are seen from below, so once`:' So that no hole shows, once')+
-      ' the screws are in, glue a pocket-hole plug into each one (sold in bags, in pine and oak), with its flat side lined up with the face, and sand it flush when the glue is dry.':'');
+      ` the screws are in, glue a pocket-hole plug into each one (sold in bags; ${pocketPlugKind()} ones suit this design), with its flat side lined up with the face, and sand it flush when the glue is dry.`:'');
   /* the two pieces of a pair in words: with "the" for a sentence, without for a list */
   const pieceWords=(pair,inSentence)=>{
     const through=namedLabel(pair.throughs,letterOf),into=namedLabel(pair.intos,letterOf);
@@ -1633,6 +1634,7 @@ const STEP_TOOLS={
   glue:'wood glue',
   banding:'household iron, and an edge banding trimmer or a sharp chisel',   // iron-on edge banding (the Computer desk)
   pocketBit:'the square-drive bit for the pocket screws',   // pocketDriven, in a step that names the drill already (its screws)
+  plugTrim:'flush-cut saw and a sanding block, to trim the pocket-hole plugs flush',   // a step that plugs pocket holes (the case looks job)
 };
 /* the tools a preset step's own words name that the fasteners do not tell (step.tools, a list, or a list for each
    build style: the Dining chair's block plane, its two clamps and, for the plugs, its flush-cut saw) */
@@ -1752,6 +1754,10 @@ function stepTools(step){
   if(/\b(saw|cut|notch|trim)\b/i.test(words)&&!tools.includes('saw')&&!ownTools.some(tool=>/\bsaw\b/.test(tool)))add('saw');
   if(/\bladder\b/i.test(words))add('stepladder');
   for(const tool of ownTools)add(tool);
+  // pocket holes this step fills with glued plugs: what trims them flush, unless the step names a flush-cut saw of
+  // its own (the case looks job, code review 9: the Wall shelf's supports had none)
+  const plugsPockets=step.groups.some(group=>group.type==='pocket'&&group.links.some(link=>fastenersOfLink(link).some(f=>f.pocket&&f.pocket.plugged)));
+  if(plugsPockets&&!tools.some(tool=>/flush-cut saw/i.test(tool)))add(STEP_TOOLS.plugTrim);
   return tools;
 }
 
@@ -2350,7 +2356,9 @@ function rewrittenWords(pieces,built,letterOf,graph){
 const SUPPLY_WORDS=[[/wall studs?/i,/wall studs?|\bstuds\b/i],[/landscape fabric/i,/\bfabric\b/i],[/screw eyes?/i,/screw eyes?/i],[/chain or rope/i,/\bchain\b|\brope\b/i],
   [/concrete blocks?/i,/\bblocks\b/i],[/ground anchors?/i,/\banchor/i],[/corner braces?/i,/corner braces?/i],[/barrel bolts?/i,/barrel bolt/i],
   [/for the hinge leaves/i,/hinges?/i],[/for the hinge straps/i,/hinges?/i],[/lid support/i,/lid support|lid stay/i],
-  [/for the gable ends|sloped tops of the side walls/i,/triangle above|sloped strip above/i],[/felt pads?/i,/felt pads?/i]];
+  [/for the gable ends|sloped tops of the side walls/i,/triangle above|sloped strip above/i],[/felt pads?/i,/felt pads?/i],
+  // (the case looks job: the bought kits that fasten a case to the wall, named in the last step)
+  [/anti-tip kits?/i,/anti-tip kits?/i]];
 function suppliesNamed(step,claimed){
   if(!claimed||step.source==='generated'||step.kind==='cut'||step.kind==='finish')return[];
   const found=[];

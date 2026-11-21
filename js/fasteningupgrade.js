@@ -39,10 +39,17 @@
                    is written again too. (The packet took 7 on its own branch and 8 at its first merge with main;
                    at its second merge, where the audit fixes already had 8, it became 9, so a design saved by the
                    published program under rule 8 is still written again.)
+                   10: the cases of the Cabinet / case builder judged from a standing (60" to 69") and a seated (40" to
+                   44") eye (js/caselooks.js): the second shelf at a divider whose underside a person in front sees
+                   takes pocket screws, the top rails of a laid-on top are screwed down into the dividers, the screws
+                   up into a laid-on top are plugged where the rails are seen, and a high top keeps its holes
+                   underneath, plugged (never on its top face; rule 13 of js/fasteners.js no longer moves the case's
+                   holes) (branch caselooks, which took 9 on its own and became 10 at its merge with main, where the
+                   shop packet had taken 9; so a design the site saved under 9 is fastened again when opened).
    upgradeFastening()  the ON_LOAD hook. lastFasteningUpgrade: what the last opening changed, for the self-check. */
 'use strict';
 
-const FASTENING_NOW=9;
+const FASTENING_NOW=10;
 let lastFasteningUpgrade=null;
 /* how the line is shown (the self-check listens in) */
 let sayFasteningUpgrade=text=>toast(text);

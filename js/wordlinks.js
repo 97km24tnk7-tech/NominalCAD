@@ -17,6 +17,9 @@
 'use strict';
 
 const WORD_LINKS=[
+  // (before the pocket-hole row, which would otherwise take the first words of it: the case looks job)
+  {re:/\bpocket-hole plugs?\b/i,word:'Pocket-hole plug'},
+  {re:/\banti-tip kits?\b/i,word:'Anti-tip kit'},
   {re:/\bpocket[- ]hole screws?\b|\bpocket[- ]holes?\b|\bpocket screws?\b/i,joint:'pocket'},
   {re:/\bwooden plugs?\b|\bwood plugs?\b|\bplugged heads?\b/i,joint:'plug'},
   {re:/\bwood screws?\b|\bexterior screws?\b|\bstructural screws?\b/i,joint:'screw'},

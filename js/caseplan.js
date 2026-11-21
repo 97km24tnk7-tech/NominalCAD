@@ -284,7 +284,10 @@ function makeCasePlan(p){
   if(kind.rules.wall)why.push('kind');                           // rule 3: TV stands, pantries, wardrobes
   if(v.wall==='yes')why.push('asked');                           // rule 4: the person asked
   const anchored=why.length>0;
-  const backRail=(anchored||v.back!=='panel')&&v.top!=='rails';   // with on-edge top rails, the back one does it
+  // A rail across the back under the top only with an open back, where it keeps the case square (C4 below); with on-edge
+  // top rails, the back one does it. A case with a plywood back that goes on the wall is held by anti-tip kits screwed
+  // to the back of its top instead (the owner, 20 Nov, on that rail: "it doesnt look great"; js/caselooks.js).
+  const backRail=v.back!=='panel'&&v.top!=='rails';
   const baseRail=v.base==='kick'&&(kind.baseRail||v.back!=='panel');
   // C4: an open back is kept square by its rails, which works up to a height (the racking rule of js/verify.js:
   // one rail at least a tenth as deep as the sides are tall, or rails at the top and the bottom each at least a
@@ -301,12 +304,12 @@ function makeCasePlan(p){
   }
   // the top that lies on the case (C6: one sheet)
   const topOver=v.top==='over'?{x:-v.overSide,len:v.W+2*v.overSide,z:-tb,depth:tb+v.D+v.overFront}:null;
-  // A top that lies on the case is screwed up through its two flat rails from inside. Higher than SEEN.underAbove
-  // (js/fasteners.js) the undersides of those rails are in plain sight from below, and so would the heads be.
-  if(topOver&&Hc-T>SEEN.underAbove+1e-6){
-    problems.push({level:'stop',code:'C15',text:`A top laid on the case is screwed on from underneath, up through two rails inside the case. In a case ${typedLen(v.H)} tall those rails are more than ${SEEN.underAbove}" up, where their undersides and the screw heads are in plain sight from below.`,
-      fix:`Choose "Between the sides, flush" under Top, or make the case ${typedLen(SEEN.underAbove+2*T)} tall or lower.`});
-  }
+  // A top that lies on the case is screwed up through its two flat rails from inside. It used to be refused higher
+  // than SEEN.underAbove (C15), where the undersides of those rails are seen from below. Since the case looks job the
+  // rails' pocket holes are plugged and the screws up into the top sunk under wooden plugs wherever a person in front
+  // sees those undersides (js/caselooks.js), so that reason is gone and a tall case may have a top laid on, as tall
+  // real cases (a wardrobe, an armoire) do; a tall one gets its top while it lies on its back (caseSteps). The
+  // real-thing review of that job, finding 5.
   if(topOver&&(topOver.len>96+1e-6||topOver.depth>48+1e-6)){
     problems.push({level:'stop',code:'C6',text:topOver.len>96+1e-6?`The top would be ${typedLen(topOver.len)} long, and a sheet of plywood is 96" (8 ft) long.`:`The top would be ${typedLen(topOver.depth)} deep, and a sheet of plywood is 48" (4 ft) wide.`,
       fix:'Make the case narrower or the overhang smaller.'});

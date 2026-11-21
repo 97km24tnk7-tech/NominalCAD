@@ -319,7 +319,8 @@ SELFTESTS.push(function everyPresetSaysRuleOfThumb(problems){
 SELFTESTS.push(function screwHeadLineFitsTheDesign(problems){
   if(typeof catalogEntries!=='function'||typeof HEADS_NOTE_HIGH==='undefined')return;
   const wrong=text=>problems.push('screw-head line: '+text);
-  const high=HEADS_NOTE_HIGH.trim();
+  // (the cabinet builder has a line of its own, whose sentence on high boards is CASE_HEADS_HIGH: the case looks job)
+  const highs=[HEADS_NOTE_HIGH.trim()].concat(typeof CASE_HEADS_HIGH==='string'?[CASE_HEADS_HIGH.trim()]:[]);
   const kept=JSON.stringify(S),draw=renderAll;
   renderAll=()=>{};
   try{
@@ -327,7 +328,7 @@ SELFTESTS.push(function screwHeadLineFitsTheDesign(problems){
       load(JSON.stringify(blank()),true);
       placePreset(preset,vals,preset.build(vals),false);
       const tall=S.parts.some(piece=>!isProp(piece)&&plainBox(piece).lo[1]>SEEN.underAbove);
-      return{tall,says:(S.notes||[]).some(note=>note.includes(high))};
+      return{tall,says:(S.notes||[]).some(note=>highs.some(high=>note.includes(high)))};
     };
     for(const entry of catalogEntries()){
       const preset=PRESETS.find(row=>row.name===entry.builder);

@@ -107,7 +107,14 @@ const HARDWARE_PRICES=[
   // the plugs that hide the heads of plugged screws (type 'plug'): cut flush after the glue dries
   {id:'wood-plugs',name:'Wood plugs, 3/8"',match:/wood plugs/i,pack:25,sold:'bag of 25',price:4,search:'3/8 in. flat head wood plugs'},
   // pocket holes that would be seen from below are filled with these, glued in and sanded flush (rule 13, js/fasteners.js)
-  {id:'pocket-plugs',name:'Pocket-hole plugs',match:/pocket-hole plugs/i,pack:50,sold:'bag of 50',price:7,search:'pocket hole plugs pine'},
+  // (bought in the kind that suits the design's wood and finish, pocketPlugKind in js/style.js: a row for each kind,
+  // the plain row for pine; sheet 01 §9.4 for the prices)
+  ...['oak','maple','paint grade'].map(kind=>({id:'pocket-plugs-'+kind.replace(' ','-'),name:'Pocket-hole plugs, '+kind,
+    match:{test:label=>/pocket-hole plugs/i.test(label)&&pocketPlugKind()===kind},pack:50,sold:kind+', bag of 50',
+    price:{oak:11,maple:13,'paint grade':8}[kind],search:'pocket hole plugs '+kind})),
+  {id:'pocket-plugs',name:'Pocket-hole plugs, pine',match:/pocket-hole plugs/i,pack:50,sold:'pine, bag of 50',price:7,search:'pocket hole plugs pine'},
+  // a case that must go on the wall is held by these, screwed to the back of its top (js/caselooks.js; sheet 01 §9.3)
+  {id:'anti-tip-kits',name:'Furniture anti-tip kits',match:/anti-tip kits/i,pack:2,sold:'pack of 2',price:11,search:'furniture anti tip kit'},
   // a head sunk deeper than a plug is long gets a length of dowel rod instead: about 20 such plugs to a 36" rod
   {id:'dowel-rod-plugs',name:'Dowel rod, 3/8" × 36"',match:/dowel rod, cut into plugs/i,pack:20,sold:'36" rod (about 20 plugs)',price:2,search:'3/8 in. x 36 in. hardwood dowel rod'},
   // the short screws of a bracket under a 3/4" top are 1/2" (bracketScrew, js/style.js)

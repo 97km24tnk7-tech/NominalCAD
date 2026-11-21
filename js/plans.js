@@ -141,6 +141,8 @@ function toolList(js,plan){const t=new Set(js.map(jType)),sheet=S.parts.some(p=>
   if(/household iron/i.test(named))L.push('Household iron and an edge banding trimmer (or a sharp chisel), for the iron-on edge banding');
   if(/right-angle drill/i.test(named))L.push('Right-angle drill attachment and a 3" driver bit, for pocket screws where a drill does not fit');
   if(/foam mat/i.test(named))L.push('A foam mat to go under a rimless tank');
+  // a step that glues in plugs names the saw that trims them (the case looks job, real-thing review 7)
+  if(/flush-cut saw/i.test(named))L.push('Flush-cut saw and a sanding block, to trim plugs flush');
   // what the shaped pieces need: a hole saw, a compass and jigsaw (js/shapedrawings.js). A shape's own saw (the
   // taper of a chair's back legs: "Saw (a circular saw or jigsaw along a marked line)") joins the saw line above, so
   // the list names one saw line, not two
