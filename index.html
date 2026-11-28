@@ -1,0 +1,712 @@
+<!doctype html>
+<!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
+<html lang="en">
+<head>
+<script>(function(){var mine='1b9c62f';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<meta charset="utf-8">
+<title>NominalCAD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css?v=1b9c62f">
+<link rel="stylesheet" href="css/catalog.css?v=1b9c62f">
+<link rel="stylesheet" href="css/phone.css?v=1b9c62f">
+<link rel="stylesheet" href="css/phonepages.css?v=1b9c62f">
+</head>
+<body data-tab="design">
+<script>'use strict';const PHONE_CHOICE_KEY='woodshop.phone.page';const PHONE_SHORT_SIDE_MAX=600;function phoneFacts(){const media=query=>{try{return!!(window.matchMedia&&window.matchMedia(query).matches);}
+catch(e){return false;}};const width=(window.screen&&screen.width)||window.innerWidth||0;const height=(window.screen&&screen.height)||window.innerHeight||0;return{coarse:media('(pointer: coarse)'),noHover:media('(hover: none)'),shortSide:Math.min(width,height)};}
+function phonePageRule(facts){return!!(facts&&facts.coarse&&facts.noHover&&facts.shortSide>0&&facts.shortSide<PHONE_SHORT_SIDE_MAX);}
+function phoneChoice(){let value='';try{value=localStorage.getItem(PHONE_CHOICE_KEY)||'';}catch(e){value='';}
+return value==='phone'||value==='full'?value:'';}
+function setPhoneChoice(value){try{if(value==='phone'||value==='full')localStorage.setItem(PHONE_CHOICE_KEY,value);else localStorage.removeItem(PHONE_CHOICE_KEY);}catch(e){}}
+function phoneReadHash(){const hash=String(location.hash||'').toLowerCase();const asked={'#phone':'phone','#full':'full','#auto':''}[hash];if(asked===undefined)return;setPhoneChoice(asked);try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
+function phonePageWanted(choice,facts){const stored=choice===undefined?phoneChoice():choice;if(stored==='phone')return true;if(stored==='full')return false;return phonePageRule(facts||phoneFacts());}
+phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('hashchange',()=>{if(!/^#(phone|full|auto)$/i.test(location.hash))return;phoneReadHash();location.reload();});if(window.PHONE_PAGE)document.documentElement.classList.add('phone-page');</script>
+
+
+<svg id="sprite" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-presets" viewBox="0 0 24 24"><path d="M3 6.5h18V9H3z"/><path d="M5.5 9v10.5M18.5 9v10.5"/><path class="ia" d="M5.5 15h13"/></symbol>
+  <symbol id="i-style" viewBox="0 0 24 24"><path d="M5 4h12v5H5z"/><path d="M17 6.5h2.5V12H12v3"/><path class="ia" d="M10.5 15h3v5.5h-3z"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M6 3.5l11.5 9-5.2.9 3 5.9-2.3 1.2-3-6-4 3.6z"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.6-5.7"/><path class="ia" d="M17.5 2.8v4h-4"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 24 24"><path d="M4 20l1-4.2L16.2 4.6a1.5 1.5 0 0 1 2.1 0l1.1 1.1a1.5 1.5 0 0 1 0 2.1L8.2 19z"/><path d="M14.5 6.3l3.2 3.2"/><path class="ia" d="M12.5 20H20"/></symbol>
+  <symbol id="i-connect" viewBox="0 0 24 24"><path d="M3 5h17v4.5H3z"/><path d="M13.5 9.5H18V20h-4.5z"/><path class="ia" d="M15.75 6.2v2M14.75 7.2h2"/></symbol>
+  <symbol id="i-tape" viewBox="0 0 24 24"><path d="M4 6h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z"/><path d="M6 11.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0"/><path class="ia" d="M14 14h7v3h-7M17 14v1.5M19.5 14v1.5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8 5L4 9l4 4"/><path d="M4 9h10a5.5 5.5 0 0 1 0 11h-3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M16 5l4 4-4 4"/><path d="M20 9H10a5.5 5.5 0 0 0 0 11h3"/></symbol>
+  <symbol id="i-dup" viewBox="0 0 24 24"><path d="M8.5 8.5h11v11h-11z"/><path d="M15.5 8.5v-4h-11v11h4"/></symbol>
+  <symbol id="i-row" viewBox="0 0 24 24"><path d="M2.5 8.5h5v7h-5zM9.5 8.5h5v7h-5zM16.5 8.5h5v7h-5z"/></symbol>
+  <symbol id="i-mirror" viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2 2.5"/><path d="M9 7v10l-5.5-5z"/><path d="M15 7v10l5.5-5z"/></symbol>
+  <symbol id="i-delete" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7M10 10.5v6M14 10.5v6"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><path class="ia" d="M9 9h6v6H9z"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle class="ia" cx="12" cy="12" r="3"/></symbol>
+  
+  <symbol id="i-vfront" viewBox="0 0 24 24"><path class="fa" d="M3.5 8.5h12v12h-12z"/><path d="M3.5 8.5h12v12h-12zM3.5 8.5l5-5h12v12l-5 5M15.5 8.5l5-5"/></symbol>
+  <symbol id="i-vside" viewBox="0 0 24 24"><path class="fa" d="M15.5 8.5l5-5v12l-5 5z"/><path d="M3.5 8.5h12v12h-12zM3.5 8.5l5-5h12v12l-5 5M15.5 8.5l5-5"/></symbol>
+  <symbol id="i-vtop" viewBox="0 0 24 24"><path class="fa" d="M3.5 8.5l5-5h12l-5 5z"/><path d="M3.5 8.5h12v12h-12zM3.5 8.5l5-5h12v12l-5 5M15.5 8.5l5-5"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V3.5h10V8"/><path d="M7 17H4.5V8h15v9H17"/><path d="M7 13.5h10v7H7z"/><path class="ia" d="M9.5 16.2h5M9.5 18.2h3"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M13 3.5H6.5v17h11V8z"/><path d="M13 3.5V8h4.5"/><path d="M12 11v6M9.5 14.5L12 17l2.5-2.5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M13 3.5H6.5v17h11V8z"/><path d="M13 3.5V8h4.5"/></symbol>
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M13 3.5H6.5v17h11V8z"/><path d="M13 3.5V8h4.5"/><path d="M12 11.5v5.5M9.25 14.25h5.5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 6h6l2 2.5h9V19h-17z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M4.5 4.5h12l3 3v12h-15z"/><path d="M8 4.5v5h7.5v-5M7.5 19.5v-6h9v6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v10.5M8 10l4 4 4-4"/><path d="M4.5 15.5v4h15v-4"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 14V3.5M8 7.5l4-4 4 4"/><path d="M4.5 15.5v4h15v-4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 5H5.5v15.5h13V5H15"/><path d="M9 3.5h6v3H9z"/><path d="M8.5 11h7M8.5 14h7M8.5 17h4"/></symbol>
+  <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 5H5.5v15.5h13V5H15"/><path d="M9 3.5h6v3H9z"/><path d="M12 9.5v7.5M9 14l3 3 3-3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-steps" viewBox="0 0 24 24"><path d="M3 20h5v-5h5v-5h5V5h3"/><path class="ia" d="M4 9l4-4M5 5h3v3"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 5h2v2H4zM4 11h2v2H4zM4 17h2v2H4z"/></symbol>
+  <symbol id="i-props" viewBox="0 0 24 24"><path d="M4 7h8M17 7h3M4 17h3M12 17h8"/><circle cx="14.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8M12 16.6v.3"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.5v.3"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="i-unfasten" viewBox="0 0 24 24"><path d="M3 5h17v4.5H3z"/><path d="M13.5 13H18v7.5h-4.5z"/><path class="ia" d="M7 12.5l3.5 3.5M10.5 12.5L7 16"/></symbol>
+  <symbol id="i-comp" viewBox="0 0 24 24"><path d="M3.5 4.5h17v15h-17z"/><path class="ia" d="M7 8.5h5v7H7zM14.5 11h3v4.5h-3z"/></symbol>
+  
+  <symbol id="i-hinge" viewBox="0 0 24 24"><path d="M3.5 5h7v14h-7zM13.5 5h7v14h-7z"/><path class="ia" d="M12 3.5v17M6 8.5h2M6 15.5h2M16 8.5h2M16 15.5h2"/></symbol>
+  <symbol id="i-hardware" viewBox="0 0 24 24"><path d="M3.5 6.5h17v11h-17z"/><path class="ia" d="M8.5 13.5v-2.5h7v2.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-verify" viewBox="0 0 24 24"><path d="M12 3.5l7 2.5v5.5c0 4.2-2.8 7.4-7 9-4.2-1.6-7-4.8-7-9V6z"/><path d="M8.8 12l2.4 2.4 4.2-4.6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4L2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17v.3"/></symbol>
+  <symbol id="i-screw" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M8 12h8M12 8v8"/></symbol>
+  <symbol id="i-dim" viewBox="0 0 24 24"><path d="M4 6v12M20 6v12M4 12h16"/><path d="M7 9.5L4.5 12 7 14.5M17 9.5l2.5 2.5-2.5 2.5"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4 19.5h16"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9.5 5.5L12 3l2.5 2.5M9.5 18.5L12 21l2.5-2.5M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M3.5 9.5l6-3.5 6 3.5v7l-6 3.5-6-3.5zM3.5 9.5l6 3.5 6-3.5M9.5 13v7"/><path class="ia" d="M21 12h-5.5M18 9.5L15.5 12l2.5 2.5"/></symbol>
+  <symbol id="i-hide" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><path d="M4.5 19.5l15-15"/></symbol>
+  
+  <symbol id="i-price" viewBox="0 0 24 24"><path d="M3.5 12.5v-9h9l8 8-9 9z"/><circle cx="8" cy="8" r="1.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 9.5A7.5 7.5 0 0 0 5.6 8M5 14.5A7.5 7.5 0 0 0 18.4 16"/><path d="M19.5 4.5v5h-5M4.5 19.5v-5h5"/></symbol>
+  
+  <symbol id="i-p-rack" viewBox="0 0 24 24"><path d="M4 3v18M20 3v18M4 10.5h16M4 18h16"/><path class="ia" d="M7 5.5h10v5H7zM7 13h10v5H7z"/></symbol>
+  <symbol id="i-p-stand" viewBox="0 0 24 24"><path d="M5 12h14v8.5H5zM12 12v8.5"/><path class="ia" d="M6 4.5h12V12H6zM6 7h12"/></symbol>
+  <symbol id="i-p-bench" viewBox="0 0 24 24"><path d="M2.5 10.5h19V13h-19z"/><path d="M5 13v6.5M19 13v6.5"/><path class="ia" d="M5 16.5h14"/></symbol>
+  <symbol id="i-p-chair" viewBox="0 0 24 24"><path d="M8 3.5l-1 17M17 14v6.5M6.5 12.5H18V14H6.5z"/><path class="ia" d="M7.8 6.5h1.7M7.6 9h1.7M7.2 17.5H17"/></symbol>
+  <symbol id="i-p-shelf" viewBox="0 0 24 24"><path d="M5.5 3.5h13v17h-13z"/><path class="ia" d="M5.5 9h13M5.5 14.5h13"/></symbol>
+  <symbol id="i-p-cabinet" viewBox="0 0 24 24"><path d="M4 6.5h16v14H4zM12 6.5v14M3 4h18v2.5H3z"/><path class="ia" d="M10 12.5v2.5M14 12.5v2.5"/></symbol>
+  <symbol id="i-p-box" viewBox="0 0 24 24"><path d="M4.5 9.5h15v10h-15z"/><path d="M3.5 6.5h17v3h-17z"/><path class="ia" d="M10.5 13h3"/></symbol>
+  <symbol id="i-p-bed" viewBox="0 0 24 24"><path d="M3 6.5v13M21 12v7.5M3 16h18"/><path d="M3 12h18v4"/><path class="ia" d="M5.5 12V9.5h5V12"/></symbol>
+  <symbol id="i-p-shed" viewBox="0 0 24 24"><path d="M2.5 10.5L12 4l9.5 6.5"/><path d="M5 9v11h14V9"/><path class="ia" d="M10 20v-6.5h4V20"/></symbol>
+  <symbol id="i-p-planter" viewBox="0 0 24 24"><path d="M4.5 13.5h15L18 20H6z"/><path class="ia" d="M12 13.5V8M12 9.5C9.5 9.5 8 8 8 5.5c2.5 0 4 1.5 4 4zM12 11c2.2 0 3.5-1.2 3.5-3.2-2.2 0-3.5 1.2-3.5 3.2z"/></symbol>
+  <symbol id="i-p-feeder" viewBox="0 0 24 24"><path d="M3.5 10L12 4.5l8.5 5.5"/><path d="M7.5 9.5v7M16.5 9.5v7"/><path class="ia" d="M4.5 16.5h15V19h-15z"/></symbol>
+  <symbol id="i-p-wallshelf" viewBox="0 0 24 24"><path d="M3 9.5h18V12H3z"/><path class="ia" d="M6.5 12v5l4-5M17.5 12v5l-4-5"/></symbol>
+</svg>
+
+<div class="app" id="app">
+
+  
+  <div class="tabrow" id="tabrow">
+    <div class="pd">
+      <button class="file pd-btn" title="New, My projects, Save, Copy and Paste as text, Load, Print">File <svg class="i xs"><use href="#i-caret"/></svg></button>
+      <div class="menu">
+        <button class="mi" id="bNew"><svg class="i"><use href="#i-new"/></svg><span>New design</span><kbd></kbd></button>
+        <button class="mi" id="bOpen"><svg class="i"><use href="#i-folder"/></svg><span>My projects&hellip;</span><kbd></kbd></button>
+        <button class="mi" id="bSave"><svg class="i"><use href="#i-save"/></svg><span>Save</span><kbd>Ctrl+S</kbd></button>
+        <div class="msep"></div>
+        
+        <button class="mi" id="bCopyText" title="Puts the whole design on the clipboard as text. Paste it into an email or a note, or into Paste design from text on another device."><svg class="i"><use href="#i-copy"/></svg><span>Copy design as text</span><kbd></kbd></button>
+        <button class="mi" id="bPasteText" title="Opens a design that was copied as text, here or on another device"><svg class="i"><use href="#i-paste"/></svg><span>Paste design from text&hellip;</span><kbd></kbd></button>
+        <div class="msep"></div>
+        
+        <button class="mi" data-click="#bExport" data-hosted="hide"><svg class="i"><use href="#i-download"/></svg><span>Download as a file</span><kbd></kbd></button>
+        <button class="mi" data-click="#bImport"><svg class="i"><use href="#i-upload"/></svg><span>Load from a file&hellip;</span><kbd></kbd></button>
+        <div class="msep"></div>
+        
+        <button class="mi" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg><span>Update prices</span><kbd></kbd></button>
+        <button class="mi" data-cmd="priceBook" title="Every price the program uses, where each one comes from, and your store"><svg class="i"><use href="#i-price"/></svg><span>Price book&hellip;</span><kbd></kbd></button>
+        <div class="msep"></div>
+        <button class="mi" id="bPrint"><svg class="i"><use href="#i-print"/></svg><span data-hosted="hide">Print instructions</span><span data-hosted="only">How to print&hellip;</span><kbd>Ctrl+P</kbd></button>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Steps">
+      <button class="tab on" data-tab="design" title="Step 1: build the design in 3D"><i>1</i>Design</button>
+      
+      <button class="tab" data-tab="joints" data-expert title="Step 2: the fastener at every joint, which you can change by hand, and the hardware to buy"><i>2</i>Fasteners</button>
+      <button class="tab" data-tab="cut" title="Step 3: the cut list, the lumber to buy and what it costs, and a drawing of every part"><i>3</i>Cut list &amp; shopping</button>
+      <button class="tab" data-tab="instr" title="Step 4: putting the made parts together, step by step, ready to print"><i>4</i>Build instructions</button>
+    </nav>
+    <div class="tr-right">
+      <label class="projname" title="Project name. Click to rename."><svg class="i"><use href="#i-doc"/></svg><input class="fld s" id="projName" aria-label="Project name"></label>
+      
+      <span class="seg" id="levelSwitch" role="group" aria-label="How much the program shows">
+        <button data-level="beginner" title="Beginner: the three steps a first project needs. The program picks every screw and joint for you.">Beginner</button><button data-level="expert" title="Expert: adds the Fasteners tab, a table where you can change the screw or joint used anywhere two pieces meet.">Expert</button>
+      </span>
+      <button class="ib" data-open-words title="Woodworking words: what an apron, a cleat or a pocket hole is, and how each joint is made" aria-label="Woodworking words"><svg class="i m"><use href="#i-info"/></svg></button>
+      <button class="ib" data-cmd="help" title="How to use NominalCAD (F1)" aria-label="Help"><svg class="i m"><use href="#i-help"/></svg></button>
+    </div>
+    <input type="file" id="fileIn" accept=".json" hidden>
+  </div>
+
+  
+  <div class="ribbon" id="ribbon">
+
+    
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <button class="rb" id="bBack" title="Go back to the 3D view to change the design"><svg class="i l"><use href="#i-back"/></svg><span>Back to<br>design</span></button>
+      </div>
+      <div class="cap">Design</div>
+    </div>
+    <div class="grp doc-only">
+      <div class="grp-b">
+        
+        <button class="rb" data-doc="print" data-hosted="hide" title="Print the page you are looking at (Ctrl+P prints the build instructions)"><svg class="i l"><use href="#i-print"/></svg><span>Print</span></button>
+        <button class="rb" data-doc="print" data-hosted="only" title="This online copy cannot print. See how to print the design from your computer."><svg class="i l"><use href="#i-print"/></svg><span>How to<br>print</span></button>
+        <button class="rb" data-doc="style" title="Pick the wood, the finish and how fancy the joints are. The pages follow."><svg class="i l"><use href="#i-style"/></svg><span>Style &amp;<br>finish</span></button>
+      </div>
+      <div class="cap">This page</div>
+    </div>
+    
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <div class="stack">
+          <button class="sb" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg>Update prices</button>
+          <button class="sb" data-cmd="priceBook" title="Every price the program uses, where each one comes from, and your store"><svg class="i"><use href="#i-price"/></svg>Price book&hellip;</button>
+          <button class="sb" data-cmd="pastePrices" title="Reads prices from lines copied from a receipt or a store page"><svg class="i"><use href="#i-paste"/></svg>Paste prices&hellip;</button>
+        </div>
+      </div>
+      <div class="cap">Prices</div>
+    </div>
+    <div class="grp doc-only">
+      <div class="grp-b">
+        <div class="stack">
+          <button class="sb" data-click="#bSave" title="Save the design to My projects in this browser (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg>Save</button>
+          <button class="sb" data-click="#bCopyText" title="Puts the whole design on the clipboard as text, to paste into an email, a note, or Paste design from text on another device"><svg class="i"><use href="#i-copy"/></svg>Copy design as text</button>
+          <button class="sb" data-click="#bExport" data-hosted="hide" title="Saves the design as a file on this computer"><svg class="i"><use href="#i-download"/></svg>Download as a file</button>
+        </div>
+      </div>
+      <div class="cap">Keep</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <button class="rb pri" id="bPreset" title="Start from a ready-made design and set your own size"><svg class="i l"><use href="#i-presets"/></svg><span>Furniture<br>presets</span></button>
+        <button class="rb" id="bStyle" title="Style, finish and difficulty"><svg class="i l"><use href="#i-style"/></svg><span>Style &amp;<br>finish</span></button>
+      </div>
+      <div class="cap">Start</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <div class="stack add">
+          <select class="fld s" id="addMat" title="The board or plywood that Add and Draw a board use" aria-label="Material to add"></select>
+          <button class="btn s" id="bAdd" title="Add one piece of this material beside the design"><svg class="i"><use href="#i-plus"/></svg>Add</button>
+          
+          <select class="fld s" id="addTank" data-tank title="Fish tank size" aria-label="Fish tank to add"></select>
+          <button class="btn s" id="bAddTank" data-tank title="Add a fish tank of this size. It is shown for reference and counted in the filled weight."><svg class="i"><use href="#i-plus"/></svg>Add tank</button>
+          <button class="sb" id="bImportCut" title="Import a cut list: bring in the pieces from a plan you found online"><svg class="i"><use href="#i-import"/></svg><span class="long">Import a cut list&hellip;</span><span class="short">Import&hellip;</span></button>
+          
+          <div class="pd">
+            <button class="sb pd-btn" id="bHardware" title="Hardware: hinges, drawer slides, pulls, catches, casters. Pick a kind, then click the piece it goes on."><svg class="i"><use href="#i-hardware"/></svg>Hardware<svg class="i xs"><use href="#i-caret"/></svg></button>
+            <div class="menu" id="hardwareMenu"></div>
+          </div>
+        </div>
+        <div class="pd">
+          <button class="rb more pd-btn" title="More ways to add pieces"><svg class="i l"><use href="#i-more"/></svg><span class="lbl">More<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <div class="menu">
+            <button class="mi" data-click="#bPreset"><svg class="i"><use href="#i-presets"/></svg><span>Furniture preset&hellip;</span><kbd></kbd></button>            <div class="msep"></div>
+            <button class="mi" data-click="#bAdd" title="Adds one piece of the material picked in the ribbon"><svg class="i"><use href="#i-plus"/></svg><span>Board or panel</span><kbd></kbd></button>
+            <button class="mi" data-tool="draw" title="Drag on the floor to draw a board of the material picked in the ribbon"><svg class="i"><use href="#i-draw"/></svg><span>Draw a board</span><kbd>D</kbd></button>
+            <button class="mi" data-cmd="drawer" title="Builds a drawer to fit the space you click inside: between two sides, with something above and below. It runs on real slides and gets a pull."><svg class="i"><use href="#i-hardware"/></svg><span>Drawer&hellip;</span><kbd></kbd></button>
+            <button class="mi" data-click="#bAddTank" data-tank-menu title="Adds a fish tank. The tank size picker then shows in the ribbon."><svg class="i"><use href="#i-plus"/></svg><span>Fish tank</span><kbd></kbd></button>
+            <button class="mi" data-click="#bImportCut"><svg class="i"><use href="#i-import"/></svg><span>Cut list from another plan&hellip;</span><kbd></kbd></button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">Add</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <button class="rb on" data-tool="select" title="Select / move (Esc). Click to select, drag to move, drag a blue handle to change the length."><svg class="i l"><use href="#i-select"/></svg><span>Select /<br>move</span></button>
+        <button class="rb" data-tool="rotate" title="Rotate. Click a piece, then drag a colored ring to turn it to any angle."><svg class="i l"><use href="#i-rotate"/></svg><span>Rotate</span></button>
+        <button class="rb" data-tool="draw" title="Draw a board (D). Drag on the floor to draw a board of the material chosen in the Add group."><svg class="i l"><use href="#i-draw"/></svg><span>Draw a<br>board</span></button>
+        <button class="rb" data-tool="connect" title="Connect (C). Click one piece, then the piece it should meet. The two are fastened."><svg class="i l"><use href="#i-connect"/></svg><span>Connect</span></button>
+        <button class="rb" data-tool="measure" title="Tape measure (T). Click two points to measure between them. The pointer catches corners and edges."><svg class="i l"><use href="#i-tape"/></svg><span>Tape<br>measure</span></button>
+        <button class="rb" data-cmd="unfasten" title="Unfasten (U). Fastened pieces move together. This deletes the connections of the selected piece, after asking, so it can be moved alone."><svg class="i l"><use href="#i-unfasten"/></svg><span>Unfasten</span></button>
+        <div class="pd">
+          <button class="rb more pd-btn" title="All tools"><svg class="i l"><use href="#i-more"/></svg><span class="lbl">More<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <div class="menu">
+            <button class="mi" data-tool="select"><i></i><span>Select and move</span><kbd>Esc</kbd></button>
+            <button class="mi" data-tool="rotate"><i></i><span>Rotate (rings)</span><kbd></kbd></button>
+            <button class="mi" data-tool="draw"><i></i><span>Draw a board</span><kbd>D</kbd></button>
+            <button class="mi" data-tool="connect"><i></i><span>Connect two pieces</span><kbd>C</kbd></button>
+            <button class="mi" data-tool="measure"><i></i><span>Tape measure</span><kbd>T</kbd></button>
+            <button class="mi" data-cmd="unfasten"><svg class="i"><use href="#i-unfasten"/></svg><span>Unfasten&hellip;</span><kbd>U</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-click="#bStyle"><i></i><span>Style, finish and difficulty&hellip;</span><kbd></kbd></button>
+            <button class="mi" data-cmd="check" title="Looks for pieces that are not held up, boards that reach too far between their supports, and anything that could tip or lean"><svg class="i"><use href="#i-verify"/></svg><span>Check my design&hellip;</span><kbd>Shift+C</kbd></button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">Tools</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <div class="stack">
+          <button class="sb" id="bUndo" title="Undo (Ctrl+Z)"><svg class="i"><use href="#i-undo"/></svg>Undo</button>
+          <button class="sb" id="bRedo" title="Redo (Ctrl+Y)"><svg class="i"><use href="#i-redo"/></svg>Redo</button>
+          <button class="sb" data-cmd="remove" title="Delete the selected pieces (Del)"><svg class="i"><use href="#i-delete"/></svg>Delete</button>
+          <button class="sb" data-cmd="duplicate" title="Duplicate the selected pieces (Ctrl+D)"><svg class="i"><use href="#i-dup"/></svg>Duplicate</button>
+          <button class="sb" data-cmd="row" title="Make evenly spaced copies, like shelf slats or a row of studs"><svg class="i"><use href="#i-row"/></svg>Copy in a row&hellip;</button>
+          <button class="sb" data-cmd="mirror" title="Make the matching other side (Ctrl+M)"><svg class="i"><use href="#i-mirror"/></svg>Mirror&hellip;</button>
+        </div>
+        <div class="pd">
+          <button class="rb more pd-btn" title="All editing commands"><svg class="i l"><use href="#i-more"/></svg><span class="lbl">More<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <div class="menu">
+            <button class="mi" data-click="#bUndo"><svg class="i"><use href="#i-undo"/></svg><span>Undo</span><kbd>Ctrl+Z</kbd></button>
+            <button class="mi" data-click="#bRedo"><svg class="i"><use href="#i-redo"/></svg><span>Redo</span><kbd>Ctrl+Y</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="duplicate"><svg class="i"><use href="#i-dup"/></svg><span>Duplicate selected</span><kbd>Ctrl+D</kbd></button>
+            <button class="mi" data-cmd="dupGrab"><i></i><span>Duplicate and drag</span><kbd>Shift+D</kbd></button>
+            <button class="mi" data-cmd="row"><svg class="i"><use href="#i-row"/></svg><span>Copy in a row&hellip;</span><kbd></kbd></button>
+            <button class="mi" data-cmd="mirror"><svg class="i"><use href="#i-mirror"/></svg><span>Mirror&hellip;</span><kbd>Ctrl+M</kbd></button>
+            <button class="mi" data-cmd="remove"><svg class="i"><use href="#i-delete"/></svg><span>Delete selected</span><kbd>Del</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="selectAll"><i></i><span>Select everything</span><kbd>Ctrl+A</kbd></button>
+            <button class="mi" data-cmd="similar"><i></i><span>Select all pieces like this</span><kbd>Shift+G</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="makeComponent"><svg class="i"><use href="#i-comp"/></svg><span>Make component&hellip;</span><kbd>Shift+M</kbd></button>
+            <button class="mi" data-cmd="breakApart"><i></i><span>Break apart</span><kbd>Shift+B</kbd></button>
+            <button class="mi" data-cmd="unfasten"><svg class="i"><use href="#i-unfasten"/></svg><span>Unfasten&hellip;</span><kbd>U</kbd></button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">Edit</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <button class="rb" data-view="fit" title="Fit everything on screen (Home)"><svg class="i l"><use href="#i-fit"/></svg><span>Fit<br>view</span></button>
+        <div class="pd">
+          <button class="rb pd-btn" id="bDisplay" title="How the design is shown: realistic wood or color blocks, solid or see-through wood, fasteners only, doors open or closed, exploded"><svg class="i l"><use href="#i-display"/></svg><span class="lbl">Display<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <div class="pop" id="displayPop">
+            <div class="pop-row"><label>Look</label><span class="seg"><button data-cmd="viewReal" data-keep>Realistic wood</button><button data-cmd="viewBlock" data-keep>Color blocks</button></span></div>
+            
+            <div class="pop-row"><label>Wood</label><span class="seg"><button data-cmd="woodSolid" data-keep title="The normal view">Solid</button><button data-cmd="woodThrough" data-keep title="The wood is translucent, fasteners and hardware are solid (Shift+S)">See-through</button><button data-cmd="woodFast" data-keep title="The wood is only an outline; fasteners are colored by kind (Shift+F)">Fasteners only</button></span></div>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="explode" data-keep><i></i><span>Exploded view</span><kbd></kbd></button>
+            <button class="mi" data-cmd="openAll" data-keep title="Swings every hinged door and lid open and pulls every drawer out, to check that nothing is in the way"><i></i><span>Open all doors and drawers</span><kbd>Alt+O</kbd></button>
+            <button class="mi" data-cmd="closeAll" data-keep><i></i><span>Close all</span><kbd></kbd></button>
+            <button class="mi" data-cmd="toggleLegend" data-keep title="Shows which color is which piece. Used with Color blocks."><i></i><span>Color key</span><kbd></kbd></button>
+            <button class="mi" data-cmd="toggleArrows" data-keep title="The red, green and blue arrows on a selected piece, to slide it in one direction. A piece can also be dragged, moved with M, or placed by typing X, Y, Z in Properties."><i></i><span>Move arrows</span><kbd></kbd></button>
+            <select id="viewMode" hidden><option value="real">Realistic wood</option><option value="block">Color blocks</option></select>
+          </div>
+        </div>
+        <div class="stack dirs">
+          <button class="sb" data-view="front" title="Look from the front (1)"><svg class="i"><use href="#i-vfront"/></svg>Front</button>
+          <button class="sb" data-view="side" title="Look from the side (3)"><svg class="i"><use href="#i-vside"/></svg>Side</button>
+          <button class="sb" data-view="top" title="Look from above (7)"><svg class="i"><use href="#i-vtop"/></svg>Top</button>
+        </div>
+        <div class="pd">
+          <button class="rb more pd-btn" title="All view commands"><svg class="i l"><use href="#i-more"/></svg><span class="lbl">More<svg class="i xs"><use href="#i-caret"/></svg></span></button>
+          <div class="menu">
+            <button class="mi" data-view="fit"><svg class="i"><use href="#i-fit"/></svg><span>Fit everything on screen</span><kbd>Home</kbd></button>
+            <button class="mi" data-cmd="focus"><i></i><span>Zoom to the selection</span><kbd>F</kbd></button>
+            <button class="mi" data-view="front"><svg class="i"><use href="#i-vfront"/></svg><span>From the front</span><kbd>1</kbd></button>
+            <button class="mi" data-view="side"><svg class="i"><use href="#i-vside"/></svg><span>From the side</span><kbd>3</kbd></button>
+            <button class="mi" data-view="top"><svg class="i"><use href="#i-vtop"/></svg><span>From above</span><kbd>7</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="viewReal"><i></i><span>Realistic wood</span><kbd></kbd></button>
+            <button class="mi" data-cmd="viewBlock"><i></i><span>Color blocks</span><kbd></kbd></button>
+            <button class="mi" data-cmd="xray"><i></i><span>See-through view</span><kbd>Shift+S</kbd></button>
+            <button class="mi" data-cmd="fastOnly"><i></i><span>Fasteners only</span><kbd>Shift+F</kbd></button>
+            <button class="mi" data-cmd="explode"><i></i><span>Exploded view</span><kbd></kbd></button>
+            <button class="mi" data-cmd="openAll"><i></i><span>Open all doors and drawers</span><kbd>Alt+O</kbd></button>
+            <button class="mi" data-cmd="closeAll"><i></i><span>Close all</span><kbd></kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="hide"><svg class="i"><use href="#i-hide"/></svg><span>Hide selected</span><kbd>H</kbd></button>
+            <button class="mi" data-cmd="isolate"><i></i><span>Show only selected</span><kbd>Shift+H</kbd></button>
+            <button class="mi" data-cmd="showAll"><i></i><span>Show everything</span><kbd>Alt+H</kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="toggleFasteners"><i></i><span>Fasteners</span><kbd></kbd></button>
+            <button class="mi" data-cmd="toggleSizes"><i></i><span>Sizes</span><kbd></kbd></button>
+            <div class="msep"></div>
+            <button class="mi" data-cmd="togglePieces"><i></i><span>Pieces panel</span><kbd></kbd></button>
+            <button class="mi" data-cmd="toggleProps"><i></i><span>Properties panel</span><kbd></kbd></button>
+            <button class="mi" data-cmd="resetPanels"><i></i><span>Put the panels back where they started</span><kbd></kbd></button>
+          </div>
+        </div>
+      </div>
+      <div class="cap">View</div>
+    </div>
+
+    <div class="grp design-only">
+      <div class="grp-b">
+        <button class="rb" id="bInstr" title="Opens the Build instructions tab: the parts and hardware to have in front of you, then the steps in order"><svg class="i l"><use href="#i-print"/></svg><span data-hosted="hide">Instructions<br>to print</span><span data-hosted="only">Build<br>instructions</span></button>
+        <button class="rb" id="bStepMode" data-cmd="stepMode" title="Build step by step: the 3D view shows the design as it stands after each step, with the pieces of that step in orange and its fasteners in dark blue. Back and Next, or the arrow keys, move through the steps. Esc leaves."><svg class="i l"><use href="#i-steps"/></svg><span>Build step<br>by step</span></button>
+      </div>
+      <div class="cap">Finish</div>
+    </div>
+  </div>
+
+  
+  <main id="designPage">
+    <div id="cvWrap">
+      <canvas id="cv"></canvas>
+      <div id="viewLabels" aria-hidden="true"></div>
+      <div id="viewTip" class="vtip" role="tooltip" hidden></div>
+      <svg id="axisSym" width="76" height="76" aria-hidden="true"></svg>
+      <div id="legend" style="display:none"></div>
+      <div id="boxSel"></div>
+      
+      <div id="priceLine" hidden>
+        <span id="priceLineText"></span>
+        <button class="btn s" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed.">Update prices</button>
+        <button class="btn s" data-cmd="priceBook" data-hosted="only" title="Every price the program uses and where each one comes from">Price book&hellip;</button>
+        <button class="ib s" id="priceLineOff" title="Do not show this line again. Update prices stays in the File menu and in the shopping list, and the Price book can bring the line back." aria-label="Do not show this line again"><svg class="i xs"><use href="#i-x"/></svg></button>
+      </div>
+      
+      <div id="stepPanel" hidden>
+        <div class="fh"><b>Build step by step</b><span class="sub" id="stepCount"></span>
+          <span class="fh-btns"><button class="ib s" id="stepClose" title="Leave Build step by step and put the view back as it was (Esc)" aria-label="Leave Build step by step"><svg class="i xs"><use href="#i-x"/></svg></button></span></div>
+        <div class="stp-b" id="stepBody"></div>
+        <div class="stp-f"><span>The arrow keys go back and forward. Esc leaves.</span><button class="btn" id="stepBack" title="The step before this one (left arrow)">Back</button><button class="btn pri" id="stepNext" title="The next step (right arrow)">Next</button></div>
+      </div>
+      <aside id="left" class="float">
+        <div class="fh"><b>Pieces</b><span class="sub" id="partCount"></span>
+          <span class="fh-btns"><button class="ib s" data-min title="Roll up or down"><svg class="i xs"><use href="#i-min"/></svg></button><button class="ib s" data-hide title="Hide. Bring it back with the Pieces button at the right edge of the view."><svg class="i xs"><use href="#i-x"/></svg></button></span></div>
+        <div class="fb">
+          <div class="phead"><span>Name</span><span>Cut from</span><span class="num">Length</span><span></span></div>
+          <ul id="partList" class="plist"></ul>
+        </div>
+      </aside>
+      <aside id="right" class="float">
+        <div class="fh"><b>Properties</b><span class="sub" id="propsName"></span>
+          <span class="fh-btns"><button class="ib s" data-min title="Roll up or down"><svg class="i xs"><use href="#i-min"/></svg></button><button class="ib s" data-hide title="Hide. Bring it back with the Properties button at the right edge of the view."><svg class="i xs"><use href="#i-x"/></svg></button></span></div>
+        <div class="fb"><div id="props"></div></div>
+      </aside>
+    </div>
+    <nav class="strip" aria-label="Panels">
+      
+      <button class="sp-b on" id="tPieces" title="Pieces: the list of every piece in the design"><svg class="i m"><use href="#i-list"/></svg></button>
+      <button class="sp-b" id="tProps" title="Properties: sizes and position of the selected piece. It appears when a piece is selected."><svg class="i m"><use href="#i-props"/></svg></button>
+    </nav>
+  </main>
+
+  <section class="page" id="jointsPage"></section>
+  <section class="page" id="cutPage"></section>
+  <section class="page" id="instrPage"></section>
+
+  
+  <div class="status" id="statusBar">
+    <div class="st prompt"><svg class="i"><use id="statusIcon" href="#i-select"/></svg><span id="status"></span></div>
+    <div class="st" id="stSize" title="Overall size of the design"><span class="long"></span><span class="short"></span></div>
+    <div class="st" id="stCount"></div>
+    <div class="st" id="stTanks"></div>
+    <button class="st link" id="stHidden" data-cmd="showAll" title="Some pieces are hidden. Click to show everything (Alt+H)."></button>
+    <button class="st link" id="stNotes"></button>
+    <button class="st warn" id="stWarn"></button>
+    <button class="st warn" id="stCheck" data-cmd="check" hidden></button>
+    <button class="st warn" id="stMotion" hidden></button>
+    <button class="st link design-only" id="stView" hidden title="The wood is not drawn solid. Click to go back to the Solid view."></button>
+    <div class="st design-only" id="stFast" hidden title="This design is too big to draw every fastener at once, so only the fasteners of the selected pieces are drawn."></div>
+    
+    <div class="st design-only" data-expert title="What a click in the 3D view selects: one piece, or the whole component it belongs to. Click the same piece again to step up to the component around it."><i>Pick</i>
+      <span class="seg" id="pickSeg"><button data-pick="piece" class="on">Piece</button><button data-pick="comp">Component</button></span>
+    </div>
+    <div class="st design-only" data-expert>
+      <label class="tg" title="Auto-fasten. On: pieces that end up touching are fastened with the suggested fastener. Off: they only touch until you connect them (C). Fastened pieces move together."><input type="checkbox" id="autoFasten" checked><span><svg class="i xs"><use href="#i-connect"/></svg>Auto-fasten</span></label>
+    </div>
+    <div class="st design-only"><i>Show</i>
+      <label class="tg" title="Show or hide the screws, dowels, brads, brackets and glue. Display has See-through and Fasteners only, to see them inside the wood."><input type="checkbox" id="showFast" checked><span><svg class="i xs"><use href="#i-screw"/></svg>Fasteners</span></label>
+      <label class="tg" title="Show or hide the size lines"><input type="checkbox" id="showDims" checked><span><svg class="i xs"><use href="#i-dim"/></svg>Sizes</span></label>
+    </div>
+    <div class="st design-only" title="Snap: pieces you move, draw or stretch jump to steps of this size"><i>Snap</i>
+      <span class="seg" id="snapSeg"><button data-snap="0.125" title="Snap: pieces move and stretch in steps of 1/8 inch. Hold Alt while dragging to turn snapping off.">1/8"</button><button data-snap="0.25" class="on" title="Snap: pieces move and stretch in steps of 1/4 inch. Hold Alt while dragging to turn snapping off.">1/4"</button><button data-snap="0.5" title="Snap: pieces move and stretch in steps of 1/2 inch. Hold Alt while dragging to turn snapping off.">1/2"</button><button data-snap="1" title="Snap: pieces move and stretch in steps of 1 inch. Hold Alt while dragging to turn snapping off.">1"</button></span>
+      <select id="gridSel" hidden><option value="0.125">1/8"</option><option value="0.25" selected>1/4"</option><option value="0.5">1/2"</option><option value="1">1"</option></select>
+    </div>
+    <div class="st wide-only design-only" title="Each square of the floor grid is 12 inches (one foot) across"><i>Grid squares 12"</i></div>
+    
+    <button class="st link" id="stKeys" data-cmd="hotkeys" title="Every keyboard shortcut (Help, Hotkeys)"><kbd>Keys</kbd></button>
+  </div>
+</div>
+
+
+<dialog class="dlg" id="presetDlg">
+  <div class="dlg-h"><span>Furniture presets</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="preset">
+    <div class="pgroups" id="presetGroups" aria-label="Groups"></div>
+    <div class="pick" id="presetCards"></div>
+    <div class="pform" id="presetForm"></div>
+  </div>
+  <div class="dlg-f"><span class="grow" id="presetFoot"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn" id="bPAdd" title="Keeps the design you have and puts this one next to it">Add beside the current design</button>
+    <button class="btn pri" id="bPGo">Create</button></div>
+</dialog>
+
+<dialog class="dlg wide" id="checkDlg">
+  <div class="dlg-h"><span>Check my design</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" id="checkSum"></p>
+    <div class="chk" id="checkList"></div>
+    <dl class="facts" id="checkFacts"></dl>
+  </div>
+  <div class="dlg-f"><label class="ck grow" title="Tick this when the finished piece will be screwed to the wall studs, so that it cannot tip or lean"><input type="checkbox" id="checkWall">It will be screwed to the wall studs</label>
+    <button class="btn" id="bCheckAgain">Check again</button>
+    <button class="btn pri" data-close>Close</button></div>
+</dialog>
+
+<dialog class="dlg wide" id="styleDlg">
+  <div class="dlg-h"><span>Style, finish and difficulty</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="opt3" id="styleCards"></div>
+    <div class="sec">Wood and finish</div>
+    <div class="frow"><label for="woodSel">Wood</label><select class="fld" id="woodSel" title="Sizes stay the same for every wood. Store boards are smaller than their names (a 2x4 is 1 1/2&quot; × 3 1/2&quot;). True rough-sawn boards from a sawmill are a full 2&quot; × 4&quot;, so measure yours and adjust if you use them."></select></div>
+    <div class="frow"><label for="finSel">Finish</label><select class="fld" id="finSel" title="The 3D view, the steps and the shopping list all follow the finish you pick"></select></div>
+  </div>
+  <div class="dlg-f"><span class="grow" title="Time is hands-on working time for one person and does not include glue or finish drying. Any fastener you picked by hand is kept.">Skill, time and price are rough guides, not promises.</span>
+    <button class="btn pri" data-close autofocus>Done</button></div>
+</dialog>
+
+<dialog class="dlg" id="cutDlg">
+  <div class="dlg-h"><span>Import a cut list</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" title="Plans in PDF or SketchUp files cannot be read directly; the cut list is the part that carries over. The pieces are laid on the floor beside your design, ready to drag into place.">Type or paste one piece per line: <b>quantity, name, material, length</b> and, for plywood, <b>width</b>.</p>
+    <textarea class="fld area" id="cutText" rows="9" autofocus aria-label="Cut list" title="Materials: 1x2 to 1x12, 2x2 to 2x12, 4x4, or plywood 3/4, 1/2, 1/4. Lengths in inches, or feet like 4'." placeholder="4, Leg, 2x4, 28 1/2&#10;2, Long rail, 2x4, 4'&#10;1, Top, plywood 3/4, 48, 24"></textarea>
+  </div>
+  <div class="dlg-f"><span class="grow err" id="cutErr"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bCutGo">Add these pieces</button></div>
+</dialog>
+
+<dialog class="dlg" id="projDlg">
+  <div class="dlg-h"><span>My projects</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div id="projList"></div>
+    <p class="note"><span data-hosted="hide">Saved projects are kept in this browser on this computer. Download a file for a backup, or to move a design to another computer.</span><span data-hosted="only">Saved projects are kept in this browser on this device only. To keep a design somewhere else, or to move it to your computer, copy it as text.</span></p>
+  </div>
+  <div class="dlg-f">
+    <button class="btn" id="bExport" data-hosted="hide" title="Saves the design on screen as a file on this computer"><svg class="i"><use href="#i-download"/></svg>Download as a file</button>
+    <button class="btn" data-click="#bCopyText" data-hosted="only" title="Puts the design on screen on the clipboard as text. Paste it into an email or a note, or into Paste design from text on another device."><svg class="i"><use href="#i-copy"/></svg>Copy design as text</button>
+    <button class="btn" id="bImport" title="Opens a design that was downloaded earlier"><svg class="i"><use href="#i-upload"/></svg>Load from a file&hellip;</button>
+    <span class="grow"></span>
+    <button class="btn" data-close autofocus>Close</button></div>
+</dialog>
+
+
+<dialog class="dlg" id="copyDlg">
+  <div class="dlg-h"><span>Copy design as text</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg">The browser did not copy the text by itself. It is selected below: press <b>Copy</b> or <b>Ctrl+C</b>, then paste it into an email or a note, or into Paste design from text on the other device.</p>
+    <textarea class="fld area wrap" id="copyText" rows="9" readonly aria-label="The design as text"></textarea>
+  </div>
+  <div class="dlg-f"><span class="grow" id="copyNote"></span>
+    <button class="btn" id="bCopyAgain"><svg class="i"><use href="#i-copy"/></svg>Copy</button>
+    <button class="btn pri" data-close>Done</button></div>
+</dialog>
+
+<dialog class="dlg" id="pasteDlg">
+  <div class="dlg-h"><span>Paste design from text</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" title="On the device that has the design, click File, then Copy design as text. Send the text to this device if it is a different one (an email or a note works), then paste all of it here.">Paste the text from <b>File, then Copy design as text</b> into the box (Ctrl+V).</p>
+    <textarea class="fld area wrap" id="pasteText" rows="9" autofocus aria-label="The design as text" placeholder="Paste the text here"></textarea>
+  </div>
+  <div class="dlg-f"><span class="grow err" id="pasteErr"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bPasteGo">Open this design</button></div>
+</dialog>
+
+<dialog class="dlg narrow" id="rowDlg">
+  <div class="dlg-h"><span>Copy in a row</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="frow"><label for="rowN">How many copies</label><input class="fld" type="text" id="rowN" value="3" autofocus title="A whole number from 1 to 200"></div>
+    <div class="frow"><label for="rowDir">Direction</label><select class="fld" id="rowDir"><option value="0">Left to right</option><option value="2">Back to front</option><option value="1">Upward</option></select></div>
+    <div class="frow"><label for="rowStep">Distance apart</label><input class="fld" type="text" id="rowStep" data-len value="12&quot;" title="It starts as the size of the selection, which puts the copies edge to edge. Type a minus sign to go the other way."></div>
+    <p class="note">Distance is from the start of one copy to the start of the next.</p>
+  </div>
+  <div class="dlg-f"><span class="grow"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bRowGo">Make copies</button></div>
+</dialog>
+
+<dialog class="dlg narrow" id="compDlg">
+  <div class="dlg-h"><span>Make component</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="frow"><label for="compName">Name</label><input class="fld" type="text" id="compName" autofocus title="What the selected pieces are together: Door, Drawer, Left side. It shows in the Pieces panel."></div>
+  </div>
+  <div class="dlg-f"><span class="grow"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bCompGo">Make component</button></div>
+</dialog>
+
+
+<dialog class="dlg" id="hangDlg">
+  <div class="dlg-h"><span>Hang this door or lid</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="frow"><label for="hangSide">Hinge edge</label><select class="fld" id="hangSide" title="The edge the hinges go on, as you look at the door from outside. Find it for me picks the edge next to the frame."></select></div>
+    <div class="frow"><label for="hangKind">Hinges</label><select class="fld" id="hangKind" title="Choose for me: concealed cup hinges for a cabinet door, T-hinges for a shed door, butt hinges for a lid"></select></div>
+    <div class="frow"><span></span><label class="ck"><input type="checkbox" id="hangPull" checked>Add a pull on the far side</label></div>
+    <div class="frow"><span></span><label class="ck" title="A magnetic catch for a cabinet door, a latch for a shed door, a lid stay for a lid"><input type="checkbox" id="hangCatch" checked>Add a catch, latch or lid stay</label></div>
+    <p class="dlg-msg" id="hangSay"></p>
+  </div>
+  <div class="dlg-f"><span class="grow"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bHangGo" autofocus>Hang it</button></div>
+</dialog>
+
+
+<dialog class="dlg" id="drawerDlg">
+  <div class="dlg-h"><span>Add a drawer</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="frow"><label for="drawerSlide">Runs on</label><select class="fld" id="drawerSlide" title="Metal slides need 1/2&quot; on each side of the drawer box and let it come all the way out. Wooden runners are strips you cut yourself: nothing to buy, and the drawer comes out two thirds of the way."><option value="slide">Metal slides</option><option value="runner">Wooden runners</option></select></div>
+    <div class="frow"><label for="drawerFront">Front</label><select class="fld" id="drawerFront" title="An overlay front lies over the front edges of the cabinet. An inset front sits inside the cabinet with a 1/8&quot; gap all around."><option value="overlay">Overlay: over the cabinet edges</option><option value="inset">Inset: inside the cabinet</option></select></div>
+    <p class="dlg-msg">Next, click inside the space the drawer goes in. It needs a side to its left and right, and something below and above.</p>
+  </div>
+  <div class="dlg-f"><span class="grow"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bDrawerGo" autofocus>Pick the space</button></div>
+</dialog>
+
+<dialog class="dlg" id="mirrorDlg">
+  <div class="dlg-h"><span>Mirror</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <div class="frow"><label for="mirDir">Flip</label><select class="fld" id="mirDir"><option value="0">Left to right</option><option value="2">Front to back</option><option value="1">Top to bottom</option></select></div>
+    <div class="frow"><label for="mirAbout">Across</label><select class="fld" id="mirAbout" title="Build one side of something, select it, and mirror it across the middle of the design to get the matching other side."><option value="design">The middle of the whole design</option><option value="hi">The far edge of the selection (copy lands beside it)</option><option value="lo">The near edge of the selection</option><option value="sel">The middle of the selection (flip in place)</option></select></div>
+    <div class="frow"><span></span><label class="ck" title="Leave the box empty to flip the pieces themselves instead of making a copy"><input type="checkbox" id="mirKeep" checked>Keep the original and add a mirrored copy</label></div>
+  </div>
+  <div class="dlg-f"><span class="grow"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bMirrorGo" autofocus>Mirror</button></div>
+</dialog>
+
+
+<dialog class="dlg wide" id="priceDlg">
+  <div class="dlg-h"><span>Price book</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" id="priceBookStatus"></p>
+    <div class="frow"><label for="priceStore">Your store</label><input class="fld" type="text" id="priceStore" maxlength="40" placeholder="Home Depot" title="Where the prices you type come from. It is shown on the shopping list. It stays on this computer."></div>
+    <div class="frow" data-hosted="hide"><span></span><label class="ck" title="Once a day at most, when the program opens, it asks the national lumber price index and moves the estimates. Nothing about your designs is sent."><input type="checkbox" id="priceAuto">Update prices each time NominalCAD opens</label></div>
+    <div class="frow"><span></span><label class="ck" title="One quiet line at the top of the 3D view that says where the prices stand. Its X puts it away; this brings it back."><input type="checkbox" id="priceLineShow">Show the line about prices over the 3D view</label></div>
+    <div class="pbook" id="priceBookTable"></div>
+  </div>
+  <div class="dlg-f"><span class="grow" id="priceBookNote"></span>
+    <button class="btn" data-cmd="updatePrices" data-hosted="hide" title="Asks the national lumber price index how much boards and plywood have moved, and moves the estimates. Prices you typed are never changed."><svg class="i"><use href="#i-refresh"/></svg>Update prices</button>
+    <button class="btn" data-cmd="pastePrices" title="Reads prices from lines copied from a receipt or a store page"><svg class="i"><use href="#i-paste"/></svg>Paste prices&hellip;</button>
+    <button class="btn dng" id="bPriceReset" title="Forgets every price you typed and takes the price index adjustment off">Reset all to built-in</button>
+    <button class="btn pri" data-close>Done</button></div>
+</dialog>
+
+<dialog class="dlg wide" id="pastePricesDlg">
+  <div class="dlg-h"><span>Paste prices</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b">
+    <p class="dlg-msg" title="Select the lines on a receipt, an order or a store page, copy them (Ctrl+C), then paste them here. A price on the line after the size is read too.">Paste lines copied from a receipt or a store page (Ctrl+V). Lines like <b>2x4x8 &hellip; $3.98</b> or <b>2 in. x 4 in. x 8 ft. &hellip; 3.98</b> are read.</p>
+    <textarea class="fld area" id="pastePricesText" rows="6" aria-label="Lines with prices" placeholder="2 in. x 4 in. x 8 ft. Stud   $3.98&#10;2x6x10 lumber 9.27&#10;3/4 in. x 4 ft. x 8 ft. plywood $54.98"></textarea>
+    <div id="pastePricesFound"></div>
+  </div>
+  <div class="dlg-f"><span class="grow" id="pastePricesNote"></span>
+    <button class="btn" data-close>Cancel</button>
+    <button class="btn pri" id="bPastePricesGo" disabled>Use these prices</button></div>
+</dialog>
+
+<div id="ctxMenu" class="menu"></div>
+
+<div id="infoCard" class="infocard" role="dialog" aria-label="Explanation"></div>
+
+<dialog class="dlg wide" id="wordsDlg">
+  <div class="dlg-h"><span>Woodworking words</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b words-b">
+    <div class="frow"><label for="wordsFind">Find a word</label><input class="fld" id="wordsFind" type="search" placeholder="apron, pilot hole, flush..." autocomplete="off"></div>
+    <div id="wordsList"></div>
+  </div>
+  <div class="dlg-f"><span class="grow"><span data-beginner>On the pages, click any highlighted word for the same explanations.</span><span data-expert>On the pages, click a highlighted fastener word to see how that joint is made.</span></span><button class="btn pri" data-close>Close</button></div>
+</dialog>
+
+<dialog class="dlg wide" id="helpDlg">
+  <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  
+  <div class="help-tabs" id="helpTabs" role="tablist">
+    <button role="tab" data-help-tab="use" class="on" aria-selected="true">How to use</button>
+    <button role="tab" data-help-tab="keys" aria-selected="false">Hotkeys</button>
+    <button data-open-words title="Every woodworking word the program uses, explained">Woodworking words</button>
+  </div>
+  <div class="dlg-b help" id="helpKeys" role="tabpanel" hidden>
+    <p class="hk-intro">Every keyboard shortcut. Most only work on the Design tab, when you are not typing in a box and no window is open.</p>
+    <table class="hk" id="hotkeyTable"></table>
+  </div>
+  <div class="dlg-b help" id="helpUse" role="tabpanel">
+    <div class="sec">The quick way</div>
+    <p>Click <b>Furniture presets</b> (the dark button at the left of the ribbon), pick a design in the middle, set your size on the right, and press <b>Create</b>. Every size has a smallest and a largest value: a box turns red when a number is outside them, and a line says what it must be. If your numbers cannot work together, a warning box says what is wrong, why, and what to change, and nothing is built until they can.
+ Then open the <b>Cut list &amp; shopping</b> tab for the shopping list, the cut list and the drawings of each part, and the <b>Build instructions</b> tab for the steps that put the parts together. Print either one from <b>File</b>, then <b>Print</b>.</p>
+    <p>New to woodworking? <button class="lnk" data-open-words>Woodworking words</button> explains every name the program uses for a piece (apron, cleat, slat) and shows how each joint is made, with a drawing. On the pages, a highlighted word can be clicked for the same thing.</p>
+    <div class="sec">Where things are</div>
+    <dl>
+      <dt>Tabs</dt><dd>The numbered tabs along the top are the steps of a project: Design, Cut list &amp; shopping, Build instructions. <b>File</b>, at the far left, has New, My projects, Save, Copy and Paste design as text, Load and Print.</dd>
+      <dt>Furniture presets</dt><dd>The window has three parts side by side. On the left, <b>Start here</b> (good first projects: the ones rated "Beginner: a good first project"), <b>Recent</b> (what you made last in this browser), <b>Favorites</b>, <b>All designs</b> and the groups, each with how many designs it holds. In the middle, the designs of the group you picked; type in <b>Find a design</b> to look through all of them by name, by what they are made of or by what they are for, and click the buttons beside it (Beginner-friendly, Outdoor and so on) to narrow the list. Click the star on a design to add it to Favorites. On the right, the design you picked: its live picture, which changes as you type, its sizes and choices, and a box that says what cannot work and why. Left of the buttons it says how hard it is to build and about how long it takes. The skill is a rule of thumb: doors to hang, drawers to fit, many plywood panels, angled cuts, carrying fish tanks and framing a building make a design harder; a pocket-hole jig does not, and neither do wooden plugs over screw heads (they only add time). Doors and drawers you add yourself count too, once their hinges or slides are on. The design on the right can always be found in the middle: when a search or a filter leaves it out, it waits at the top of the list, marked "Chosen, not in this list", until you pick another. The sizes you type for a design are kept while you look at others; <b>Reset sizes</b>, beside its name, puts them back where they started. Keyboard: the window opens with the cursor in Find a design; type, then Enter picks the first design found and moves to its sizes, and Enter there presses Create, also right after you put a red size right. The arrow keys move through the designs, and Esc in the list clears what you typed before it closes the window. The window is laid out for a page of 1024 x 640 or larger; in a smaller window its three parts slide sideways together.</dd>
+      <dt>Ribbon</dt><dd>The row of commands under the tabs, in groups: Start, Add, Tools, Edit, View and Finish. <b>More</b> at the end of a group opens every command of that group. <b>Display</b> switches between realistic wood and color blocks, makes the wood see-through or shows the fasteners only, opens all doors and drawers, turns on the exploded view and the color key, and turns the move arrows on or off. A command that is gray needs something first, usually a selected piece.</dd>
+      <dt>Panels</dt><dd>The <b>Pieces</b> list and the <b>Properties</b> of the selected piece float over the 3D view. Drag one by its title bar, roll it up with the dash, or hide it. The two buttons at the right edge of the view bring them back. Properties appears when a piece is selected.</dd>
+      <dt>Status bar</dt><dd>The bar along the bottom says what to do next with the current tool and shows live sizes while you drag. It also has the overall size, the piece count, a warning when pieces overlap, the Fasteners and Sizes switches, and the Snap size.</dd>
+      <dt>Dialogs</dt><dd>A window that pops up over the view, such as Furniture presets, Style &amp; finish or Mirror. The dark button on the right does the job, and Enter presses it. Cancel, the X in the corner and Esc all close it without changing anything. Hold the pointer over a box to read a tip about it.</dd>
+      <dt>Beginner and Expert</dt><dd>The switch at the top right. <b>Beginner</b> shows the three steps a first project needs, and the program picks every screw and joint for you. <b>Expert</b> adds one more tab, <b>Fasteners</b>, after Design: a table of every place two pieces meet, where you can change the screw or joint by hand. Nothing is missing in Beginner: the hardware to buy and which fastener goes where are on the other pages.</dd>
+      <dt>Pages to print</dt><dd>Every tab after Design is a page to read on screen or print. On those tabs the ribbon holds the commands of the page: <b>Back to design</b>, <b>Print</b>, and <b>Style &amp; finish</b>, which picks the wood, the finish and how fancy the joints are. On the Cut list &amp; shopping tab, type the prices from your store and the total follows.</dd>
+      <dt>Build step by step</dt><dd>In the <b>Finish</b> group. The 3D view then shows the design as it stands after each step: what is built so far, the pieces of this step in orange, and the fasteners of this step in dark blue, right through the wood. A panel shows the words of the step and what you need for it. <b>Back</b> and <b>Next</b>, or the left and right arrow keys, move through the steps; Esc leaves and puts the view back as it was. The steps always follow the design: change, add or delete a piece and they are worked out again, here and on the Build instructions page. A design you drew yourself gets a suggested order.</dd>
+      <dt>Check my design</dt><dd>In the <b>Tools</b> group, under <b>More</b> (or right-click empty space in the view). It looks for pieces that nothing holds up, boards too long for their load, and anything that could tip or lean over, and says what to change. Every preset passes it as it comes; run it after you change a design by hand or draw your own. These are rule-of-thumb checks, not an engineer's certification.</dd>
+      <dt>Long fish tank walls</dt><dd>A fish tank wall (or cabinet stand) longer than the longest board you can haul is still built as one wall: the rails of each row are made of pieces joined end to end over a pair of uprights (one upright when they are 4x4s), with a cross piece just inside each rail end, the two cross pieces screwed to each other, and the plywood deck running across the joint, and there are posts at the two ends only, so the tanks stay evenly spaced. The pieces are as even as the bays allow. <b>Build it as</b> in the preset's form can make it separate sections you can carry instead, each with its own posts; they are stood side by side where the rack goes and screwed together through the posts that meet, with no glue, so they come apart again. Either way every upright stands on one piece of deck, so it gets one set of pocket screws. These are rule-of-thumb checks, not an engineer's certification.</dd>
+      <dt>Prices</dt><dd>The prices in the shopping list start as estimates: national averages, not a quote from any store. <span data-hosted="hide"><b>Update prices</b> asks the national lumber price index how much boards and plywood have moved and moves the estimates; apart from counting visits on the public site (see Counting visits, below), it is the only time the program goes online, and it sends nothing about your design. </span>Stores do not let a program read their prices, so the exact ones are typed by hand: on the Cut list &amp; shopping tab, look an item up at your store and type its price into the box. A price you type is marked "yours", is remembered, and is never changed by an update. <b>Price book</b> lists every price, and <b>Paste prices</b> reads them from lines copied from a receipt.</dd>
+      <dt>Another device</dt><dd>A design stays in the browser it was made in. To move it, click <b>File</b>, then <b>Copy design as text</b>, and send the text to yourself in an email or a note. On the other device click <b>File</b>, then <b>Paste design from text</b>. <span data-hosted="only">This online copy cannot print or download files, so move a design to the copy on your computer this way to print it.</span></dd>
+    </dl>
+    <div class="sec">Building your own</div>
+    <dl>
+      <dt>Draw a board</dt><dd>Pick a material in the Add group of the ribbon, click Draw a board, and drag on the floor. Hold Shift to stand it upright.</dd>
+      <dt>Move</dt><dd>Click a piece, then drag it. It snaps to other pieces. Shift + drag raises or lowers it. Alt turns snapping off.</dd>
+      <dt>Arrows and rings</dt><dd>A selected piece shows red, green and blue arrows: drag one to slide it in just that direction. They are see-through until the pointer is on one, so they do not hide the piece, and a selected door, lid or drawer shows its open handle instead. You never need them: a piece can also be dragged, moved with M (then X, Y or Z), or placed by typing X, Y, Z in Properties. Display, then <b>Move arrows</b>, turns them off. Click Rotate to get rings instead, and drag a ring to turn the piece to any angle. The colors match the X, Y, Z symbol in the corner of the view.</dd>
+      <dt>Box select</dt><dd>Hold Shift and drag across empty space to select everything inside the box.</dd>
+      <dt>Copy and mirror</dt><dd>In the Edit group of the ribbon: Duplicate, Copy in a row (evenly spaced copies) and Mirror (the matching other side). More has Duplicate and drag.</dd>
+      <dt>Shape a piece</dt><dd>Select one piece and press <b>Change shape</b> under <b>Shape</b> in Properties. Each end can be cut <b>Angled</b> (set the angle the miter saw reads, and which edge keeps the full length), <b>Rounded</b> or <b>Pointed</b>. <b>Add hole</b> and <b>Add cut-out</b> put an opening in the piece: type its size, and how far its center is from an end and an edge, the way you would mark it with a tape. Corners (on plywood, or in Expert) can be cut off, rounded or notched; Expert also adds slots and notches in an edge. A value that cannot be cut turns its box red and says why. The length in the cut list stays the blank you cut first; the cut list page then has a drawing of each shaped piece under <b>Shapes to cut</b>, with how to cut it. Screws and other fasteners keep 3/8" away from holes and cuts; when a joint has no room left for them, Check my design says so. An end that is angled, rounded or pointed only touches the piece it meets: the program works out no screws there, so fasten it by hand. <b>Make it square again</b> takes every cut off (Ctrl+Z puts it back).</dd>
+      <dt>Right-click</dt><dd>Right-click a piece for a menu of everything you can do to it. Right-click empty space for view options.</dd>
+      <dt>Hide and see through</dt><dd>H hides the selected pieces, Shift+H shows only them, Alt+H brings everything back. Display, then Exploded view, pulls the pieces apart. <b>Show me</b>, beside a word under "Words used in this design" on the pages, shows where those pieces are: they turn blue and the rest goes see-through until you click.</dd>
+      <dt>Screws and other fasteners</dt><dd>Every screw, pocket hole, dowel, brad and bracket is drawn where it goes, at its real size. In <b>Display</b> the Wood row picks how to see them: <b>Solid</b> shows the heads on the surface, <b>See-through</b> (Shift+S) lets you watch a screw pass through one piece into the next, and <b>Fasteners only</b> (Shift+F) leaves just outlines of the wood. Point at a fastener to read what it is and what it goes through. Click one to change the fastener of that connection in the Properties panel, or to delete the connection.</dd>
+      <dt>The style decides what shows</dt><dd><b>Style &amp; finish</b> picks how a design is fastened, and you see the change at once in the 3D view, the lists and the steps. In <b>Everyday</b> and <b>Fine furniture</b> nothing shows on the top or the front of furniture for the house: a table, desk or bench top is held on from underneath, with pocket screws driven up through holes on the inside of the aprons and cross rails, and it only rests on the legs. The build step says how: lay the top face down on a blanket, set the frame upside down on it, mark the overhang all round and drive the screws. The sides show no screw heads either: the shelves, rails and bottom of a bookshelf or a cabinet are held to the sides by pocket screws from holes underneath or inside. Where a screw has to go in through a face that is seen (a bed rail into its leg), its head is sunk in a short wide hole and covered: a wooden plug glued in and cut flush, or wood filler under paint. The build step says how, the finishing step says how to cut the plugs flush, and the shopping list buys them. The notes of a design say where any head shows. In <b>Rustic / rough</b> the screws go in from outside, with the heads showing, on the top and the sides too. A workbench, garage shelves and outdoor pieces keep their screws through the top in Everyday, because that is how those are built. A fastener you pick by hand stays as you picked it in every style, and "Screws, heads plugged" can be picked for any joint. A design saved under an older rule is fastened the current way when you open it (a fastener you picked by hand is kept), and a line at the bottom of the window says what changed.</dd>
+      <dt>Hardware</dt><dd><b>Hardware</b>, in the Add group, has hinges, drawer slides, pulls, catches, casters and more. Pick one, then click the piece it goes on; a blue preview shows where it will sit. Click a piece of hardware to change its size, drag it to slide it along its piece, press Delete to remove it. It is listed under its piece in the Pieces panel and counted in the shopping list.</dd>
+      <dt>Doors, lids and drawers</dt><dd>Select a door or a lid and choose <b>Hang this door or lid</b> (Hardware pulldown, right-click menu, or Properties): it gets hinges on the edge next to its frame, a pull and a catch. For a new drawer, choose <b>Drawer</b> under More in the Add group, pick metal slides or wooden runners, and click inside the space it goes in (between two sides, with something above and below): it is built to fit, on real slides, with a pull. For a drawer box you built yourself, select it and choose <b>Mount this drawer on slides</b>; the box needs a 1/2" gap on each side for metal slides. A hinged door moves with its cabinet. To open a door, lid or drawer, double-click it (double-click again to close it). Or select it and drag its blue handle, a ball for a hinge and a cone for a drawer (a click on the handle opens or closes it all the way), or use the Open slider in Properties. Display has <b>Open all doors and drawers</b> (Alt+O). If something is in the way, both pieces turn red and the status bar says what it hits. Opening never changes the cut list.</dd>
+      <dt>Fastened pieces</dt><dd>Pieces that are screwed, nailed or glued together move and turn together: drag one and the rest come along, shown with a lighter outline. Stretching still changes only the piece you stretch. To move one piece alone, select it and press <b>Unfasten</b> (U): it lists the connections and asks before deleting them. <b>Connect</b> (C) fastens two pieces again. Pieces that end up touching are fastened by themselves; in Expert, the <b>Auto-fasten</b> switch in the status bar turns that off.</dd>
+      <dt>Components</dt><dd>A component is a named set of pieces, like a door or a whole workbench, and it can hold smaller components. Every preset arrives as one. Select pieces and press Shift+M (Make component) to make your own; Shift+B (Break apart) takes one apart. The Pieces panel lists them as a tree: click a row there to select the whole component, or click a selected piece again in the 3D view to step up to the component around it. In Expert, <b>Pick</b> in the status bar can be set to Component, and then the first click selects the whole component.</dd>
+      <dt>Overlaps</dt><dd>Pieces that occupy the same space turn red, and a warning appears in the status bar. Click the warning to select them.</dd>
+      <dt>Change length</dt><dd>Click a piece and drag one of the blue handles on its ends, or type a size in the Properties panel.</dd>
+      <dt>Connect</dt><dd>Click Connect, then the piece to move, then the piece it should meet. The fastener is suggested for you.</dd>
+      <dt>Tape measure</dt><dd>Click <b>Tape measure</b> (T), then two points. The pointer catches corners, edges, the middles of edges, faces and the floor. The size stays on screen, with how far across, up and front to back, and it stays after you leave the tool until the design changes. <b>Measure an angle</b> (A) takes three points: the end of one line, the corner, the end of the other line. <b>Gap between two pieces</b> (G) takes two pieces and gives the smallest gap between them. Esc cancels a half-made one; Delete clears them.</dd>
+      <dt>Measure</dt><dd>Ctrl + click two pieces. The Properties panel shows the gap between them.</dd>
+      <dt>Import a cut list</dt><dd>Found a free plan online? Import a cut list, in the Add group, takes its pieces one per line and lays them on the floor beside your design.</dd>
+      <dt>Look around</dt><dd>Drag empty space to turn the view, right-drag to slide it, scroll to zoom. Fit view, Front, Side and Top are in the View group.</dd>
+    </dl>
+    <div class="sec">Reading a close-up</div>
+    <dl>
+      <dt>Two pictures</dt><dd>Under each step of the <b>Build instructions</b>, every numbered line has a close-up made of two pictures. <b>How it goes in</b>, on the left, shows the two pieces of one joint at a slant, with the screw or nail in dark blue going through the first piece into the second. <b>Where to mark</b>, on the right, shows the face you mark, drill or nail on, seen straight on, with every size of the line. Click a picture to see it large; click again or press Esc to close it.</dd>
+      <dt>How it is seen</dt><dd>The line under the title says how you look at the piece: "seen from the back", "seen from the left (from inside)", "underside, seen from below". Left and right in the picture and in the words are as you see the piece that way. Seen from the back, the left end is the one on your left as you stand behind it.</dd>
+      <dt>The heavy line</dt><dd>The edge or end every size is measured from is drawn heavy and named beside it, such as <b>top end of Back panel (H)</b>, or with a slanted line and a dot that point to it. Put your tape on that edge. When the words say "from the nearest edge", the name says so too (<b>the edge nearest the screws</b>): at the other places of the line it may be the other edge. A heavy dashed line is an edge of the piece behind, which you cannot see from where you mark: set that piece in place, or mark where it will sit, first.</dd>
+      <dt>A size</dt><dd>Each size runs between two thin lines that come off what it measures: an edge of the piece, or the middle of a fastener. The middle of a fastener is a small circle with a cross. The number sits on its own size line; when it does not fit, it is written just past the end of its line. Sizes in one row follow each other: the first from the heavy edge to the first fastener, then from fastener to fastener. <b>3 spaces at 4 5/8"</b> means three equal gaps of 4 5/8" between four fasteners. Pocket holes whose places the words give one by one (a row kept clear of a rail or of the holes at the ends of an apron, or the holes for a top board that crosses only part of a rail) are each measured from the one heavy end instead: the sizes are stacked, one row for each hole, and every one starts at that end.</dd>
+      <dt>Dashed and broken</dt><dd>A dashed outline is the piece behind, which you cannot see from where you mark (the rail the nails go into). A dash-dot line is its middle: a row of nails on it lands in the middle of that piece. A zig-zag across a piece means it goes on past the picture; the line under the picture then gives the count of the row. Two zig-zags with white between them mean a length is left out in the middle, so the picture can show the ends large: a size across them still gives the whole distance.</dd>
+      <dt>Pencil marks</dt><dd>A step that asks you to mark shelf heights shows the marks on its picture, and their heights in a flat picture of its own, "The pencil marks". Each height is measured up from the bottom end, which has a small circle; the number is at the tick of its own mark. The X is on the side of the mark the piece sits on.</dd>
+    </dl>
+    <div class="sec">Typing sizes</div>
+    <dl>
+      <dt>How a box shows a size</dt><dd>Every box you type a size or a position into shows feet and inches once it is over 12": <b>2'-8"</b>, <b>2'-8 1/2"</b>, <b>25'-0"</b>. A size of 12" or less stays in inches: <b>11 1/2"</b>. The cut list, the shopping list, the build instructions and the size labels in the 3D view stay in inches.</dd>
+      <dt>What you can type</dt><dd>Inches or feet and inches, whichever is quicker: <b>32</b>, <b>32"</b>, <b>2'-8"</b>, <b>2' 8</b>, <b>2'8</b>, <b>2 ft 8 in</b>, <b>2.5'</b>, <b>300"</b>, <b>25'</b>, with fractions like <b>3 1/2</b> or <b>2'-8 1/2"</b>. A plain number is inches. When you leave the box it is written the box's way, so 300" becomes 25'-0" and 32 becomes 2'-8". A minus sign in front of a position or a distance goes the other way. After <kbd>M</kbd> or <kbd>S</kbd> you can type a size the same way, with the ' and " keys, such as 2'6".</dd>
+    </dl>
+    <div class="sec">Counting visits</div>
+    <p id="visitsPublic" hidden>This public copy of NominalCAD counts visits with GoatCounter, a simple visit counter: how many people open it, which presets get made, and whether the Cut list &amp; shopping and Build instructions tabs, Print, saving to a file and Check my design get used. It uses no cookies and sends nothing personal and nothing about your designs: no names, no sizes, nothing you type. The copy on your own computer counts nothing.</p>
+    <p id="visitsElsewhere">Nothing is counted here. Only the public copy of NominalCAD on its website counts visits, with GoatCounter, and it uses no cookies and sends nothing personal and nothing about your designs. The copy on your own computer counts nothing.</p>
+    <label class="ck" id="visitsSwitchRow" hidden title="Remembered in this browser. Off: nothing is sent from this browser."><input type="checkbox" id="visitsOn" checked>Count my visits</label>
+    <div class="sec">Keyboard</div>
+    <p>Every keyboard shortcut is on the <button class="lnk" data-help-tab="keys">Hotkeys</button> tab at the top of this window. <kbd>F1</kbd> opens this help; the <b>Keys</b> link at the right end of the status bar opens the Hotkeys tab.</p>
+    <p class="legal">Copyright (c) 2026 NominalCAD. All rights reserved. This program may not be copied, modified or redistributed without permission.</p>
+  </div>
+  <div class="dlg-f"><span class="grow">A 2x4 from the store is really 1 1/2" × 3 1/2".</span>
+    <button class="btn pri" data-close autofocus>Close</button></div>
+</dialog>
+
+
+<datalist id="shapeHoleSizes"><option value='1/8"'><option value='3/8"'><option value='1/2"'><option value='1"'><option value='3"'><option value='4"'><option value='6"'></datalist>
+<script src="three.min.js?v=1b9c62f"></script>
+<script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
+
+<script src="js/nc.js?v=1b9c62f"></script>
+</body>
+</html>
