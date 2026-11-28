@@ -2,14 +2,14 @@
 <!-- NominalCAD. Copyright (c) 2026 NominalCAD. All rights reserved. See COPYRIGHT.txt -->
 <html lang="en">
 <head>
-<script>(function(){var mine='1b9d0c1';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
+<script>(function(){var mine='bea569f';if(location.protocol.indexOf('http')!==0||!window.fetch)return;fetch('version.txt?t='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){t=(t||'').trim();if(!/^[0-9a-f]{6,12}$/.test(t)||t===mine)return;var tried='';try{tried=sessionStorage.getItem('nominalcad.build')||'';sessionStorage.setItem('nominalcad.build',t);}catch(e){return;}if(tried!==t)location.replace(location.pathname+'?v='+t);}).catch(function(){});})();</script>
 <meta charset="utf-8">
 <title>NominalCAD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="css/style.css?v=1b9d0c1">
-<link rel="stylesheet" href="css/catalog.css?v=1b9d0c1">
-<link rel="stylesheet" href="css/phone.css?v=1b9d0c1">
-<link rel="stylesheet" href="css/phonepages.css?v=1b9d0c1">
+<link rel="stylesheet" href="css/style.css?v=bea569f">
+<link rel="stylesheet" href="css/catalog.css?v=bea569f">
+<link rel="stylesheet" href="css/phone.css?v=bea569f">
+<link rel="stylesheet" href="css/phonepages.css?v=bea569f">
 </head>
 <body data-tab="design">
 <script>'use strict';const PHONE_CHOICE_KEY='woodshop.phone.page';const PHONE_SHORT_SIDE_MAX=600;function phoneFacts(){const media=query=>{try{return!!(window.matchMedia&&window.matchMedia(query).matches);}
@@ -137,7 +137,7 @@ phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('has
         <button data-level="beginner" title="Beginner: the three steps a first project needs. The program picks every screw and joint for you.">Beginner</button><button data-level="expert" title="Expert: adds the Fasteners tab, a table where you can change the screw or joint used anywhere two pieces meet.">Expert</button>
       </span>
       <button class="ib" data-open-words title="Woodworking words: what an apron, a cleat or a pocket hole is, and how each joint is made" aria-label="Woodworking words"><svg class="i m"><use href="#i-info"/></svg></button>
-      <button class="ib" data-cmd="help" title="How to use NominalCAD (F1)" aria-label="Help"><svg class="i m"><use href="#i-help"/></svg></button>
+      <button class="ib" data-cmd="help" title="How to use (F1)" data-pn-attr="title:How to use {name} (F1)" aria-label="Help"><svg class="i m"><use href="#i-help"/></svg></button>
     </div>
     <input type="file" id="fileIn" accept=".json" hidden>
   </div>
@@ -583,7 +583,7 @@ phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('has
   <div class="dlg-b">
     <p class="dlg-msg" id="priceBookStatus"></p>
     <div class="frow"><label for="priceStore">Your store</label><input class="fld" type="text" id="priceStore" maxlength="40" placeholder="Home Depot" title="Where the prices you type come from. It is shown on the shopping list. It stays on this computer."></div>
-    <div class="frow" data-hosted="hide"><span></span><label class="ck" title="Once a day at most, when the program opens, it asks the national lumber price index and moves the estimates. Nothing about your designs is sent."><input type="checkbox" id="priceAuto">Update prices each time NominalCAD opens</label></div>
+    <div class="frow" data-hosted="hide"><span></span><label class="ck" title="Once a day at most, when the program opens, it asks the national lumber price index and moves the estimates. Nothing about your designs is sent."><input type="checkbox" id="priceAuto">Update prices each time <span data-pn></span> opens</label></div>
     <div class="frow"><span></span><label class="ck" title="One quiet line at the top of the 3D view that says where the prices stand. Its X puts it away; this brings it back."><input type="checkbox" id="priceLineShow">Show the line about prices over the 3D view</label></div>
     <div class="pbook" id="priceBookTable"></div>
   </div>
@@ -620,7 +620,7 @@ phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('has
 </dialog>
 
 <dialog class="dlg wide" id="helpDlg">
-  <div class="dlg-h"><span>How to use NominalCAD</span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-h"><span>How to use <span data-pn></span></span><button class="ib s" data-close title="Close (Esc)"><svg class="i xs"><use href="#i-x"/></svg></button></div>
   
   <div class="help-tabs" id="helpTabs" role="tablist">
     <button role="tab" data-help-tab="use" class="on" aria-selected="true">How to use</button>
@@ -691,12 +691,12 @@ phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('has
       <dt>What you can type</dt><dd>Inches or feet and inches, whichever is quicker: <b>32</b>, <b>32"</b>, <b>2'-8"</b>, <b>2' 8</b>, <b>2'8</b>, <b>2 ft 8 in</b>, <b>2.5'</b>, <b>300"</b>, <b>25'</b>, with fractions like <b>3 1/2</b> or <b>2'-8 1/2"</b>. A plain number is inches. When you leave the box it is written the box's way, so 300" becomes 25'-0" and 32 becomes 2'-8". A minus sign in front of a position or a distance goes the other way. After <kbd>M</kbd> or <kbd>S</kbd> you can type a size the same way, with the ' and " keys, such as 2'6".</dd>
     </dl>
     <div class="sec">Counting visits</div>
-    <p id="visitsPublic" hidden>This public copy of NominalCAD counts visits with GoatCounter, a simple visit counter: how many people open it, which presets get made, and whether the Cut list &amp; shopping and Build instructions tabs, Print, saving to a file and Check my design get used. It uses no cookies and sends nothing personal and nothing about your designs: no names, no sizes, nothing you type. The copy on your own computer counts nothing.</p>
-    <p id="visitsElsewhere">Nothing is counted here. Only the public copy of NominalCAD on its website counts visits, with GoatCounter, and it uses no cookies and sends nothing personal and nothing about your designs. The copy on your own computer counts nothing.</p>
+    <p id="visitsPublic" hidden>This public copy of <span data-pn></span> counts visits with GoatCounter, a simple visit counter: how many people open it, which presets get made, and whether the Cut list &amp; shopping and Build instructions tabs, Print, saving to a file and Check my design get used. It uses no cookies and sends nothing personal and nothing about your designs: no names, no sizes, nothing you type. The copy on your own computer counts nothing.</p>
+    <p id="visitsElsewhere">Nothing is counted here. Only the public copy of <span data-pn></span> on its website counts visits, with GoatCounter, and it uses no cookies and sends nothing personal and nothing about your designs. The copy on your own computer counts nothing.</p>
     <label class="ck" id="visitsSwitchRow" hidden title="Remembered in this browser. Off: nothing is sent from this browser."><input type="checkbox" id="visitsOn" checked>Count my visits</label>
     <div class="sec">Keyboard</div>
     <p>Every keyboard shortcut is on the <button class="lnk" data-help-tab="keys">Hotkeys</button> tab at the top of this window. <kbd>F1</kbd> opens this help; the <b>Keys</b> link at the right end of the status bar opens the Hotkeys tab.</p>
-    <p class="legal">Copyright (c) 2026 NominalCAD. All rights reserved. This program may not be copied, modified or redistributed without permission.</p>
+    <p class="legal">Copyright (c) 2026 <span data-pn></span>. All rights reserved. This program may not be copied, modified or redistributed without permission.</p>
   </div>
   <div class="dlg-f"><span class="grow">A 2x4 from the store is really 1 1/2" × 3 1/2".</span>
     <button class="btn pri" data-close autofocus>Close</button></div>
@@ -704,9 +704,9 @@ phoneReadHash();window.PHONE_PAGE=phonePageWanted();window.addEventListener('has
 
 
 <datalist id="shapeHoleSizes"><option value='1/8"'><option value='3/8"'><option value='1/2"'><option value='1"'><option value='3"'><option value='4"'><option value='6"'></datalist>
-<script src="three.min.js?v=1b9d0c1"></script>
+<script src="three.min.js?v=bea569f"></script>
 <script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
 
-<script src="js/nc.js?v=1b9d0c1"></script>
+<script src="js/nc.js?v=bea569f"></script>
 </body>
 </html>
